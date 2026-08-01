@@ -74,14 +74,25 @@ describe('game flow', () => {
     expect(state.players.p1.hp).toBe(state.players.p1.maxHp);
   });
 
-  it('game ends when a player reaches the score target', () => {
+  it('game ends after the fixed number of rounds; best score wins', () => {
     const state = freshBattle(2);
-    state.players.p0.score = ROUND.SCORE_TO_WIN;
+    state.round = ROUND.TOTAL_ROUNDS; // this is the last round
+    state.players.p0.score = 5;
+    state.players.p1.score = 2;
     state.players.p1.hp = 0.01;
     state.players.p1.x = ARENA.START_RADIUS + 5;
     run(state, 0.5);
     expect(state.phase).toBe('gameover');
     expect(state.winner).toBe('p0');
+  });
+
+  it('game does not end before the fixed number of rounds, whatever the score', () => {
+    const state = freshBattle(2);
+    state.players.p0.score = 99;
+    state.players.p1.hp = 0.01;
+    state.players.p1.x = ARENA.START_RADIUS + 5;
+    run(state, 0.5);
+    expect(state.phase).toBe('shop');
   });
 });
 
@@ -100,7 +111,7 @@ describe('movement & physics', () => {
     const state = freshBattle(2);
     const pl = state.players.p0;
     pl.vx = 30;
-    run(state, 1);
+    run(state, 1.5);
     expect(Math.abs(pl.vx)).toBeLessThan(1);
   });
 

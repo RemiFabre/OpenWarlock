@@ -16,8 +16,8 @@ export const ARENA = {
 export const PLAYER = {
   RADIUS: 1.0,
   MAX_HP: 100,
-  SPEED: 14,              // u/s
-  FRICTION: 4,            // exponential velocity damping per second
+  SPEED: 11,              // u/s (boots-maxed ≈ the old base speed)
+  FRICTION: 3.4,          // exponential velocity damping per second (more slide)
   STOP_EPSILON: 0.3,
 };
 
@@ -30,8 +30,7 @@ export const LAVA = {
 export const ROUND = {
   COUNTDOWN: 3,
   SHOP_TIME: 25,
-  MAX_ROUNDS: 15,
-  SCORE_TO_WIN: 10,
+  TOTAL_ROUNDS: 10,       // fixed length: every game reaches late game
   KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
 };
 
@@ -51,19 +50,19 @@ export const SPELLS = {
   fireball: {
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 6, 6],
     cooldown: 1.6, speed: 30, radius: 1.0, range: 45,
-    damage: [10, 13, 16], knockback: [22, 26, 30],
+    damage: [10, 13, 16], knockback: [30, 35, 40],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 5, range: 40, width: 1.2,
-    damage: [8, 11, 14], knockback: [10, 10, 10],
+    damage: [8, 11, 14], knockback: [14, 14, 14],
     desc: 'Instant long-range bolt. Low knockback — a finisher.',
   },
   boomerang: {
     name: 'Boomerang', hotkey: 'E', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 6, speed: 26, radius: 1.0, outDistance: 20, homing: 40,
-    damage: [9, 12, 15], knockback: [18, 18, 18],
+    damage: [9, 12, 15], knockback: [24, 24, 24],
     desc: 'Flies out and returns. Can hit on both legs.',
   },
   teleport: {
@@ -79,7 +78,7 @@ export const SPELLS = {
   rush: {
     name: 'Rush', hotkey: 'F', maxLevel: 2, costs: [12, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
-    damage: [8, 12], knockback: [30, 30],
+    damage: [8, 12], knockback: [38, 38],
     desc: 'Dash through enemies, blasting them aside.',
   },
 };
