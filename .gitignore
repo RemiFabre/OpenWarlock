@@ -1,0 +1,4 @@
+node_modules
+test/harness/logs/
+test/harness/failures/
+crash-*.json

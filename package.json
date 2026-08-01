@@ -1,0 +1,24 @@
+{
+  "name": "openwarlock",
+  "version": "0.1.0",
+  "description": "OpenWarlock — open-source web remake of the WC3 Warlock arena brawler",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "start": "node server/index.js",
+    "host": "node scripts/host.js",
+    "test:e2e": "node test/integration.js",
+    "test:visual": "node test/visual.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "vitest": "^4.1.10"
+  }
+}
