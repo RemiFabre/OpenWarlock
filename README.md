@@ -32,8 +32,8 @@ server — it decides every hit, so nobody needs to trust anyone else's client.
 - Spell hits **knock enemies back**. The real killer is the lava ring, which
   closes in over 75 seconds.
 - Last warlock standing wins the round (+2 score, kills are +1). Between
-  rounds, spend gold in the shop. First to **10 score** (or best after 15
-  rounds) wins the game.
+  rounds, spend gold in the shop. A game is **10 rounds**; the highest score
+  at the end wins.
 - In the lobby: **Add bot** to fill seats (they fight, and they go shopping).
 
 ### Spells

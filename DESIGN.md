@@ -16,9 +16,9 @@ This is also the pathfinder project for the bigger "open web MOBA" idea — see
    over time. Last warlock standing ends the round.
 3. **Shop** — everyone gets gold (kills + survival + base income) and 25 seconds
    to buy spells, spell upgrades, and items.
-4. Repeat for `ROUNDS_TO_WIN`-ish structure: game ends when a player reaches
-   **10 round score** (default) or after 15 rounds, whichever first. Score:
-   +1 per kill, +2 for winning a round.
+4. Fixed game length: **10 rounds**, then the highest score wins (ties break
+   on kills). Score: +1 per kill, +2 for winning a round. Fixed length means
+   every game reaches the late-game item builds.
 
 ## The arena
 
@@ -34,9 +34,9 @@ This is also the pathfinder project for the bigger "open web MOBA" idea — see
 
 - **100 max HP** (items can raise it), no mana — spells are limited by cooldowns only.
 - Movement: **right-click to move** (WC3-style), server-side pathing is trivial
-  (straight line — no obstacles). Base speed **14 u/s**.
+  (straight line — no obstacles). Base speed **11 u/s** — Boots put you near the old 14.
 - Physics: warlocks have velocity. Spell hits apply an **impulse**; friction
-  (exponential damping, ~4/s) brings you back to controlled movement. While being
+  (exponential damping, ~3.4/s) brings you back to controlled movement. While being
   knocked back you keep your move order.
 - Death: HP ≤ 0 → you're out for the round (spectate). Killer gets credit;
   if lava kills you, the last warlock who hit you in the past 5 s gets the kill.
@@ -48,12 +48,12 @@ All aimed spells fire toward the cursor. Hotkeys: `Q W E R D F` in buy order.
 
 | Spell | Cost (up/lvl) | CD | Effect |
 |---|---|---|---|
-| **Fireball** | free, +6/lvl (max 3) | 1.6 s | Projectile, speed 30, radius 1.0, **10/13/16 dmg**, knockback 22/26/30 |
-| **Lightning** | 10, +6/lvl (max 3) | 5 s | Near-instant bolt, long range 40, thin, **8/11/14 dmg**, knockback 10 — a sniping/finisher tool |
-| **Boomerang** | 10, +6/lvl (max 3) | 6 s | Projectile that returns to you; can hit on the way back. **9/12/15 dmg**, knockback 18 per hit |
+| **Fireball** | free, +6/lvl (max 3) | 1.6 s | Projectile, speed 30, radius 1.0, **10/13/16 dmg**, knockback 30/35/40 |
+| **Lightning** | 10, +6/lvl (max 3) | 5 s | Near-instant bolt, long range 40, thin, **8/11/14 dmg**, knockback 14 — a sniping/finisher tool |
+| **Boomerang** | 10, +6/lvl (max 3) | 6 s | Projectile that returns to you; can hit on the way back. **9/12/15 dmg**, knockback 24 per hit |
 | **Teleport** | 12, +6/lvl (max 2) | 12/9 s | Blink to cursor, max range 18/26. Clears your velocity (lava save!) |
 | **Shield** | 12, +6/lvl (max 2) | 13/10 s | 1.5 s reflective bubble: incoming projectiles bounce back at their owner |
-| **Rush** | 12, +6/lvl (max 2) | 10/8 s | Dash 16 u; enemies you pass take **8/12 dmg** + strong knockback 30 sideways-out |
+| **Rush** | 12, +6/lvl (max 2) | 10/8 s | Dash 16 u; enemies you pass take **8/12 dmg** + strong knockback 38 sideways-out |
 
 Knockback numbers are impulse magnitudes (u/s added to velocity).
 
