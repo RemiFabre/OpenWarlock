@@ -104,8 +104,11 @@ async function runScenario(engineName, engine) {
     }
     assertNoErrors('90s play');
     await assertHeartbeatTicking(page, 'after play');
+    // A death always comes eventually (the arena shrinks to nothing), but short
+    // PLAY_MS smoke runs can end before the first one — wait instead of asserting.
+    await page.waitForFunction(() => (window.__deaths || 0) >= 1, null, { timeout: 120_000 })
+      .catch(() => { throw new Error('no death event was rendered'); });
     const deaths = await page.evaluate(() => window.__deaths || 0);
-    if (deaths < 1) throw new Error('no death event was rendered during 90s of play');
     console.log(`  play OK — ${deaths} deaths rendered, heartbeat alive, no page errors`);
 
     // -- (b) kill the server mid-battle --------------------------------------
