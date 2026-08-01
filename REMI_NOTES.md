@@ -6,6 +6,33 @@ you asked before leaving.*
 
 ---
 
+## ROUND 3 — OpenWarlock on GitHub + your five requests
+
+- **Repo**: pushed to `github.com/RemiFabre/OpenWarlock` as ~20 short commits
+  (the remote was empty — your snippet hadn't been run — so I recreated the
+  history from "first commit" up). Local folder renamed to `~/OpenWarlock`.
+- **Rebindable keys**: ⌨ Keys panel on the join screen and in the lobby.
+  Click a binding, press a key; conflicts swap; Esc cancels; QWERTY and
+  AZERTY presets; stored in localStorage; every key label in the UI updates.
+- **Speed**: base move speed 14 → **11**; Boots (+20%) ≈ the old speed, as you
+  asked. Friction 4 → 3.4 so knockback slides further.
+- **Knockback +~35% across the board** (Fireball 30/35/40, Boomerang 24,
+  Rush 38, Lightning 14). Combined with slower movement, positioning and lava
+  throws matter much more now. All numbers in `shared/constants.js`.
+- **Avatars**: pick one of 12 emoji on the join screen; drawn on your colored
+  circle in-game, shown in lobby/scoreboard/standings. Bots got monster faces.
+  (Proper sprites/skins are a v2 art question — emoji was the zero-asset way.)
+- **Informative shop**: every spell shows dmg/kb/cd/range; owning a spell
+  shows the upgrade as explicit deltas ("lv 1→2 · dmg 10→13 · kb 30→35").
+- **Clear game end**: games are a **fixed 10 rounds** (your preference — every
+  game reaches late-game builds), highest score wins, ties break on kills.
+  The HUD shows "round 3 / 10" at all times and the lobby states the format.
+
+Verified after all changes: 40 unit tests, chaos + duel scenarios, visual
+test, client robustness in Chromium + WebKit.
+
+---
+
 ## ROUND 2 (same day, after your first playtest)
 
 You asked for: the freeze investigated, an AI-playable test harness, substantial
