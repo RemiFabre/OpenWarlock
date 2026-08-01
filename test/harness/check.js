@@ -112,7 +112,7 @@ export function checkJournal(lines) {
           }
           if (p.alive) alive.add(id); else alive.delete(id);
         }
-        if (e.round > ROUND.MAX_ROUNDS) v(`round ${e.round} exceeds MAX_ROUNDS`, e);
+        if (e.round > ROUND.TOTAL_ROUNDS) v(`round ${e.round} exceeds TOTAL_ROUNDS`, e);
         lastDigest = e;
         lastDigestEntry = e;
         break;

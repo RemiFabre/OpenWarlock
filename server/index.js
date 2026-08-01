@@ -97,6 +97,7 @@ const sockets = new Map(); // playerId -> ws
 let lastPhase = game.phase;
 
 const BOT_NAMES = ['Gul\'dan', 'Kil\'jaeden', 'Cho\'gall', 'Teron', 'Nerzhul', 'Archimonde'];
+const BOT_AVATARS = ['👹', '💀', '👺', '🧟', '🐉', '😈'];
 
 function broadcast(obj) {
   const msg = JSON.stringify(obj);
@@ -124,7 +125,7 @@ function resetToLobby() {
   journaledEvents = 0;
   for (const [id, p] of Object.entries(old)) {
     if (p.bot || sockets.has(id)) {
-      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color });
+      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar });
       np.ready = false;
     }
   }
@@ -151,7 +152,9 @@ wss.on('connection', (ws) => {
         ws.close();
         return;
       }
-      const pl = addPlayer(game, id, m.name || 'warlock');
+      const pl = addPlayer(game, id, m.name || 'warlock', {
+        avatar: typeof m.avatar === 'string' ? m.avatar : undefined,
+      });
       if (game.phase === 'countdown') {
         // the fight hasn't started yet — seat them straight into this round
         pl.alive = true;
@@ -192,7 +195,9 @@ wss.on('connection', (ws) => {
       case 'addBot': {
         if (game.phase !== 'lobby' || playerCount() >= MAX_PLAYERS) break;
         const bid = 'bot' + nextBotId++;
-        const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], { bot: true });
+        const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {
+          bot: true, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
+        });
         bp.ready = true;
         maybeAutoStart();
         break;

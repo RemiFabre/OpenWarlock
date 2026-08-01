@@ -39,11 +39,12 @@ function rng(state) {
 
 // ---- players ------------------------------------------------------------
 
-export function addPlayer(state, id, name, { bot = false, color } = {}) {
+export function addPlayer(state, id, name, { bot = false, color, avatar } = {}) {
   const n = Object.keys(state.players).length;
   state.players[id] = {
     id, name: String(name).slice(0, 16) || 'warlock', bot,
     color: color || COLORS[n % COLORS.length],
+    avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 8) : '🧙',
     x: 0, y: 0, vx: 0, vy: 0,
     moveTarget: null,
     hp: PLAYER.MAX_HP, maxHp: PLAYER.MAX_HP,
@@ -303,9 +304,9 @@ function endRound(state) {
   state.projectiles = [];
   state.events.push({ t: 'roundEnd', winner: winner ? winner.id : null });
 
-  const champion = Object.values(state.players).find(p => p.score >= ROUND.SCORE_TO_WIN);
-  if (champion || state.round >= ROUND.MAX_ROUNDS) {
-    const ranked = Object.values(state.players).sort((a, b) => b.score - a.score);
+  if (state.round >= ROUND.TOTAL_ROUNDS) {
+    const ranked = Object.values(state.players)
+      .sort((a, b) => b.score - a.score || b.kills - a.kills);
     state.winner = ranked[0] ? ranked[0].id : null;
     state.phase = 'gameover';
     state.events.push({ t: 'gameover', winner: state.winner });
@@ -487,7 +488,7 @@ export function snapshot(state) {
   const players = {};
   for (const [id, p] of Object.entries(state.players)) {
     players[id] = {
-      id: p.id, name: p.name, color: p.color, bot: p.bot,
+      id: p.id, name: p.name, color: p.color, bot: p.bot, avatar: p.avatar,
       x: round2(p.x), y: round2(p.y),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
