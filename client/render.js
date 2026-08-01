@@ -153,6 +153,14 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
 
+    // avatar emoji centered on the body
+    ctx.font = `${Math.round(r * 1.6)}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(String(pl.avatar || '🧙'), x, y);
+    ctx.textBaseline = 'alphabetic';
+
     if (pl.burn || pl.inLava) {
       const fl = 0.5 + 0.5 * Math.sin(t * 20 + x);
       ctx.strokeStyle = `rgba(255, 100, 20, ${0.5 + 0.4 * fl})`;
