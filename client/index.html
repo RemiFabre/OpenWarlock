@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenWarlock</title>
+<style>
+  :root {
+    --ember: #ff5d1f;
+    --ember-dim: #b23a10;
+    --lava-deep: #4a0d00;
+    --obsidian: #14100e;
+    --slab: #1d1714;
+    --rock: #2a2320;
+    --parchment: #e8d9b0;
+    --ash: #9a8d80;
+    --gold: #f0b64a;
+    --blood: #c0392b;
+    --ok: #7fb069;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: var(--obsidian); }
+  body {
+    font: 15px/1.45 ui-sans-serif, system-ui, sans-serif;
+    color: var(--parchment);
+  }
+  .display {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-variant: small-caps;
+    letter-spacing: 0.14em;
+  }
+  .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  #game { position: fixed; inset: 0; display: block; cursor: crosshair; }
+
+  /* ---- generic overlay modal ---- */
+  .overlay {
+    position: fixed; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(10, 6, 4, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .slab {
+    background: var(--slab);
+    border: 1px solid #3a2c22;
+    border-top: 3px solid var(--ember);
+    box-shadow: 0 24px 80px rgba(0,0,0,.7);
+    padding: 28px 32px;
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+  .slab h1 {
+    font-size: 34px; font-weight: 500; color: var(--parchment);
+    text-shadow: 0 0 24px rgba(255, 93, 31, .35);
+  }
+  .slab h1 .flame { color: var(--ember); }
+  .slab .sub { color: var(--ash); margin: 4px 0 20px; }
+  .hidden { display: none !important; }
+
+  input[type=text] {
+    width: 100%; padding: 10px 12px;
+    background: var(--obsidian); border: 1px solid #3a2c22;
+    color: var(--parchment); font: inherit; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--ember-dim); }
+  button {
+    font: inherit; cursor: pointer;
+    background: var(--rock); color: var(--parchment);
+    border: 1px solid #4a3a2c; padding: 9px 16px;
+  }
+  button:hover { border-color: var(--ember); color: #fff; }
+  button:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+  button.primary { background: var(--ember-dim); border-color: var(--ember); }
+  button.primary:hover { background: var(--ember); color: #1a0c05; }
+  button:disabled { opacity: .45; cursor: default; }
+  button:disabled:hover { border-color: #4a3a2c; color: var(--parchment); }
+  .row { display: flex; gap: 10px; align-items: center; }
+
+  /* ---- lobby ---- */
+  #playerList { margin: 14px 0 18px; }
+  #playerList .pl {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 4px; border-bottom: 1px solid #2a2019;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .pl .who { flex: 1; }
+  .pl .state { color: var(--ash); }
+  .pl .state.ready { color: var(--ok); }
+  .hint { color: var(--ash); font-size: 13px; margin-top: 14px; }
+  .hint kbd {
+    font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    background: var(--obsidian); border: 1px solid #3a2c22;
+    padding: 1px 5px; border-radius: 3px;
+  }
+
+  /* ---- shop ---- */
+  #shop .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+  #shop .head h1 { font-size: 26px; flex: 1; }
+  #shopGold { color: var(--gold); font-size: 20px; }
+  #shopTimer { color: var(--ash); }
+  .shopgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  @media (max-width: 560px) { .shopgrid { grid-template-columns: 1fr; } }
+  .ware {
+    display: flex; gap: 10px; align-items: center;
+    background: var(--obsidian); border: 1px solid #2e241c; padding: 8px 10px;
+    text-align: left; width: 100%;
+  }
+  .ware:hover:not(:disabled) { border-color: var(--ember); }
+  .ware .icon { font-size: 20px; width: 28px; text-align: center; flex: none; }
+  .ware .info { flex: 1; min-width: 0; }
+  .ware .name { font-weight: 600; font-size: 13.5px; }
+  .ware .name .lv { color: var(--ash); font-weight: 400; }
+  .ware .desc { color: var(--ash); font-size: 12px; }
+  .ware .cost { color: var(--gold); flex: none; }
+  .ware .cost.owned { color: var(--ok); }
+  .shoplabel { grid-column: 1 / -1; color: var(--ash); font-size: 12px;
+    text-transform: uppercase; letter-spacing: .12em; margin-top: 6px; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #spellbar {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: flex; gap: 6px; pointer-events: auto;
+  }
+  .spell {
+    width: 52px; height: 52px; position: relative;
+    background: var(--slab); border: 1px solid #3a2c22;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; user-select: none;
+  }
+  .spell.owned { border-color: #6a4a2c; }
+  .spell .key {
+    position: absolute; top: 1px; left: 4px;
+    font-size: 10px; color: var(--ash);
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .spell .lv { position: absolute; bottom: 1px; right: 4px; font-size: 10px; color: var(--gold); }
+  .spell .cd {
+    position: absolute; inset: 0; background: rgba(8,5,3,.78);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 15px;
+  }
+  .spell:not(.owned) { opacity: .28; }
+
+  #topbar {
+    position: fixed; top: 10px; right: 12px;
+    background: rgba(20, 16, 14, .82); border: 1px solid #2e241c;
+    padding: 8px 12px; min-width: 190px; font-size: 13px;
+  }
+  #topbar .r { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+  #topbar .r .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #topbar .r.me .who { color: #fff; font-weight: 600; }
+  #topbar .r.dead { opacity: .45; }
+  #topbar .score { color: var(--parchment); width: 2.2em; text-align: right; }
+  #topbar .gold { color: var(--gold); width: 2.6em; text-align: right; }
+
+  #phasebar {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+    color: var(--ash); font-size: 13px; letter-spacing: .1em;
+    background: rgba(20,16,14,.72); padding: 5px 14px; border: 1px solid #2e241c;
+  }
+
+  #toast {
+    position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+    color: var(--blood); font-size: 14px; transition: opacity .4s; opacity: 0;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  /* ---- status banners (connection / errors) ---- */
+  #banners {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; flex-direction: column;
+  }
+  .banner {
+    text-align: center; font-size: 13px; letter-spacing: .06em;
+    padding: 7px 16px; text-shadow: 0 1px 2px #000;
+  }
+  #connbanner {
+    background: rgba(74, 13, 0, .92);
+    color: var(--parchment);
+    border-bottom: 1px solid var(--ember-dim);
+  }
+  #connbanner::before { content: '⚠ '; color: var(--ember); }
+  #errbanner {
+    background: rgba(58, 12, 8, .94);
+    color: #ffb8a6;
+    border-bottom: 1px solid var(--blood);
+    cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 30vh; overflow-y: auto;
+  }
+  #errbanner::before { content: '✖ '; color: var(--blood); }
+
+  /* ---- gameover standings ---- */
+  #standings { margin: 12px 0 20px; width: 100%; border-collapse: collapse; }
+  #standings td, #standings th { padding: 7px 6px; border-bottom: 1px solid #2a2019; text-align: left; }
+  #standings th { color: var(--ash); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+  #standings .num { text-align: right; }
+  #standings tr.winner td { color: var(--gold); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="banners">
+  <div id="connbanner" class="banner hidden"></div>
+  <div id="errbanner" class="banner hidden" title="Click to dismiss"></div>
+</div>
+
+<div id="hud">
+  <div id="phasebar" class="hidden"></div>
+  <div id="topbar" class="hidden"></div>
+  <div id="spellbar" class="hidden"></div>
+  <div id="toast"></div>
+</div>
+
+<div id="join" class="overlay">
+  <div class="slab">
+    <h1 class="display">Open<span class="flame">Warlock</span></h1>
+    <p class="sub">Last warlock standing wins the round. The lava is patient.</p>
+    <div class="row">
+      <input id="name" type="text" maxlength="16" placeholder="Your warlock's name" autocomplete="off">
+      <button id="joinBtn" class="primary">Enter</button>
+    </div>
+    <p class="hint">
+      <kbd>right-click</kbd> move &nbsp;·&nbsp; <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>D</kbd><kbd>F</kbd>
+      cast at cursor &nbsp;·&nbsp; knock enemies into the lava
+    </p>
+  </div>
+</div>
+
+<div id="lobby" class="overlay hidden">
+  <div class="slab">
+    <h1 class="display" style="font-size:26px">The Gathering</h1>
+    <p class="sub">Round starts when every warlock is ready (2+ players; bots count).</p>
+    <div id="playerList"></div>
+    <div class="row">
+      <button id="readyBtn" class="primary">I am ready</button>
+      <button id="addBotBtn">Add bot</button>
+      <button id="removeBotBtn">Remove bot</button>
+    </div>
+    <p class="hint">You start with 12 gold — open with a second spell, an item, or a Fireball upgrade, or save it. The shop below works right now.</p>
+    <div class="shopgrid" id="lobbyShop"></div>
+  </div>
+</div>
+
+<div id="shop" class="overlay hidden">
+  <div class="slab" style="width:min(640px, calc(100vw - 32px))">
+    <div class="head">
+      <h1 class="display">The Shop</h1>
+      <span id="shopGold" class="num">0 g</span>
+      <span id="shopTimer" class="num"></span>
+    </div>
+    <p class="sub" id="shopSub">Spend it while you're alive to.</p>
+    <div class="shopgrid" id="shopGrid"></div>
+  </div>
+</div>
+
+<div id="gameover" class="overlay hidden">
+  <div class="slab">
+    <h1 class="display" style="font-size:28px">The Ashes Settle</h1>
+    <p class="sub" id="goWinner"></p>
+    <table id="standings"></table>
+    <button id="againBtn" class="primary">Return to lobby</button>
+  </div>
+</div>
+
+<script type="module" src="/client/main.js"></script>
+</body>
+</html>
