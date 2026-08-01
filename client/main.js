@@ -1,6 +1,6 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, SNAPSHOT_RATE, ARENA } from '../shared/constants.js';
+import { SPELLS, ITEMS, SNAPSHOT_RATE, ARENA, ROUND, SCORE } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -14,7 +14,35 @@ const ICONS = {
   teleport: '🌀', shield: '🛡️', rush: '💨',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
 };
-const KEY_TO_SPELL = { q: 'fireball', w: 'lightning', e: 'boomerang', r: 'teleport', d: 'shield', f: 'rush' };
+// ---- key bindings (rebindable, persisted) ----------------------------------
+
+const KEY_PRESETS = {
+  qwerty: { fireball: 'q', lightning: 'w', boomerang: 'e', teleport: 'r', shield: 'd', rush: 'f' },
+  azerty: { fireball: 'a', lightning: 'z', boomerang: 'e', teleport: 'r', shield: 'd', rush: 'f' },
+};
+
+function loadKeys() {
+  const b = { ...KEY_PRESETS.qwerty };
+  try {
+    const saved = JSON.parse(localStorage.getItem('owKeys') || '{}');
+    for (const spell of Object.keys(b))
+      if (typeof saved[spell] === 'string' && saved[spell]) b[spell] = saved[spell].toLowerCase();
+  } catch { /* corrupt storage — fall back to defaults */ }
+  return b;
+}
+let keyBindings = loadKeys();
+function saveKeys() { try { localStorage.setItem('owKeys', JSON.stringify(keyBindings)); } catch { } }
+function spellForKey(k) {
+  for (const [spell, key] of Object.entries(keyBindings)) if (key === k) return spell;
+  return null;
+}
+function keyLabel(k) { return k.length === 1 ? k.toUpperCase() : k; }
+
+// ---- avatar -----------------------------------------------------------------
+
+const AVATARS = ['🧙', '🧙‍♀️', '🧝', '🧛', '🧞‍♂️', '🦊', '🐸', '👻', '🎃', '🤖', '🦉', '🐢'];
+let myAvatar = localStorage.getItem('owAvatar') || AVATARS[0];
+if (!AVATARS.includes(myAvatar)) myAvatar = AVATARS[0];
 
 // ---- state ----------------------------------------------------------------
 
@@ -67,7 +95,7 @@ function connect(name) {
     sock = new WebSocket(`${proto}://${location.host}`);
   } catch (err) { reportError('socket', err); scheduleReconnect(); return; }
   ws = sock;
-  sock.onopen = () => { if (ws === sock) send({ t: 'join', name }); };
+  sock.onopen = () => { if (ws === sock) send({ t: 'join', name, avatar: myAvatar }); };
   sock.onmessage = (ev) => {
     if (ws !== sock) return;
     let m;
@@ -196,8 +224,13 @@ canvas.addEventListener('mousemove', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
+  if (!$('keysPanel').classList.contains('hidden')) {
+    // panel open: don't cast; Esc closes it (capture mode handles its own Esc)
+    if (e.key === 'Escape' && !capturing) closeKeysPanel();
+    return;
+  }
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
-  const spell = KEY_TO_SPELL[e.key.toLowerCase()];
+  const spell = spellForKey(e.key.toLowerCase());
   if (spell) {
     const w = toWorld(mouse.x, mouse.y);
     send({ t: 'cast', key: spell, x: w.x, y: w.y });
@@ -215,6 +248,99 @@ function doJoin() {
 $('joinBtn').addEventListener('click', doJoin);
 $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 
+// avatar picker grid
+{
+  const grid = $('avatarGrid');
+  for (const av of AVATARS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = av;
+    b.addEventListener('click', () => {
+      myAvatar = av;
+      try { localStorage.setItem('owAvatar', av); } catch { }
+      syncAvatarGrid();
+    });
+    grid.appendChild(b);
+  }
+}
+function syncAvatarGrid() {
+  for (const b of $('avatarGrid').children) b.classList.toggle('sel', b.textContent === myAvatar);
+}
+syncAvatarGrid();
+
+$('lobbyFormat').textContent =
+  `${ROUND.TOTAL_ROUNDS} rounds — +${SCORE.PER_KILL} score per kill, +${SCORE.ROUND_WIN} per round win; highest score wins.`;
+
+// ---- key bindings panel -------------------------------------------------------
+
+const keyRows = {};
+{
+  const list = $('keyList');
+  for (const [spell, spec] of Object.entries(SPELLS)) {
+    const row = document.createElement('div');
+    row.className = 'krow';
+    row.innerHTML = `<span class="icon">${ICONS[spell]}</span><span class="kname">${spec.name}</span>`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'keybtn';
+    btn.addEventListener('click', () => startCapture(spell));
+    row.appendChild(btn);
+    list.appendChild(row);
+    keyRows[spell] = btn;
+  }
+}
+
+let capturing = null; // spell whose binding is being captured
+function startCapture(spell) {
+  cancelCapture();
+  capturing = spell;
+  keyRows[spell].classList.add('capturing');
+  keyRows[spell].textContent = 'press any key…';
+  window.addEventListener('keydown', onCaptureKey, true);
+}
+function cancelCapture() {
+  if (!capturing) return;
+  capturing = null;
+  window.removeEventListener('keydown', onCaptureKey, true);
+  refreshKeyUi();
+}
+function onCaptureKey(e) {
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (e.key === 'Escape') { cancelCapture(); return; }
+  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return; // wait for a real key
+  const k = e.key.toLowerCase();
+  const other = spellForKey(k);
+  if (other && other !== capturing) keyBindings[other] = keyBindings[capturing]; // swap
+  keyBindings[capturing] = k;
+  saveKeys();
+  cancelCapture(); // refreshes all labels
+}
+function applyPreset(preset) {
+  cancelCapture();
+  keyBindings = { ...KEY_PRESETS[preset] };
+  saveKeys();
+  refreshKeyUi();
+}
+$('presetQwerty').addEventListener('click', () => applyPreset('qwerty'));
+$('presetAzerty').addEventListener('click', () => applyPreset('azerty'));
+function closeKeysPanel() { cancelCapture(); $('keysPanel').classList.add('hidden'); }
+$('keysCloseBtn').addEventListener('click', closeKeysPanel);
+$('joinKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
+$('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
+
+// Every key label in the UI (panel, spell bar, join hint) reflects current bindings.
+function refreshKeyUi() {
+  for (const [spell, btn] of Object.entries(keyRows)) {
+    btn.classList.remove('capturing');
+    btn.textContent = keyLabel(keyBindings[spell]);
+  }
+  for (const [spell, el] of Object.entries(spellEls))
+    el.querySelector('.key').textContent = keyLabel(keyBindings[spell]);
+  $('joinKeyHint').innerHTML = Object.keys(SPELLS)
+    .map((spell) => `<kbd>${esc(keyLabel(keyBindings[spell]))}</kbd>`).join('');
+}
+
 $('readyBtn').addEventListener('click', () => {
   const m = me(latest());
   send({ t: 'ready', ready: !(m && m.ready) });
@@ -229,6 +355,39 @@ function toast(msg) {
   el.style.opacity = 1;
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.opacity = 0; }, 1800);
+}
+
+// ---- shop stat lines ----------------------------------------------------------
+// SPELLS fields are scalars or per-level arrays; statAt reads the value at a
+// 1-based level either way.
+const statAt = (v, level) => Array.isArray(v) ? v[Math.min(level, v.length) - 1] : v;
+const SPELL_STAT_FIELDS = [
+  ['damage', 'dmg', ''],
+  ['knockback', 'kb', ''],
+  ['cooldown', 'cd', 's'],
+  ['range', 'rng', ''],
+  ['duration', 'dur', 's'],
+  ['distance', 'dash', ''],
+];
+
+function spellStatLine(spec, level) {
+  const parts = [];
+  for (const [field, label, unit] of SPELL_STAT_FIELDS) {
+    if (spec[field] == null) continue;
+    parts.push(`${label} ${statAt(spec[field], level)}${unit}`);
+  }
+  return parts.join(' · ');
+}
+
+// Upgrade preview: only the fields that actually change, as "10→13" deltas.
+function spellUpgradeLine(spec, level) {
+  const parts = [`lv ${level}→${level + 1}`];
+  for (const [field, label, unit] of SPELL_STAT_FIELDS) {
+    if (spec[field] == null) continue;
+    const cur = statAt(spec[field], level), next = statAt(spec[field], level + 1);
+    if (cur !== next) parts.push(`${label} ${cur}${unit}→${next}${unit}`);
+  }
+  return parts.join(' · ');
 }
 
 // Build shop buttons once per container; refresh() updates them from state.
@@ -246,7 +405,8 @@ function buildShop(container) {
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
       <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
-      <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
+      <span class="desc">${spec.desc}</span>
+      <span class="stats">${spellStatLine(spec, 1)}</span></span><span class="cost num"></span>`;
     b.addEventListener('click', () => send({ t: 'buy', id: key }));
     container.appendChild(b);
     wares.push({ key, spec, el: b, spell: true });
@@ -273,6 +433,10 @@ function buildShop(container) {
         const level = spells[w.key] || 0;
         const lv = w.el.querySelector('.lv');
         lv.textContent = level ? `lv ${level}` : '';
+        const stats = w.el.querySelector('.stats');
+        stats.textContent = level <= 0 ? spellStatLine(w.spec, 1)
+          : level >= w.spec.maxLevel ? `${spellStatLine(w.spec, level)} · max`
+          : spellUpgradeLine(w.spec, level);
         if (level >= w.spec.maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -298,15 +462,16 @@ const refreshShop = buildShop($('shopGrid'));
 const spellEls = {};
 {
   const bar = $('spellbar');
-  for (const [key, spec] of Object.entries(SPELLS)) {
+  for (const key of Object.keys(SPELLS)) {
     const el = document.createElement('div');
     el.className = 'spell';
-    el.innerHTML = `<span class="key">${spec.hotkey}</span>${ICONS[key]}
+    el.innerHTML = `<span class="key"></span>${ICONS[key]}
       <span class="lv"></span><span class="cd hidden"></span>`;
     bar.appendChild(el);
     spellEls[key] = el;
   }
 }
+refreshKeyUi(); // paint current bindings on panel, spell bar, and join hint
 
 // ---- DOM update per phase -------------------------------------------------------
 
@@ -332,7 +497,7 @@ function updateUi(s) {
       const div = document.createElement('div');
       div.className = 'pl';
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.name)}${p.bot ? ' 🤖' : ''}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.bot ? ' 🤖' : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
       list.appendChild(div);
     }
@@ -348,18 +513,20 @@ function updateUi(s) {
   }
 
   if (s.phase === 'battle') {
-    $('phasebar').textContent = `round ${s.round} · arena shrinking`;
+    $('phasebar').textContent = `round ${s.round} / ${ROUND.TOTAL_ROUNDS} · arena shrinking`;
   } else if (s.phase === 'shop') {
-    $('phasebar').textContent = `next round in ${Math.ceil(phaseT)} s`;
+    // during shop, s.round is the round that just finished
+    $('phasebar').textContent =
+      `next round in ${Math.ceil(phaseT)} s · round ${s.round} / ${ROUND.TOTAL_ROUNDS} done`;
   }
 
   if (s.phase === 'gameover') {
     const ranked = playerList.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
     const w = ranked[0];
-    $('goWinner').textContent = w ? `${w.name} rules the ashes.` : '';
+    $('goWinner').textContent = w ? `${w.name} rules the ashes after ${ROUND.TOTAL_ROUNDS} rounds.` : '';
     const rows = ranked.map((p, i) =>
       `<tr class="${i === 0 ? 'winner' : ''}"><td>${i + 1}</td>
-       <td><span class="dot" style="display:inline-block;background:${p.color}"></span> ${esc(p.name)}</td>
+       <td><span class="dot" style="display:inline-block;background:${p.color}"></span> ${esc(p.avatar || '🧙')} ${esc(p.name)}</td>
        <td class="num">${p.score || 0}</td><td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td></tr>`).join('');
     $('standings').innerHTML =
       `<tr><th></th><th>Warlock</th><th class="num">Score</th><th class="num">Kills</th><th class="num">Deaths</th></tr>${rows}`;
@@ -371,7 +538,7 @@ function updateUi(s) {
     $('topbar').innerHTML = ranked.map(p =>
       `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.name)}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
         <span class="score num">${p.score || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
       </div>`).join('');
