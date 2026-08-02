@@ -561,11 +561,96 @@ function mapRound(o) {
 }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-// ---- bot AI (server-side practice dummies) ------------------------------
+// ---- bot AI --------------------------------------------------------------
+// Three difficulty tiers, dispatched on pl.kind (see BOTS in constants.js):
+//   grunt     ★   wanders and throws — cannon fodder
+//   berserker ★★  hyper-aggressive brawler, rushes in, shoves you off the rim
+//   stalker   ★★★ dodges projectiles, leads its shots, teleport lava saves
 
 export function stepBot(state, id, dt) {
   const pl = state.players[id];
   if (!pl || !pl.alive || state.phase !== 'battle') return;
+  switch (pl.kind) {
+    case 'berserker': return stepBerserker(state, pl, dt);
+    case 'stalker': return stepStalker(state, pl, dt);
+    default: return stepGrunt(state, pl, dt);
+  }
+}
+
+// -- shared bot helpers -----------------------------------------------------
+
+function nearestEnemy(state, pl, hpWeight = 0) {
+  // lowest (distance + hp*weight): weight 0 = strictly nearest,
+  // small weight = prefer wounded targets among comparably close ones
+  let best = null, bestScore = Infinity;
+  for (const other of Object.values(state.players)) {
+    if (other === pl || !other.alive) continue;
+    const d = Math.hypot(other.x - pl.x, other.y - pl.y);
+    const score = d + other.hp * hpWeight;
+    if (score < bestScore) { best = other; bestScore = score; }
+  }
+  return best;
+}
+
+// A player's total velocity right now: knockback momentum + control movement.
+function estVel(target) {
+  let vx = target.vx, vy = target.vy;
+  if (target.moveTarget && !target.dash) {
+    const dx = target.moveTarget.x - target.x, dy = target.moveTarget.y - target.y;
+    const d = Math.hypot(dx, dy);
+    if (d > PLAYER.STOP_EPSILON) {
+      const sp = stats(target).speed;
+      vx += (dx / d) * sp; vy += (dy / d) * sp;
+    }
+  }
+  return { vx, vy };
+}
+
+// First-order intercept: where to aim a projectile of speed s so it meets the
+// target if the target keeps its current velocity. Falls back to the target's
+// position when no intercept exists.
+function interceptPoint(pl, target, s) {
+  const { vx, vy } = estVel(target);
+  const rx = target.x - pl.x, ry = target.y - pl.y;
+  const a = vx * vx + vy * vy - s * s;
+  const b = 2 * (rx * vx + ry * vy);
+  const c = rx * rx + ry * ry;
+  let t = Math.hypot(rx, ry) / s; // fallback: flight time to current position
+  if (Math.abs(a) > 1e-6) {
+    const disc = b * b - 4 * a * c;
+    if (disc >= 0) {
+      const sq = Math.sqrt(disc);
+      const t1 = (-b - sq) / (2 * a), t2 = (-b + sq) / (2 * a);
+      const cand = Math.min(...[t1, t2].filter((v) => v > 0));
+      if (Number.isFinite(cand)) t = cand;
+    }
+  }
+  t = Math.min(t, 1.5); // don't lead absurdly far on distant targets
+  return { x: target.x + vx * t, y: target.y + vy * t, t };
+}
+
+// Most urgent hostile projectile whose current velocity ray brings it within
+// `margin` of the bot within `horizon` seconds.
+function scanThreats(state, pl, horizon, margin) {
+  let worst = null;
+  for (const pr of state.projectiles) {
+    if (pr.owner === pl.id) continue;
+    const px = pl.x - pr.x, py = pl.y - pr.y;
+    const v2 = pr.vx * pr.vx + pr.vy * pr.vy;
+    if (v2 < 1e-6) continue;
+    const t = (px * pr.vx + py * pr.vy) / v2; // time of closest approach
+    if (t < 0 || t > horizon) continue;
+    const miss = Math.hypot(px - pr.vx * t, py - pr.vy * t);
+    if (miss > margin) continue;
+    if (!worst || t < worst.t) worst = { pr, t, miss };
+  }
+  return worst;
+}
+
+// -- grunt ★: wanders, spams fireballs with sloppy aim ----------------------
+
+function stepGrunt(state, pl, dt) {
+  const id = pl.id;
   pl._botT = (pl._botT || 0) - dt;
   if (pl._botT > 0) return;
   pl._botT = 0.25 + rng(state) * 0.3;
@@ -582,13 +667,9 @@ export function stepBot(state, id, dt) {
   }
 
   // shoot nearest enemy with a bit of aim error
-  let best = null, bestD = Infinity;
-  for (const other of Object.values(state.players)) {
-    if (other === pl || !other.alive) continue;
-    const dd = Math.hypot(other.x - pl.x, other.y - pl.y);
-    if (dd < bestD) { best = other; bestD = dd; }
-  }
+  const best = nearestEnemy(state, pl);
   if (best && (pl.cooldowns.fireball || 0) <= 0) {
+    const bestD = Math.hypot(best.x - pl.x, best.y - pl.y);
     const err = (rng(state) - 0.5) * bestD * 0.25;
     // lead the target a little using its knockback velocity
     const tx = best.x + best.vx * 0.15 - (best.y - pl.y) / (bestD || 1) * err;
@@ -597,10 +678,242 @@ export function stepBot(state, id, dt) {
   }
 }
 
+// Berserker target choice: closest wins, but wounded, isolated, or
+// rim-standing enemies are tastier. Lower score = better prey.
+function pickPrey(state, pl) {
+  const arena = Math.max(state.arenaRadius, 1);
+  const enemies = Object.values(state.players)
+    .filter((o) => o !== pl && o.alive);
+  let best = null, bestScore = Infinity;
+  for (const e of enemies) {
+    const d = Math.hypot(e.x - pl.x, e.y - pl.y);
+    let crowd = 0; // how much backup this enemy has nearby
+    for (const o of enemies) {
+      if (o === e) continue;
+      crowd += Math.max(0, 18 - Math.hypot(o.x - e.x, o.y - e.y));
+    }
+    const rim = Math.min(1, Math.hypot(e.x, e.y) / arena); // 1 = at the edge
+    const score = d * 0.8 + e.hp * 0.35 + crowd * 0.8 - rim * 8;
+    if (score < bestScore) { best = e; bestScore = score; }
+  }
+  return best;
+}
+
+// -- berserker ★★: relentless brawler ---------------------------------------
+// Hunts the nearest (slightly preferring wounded) enemy, rushes to close,
+// fireballs point-blank with intercept aim, and herds rim-standers into the
+// lava by aiming past them. Only ever retreats from the lava edge itself.
+
+function stepBerserker(state, pl, dt) {
+  const id = pl.id;
+  pl._botT = (pl._botT || 0) - dt;
+  if (pl._botT > 0) return;
+  pl._botT = 0.14 + rng(state) * 0.1;
+
+  const arena = state.arenaRadius;
+  const dCenter = Math.hypot(pl.x, pl.y);
+
+  // hard lava avoidance — the one concession to self-preservation.
+  // Predictive: knockback momentum about to dump us in counts as danger.
+  const fx = pl.x + pl.vx * 0.35, fy = pl.y + pl.vy * 0.35;
+  const fleeing = dCenter > arena - 2.5 || Math.hypot(fx, fy) > arena - 1;
+  if (fleeing) {
+    // already swimming? rush toward center — the dash is 5x walk speed
+    if (dCenter > arena && (pl.spells.rush || 0) > 0 &&
+        (pl.cooldowns.rush || 0) <= 0 && !pl.dash &&
+        castSpell(state, id, 'rush', 0, 0)) return;
+    const s = Math.max(0, arena - 6) / (dCenter || 1);
+    setMoveTarget(state, id, pl.x * s, pl.y * s);
+  }
+
+  // hunt the best prey: near, wounded, isolated from its friends (charging
+  // into the middle of a pack is how a brawler dies), near the rim (shovable)
+  const target = pickPrey(state, pl);
+  if (!target) return;
+  const tdx = target.x - pl.x, tdy = target.y - pl.y;
+  const dist = Math.hypot(tdx, tdy) || 1;
+
+  // rush to close the gap (never dash into the lava though). Against prey
+  // near the rim, aim the dash a hair center-side of them: the dash shoves
+  // victims away from its path, i.e. straight out into the lava.
+  if (!fleeing && (pl.spells.rush || 0) > 0 && (pl.cooldowns.rush || 0) <= 0 &&
+      dist > 2.5 && dist < SPELLS.rush.distance + 5) {
+    const v = estVel(target);
+    let rx = target.x + v.vx * 0.15, ry = target.y + v.vy * 0.15;
+    const tc = Math.hypot(target.x, target.y);
+    if (tc > arena * 0.5 && tc > 1) {
+      rx -= (target.x / tc) * 1.2;
+      ry -= (target.y / tc) * 1.2;
+    }
+    const ex = pl.x + (tdx / dist) * SPELLS.rush.distance;
+    const ey = pl.y + (tdy / dist) * SPELLS.rush.distance;
+    if (Math.hypot(ex, ey) < arena - 1.5 &&
+        castSpell(state, id, 'rush', rx, ry)) return;
+  }
+
+  // prowl a tight ring around the prey, biased toward its center side (so
+  // our knockback shoves them outward and theirs shoves us to safety), with a
+  // constant tangential strafe that grunt-grade aim can't track. Dive to
+  // point-blank only for the finish.
+  if (!fleeing) {
+    if (!pl._strafe) pl._strafe = rng(state) < 0.5 ? 1 : -1;
+    else if (rng(state) < 0.14) pl._strafe = -pl._strafe;
+    const ring = target.hp <= 30 ? 1.5 : 8.5; // wounded prey gets no breathing room
+    const tCenter = Math.hypot(target.x, target.y) || 1;
+    // blend "our side of the prey" with "the center side of the prey"
+    let dx = -(tdx / dist) * 0.5 - (target.x / tCenter) * 0.5;
+    let dy = -(tdy / dist) * 0.5 - (target.y / tCenter) * 0.5;
+    const dn = Math.hypot(dx, dy) || 1;
+    // strafe grows with distance: a straight-line charge is a shooting-range
+    // target, a spiral approach walks between the incoming fireballs
+    const sw = Math.min(10, 4 + dist * 0.3) * pl._strafe;
+    const cx = target.x + (dx / dn) * ring - (tdy / dist) * sw;
+    const cy = target.y + (dy / dn) * ring + (tdx / dist) * sw;
+    setMoveTarget(state, id, cx, cy);
+  }
+
+  // fireball with intercept aim; near the rim, aim past the target toward
+  // the outside so the knockback shoves them into the lava (a ~10u shove —
+  // worth far more than the fireball's damage). Shoot whoever is closest,
+  // except when someone in range is one fireball from death — secure that.
+  let mark = null;
+  for (const o of Object.values(state.players)) {
+    if (o === pl || !o.alive || o.hp > 16) continue;
+    if (Math.hypot(o.x - pl.x, o.y - pl.y) > 24) continue;
+    if (!mark || o.hp < mark.hp) mark = o;
+  }
+  if (!mark) mark = nearestEnemy(state, pl);
+  if (mark && (pl.cooldowns.fireball || 0) <= 0) {
+    const mdx = mark.x - pl.x, mdy = mark.y - pl.y;
+    const mDist = Math.hypot(mdx, mdy) || 1;
+    const aim = interceptPoint(pl, mark, SPELLS.fireball.speed);
+    let ax = aim.x, ay = aim.y;
+    const mCenter = Math.hypot(mark.x, mark.y);
+    // only bend the shot outward when we're already shooting outward-ish,
+    // otherwise the shift just turns a clean intercept into a whiff
+    const outward = (mdx * mark.x + mdy * mark.y) / (mDist * (mCenter || 1));
+    if (mCenter > arena * 0.55 && mCenter > 1 && outward > 0.5) {
+      ax += (mark.x / mCenter) * 2.5;
+      ay += (mark.y / mCenter) * 2.5;
+    }
+    const err = (rng(state) - 0.5) * mDist * 0.12;
+    castSpell(state, id, 'fireball', ax - (mdy / mDist) * err, ay + (mdx / mDist) * err);
+  }
+}
+
+// -- stalker ★★★: the skilled one -------------------------------------------
+// Sidesteps incoming projectiles (or shields when there's no time), leads its
+// fireballs with a real intercept solve, finishes with lightning, teleports
+// out of lava and point-blank pressure, and kites harder when hurt.
+
+function stepStalker(state, pl, dt) {
+  const id = pl.id;
+  pl._dodgeT = Math.max(0, (pl._dodgeT || 0) - dt); // dodge-hold countdown
+  pl._botT = (pl._botT || 0) - dt;
+  if (pl._botT > 0) return;
+  pl._botT = 0.12 + rng(state) * 0.08; // short human-ish reaction, not aimbot
+
+  const arena = state.arenaRadius;
+  const dCenter = Math.hypot(pl.x, pl.y);
+
+  // -- lava save: in the lava now, or momentum about to carry us in
+  const fx = pl.x + pl.vx * 0.35, fy = pl.y + pl.vy * 0.35;
+  const doomed = dCenter > arena || Math.hypot(fx, fy) > arena + 0.3;
+  if (doomed) {
+    if (arena > 2 && (pl.spells.teleport || 0) > 0 &&
+        (pl.cooldowns.teleport || 0) <= 0 &&
+        castSpell(state, id, 'teleport', 0, 0)) return; // blink toward center
+    const s = Math.max(0, arena - 6) / (dCenter || 1);
+    setMoveTarget(state, id, pl.x * s, pl.y * s); // no teleport: sprint inward
+  }
+
+  // -- projectile threat: sidestep off the ray, or shield if it's too late.
+  // A triggered dodge is held (no kiting) until the projectile has passed —
+  // otherwise the kite step would walk straight back into the shot.
+  const threat = scanThreats(state, pl, 0.8, 2.5);
+  let dodging = pl._dodgeT > 0;
+  if (threat) {
+    if (threat.t < 0.35 && threat.miss < 1.9 &&
+        (pl.spells.shield || 0) > 0 && (pl.cooldowns.shield || 0) <= 0) {
+      castSpell(state, id, 'shield', threat.pr.x, threat.pr.y);
+    } else {
+      const v = Math.hypot(threat.pr.vx, threat.pr.vy) || 1;
+      const nx = -threat.pr.vy / v, ny = threat.pr.vx / v; // perpendicular
+      const hop = 4.5;
+      // keep dodging to whichever side of the ray we're already on; only a
+      // dead-on shot leaves the choice open — then pick the side off the lava
+      const off = (pl.x - threat.pr.x) * nx + (pl.y - threat.pr.y) * ny;
+      let side;
+      if (Math.abs(off) > 0.7) side = off > 0 ? 1 : -1;
+      else {
+        const d1 = Math.hypot(pl.x + nx * hop, pl.y + ny * hop);
+        const d2 = Math.hypot(pl.x - nx * hop, pl.y - ny * hop);
+        side = d1 <= d2 ? 1 : -1;
+      }
+      setMoveTarget(state, id, pl.x + nx * hop * side, pl.y + ny * hop * side);
+      dodging = true;
+      pl._dodgeT = threat.t + 0.15;
+    }
+  }
+
+  const target = nearestEnemy(state, pl, 0.04);
+  if (!target) return;
+  const tdx = target.x - pl.x, tdy = target.y - pl.y;
+  const dist = Math.hypot(tdx, tdy) || 1;
+
+  // -- escape point-blank pressure with a blink
+  if (!doomed && dist < 4.5 && pl.hp < 60 && arena > 2 &&
+      (pl.spells.teleport || 0) > 0 && (pl.cooldowns.teleport || 0) <= 0) {
+    let ex = pl.x - (tdx / dist) * 14, ey = pl.y - (tdy / dist) * 14;
+    if (Math.hypot(ex, ey) > arena - 4) { ex = 0; ey = 0; }
+    if (castSpell(state, id, 'teleport', ex, ey)) return;
+  }
+
+  // -- kite: hold a ring around the target, strafe, farther when hurt
+  if (!dodging && !doomed) {
+    const want = pl.hp < pl.maxHp * 0.4 ? 20 : 12;
+    if (!pl._strafe) pl._strafe = rng(state) < 0.5 ? 1 : -1;
+    else if (rng(state) < 0.12) pl._strafe = -pl._strafe;
+    const ux = -tdx / dist, uy = -tdy / dist; // target -> us
+    let mx = target.x + ux * want - uy * pl._strafe * 5;
+    let my = target.y + uy * want + ux * pl._strafe * 5;
+    const md = Math.hypot(mx, my), cap = Math.max(1.5, arena - 4);
+    if (md > cap) { mx *= cap / md; my *= cap / md; }
+    setMoveTarget(state, id, mx, my);
+  }
+
+  // -- lightning: finish the wounded or poke from afar (it's hitscan)
+  if ((pl.spells.lightning || 0) > 0 && (pl.cooldowns.lightning || 0) <= 0 &&
+      dist < SPELLS.lightning.range - 2 && (target.hp <= 20 || dist > 24)) {
+    const v = estVel(target);
+    castSpell(state, id, 'lightning', target.x + v.vx * 0.06, target.y + v.vy * 0.06);
+  }
+
+  // -- fireball with a proper intercept solve; error shrinks at close range
+  if ((pl.spells.fireball || 0) > 0 && (pl.cooldowns.fireball || 0) <= 0) {
+    const aim = interceptPoint(pl, target, SPELLS.fireball.speed);
+    const err = (rng(state) - 0.5) * (0.4 + dist * 0.05);
+    castSpell(state, id, 'fireball',
+      aim.x - (tdy / dist) * err, aim.y + (tdx / dist) * err);
+  }
+}
+
 // Bots spend their gold too (so long games stay challenging).
+// Each kind has its own build order; buy() quietly skips what it can't afford
+// or already owns, so re-running the list every shop just fills the gaps.
+const BOT_BUILDS = {
+  grunt: ['boots', 'fireball', 'amulet', 'teleport', 'fireball', 'cape',
+    'lightning', 'ring', 'sword', 'treads', 'lightning', 'teleport'],
+  berserker: ['fireball', 'fireball', 'rush', 'sword', 'amulet', 'boots',
+    'rush', 'cape', 'treads'],
+  stalker: ['teleport', 'fireball', 'lightning', 'boots', 'fireball',
+    'shield', 'lightning', 'cape', 'ring', 'teleport', 'lightning', 'shield'],
+};
+
 export function botShop(state, id) {
-  const order = ['boots', 'fireball', 'amulet', 'teleport', 'fireball', 'cape',
-    'lightning', 'ring', 'sword', 'treads', 'lightning', 'teleport'];
+  const pl = state.players[id];
+  if (!pl) return;
+  const order = BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   for (const thing of order) {
     buy(state, id, thing); // ignores failures (owned / poor / maxed)
   }
