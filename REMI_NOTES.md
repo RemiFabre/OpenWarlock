@@ -6,6 +6,39 @@ you asked before leaving.*
 
 ---
 
+## ROUND 4 — kills win, size-by-lead, spectating, and the balance lab
+
+- **Win condition**: first to **15 kills** (`ROUND.KILLS_TO_WIN`), checked at
+  round end; 25-round safety cap. Score is gone — kills are the leaderboard,
+  crown on the leader, "first to 15 kills" always visible. Typical 4-player
+  games: 8–11 rounds.
+- **Size-by-lead**: `radius × clamp(1 + 0.08·(kills − avg), 0.5, 2.0)`, live
+  (hitbox AND visual). Tune in `PLAYER.SIZE_LEAD`. My 0.08/kill is a guess —
+  experiment #4 in BALANCE.md measures whether it actually produces comebacks.
+- **Spectator mode**: "Playing ⚔ / Watching 👁" toggle in the lobby. Bots-only
+  games with you watching are first-class (your "I want to see the bots play"
+  mode). Needs ≥2 fighters; bots count.
+- **Balance lab**: `tools/arena.js` — strategy = bot profile × build scheme,
+  Elo from pairwise placements, fully seeded. 4,500 games ran in ~100 s.
+  **Read `BALANCE.md`** for the full report. Headlines: skill (dodging,
+  aim-leading) dominates items by a huge margin; within equal skill, damage+HP
+  builds (Fireball ups + Amulet + Sword; or Shield/Amulet/Ring turtle) crush
+  mobility-first builds; items still matter 4× within a tier. Caveat: bots
+  undervalue utility spells — don't nerf Teleport on this data alone.
+- Earlier in this round (already reported): round-end VICTORY/DEFEAT banner
+  with gold earned, shop Ready button that skips the wait, three bot tiers
+  (Grunt ★ / Berserker ★★ / Stalker ★★★ — the stalker dodges, leads shots,
+  and teleport-saves), synthesized sound effects + mute, no more lobby shop,
+  bigger hitboxes, faster infinite-range fireballs, less damage / more push.
+
+Your reaction-time framework idea (map dodge windows: projectile speed ×
+hitbox × distance vs ~150 ms human reaction) is noted as the right way to do
+the next projectile-feel pass — the arena can compute exactly which shots are
+dodgeable at what range. Soundtrack: waiting on your files; SFX are
+placeholder-quality synth, easy to swap.
+
+---
+
 ## ROUND 3 — OpenWarlock on GitHub + your five requests
 
 - **Repo**: pushed to `github.com/RemiFabre/OpenWarlock` as ~20 short commits
