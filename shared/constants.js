@@ -14,7 +14,7 @@ export const ARENA = {
 };
 
 export const PLAYER = {
-  RADIUS: 1.0,
+  RADIUS: 1.4,            // bigger bodies = spells actually connect
   MAX_HP: 100,
   SPEED: 11,              // u/s (boots-maxed ≈ the old base speed)
   FRICTION: 3.4,          // exponential velocity damping per second (more slide)
@@ -29,6 +29,7 @@ export const LAVA = {
 
 export const ROUND = {
   COUNTDOWN: 3,
+  SUMMARY_TIME: 3.5,      // victory/defeat banner between battle and shop
   SHOP_TIME: 25,
   TOTAL_ROUNDS: 10,       // fixed length: every game reaches late game
   KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
@@ -49,20 +50,20 @@ export const SCORE = { PER_KILL: 1, ROUND_WIN: 2 };
 export const SPELLS = {
   fireball: {
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 6, 6],
-    cooldown: 1.6, speed: 30, radius: 1.0, range: 45,
-    damage: [10, 13, 16], knockback: [30, 35, 40],
+    cooldown: 1.6, speed: 34, radius: 1.0, range: Infinity,
+    damage: [8, 11, 14], knockback: [36, 42, 48],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 5, range: 40, width: 1.2,
-    damage: [8, 11, 14], knockback: [14, 14, 14],
+    cooldown: 5, range: 55, width: 1.2,
+    damage: [7, 9, 12], knockback: [16, 16, 16],
     desc: 'Instant long-range bolt. Low knockback — a finisher.',
   },
   boomerang: {
     name: 'Boomerang', hotkey: 'E', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 6, speed: 26, radius: 1.0, outDistance: 20, homing: 40,
-    damage: [9, 12, 15], knockback: [24, 24, 24],
+    damage: [8, 10, 13], knockback: [28, 28, 28],
     desc: 'Flies out and returns. Can hit on both legs.',
   },
   teleport: {
@@ -78,7 +79,7 @@ export const SPELLS = {
   rush: {
     name: 'Rush', hotkey: 'F', maxLevel: 2, costs: [12, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
-    damage: [8, 12], knockback: [38, 38],
+    damage: [7, 10], knockback: [44, 44],
     desc: 'Dash through enemies, blasting them aside.',
   },
 };
@@ -106,3 +107,12 @@ export const COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6',
   '#e67e22', '#1abc9c', '#fd79a8', '#95a5a6', '#00cec9',
 ];
+
+// ---- Bots ----------------------------------------------------------------
+// Behavior lives in shared/sim.js (stepBot); this is the roster contract
+// shared by server (spawning) and client (lobby UI).
+export const BOTS = {
+  grunt:     { name: 'Grunt',     difficulty: 1, desc: 'Wanders and throws. Cannon fodder.' },
+  berserker: { name: 'Berserker', difficulty: 2, desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats.' },
+  stalker:   { name: 'Stalker',   difficulty: 3, desc: 'Dodges, leads its shots, saves itself with teleport and shield.' },
+};
