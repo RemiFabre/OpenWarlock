@@ -31,9 +31,10 @@ server — it decides every hit, so nobody needs to trust anyone else's client.
 - **Q W E R D F** — cast the matching spell at your cursor
 - Spell hits **knock enemies back**. The real killer is the lava ring, which
   closes in over 75 seconds.
-- Last warlock standing wins the round (+2 score, kills are +1). Between
-  rounds, spend gold in the shop. A game is **10 rounds**; the highest score
-  at the end wins.
+- Last warlock standing wins the round. Kills are everything: the first
+  warlock to **15 kills** wins the game. Your body grows with your kill lead
+  (easier to hit) and shrinks when you trail — the arena self-balances.
+- Between rounds, spend gold in the shop (kills +4 g, round win +3 g).
 - In the lobby: **Add bot** to fill seats (they fight, and they go shopping).
 
 ### Spells
@@ -76,6 +77,13 @@ npm start &               # then, against the live server:
 npm run test:e2e          # two WebSocket clients play a real round
 npm run test:visual       # headless Chromium joins and screenshots the UI
 ```
+
+## Balance lab — thousands of headless games
+
+`node tools/arena.js --games=2000 --players=4` plays full games directly
+against the simulation (no server) between *strategies* (bot profile × build
+scheme), maintains an **Elo rating per strategy**, and reports item/spell win
+rates. Use it to test balance changes with data instead of vibes.
 
 ## AI test harness — script whole matches, check everything
 

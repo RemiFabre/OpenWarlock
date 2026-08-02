@@ -16,9 +16,9 @@ This is also the pathfinder project for the bigger "open web MOBA" idea — see
    over time. Last warlock standing ends the round.
 3. **Shop** — everyone gets gold (kills + survival + base income) and 25 seconds
    to buy spells, spell upgrades, and items.
-4. Fixed game length: **10 rounds**, then the highest score wins (ties break
-   on kills). Score: +1 per kill, +2 for winning a round. Fixed length means
-   every game reaches the late-game item builds.
+4. Win condition: **first to 15 kills** (checked at round end; safety cap of
+   25 rounds, then most kills wins). Kills ARE the leaderboard — no separate
+   score. Typical 4-player games run 8–11 rounds, deep into item builds.
 
 ## The arena
 
@@ -33,6 +33,9 @@ This is also the pathfinder project for the bigger "open web MOBA" idea — see
 ## Warlocks
 
 - **100 max HP** (items can raise it), no mana — spells are limited by cooldowns only.
+- **Size-by-lead**: your body (and hitbox) scales with your kill lead —
+  `radius × clamp(1 + 0.08·(kills − average), 0.5, 2.0)`, live. Leaders are
+  big, obvious targets; trailers are slippery. Self-balancing and readable.
 - Movement: **right-click to move** (WC3-style), server-side pathing is trivial
   (straight line — no obstacles). Base speed **11 u/s** — Boots put you near the old 14.
 - Physics: warlocks have velocity. Spell hits apply an **impulse**; friction
@@ -90,6 +93,9 @@ Knockback numbers are impulse magnitudes (u/s added to velocity).
   lower-latency under packet loss but 10× the complexity — discussed in REMI_NOTES.
 - Rooms: one server process hosts one game (Warlock-style). Lobby = pre-game state.
   Late joiners become spectators; they join as players next round if slots remain.
+- **Spectator mode**: any human can toggle "Watching" in the lobby — bots-only
+  games with a human audience are a first-class mode (for gameplay study and
+  for fun). ≥2 fighters (bots count) are needed to start.
 
 ## Tech choices
 
