@@ -191,6 +191,7 @@
   #topbar .r .who { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #topbar .r.me .who { color: #fff; font-weight: 600; }
   #topbar .r.dead { opacity: .45; }
+  #topbar .r.spec { opacity: .5; }
   #topbar .score { color: var(--parchment); width: 2.2em; text-align: right; }
   #topbar .gold { color: var(--gold); width: 2.6em; text-align: right; }
 
@@ -238,6 +239,10 @@
   #standings th { color: var(--ash); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
   #standings .num { text-align: right; }
   #standings tr.winner td { color: var(--gold); }
+  #standings tr.spec td { color: var(--ash); opacity: .7; }
+
+  /* spectate toggle: "pressed" while watching */
+  #spectateBtn.watching { border-color: var(--ember); color: var(--ember); background: var(--obsidian); }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -279,11 +284,12 @@
 <div id="lobby" class="overlay hidden">
   <div class="slab">
     <h1 class="display" style="font-size:26px">The Gathering</h1>
-    <p class="sub">Round starts when every warlock is ready (2+ players; bots count).<br>
+    <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
       <span id="lobbyFormat"></span></p>
     <div id="playerList"></div>
     <div class="row">
       <button id="readyBtn" class="primary">I am ready</button>
+      <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing ⚔</button>
       <button id="lobbyKeysBtn" class="mini" type="button" style="margin-left:auto">⌨ Keys</button>
     </div>
     <div class="row" id="botRow" style="margin-top:10px; flex-wrap:wrap">

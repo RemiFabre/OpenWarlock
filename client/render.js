@@ -137,7 +137,9 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   for (const pl of players) {
     if (!pl || !pl.alive || !fin(pl.x) || !fin(pl.y)) continue;
     const x = view.sx(pl.x), y = view.sy(pl.y);
-    const r = PLAYER.RADIUS * scale * 1.2; // drawn slightly larger than the hitbox for readability
+    // radius comes from the server (grows with kill lead, shrinks when trailing);
+    // drawn slightly larger than the hitbox for readability
+    const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
 
     // lava tint / shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -211,23 +213,31 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.font = 'small-caps 500 22px Georgia, serif';
     ctx.fillStyle = 'rgba(232, 217, 176, 0.85)';
     // A player who has never died is a mid-game joiner waiting to be seated.
-    const text = vs.me.deaths > 0 ? 'You are ash — spectating' : 'You join next round';
+    const text = vs.me.spectator ? 'Spectating'
+      : vs.me.deaths > 0 ? 'You are ash — spectating' : 'You join next round';
     ctx.fillText(text, view.cx, 64);
   }
 }
 
-// Round-end banner: "{winner} takes round n / 10" (or the final round), plus a
-// personal VICTORY/DEFEAT verdict and the gold earned this round. Fades in
-// fast, then holds for the rest of the summary.
+// Round-end banner: "{winner} takes round n" — or, on the final summary, the
+// game champion's "{name} wins the game" — plus a personal VICTORY/DEFEAT
+// verdict and the gold earned this round (fighters only; spectators get a
+// neutral note). Fades in fast, then holds for the rest of the summary.
 function drawRoundEndBanner(view, vs, players, myId) {
   const { ctx, w } = view;
   const rs = vs.roundSummary;
   const elapsed = ROUND.SUMMARY_TIME - (fin(vs.phaseT) ? vs.phaseT : 0);
   const alpha = Math.max(0, Math.min(1, elapsed / 0.3));
   const winner = rs.winner != null ? players.find(p => p && p.id === rs.winner) : null;
-  const where = rs.final ? 'the final round' : `round ${rs.n} / ${ROUND.TOTAL_ROUNDS}`;
-  const title = winner ? `${winner.name} takes ${where}`
-    : rs.final ? 'Nobody survives the final round' : `Nobody survives round ${rs.n}`;
+  let title;
+  if (rs.final) {
+    // the game is decided on kills, not on who took the last round
+    const champ = players.filter(p => p && !p.spectator).sort((a, b) =>
+      (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0))[0];
+    title = champ ? `${champ.name} wins the game` : 'The game is over';
+  } else {
+    title = winner ? `${winner.name} takes round ${rs.n}` : `Nobody survives round ${rs.n}`;
+  }
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -251,9 +261,15 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.fillText(title, view.cx, view.cy - 34);
   ctx.shadowBlur = 0;
 
-  // my verdict + income (only if I'm actually in this game)
+  // my verdict + income — fighters only; a spectator gets a neutral note
   const income = rs.income && typeof rs.income === 'object' ? rs.income : null;
-  if (myId && income && fin(+income[myId])) {
+  if (vs.me && vs.me.spectator) {
+    if (rs.final) {
+      ctx.font = 'small-caps 700 30px Georgia, serif';
+      ctx.fillStyle = '#9a8d80';
+      ctx.fillText('Game over', view.cx, view.cy + 24);
+    }
+  } else if (myId && income && fin(+income[myId])) {
     const won = rs.winner === myId;
     ctx.font = 'small-caps 700 30px Georgia, serif';
     ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';

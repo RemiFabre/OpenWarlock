@@ -1,6 +1,6 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, SCORE } from '../shared/constants.js';
+import { SPELLS, ITEMS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 
@@ -166,7 +166,8 @@ function phaseSounds(s) {
   if (s.phase !== sfxPhase) {
     if (s.phase === 'battle' && sfxPhase === 'countdown') playSfx('go');
     if (s.phase === 'roundEnd' && s.roundSummary && myId) {
-      playSfx(s.roundSummary.winner === myId ? 'victory' : 'defeat');
+      const m = me(s);
+      if (!(m && m.spectator)) playSfx(s.roundSummary.winner === myId ? 'victory' : 'defeat');
     }
     if (s.phase === 'gameover' && sfxPhase !== null) playSfx('fanfare');
     sfxPhase = s.phase;
@@ -296,7 +297,7 @@ function syncAvatarGrid() {
 syncAvatarGrid();
 
 $('lobbyFormat').textContent =
-  `${ROUND.TOTAL_ROUNDS} rounds — +${SCORE.PER_KILL} score per kill, +${SCORE.ROUND_WIN} per round win; highest score wins.`;
+  `First to ${ROUND.KILLS_TO_WIN} kills wins. Kills +${GOLD.PER_KILL} g · round win +${GOLD.ROUND_WIN} g.`;
 
 // ---- key bindings panel -------------------------------------------------------
 
@@ -371,6 +372,10 @@ function refreshKeyUi() {
 $('readyBtn').addEventListener('click', () => {
   const m = me(latest());
   send({ t: 'ready', ready: !(m && m.ready) });
+});
+$('spectateBtn').addEventListener('click', () => {
+  const m = me(latest());
+  send({ t: 'spectate', on: !(m && m.spectator) });
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
@@ -531,6 +536,10 @@ refreshKeyUi(); // paint current bindings on panel, spell bar, and join hint
 
 function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
 
+// Standings order: most kills first, fewer deaths breaks ties, then gold.
+const byRank = (a, b) =>
+  (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0);
+
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
   const m = me(s);
@@ -540,7 +549,7 @@ function updateUi(s) {
   setVisible('lobby', !!myId && s.phase === 'lobby');
   setVisible('shop', !!myId && s.phase === 'shop');
   setVisible('gameover', !!myId && s.phase === 'gameover');
-  setVisible('spellbar', !!myId && inGame);
+  setVisible('spellbar', !!myId && inGame && !(m && m.spectator));
   setVisible('topbar', !!myId && s.phase !== 'lobby');
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
   phaseSounds(s);
@@ -552,70 +561,92 @@ function updateUi(s) {
       const div = document.createElement('div');
       div.className = 'pl';
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
       list.appendChild(div);
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
+    const specBtn = $('spectateBtn');
+    const watching = !!(m && m.spectator);
+    specBtn.textContent = watching ? 'Watching 👁' : 'Playing ⚔';
+    specBtn.classList.toggle('watching', watching);
+    specBtn.setAttribute('aria-pressed', watching ? 'true' : 'false');
   }
 
   if (s.phase === 'shop') {
-    $('shopGold').textContent = m ? `${m.gold} g` : '';
+    const watching = !!(m && m.spectator);
+    $('shopGold').textContent = !watching && m ? `${m.gold} g` : '';
     const timer = $('shopTimer');
     timer.textContent = `${Math.ceil(phaseT)} s`;
     timer.classList.toggle('low', phaseT <= 5);
-    refreshShop(m);
-    // ready button: bots are always ready; only humans are counted/shown
-    const humans = playerList.filter(p => !p.bot);
-    const readyN = humans.filter(p => p.shopReady).length;
-    const btn = $('shopReadyBtn');
-    if (m && m.shopReady) {
-      btn.disabled = true;
-      btn.classList.remove('primary');
-      btn.textContent = `Waiting for others… (${readyN}/${humans.length} ready)`;
-    } else {
-      btn.disabled = false;
-      btn.classList.add('primary');
-      btn.textContent = humans.length > 1
-        ? `Ready — next round (${readyN}/${humans.length} ready)` : 'Ready — next round';
+    $('shopSub').textContent = watching
+      ? "You're spectating — no shopping" : "Spend it while you're alive to.";
+    setVisible('shopGrid', !watching);
+    setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
+    if (!watching) {
+      refreshShop(m);
+      // ready button: bots are always ready and spectators don't gate the shop;
+      // only fighting humans are counted/shown
+      const humans = playerList.filter(p => !p.bot && !p.spectator);
+      const readyN = humans.filter(p => p.shopReady).length;
+      const btn = $('shopReadyBtn');
+      if (m && m.shopReady) {
+        btn.disabled = true;
+        btn.classList.remove('primary');
+        btn.textContent = `Waiting for others… (${readyN}/${humans.length} ready)`;
+      } else {
+        btn.disabled = false;
+        btn.classList.add('primary');
+        btn.textContent = humans.length > 1
+          ? `Ready — next round (${readyN}/${humans.length} ready)` : 'Ready — next round';
+      }
     }
   }
 
   if (s.phase === 'battle') {
-    $('phasebar').textContent = `round ${s.round} / ${ROUND.TOTAL_ROUNDS} · arena shrinking`;
+    $('phasebar').textContent = `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
   } else if (s.phase === 'roundEnd') {
     $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {
-    // during shop, s.round is the round that just finished
-    $('phasebar').textContent =
-      `next round in ${Math.ceil(phaseT)} s · round ${s.round} / ${ROUND.TOTAL_ROUNDS} done`;
+    $('phasebar').textContent = `next round in ${Math.ceil(phaseT)} s`;
   }
 
   if (s.phase === 'gameover') {
-    const ranked = playerList.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
-    const w = ranked[0];
-    $('goWinner').textContent = w ? `${w.name} rules the ashes after ${ROUND.TOTAL_ROUNDS} rounds.` : '';
-    const rows = ranked.map((p, i) =>
-      `<tr class="${i === 0 ? 'winner' : ''}"><td>${i + 1}</td>
-       <td><span class="dot" style="display:inline-block;background:${p.color}"></span> ${esc(p.avatar || '🧙')} ${esc(p.name)}</td>
-       <td class="num">${p.score || 0}</td><td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td></tr>`).join('');
+    const fightersL = playerList.filter(p => !p.spectator).sort(byRank);
+    const specs = playerList.filter(p => p.spectator);
+    const w = fightersL.find(p => p.id === s.winner) || fightersL[0];
+    $('goWinner').textContent = w ? `${w.name} rules the ashes with ${w.kills || 0} kills.` : '';
+    const who = (p) =>
+      `<td><span class="dot" style="display:inline-block;background:${p.color}"></span> ${esc(p.avatar || '🧙')} ${esc(p.name)}</td>`;
+    const rows = fightersL.map((p, i) =>
+      `<tr class="${w && p.id === w.id ? 'winner' : ''}"><td>${i + 1}</td>${who(p)}
+       <td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td><td class="num">${p.gold || 0}</td></tr>`)
+      .concat(specs.map((p) =>
+        `<tr class="spec"><td>👁</td>${who(p)}<td class="num"></td><td class="num"></td><td class="num"></td></tr>`))
+      .join('');
     $('standings').innerHTML =
-      `<tr><th></th><th>Warlock</th><th class="num">Score</th><th class="num">Kills</th><th class="num">Deaths</th></tr>${rows}`;
+      `<tr><th></th><th>Warlock</th><th class="num">Kills</th><th class="num">Deaths</th><th class="num">Gold</th></tr>${rows}`;
   }
 
-  // topbar scoreboard
+  // topbar scoreboard — fighters ranked by kills, spectators last and dimmed
   if (s.phase !== 'lobby') {
-    const ranked = playerList.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
-    // the current leader wears the crown (only once someone has scored)
-    const leadId = ranked.length && (ranked[0].score || 0) > 0 ? ranked[0].id : null;
-    $('topbar').innerHTML = ranked.map(p =>
+    const fightersL = playerList.filter(p => !p.spectator).sort(byRank);
+    const specs = playerList.filter(p => p.spectator);
+    // the current kill leader wears the crown (only once someone has a kill)
+    const leadId = fightersL.length && (fightersL[0].kills || 0) > 0 ? fightersL[0].id : null;
+    $('topbar').innerHTML = fightersL.map(p =>
       `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
         <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
-        <span class="score num">${p.score || 0}</span>
+        <span class="score num">${p.kills || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
-      </div>`).join('');
+      </div>`).concat(specs.map(p =>
+      `<div class="r spec ${p.id === myId ? 'me' : ''}">
+        <span class="dot" style="background:${p.color}"></span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
+        <span class="score num">👁</span>
+      </div>`)).join('');
   }
 
   // spell bar
