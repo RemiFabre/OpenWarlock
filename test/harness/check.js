@@ -28,7 +28,8 @@ export function checkJournal(lines) {
   const LEGAL = {
     lobby: ['countdown', 'lobby'],
     countdown: ['battle', 'lobby'],
-    battle: ['shop', 'gameover', 'lobby'],
+    battle: ['roundEnd', 'lobby'],
+    roundEnd: ['shop', 'gameover', 'lobby'],
     shop: ['countdown', 'lobby'],
     gameover: ['lobby'],
   };
@@ -49,7 +50,7 @@ export function checkJournal(lines) {
           // previous battle must not count against casts in this one
           for (const k of Object.keys(lastCast)) delete lastCast[k];
         }
-        if (e.from === 'battle' && (e.to === 'shop' || e.to === 'gameover')) {
+        if (e.from === 'battle' && e.to === 'roundEnd') {
           if (totalAtRoundStart >= 2 && alive.size > 1)
             v(`round ended with ${alive.size} players still alive`, e);
         }

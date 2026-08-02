@@ -39,12 +39,14 @@ function rng(state) {
 
 // ---- players ------------------------------------------------------------
 
-export function addPlayer(state, id, name, { bot = false, color, avatar } = {}) {
+export function addPlayer(state, id, name, { bot = false, color, avatar, kind } = {}) {
   const n = Object.keys(state.players).length;
   state.players[id] = {
     id, name: String(name).slice(0, 16) || 'warlock', bot,
     color: color || COLORS[n % COLORS.length],
     avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 8) : '🧙',
+    kind: bot ? (kind || 'grunt') : null,
+    shopReady: false,
     x: 0, y: 0, vx: 0, vy: 0,
     moveTarget: null,
     hp: PLAYER.MAX_HP, maxHp: PLAYER.MAX_HP,
@@ -186,7 +188,7 @@ function fireLightning(state, pl, level, dx, dy) {
 export function buy(state, id, thing) {
   const pl = state.players[id];
   if (!pl) return { ok: false, err: 'no player' };
-  if (state.phase !== 'shop' && state.phase !== 'lobby')
+  if (state.phase !== 'shop')
     return { ok: false, err: 'shop is closed' };
 
   if (Object.hasOwn(SPELLS, thing)) {
@@ -288,6 +290,7 @@ function startRound(state) {
     pl.burn = 0; pl.shieldT = 0; pl.dash = null;
     pl.lastHitBy = null;
     pl.roundKills = 0;
+    pl.shopReady = false;
   });
   state.events.push({ t: 'round', n: state.round });
 }
@@ -295,16 +298,28 @@ function startRound(state) {
 function endRound(state) {
   const alive = Object.values(state.players).filter(p => p.alive);
   const winner = alive.length === 1 ? alive[0] : null;
+  const income = {};
   for (const pl of Object.values(state.players)) {
+    let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL; // kill gold shown, already granted at kill time
     pl.gold += GOLD.ROUND_BASE;
-    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.score += SCORE.ROUND_WIN; }
-    if (pl.diedFirstRound === state.round) pl.gold += GOLD.FIRST_DEATH;
+    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.score += SCORE.ROUND_WIN; g += GOLD.ROUND_WIN; }
+    if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
+    income[pl.id] = g;
     pl.dash = null; pl.moveTarget = null;
+    pl.shopReady = false;
   }
   state.projectiles = [];
+  state.roundSummary = {
+    n: state.round, winner: winner ? winner.id : null, income,
+    final: state.round >= ROUND.TOTAL_ROUNDS,
+  };
   state.events.push({ t: 'roundEnd', winner: winner ? winner.id : null });
+  state.phase = 'roundEnd';
+  state.phaseT = ROUND.SUMMARY_TIME;
+}
 
-  if (state.round >= ROUND.TOTAL_ROUNDS) {
+function afterSummary(state) {
+  if (state.roundSummary && state.roundSummary.final) {
     const ranked = Object.values(state.players)
       .sort((a, b) => b.score - a.score || b.kills - a.kills);
     state.winner = ranked[0] ? ranked[0].id : null;
@@ -314,6 +329,14 @@ function endRound(state) {
     state.phase = 'shop';
     state.phaseT = ROUND.SHOP_TIME;
   }
+}
+
+// Mark a player done with shopping; when everyone (bots count as always
+// done) is ready the next round starts early.
+export function setShopReady(state, id, ready = true) {
+  const pl = state.players[id];
+  if (!pl || state.phase !== 'shop') return;
+  pl.shopReady = !!ready;
 }
 
 // ---- main step ----------------------------------------------------------
@@ -327,10 +350,17 @@ export function step(state, dt) {
       state.phaseT -= dt;
       if (state.phaseT <= 0) { state.phase = 'battle'; state.time = 0; }
       return;
-    case 'shop':
+    case 'roundEnd':
       state.phaseT -= dt;
-      if (state.phaseT <= 0) startRound(state);
+      if (state.phaseT <= 0) afterSummary(state);
       return;
+    case 'shop': {
+      state.phaseT -= dt;
+      const everyoneReady = Object.values(state.players).length > 0 &&
+        Object.values(state.players).every(p => p.bot || p.shopReady);
+      if (state.phaseT <= 0 || everyoneReady) startRound(state);
+      return;
+    }
     case 'battle':
       stepBattle(state, dt);
       return;
@@ -441,8 +471,9 @@ function stepProjectiles(state, dt) {
     pr.x += pr.vx * dt; pr.y += pr.vy * dt;
     pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
 
-    // range expiry
+    // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
+    if (Math.hypot(pr.x, pr.y) > ARENA.START_RADIUS * 2) continue;
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance) {
       pr.returning = true;
       pr.hit = {};
@@ -489,6 +520,7 @@ export function snapshot(state) {
   for (const [id, p] of Object.entries(state.players)) {
     players[id] = {
       id: p.id, name: p.name, color: p.color, bot: p.bot, avatar: p.avatar,
+      kind: p.kind, shopReady: p.shopReady,
       x: round2(p.x), y: round2(p.y),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
@@ -505,6 +537,7 @@ export function snapshot(state) {
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
     winner: state.winner,
+    roundSummary: state.roundSummary || null,
     players,
     projectiles: state.projectiles.map(p => ({
       id: p.id, type: p.type, x: round2(p.x), y: round2(p.y),

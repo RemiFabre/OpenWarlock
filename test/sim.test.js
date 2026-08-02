@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, stepBot, botShop,
+  startGame, step, snapshot, stepBot, botShop, setShopReady,
 } from '../shared/sim.js';
 import { ARENA, PLAYER, SPELLS, ITEMS, GOLD, ROUND } from '../shared/constants.js';
 
@@ -53,6 +53,10 @@ describe('game flow', () => {
     castSpell(state, 'p0', 'fireball', 10, 0);
     run(state, 1);
     expect(state.players.p1.alive).toBe(false);
+    expect(state.phase).toBe('roundEnd'); // victory banner first
+    expect(state.roundSummary.winner).toBe('p0');
+    expect(state.roundSummary.income.p0).toBe(GOLD.ROUND_BASE + GOLD.PER_KILL + GOLD.ROUND_WIN);
+    run(state, ROUND.SUMMARY_TIME + 0.1);
     expect(state.phase).toBe('shop');
     expect(state.players.p0.kills).toBe(1);
     expect(state.players.p0.score).toBeGreaterThanOrEqual(1 + 2); // kill + round win
@@ -65,7 +69,7 @@ describe('game flow', () => {
     const state = freshBattle(2);
     state.players.p1.hp = 0.01;
     state.players.p1.x = ARENA.START_RADIUS + 5; // in lava
-    run(state, 0.5);
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
     expect(state.phase).toBe('shop');
     run(state, ROUND.SHOP_TIME + 0.5);
     expect(state.phase).toBe('countdown');
@@ -81,7 +85,7 @@ describe('game flow', () => {
     state.players.p1.score = 2;
     state.players.p1.hp = 0.01;
     state.players.p1.x = ARENA.START_RADIUS + 5;
-    run(state, 0.5);
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
     expect(state.phase).toBe('gameover');
     expect(state.winner).toBe('p0');
   });
@@ -91,7 +95,7 @@ describe('game flow', () => {
     state.players.p0.score = 99;
     state.players.p1.hp = 0.01;
     state.players.p1.x = ARENA.START_RADIUS + 5;
-    run(state, 0.5);
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
     expect(state.phase).toBe('shop');
   });
 });
@@ -358,6 +362,8 @@ describe('edge cases (fuzz campaign probes)', () => {
     const roundEnds = state.events.filter(e => e.t === 'roundEnd');
     expect(roundEnds.length).toBe(1);
     expect(roundEnds[0].winner).toBe(null);
+    expect(state.phase).toBe('roundEnd');
+    run(state, ROUND.SUMMARY_TIME + 0.1);
     expect(state.phase).toBe('shop');
     // and the next round starts cleanly with both respawned
     run(state, ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
@@ -464,7 +470,7 @@ describe('edge cases (fuzz campaign probes)', () => {
     const state = freshBattle(2);
     state.players.p1.hp = 0.001;
     state.players.p1.x = ARENA.START_RADIUS + 5;
-    run(state, 0.5);
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
     expect(state.phase).toBe('shop');
     state.players.p0.gold = 100;
     while (state.phaseT > DT) step(state, DT);
@@ -474,6 +480,56 @@ describe('edge cases (fuzz campaign probes)', () => {
     const gold = state.players.p0.gold;
     expect(buy(state, 'p0', 'fireball').ok).toBe(false);
     expect(state.players.p0.gold).toBe(gold);
+  });
+});
+
+describe('round-3 mechanics', () => {
+  function toShop(state) {
+    state.players.p1.hp = 0.001;
+    state.players.p1.x = ARENA.START_RADIUS + 5;
+    run(state, 0.5 + ROUND.SUMMARY_TIME + 0.1);
+    expect(state.phase).toBe('shop');
+  }
+
+  it('buying is not allowed in the lobby anymore', () => {
+    const state = createGame({ seed: 3 });
+    addPlayer(state, 'a', 'Alice');
+    state.players.a.gold = 99;
+    expect(buy(state, 'a', 'lightning').ok).toBe(false);
+  });
+
+  it('everyone ready in the shop skips straight to the next round', () => {
+    const state = freshBattle(2);
+    toShop(state);
+    expect(state.phaseT).toBeGreaterThan(ROUND.SHOP_TIME - 5);
+    setShopReady(state, 'p0');
+    step(state, DT);
+    expect(state.phase).toBe('shop'); // p1 not ready yet
+    setShopReady(state, 'p1');
+    step(state, DT);
+    expect(state.phase).toBe('countdown');
+  });
+
+  it('shop-ready flags reset every round', () => {
+    const state = freshBattle(2);
+    toShop(state);
+    setShopReady(state, 'p0');
+    setShopReady(state, 'p1');
+    run(state, ROUND.COUNTDOWN + 1);
+    expect(state.phase).toBe('battle');
+    expect(state.players.p0.shopReady).toBe(false);
+  });
+
+  it('fireballs have unlimited range but are culled off-world', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.x = 0; a.y = 0;
+    state.players.p1.y = 50; state.players.p2.y = -50;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 2); // traveled ~68u — far beyond the old 45u cap
+    expect(state.projectiles.length).toBe(1);
+    run(state, 2); // now beyond 2× arena radius: culled
+    expect(state.projectiles.length).toBe(0);
   });
 });
 

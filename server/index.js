@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, stepBot, botShop,
+  startGame, step, snapshot, stepBot, botShop, setShopReady,
 } from '../shared/sim.js';
-import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
+import { TICK_RATE, SNAPSHOT_RATE, BOTS } from '../shared/constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -125,7 +125,7 @@ function resetToLobby() {
   journaledEvents = 0;
   for (const [id, p] of Object.entries(old)) {
     if (p.bot || sockets.has(id)) {
-      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar });
+      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind });
       np.ready = false;
     }
   }
@@ -175,6 +175,7 @@ wss.on('connection', (ws) => {
     if (!pl) return;
     switch (m.t) {
       case 'ready':
+        if (game.phase === 'shop') { setShopReady(game, id, !!m.ready); break; }
         pl.ready = !!m.ready;
         maybeAutoStart();
         break;
@@ -194,9 +195,10 @@ wss.on('connection', (ws) => {
       }
       case 'addBot': {
         if (game.phase !== 'lobby' || playerCount() >= MAX_PLAYERS) break;
+        const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
         const bid = 'bot' + nextBotId++;
         const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {
-          bot: true, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
+          bot: true, kind, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
         });
         bp.ready = true;
         maybeAutoStart();
