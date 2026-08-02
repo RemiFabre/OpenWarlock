@@ -1,6 +1,6 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND } from '../shared/constants.js';
 
 // Precomputed drifting lava blobs (deterministic, just for looks).
 const BLOBS = [];
@@ -137,7 +137,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   for (const pl of players) {
     if (!pl || !pl.alive || !fin(pl.x) || !fin(pl.y)) continue;
     const x = view.sx(pl.x), y = view.sy(pl.y);
-    const r = PLAYER.RADIUS * scale * 1.5; // drawn larger than the hitbox for readability
+    const r = PLAYER.RADIUS * scale * 1.2; // drawn slightly larger than the hitbox for readability
 
     // lava tint / shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -204,6 +204,9 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.fillText(String(n), view.cx, view.cy + 20);
     ctx.shadowBlur = 0;
   }
+  if (vs.phase === 'roundEnd' && vs.roundSummary && typeof vs.roundSummary === 'object') {
+    drawRoundEndBanner(view, vs, players, myId);
+  }
   if (vs.phase === 'battle' && vs.me && !vs.me.alive) {
     ctx.font = 'small-caps 500 22px Georgia, serif';
     ctx.fillStyle = 'rgba(232, 217, 176, 0.85)';
@@ -211,6 +214,57 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     const text = vs.me.deaths > 0 ? 'You are ash — spectating' : 'You join next round';
     ctx.fillText(text, view.cx, 64);
   }
+}
+
+// Round-end banner: "{winner} takes round n / 10" (or the final round), plus a
+// personal VICTORY/DEFEAT verdict and the gold earned this round. Fades in
+// fast, then holds for the rest of the summary.
+function drawRoundEndBanner(view, vs, players, myId) {
+  const { ctx, w } = view;
+  const rs = vs.roundSummary;
+  const elapsed = ROUND.SUMMARY_TIME - (fin(vs.phaseT) ? vs.phaseT : 0);
+  const alpha = Math.max(0, Math.min(1, elapsed / 0.3));
+  const winner = rs.winner != null ? players.find(p => p && p.id === rs.winner) : null;
+  const where = rs.final ? 'the final round' : `round ${rs.n} / ${ROUND.TOTAL_ROUNDS}`;
+  const title = winner ? `${winner.name} takes ${where}`
+    : rs.final ? 'Nobody survives the final round' : `Nobody survives round ${rs.n}`;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // dark band so the text stays readable over the arena
+  const bandH = 130;
+  const band = ctx.createLinearGradient(0, view.cy - bandH, 0, view.cy + bandH);
+  band.addColorStop(0, 'rgba(10, 6, 4, 0)');
+  band.addColorStop(0.28, 'rgba(10, 6, 4, 0.78)');
+  band.addColorStop(0.72, 'rgba(10, 6, 4, 0.78)');
+  band.addColorStop(1, 'rgba(10, 6, 4, 0)');
+  ctx.fillStyle = band;
+  ctx.fillRect(0, view.cy - bandH, w, bandH * 2);
+
+  ctx.textAlign = 'center';
+  let size = 42; // shrink to fit long names on narrow screens
+  do { ctx.font = `small-caps 500 ${size}px Georgia, serif`; size -= 4; }
+  while (size > 18 && ctx.measureText(title).width > w * 0.92);
+  ctx.fillStyle = '#e8d9b0';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'; ctx.shadowBlur = 14;
+  ctx.fillText(title, view.cx, view.cy - 34);
+  ctx.shadowBlur = 0;
+
+  // my verdict + income (only if I'm actually in this game)
+  const income = rs.income && typeof rs.income === 'object' ? rs.income : null;
+  if (myId && income && fin(+income[myId])) {
+    const won = rs.winner === myId;
+    ctx.font = 'small-caps 700 30px Georgia, serif';
+    ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';
+    if (won) { ctx.shadowColor = 'rgba(240, 182, 74, 0.5)'; ctx.shadowBlur = 18; }
+    ctx.fillText(won ? 'victory' : 'defeat', view.cx, view.cy + 24);
+    ctx.shadowBlur = 0;
+    ctx.font = '15px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = '#f0b64a';
+    ctx.fillText(`+${+income[myId]} gold`, view.cx, view.cy + 56);
+  }
+  ctx.restore();
 }
 
 function drawFx(view, fx, now) {

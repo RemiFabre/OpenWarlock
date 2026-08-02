@@ -1,7 +1,8 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, SNAPSHOT_RATE, ARENA, ROUND, SCORE } from '../shared/constants.js';
+import { SPELLS, ITEMS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, SCORE } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
+import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -134,18 +135,42 @@ function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj))
 function onEvent(e) {
   const now = performance.now();
   switch (e.t) {
-    case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); break;
-    case 'beam': fx.push({ ...e, type: 'beam', at: now, dur: 0.3 }); break;
+    case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
+    case 'beam': fx.push({ ...e, type: 'beam', at: now, dur: 0.3 }); playSfx('zap'); break;
     case 'hit': if (e.amount >= 1) fx.push({ ...e, type: 'hit', at: now, dur: 0.8 }); break;
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
+      playSfx('death');
       window.__deaths = (window.__deaths || 0) + 1; // test/debug hook
       break;
-    case 'teleport': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); break;
-    case 'reflect': fx.push({ ...e, type: 'reflect', at: now, dur: 0.4 }); break;
-    case 'cast': if (e.spell === 'rush') fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.3 }); break;
+    case 'teleport': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('teleport'); break;
+    case 'reflect': fx.push({ ...e, type: 'reflect', at: now, dur: 0.4 }); playSfx('reflect'); break;
+    case 'cast':
+      if (e.spell === 'rush') fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.3 });
+      if (e.spell === 'fireball') playSfx('whoosh');
+      break;
   }
   while (fx.length > 200) fx.shift();
+}
+
+// ---- phase-driven sounds ------------------------------------------------------
+// Countdown ticks, round-start go, roundEnd victory/defeat sting, gameover
+// fanfare. Driven from snapshots (updateUi) so it works from any join point.
+
+let sfxPhase = null, sfxTickN = null;
+function phaseSounds(s) {
+  if (s.phase === 'countdown') {
+    const n = Math.ceil(Number.isFinite(+s.phaseT) ? +s.phaseT : 0);
+    if (n !== sfxTickN && n >= 1 && n <= 3) { sfxTickN = n; playSfx('tick'); }
+  } else sfxTickN = null;
+  if (s.phase !== sfxPhase) {
+    if (s.phase === 'battle' && sfxPhase === 'countdown') playSfx('go');
+    if (s.phase === 'roundEnd' && s.roundSummary && myId) {
+      playSfx(s.roundSummary.winner === myId ? 'victory' : 'defeat');
+    }
+    if (s.phase === 'gameover' && sfxPhase !== null) playSfx('fanfare');
+    sfxPhase = s.phase;
+  }
 }
 
 // ---- interpolation -----------------------------------------------------------
@@ -193,6 +218,7 @@ function interpolated(now) {
     phaseT,
     round: s.round,
     arenaRadius: fin(arenaRadius) ? arenaRadius : ARENA.START_RADIUS,
+    roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
     players, projectiles, me: me(s),
   };
 }
@@ -241,6 +267,7 @@ window.addEventListener('keydown', (e) => {
 
 $('name').value = localStorage.getItem('warlockName') || '';
 function doJoin() {
+  initSfx(); // user gesture: the earliest moment browsers allow audio
   const name = $('name').value.trim() || 'warlock';
   localStorage.setItem('warlockName', name);
   connect(name);
@@ -345,9 +372,37 @@ $('readyBtn').addEventListener('click', () => {
   const m = me(latest());
   send({ t: 'ready', ready: !(m && m.ready) });
 });
-$('addBotBtn').addEventListener('click', () => send({ t: 'addBot' }));
+$('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('againBtn').addEventListener('click', () => send({ t: 'again' }));
+
+// bot picker: one button per bot kind, difficulty as stars, desc as tooltip
+const botStars = (kind) => BOTS[kind] ? '★'.repeat(BOTS[kind].difficulty) : '';
+{
+  const wrap = $('botBtns');
+  for (const [kind, spec] of Object.entries(BOTS)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'botadd';
+    b.id = `addBot-${kind}`;
+    b.title = spec.desc;
+    b.innerHTML = `+ ${esc(spec.name)} <span class="stars">${botStars(kind)}</span>`;
+    b.addEventListener('click', () => send({ t: 'addBot', kind }));
+    wrap.appendChild(b);
+  }
+}
+
+// mute toggle (persisted in localStorage 'owMuted')
+{
+  const btn = $('muteBtn');
+  const paint = () => { btn.textContent = isMuted() ? '🔇' : '🔊'; };
+  btn.addEventListener('click', () => {
+    initSfx(); // a gesture too — lets sound start here if join predates audio
+    setMuted(!isMuted());
+    paint();
+  });
+  paint();
+}
 
 function toast(msg) {
   const el = $('toast');
@@ -363,7 +418,7 @@ function toast(msg) {
 const statAt = (v, level) => Array.isArray(v) ? v[Math.min(level, v.length) - 1] : v;
 const SPELL_STAT_FIELDS = [
   ['damage', 'dmg', ''],
-  ['knockback', 'kb', ''],
+  ['knockback', 'push', ''],
   ['cooldown', 'cd', 's'],
   ['range', 'rng', ''],
   ['duration', 'dur', 's'],
@@ -407,7 +462,7 @@ function buildShop(container) {
       <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
       <span class="desc">${spec.desc}</span>
       <span class="stats">${spellStatLine(spec, 1)}</span></span><span class="cost num"></span>`;
-    b.addEventListener('click', () => send({ t: 'buy', id: key }));
+    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
     wares.push({ key, spec, el: b, spell: true });
   }
@@ -418,7 +473,7 @@ function buildShop(container) {
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
       <span class="info"><span class="name">${spec.name}</span>
       <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
-    b.addEventListener('click', () => send({ t: 'buy', id: key }));
+    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
     wares.push({ key, spec, el: b, spell: false });
   }
@@ -455,7 +510,6 @@ function buildShop(container) {
     }
   };
 }
-const refreshLobbyShop = buildShop($('lobbyShop'));
 const refreshShop = buildShop($('shopGrid'));
 
 // Spell bar
@@ -488,7 +542,8 @@ function updateUi(s) {
   setVisible('gameover', !!myId && s.phase === 'gameover');
   setVisible('spellbar', !!myId && inGame);
   setVisible('topbar', !!myId && s.phase !== 'lobby');
-  setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle'));
+  setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
+  phaseSounds(s);
 
   if (s.phase === 'lobby') {
     const list = $('playerList');
@@ -497,23 +552,40 @@ function updateUi(s) {
       const div = document.createElement('div');
       div.className = 'pl';
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.bot ? ' 🤖' : ''}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
       list.appendChild(div);
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
-    refreshLobbyShop(m);
   }
 
   if (s.phase === 'shop') {
     $('shopGold').textContent = m ? `${m.gold} g` : '';
-    $('shopTimer').textContent = `${Math.ceil(phaseT)} s`;
+    const timer = $('shopTimer');
+    timer.textContent = `${Math.ceil(phaseT)} s`;
+    timer.classList.toggle('low', phaseT <= 5);
     refreshShop(m);
+    // ready button: bots are always ready; only humans are counted/shown
+    const humans = playerList.filter(p => !p.bot);
+    const readyN = humans.filter(p => p.shopReady).length;
+    const btn = $('shopReadyBtn');
+    if (m && m.shopReady) {
+      btn.disabled = true;
+      btn.classList.remove('primary');
+      btn.textContent = `Waiting for others… (${readyN}/${humans.length} ready)`;
+    } else {
+      btn.disabled = false;
+      btn.classList.add('primary');
+      btn.textContent = humans.length > 1
+        ? `Ready — next round (${readyN}/${humans.length} ready)` : 'Ready — next round';
+    }
   }
 
   if (s.phase === 'battle') {
     $('phasebar').textContent = `round ${s.round} / ${ROUND.TOTAL_ROUNDS} · arena shrinking`;
+  } else if (s.phase === 'roundEnd') {
+    $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {
     // during shop, s.round is the round that just finished
     $('phasebar').textContent =
@@ -535,10 +607,12 @@ function updateUi(s) {
   // topbar scoreboard
   if (s.phase !== 'lobby') {
     const ranked = playerList.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+    // the current leader wears the crown (only once someone has scored)
+    const leadId = ranked.length && (ranked[0].score || 0) > 0 ? ranked[0].id : null;
     $('topbar').innerHTML = ranked.map(p =>
       `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
+        <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
         <span class="score num">${p.score || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
       </div>`).join('');
