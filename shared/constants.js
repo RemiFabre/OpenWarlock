@@ -15,6 +15,9 @@ export const ARENA = {
 
 export const PLAYER = {
   RADIUS: 1.4,            // bigger bodies = spells actually connect
+  // your body grows with your kill lead (bigger target when winning) and
+  // shrinks when trailing: radius = RADIUS * clamp(1 + PER_KILL*(kills-avg))
+  SIZE_LEAD: { PER_KILL: 0.08, MIN: 0.5, MAX: 2.0 },
   MAX_HP: 100,
   SPEED: 11,              // u/s (boots-maxed ≈ the old base speed)
   FRICTION: 3.4,          // exponential velocity damping per second (more slide)
@@ -31,7 +34,8 @@ export const ROUND = {
   COUNTDOWN: 3,
   SUMMARY_TIME: 3.5,      // victory/defeat banner between battle and shop
   SHOP_TIME: 25,
-  TOTAL_ROUNDS: 10,       // fixed length: every game reaches late game
+  KILLS_TO_WIN: 15,       // first to this many kills wins (checked at round end)
+  MAX_ROUNDS: 25,         // safety cap: most kills wins if nobody gets there
   KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
 };
 
@@ -42,8 +46,6 @@ export const GOLD = {
   ROUND_WIN: 3,
   FIRST_DEATH: 1,
 };
-
-export const SCORE = { PER_KILL: 1, ROUND_WIN: 2 };
 
 // ---- Spells -------------------------------------------------------------
 // costs[i] = cost to reach level i+1 (level 0 = not owned)

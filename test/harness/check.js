@@ -20,6 +20,7 @@ export function checkJournal(lines) {
   let phase = 'lobby';
   let alive = new Set();
   let playersSeen = new Set();
+  let spectators = new Set();
   let totalAtRoundStart = 0;
   const lastCast = {}; // "playerId/spell" -> ms
   let lastDigest = null;
@@ -43,8 +44,8 @@ export function checkJournal(lines) {
       case 'phase': {
         if (!(LEGAL[e.from] || []).includes(e.to)) v(`illegal phase transition ${e.from} -> ${e.to}`, e);
         if (e.to === 'battle') {
-          // everyone present is alive at round start
-          alive = new Set([...playersSeen]);
+          // every fighter present is alive at round start
+          alive = new Set([...playersSeen].filter(id => !spectators.has(id)));
           totalAtRoundStart = alive.size;
           // startRound() resets all cooldowns by design, so casts in the
           // previous battle must not count against casts in this one
@@ -62,14 +63,19 @@ export function checkJournal(lines) {
         phase = 'lobby';
         playersSeen = new Set();
         alive = new Set();
+        spectators = new Set();
         break;
 
       case 'msg':
         if (e.m && e.m.t === 'join') playersSeen.add(e.id);
+        if (e.m && e.m.t === 'spectate') {
+          if (e.m.on) spectators.add(e.id); else spectators.delete(e.id);
+        }
         break;
       case 'disconnect':
         playersSeen.delete(e.id);
         alive.delete(e.id);
+        spectators.delete(e.id);
         break;
 
       case 'event': {
@@ -113,7 +119,7 @@ export function checkJournal(lines) {
           }
           if (p.alive) alive.add(id); else alive.delete(id);
         }
-        if (e.round > ROUND.TOTAL_ROUNDS) v(`round ${e.round} exceeds TOTAL_ROUNDS`, e);
+        if (e.round > ROUND.MAX_ROUNDS) v(`round ${e.round} exceeds MAX_ROUNDS`, e);
         lastDigest = e;
         lastDigestEntry = e;
         break;

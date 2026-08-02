@@ -2,7 +2,7 @@
 // except through state.rng (seeded). Runs on the server; unit-testable.
 
 import {
-  ARENA, PLAYER, LAVA, ROUND, GOLD, SCORE, SPELLS, ITEMS, ITEM_FX, COLORS,
+  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, COLORS,
 } from './constants.js';
 
 // Tiny deterministic RNG (mulberry32) so tests are reproducible.
@@ -52,7 +52,9 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind } 
     hp: PLAYER.MAX_HP, maxHp: PLAYER.MAX_HP,
     alive: false,          // becomes true at round start
     ready: false,
-    gold: GOLD.START, score: 0, kills: 0, deaths: 0,
+    gold: GOLD.START, kills: 0, deaths: 0,
+    spectator: false,
+    radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
     items: [],
     cooldowns: {},
@@ -64,6 +66,29 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind } 
     roundKills: 0,
   };
   return state.players[id];
+}
+
+export function fighters(state) {
+  return Object.values(state.players).filter(p => !p.spectator);
+}
+
+export function setSpectator(state, id, on) {
+  const pl = state.players[id];
+  if (!pl || state.phase !== 'lobby') return;
+  pl.spectator = !!on;
+  if (on) pl.alive = false;
+}
+
+// Size-by-lead: leaders grow (easier to hit), trailers shrink. Recomputed
+// live so a mid-round kill visibly changes you.
+function updateRadii(state) {
+  const fs = fighters(state);
+  if (!fs.length) return;
+  const avg = fs.reduce((sum, p) => sum + p.kills, 0) / fs.length;
+  const { PER_KILL, MIN, MAX } = PLAYER.SIZE_LEAD;
+  for (const pl of fs) {
+    pl.radius = PLAYER.RADIUS * clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
+  }
 }
 
 export function removePlayer(state, id) {
@@ -125,8 +150,8 @@ export function castSpell(state, id, key, tx, ty) {
       // makes point-blank shots connect instead of spawning past the target
       state.projectiles.push({
         id: state.nextId++, type: key, owner: id, level,
-        x: pl.x + dx * PLAYER.RADIUS * 0.5,
-        y: pl.y + dy * PLAYER.RADIUS * 0.5,
+        x: pl.x + dx * pl.radius * 0.5,
+        y: pl.y + dy * pl.radius * 0.5,
         vx: dx * spec.speed, vy: dy * spec.speed,
         traveled: 0,
         returning: false,           // boomerang only
@@ -171,7 +196,7 @@ function fireLightning(state, pl, level, dx, dy) {
     const t = ox * dx + oy * dy;                 // projection along ray
     if (t < 0 || t > spec.range) continue;
     const perp = Math.abs(ox * dy - oy * dx);    // distance from ray
-    if (perp <= spec.width + PLAYER.RADIUS && t < bestT) { best = other; bestT = t; }
+    if (perp <= spec.width + other.radius && t < bestT) { best = other; bestT = t; }
   }
   const endT = best ? bestT : spec.range;
   state.events.push({
@@ -254,7 +279,6 @@ function kill(state, target, directSourceId) {
     killer.kills++;
     killer.roundKills++;
     killer.gold += GOLD.PER_KILL;
-    killer.score += SCORE.PER_KILL;
   }
   if (!Object.values(state.players).some(p => p.deaths > 0 && p !== target && p.diedFirstRound === state.round)) {
     target.diedFirstRound = state.round;
@@ -276,11 +300,10 @@ function startRound(state) {
   state.time = 0;
   state.arenaRadius = ARENA.START_RADIUS;
   state.projectiles = [];
-  const ids = Object.keys(state.players);
+  const fs = fighters(state);
   const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
-  ids.forEach((id, i) => {
-    const pl = state.players[id];
-    const a = (i / ids.length) * Math.PI * 2 - Math.PI / 2;
+  fs.forEach((pl, i) => {
+    const a = (i / fs.length) * Math.PI * 2 - Math.PI / 2;
     pl.x = Math.cos(a) * r; pl.y = Math.sin(a) * r;
     pl.vx = 0; pl.vy = 0;
     pl.moveTarget = null;
@@ -292,26 +315,31 @@ function startRound(state) {
     pl.roundKills = 0;
     pl.shopReady = false;
   });
+  for (const pl of Object.values(state.players)) {
+    if (pl.spectator) { pl.alive = false; pl.shopReady = false; }
+  }
+  updateRadii(state);
   state.events.push({ t: 'round', n: state.round });
 }
 
 function endRound(state) {
-  const alive = Object.values(state.players).filter(p => p.alive);
+  const alive = fighters(state).filter(p => p.alive);
   const winner = alive.length === 1 ? alive[0] : null;
   const income = {};
-  for (const pl of Object.values(state.players)) {
+  for (const pl of fighters(state)) {
     let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL; // kill gold shown, already granted at kill time
     pl.gold += GOLD.ROUND_BASE;
-    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.score += SCORE.ROUND_WIN; g += GOLD.ROUND_WIN; }
+    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
     if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
     income[pl.id] = g;
     pl.dash = null; pl.moveTarget = null;
     pl.shopReady = false;
   }
   state.projectiles = [];
+  const topKills = Math.max(0, ...fighters(state).map(p => p.kills));
   state.roundSummary = {
     n: state.round, winner: winner ? winner.id : null, income,
-    final: state.round >= ROUND.TOTAL_ROUNDS,
+    final: topKills >= ROUND.KILLS_TO_WIN || state.round >= ROUND.MAX_ROUNDS,
   };
   state.events.push({ t: 'roundEnd', winner: winner ? winner.id : null });
   state.phase = 'roundEnd';
@@ -320,8 +348,8 @@ function endRound(state) {
 
 function afterSummary(state) {
   if (state.roundSummary && state.roundSummary.final) {
-    const ranked = Object.values(state.players)
-      .sort((a, b) => b.score - a.score || b.kills - a.kills);
+    const ranked = fighters(state)
+      .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || b.gold - a.gold);
     state.winner = ranked[0] ? ranked[0].id : null;
     state.phase = 'gameover';
     state.events.push({ t: 'gameover', winner: state.winner });
@@ -357,7 +385,7 @@ export function step(state, dt) {
     case 'shop': {
       state.phaseT -= dt;
       const everyoneReady = Object.values(state.players).length > 0 &&
-        Object.values(state.players).every(p => p.bot || p.shopReady);
+        Object.values(state.players).every(p => p.bot || p.spectator || p.shopReady);
       if (state.phaseT <= 0 || everyoneReady) startRound(state);
       return;
     }
@@ -379,6 +407,7 @@ function stepBattle(state, dt) {
     state.arenaRadius = Math.max(0, ARENA.MIN_RADIUS * (1 - overtime / ARENA.OVERTIME_SHRINK));
 
   const players = Object.values(state.players);
+  updateRadii(state);
 
   for (const pl of players) {
     if (!pl.alive) continue;
@@ -397,7 +426,7 @@ function stepBattle(state, dt) {
       pl.dash.left -= move;
       for (const other of players) {
         if (other === pl || !other.alive || pl.dash.hit[other.id]) continue;
-        if (Math.hypot(other.x - pl.x, other.y - pl.y) <= spec.hitRadius + PLAYER.RADIUS) {
+        if (Math.hypot(other.x - pl.x, other.y - pl.y) <= spec.hitRadius + other.radius) {
           pl.dash.hit[other.id] = true;
           // push outward: perpendicular to dash direction, away from the path
           const side = Math.sign((other.x - pl.x) * -pl.dash.dy + (other.y - pl.y) * pl.dash.dx) || 1;
@@ -444,9 +473,10 @@ function stepBattle(state, dt) {
 
   stepProjectiles(state, dt);
 
-  // round end: needs ≥2 players to ever start ending (solo practice runs forever)
-  const total = players.length;
-  const alive = players.filter(p => p.alive).length;
+  // round end: needs ≥2 fighters to ever start ending (solo practice runs forever)
+  const fs = fighters(state);
+  const total = fs.length;
+  const alive = fs.filter(p => p.alive).length;
   if (total >= 2 && alive <= 1) endRound(state);
   else if (total === 1 && alive === 0) endRound(state); // solo died: still cycle
 }
@@ -464,7 +494,7 @@ function stepProjectiles(state, dt) {
       const dx = owner.x - pr.x, dy = owner.y - pr.y;
       const d = Math.hypot(dx, dy) || 1;
       pr.vx = (dx / d) * spec.speed; pr.vy = (dy / d) * spec.speed;
-      if (d < PLAYER.RADIUS + spec.radius) continue; // caught
+      if (d < owner.radius + spec.radius) continue; // caught
     }
 
     const px0 = pr.x, py0 = pr.y; // for swept collision below
@@ -485,7 +515,7 @@ function stepProjectiles(state, dt) {
     for (const other of players) {
       if (!other.alive || other.id === pr.owner || pr.hit[other.id]) continue;
       const dist = segmentPointDist(px0, py0, pr.x, pr.y, other.x, other.y);
-      if (dist > spec.radius + PLAYER.RADIUS) continue;
+      if (dist > spec.radius + other.radius) continue;
 
       if (other.shieldT > 0) {
         // reflect: reverse velocity, transfer ownership
@@ -524,7 +554,8 @@ export function snapshot(state) {
       x: round2(p.x), y: round2(p.y),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
-      gold: p.gold, score: p.score, kills: p.kills, deaths: p.deaths,
+      gold: p.gold, kills: p.kills, deaths: p.deaths,
+      spectator: p.spectator, radius: round2(p.radius),
       spells: p.spells, items: p.items,
       cooldowns: mapRound(p.cooldowns),
       shieldT: round2(p.shieldT),

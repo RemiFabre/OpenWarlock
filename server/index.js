@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, stepBot, botShop, setShopReady,
+  startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator, fighters,
 } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE, BOTS } from '../shared/constants.js';
 
@@ -111,7 +111,7 @@ function playerCount() {
 function maybeAutoStart() {
   if (game.phase !== 'lobby') return;
   const humans = Object.values(game.players).filter(p => !p.bot);
-  if (humans.length >= 1 && humans.every(p => p.ready) && playerCount() >= 2) {
+  if (humans.length >= 1 && humans.every(p => p.ready) && fighters(game).length >= 2) {
     startGame(game);
   }
 }
@@ -127,6 +127,7 @@ function resetToLobby() {
     if (p.bot || sockets.has(id)) {
       const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind });
       np.ready = false;
+      np.spectator = p.spectator;
     }
   }
 }
@@ -177,6 +178,10 @@ wss.on('connection', (ws) => {
       case 'ready':
         if (game.phase === 'shop') { setShopReady(game, id, !!m.ready); break; }
         pl.ready = !!m.ready;
+        maybeAutoStart();
+        break;
+      case 'spectate':
+        setSpectator(game, id, !!m.on);
         maybeAutoStart();
         break;
       case 'move':

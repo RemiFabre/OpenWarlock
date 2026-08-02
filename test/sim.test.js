@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, stepBot, botShop, setShopReady,
+  startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
 } from '../shared/sim.js';
 import { ARENA, PLAYER, SPELLS, ITEMS, GOLD, ROUND } from '../shared/constants.js';
 
@@ -59,7 +59,6 @@ describe('game flow', () => {
     run(state, ROUND.SUMMARY_TIME + 0.1);
     expect(state.phase).toBe('shop');
     expect(state.players.p0.kills).toBe(1);
-    expect(state.players.p0.score).toBeGreaterThanOrEqual(1 + 2); // kill + round win
     expect(state.players.p0.gold).toBe(
       goldBefore + GOLD.PER_KILL + GOLD.ROUND_BASE + GOLD.ROUND_WIN
     );
@@ -78,25 +77,36 @@ describe('game flow', () => {
     expect(state.players.p1.hp).toBe(state.players.p1.maxHp);
   });
 
-  it('game ends after the fixed number of rounds; best score wins', () => {
+  it('game ends when someone reaches the kill target; most kills wins', () => {
     const state = freshBattle(2);
-    state.round = ROUND.TOTAL_ROUNDS; // this is the last round
-    state.players.p0.score = 5;
-    state.players.p1.score = 2;
+    state.players.p0.kills = ROUND.KILLS_TO_WIN - 1;
+    state.players.p1.hp = 1;
+    state.players.p0.x = 0; state.players.p0.y = 0;
+    state.players.p1.x = 4; state.players.p1.y = 0;
+    castSpell(state, 'p0', 'fireball', 10, 0); // the 15th kill
+    run(state, 1 + ROUND.SUMMARY_TIME);
+    expect(state.phase).toBe('gameover');
+    expect(state.winner).toBe('p0');
+  });
+
+  it('game continues while nobody has reached the kill target', () => {
+    const state = freshBattle(2);
+    state.players.p0.kills = ROUND.KILLS_TO_WIN - 2;
+    state.players.p1.hp = 0.01;
+    state.players.p1.x = ARENA.START_RADIUS + 5; // lava death, no kill credit
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
+    expect(state.phase).toBe('shop');
+  });
+
+  it('safety cap: MAX_ROUNDS ends the game even without the kill target', () => {
+    const state = freshBattle(2);
+    state.round = ROUND.MAX_ROUNDS;
+    state.players.p0.kills = 3; state.players.p1.kills = 1;
     state.players.p1.hp = 0.01;
     state.players.p1.x = ARENA.START_RADIUS + 5;
     run(state, 0.5 + ROUND.SUMMARY_TIME);
     expect(state.phase).toBe('gameover');
     expect(state.winner).toBe('p0');
-  });
-
-  it('game does not end before the fixed number of rounds, whatever the score', () => {
-    const state = freshBattle(2);
-    state.players.p0.score = 99;
-    state.players.p1.hp = 0.01;
-    state.players.p1.x = ARENA.START_RADIUS + 5;
-    run(state, 0.5 + ROUND.SUMMARY_TIME);
-    expect(state.phase).toBe('shop');
   });
 });
 
@@ -530,6 +540,70 @@ describe('round-3 mechanics', () => {
     expect(state.projectiles.length).toBe(1);
     run(state, 2); // now beyond 2× arena radius: culled
     expect(state.projectiles.length).toBe(0);
+  });
+});
+
+describe('size-by-lead & spectators', () => {
+  it('kill leaders grow, trailers shrink, clamped to the caps', () => {
+    const state = freshBattle(2);
+    state.players.p0.kills = 5; state.players.p1.kills = 0; // avg 2.5
+    step(state, DT);
+    expect(state.players.p0.radius).toBeGreaterThan(PLAYER.RADIUS);
+    expect(state.players.p1.radius).toBeLessThan(PLAYER.RADIUS);
+    state.players.p0.kills = 100;
+    step(state, DT);
+    expect(state.players.p0.radius).toBeCloseTo(PLAYER.RADIUS * PLAYER.SIZE_LEAD.MAX, 3);
+    expect(state.players.p1.radius).toBeCloseTo(PLAYER.RADIUS * PLAYER.SIZE_LEAD.MIN, 3);
+  });
+
+  it('a bigger body is easier to hit', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.y = -40;
+    a.x = 0; a.y = 0; b.x = 15; b.y = 3.0; // grazing shot: misses a normal body (reach 2.4)
+    b.kills = 10; // big lead -> big body
+    step(state, DT);
+    castSpell(state, 'p0', 'fireball', 15, 0); // aimed straight, not at b
+    run(state, 1);
+    expect(b.hp).toBeLessThan(b.maxHp); // clipped by the bigger hitbox
+  });
+
+  it('spectators do not spawn, fight, or block the round', () => {
+    const state = createGame({ seed: 11 });
+    addPlayer(state, 'watcher', 'Watcher');
+    addPlayer(state, 'a', 'Alice');
+    addPlayer(state, 'b', 'Bob');
+    setSpectator(state, 'watcher', true);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    expect(state.players.watcher.alive).toBe(false);
+    // one fighter dies -> round ends despite the spectator being "present"
+    state.players.b.hp = 0.01;
+    state.players.b.x = ARENA.START_RADIUS + 5;
+    run(state, 0.5);
+    expect(state.phase).toBe('roundEnd');
+    expect(state.roundSummary.income.watcher).toBeUndefined();
+  });
+
+  it('bots-only games run to completion with a spectator watching', () => {
+    const state = createGame({ seed: 12 });
+    addPlayer(state, 'watcher', 'Watcher');
+    setSpectator(state, 'watcher', true);
+    addPlayer(state, 'b1', 'B1', { bot: true, kind: 'grunt' });
+    addPlayer(state, 'b2', 'B2', { bot: true, kind: 'berserker' });
+    startGame(state);
+    let guard = 0;
+    let lastPhase = state.phase;
+    while (state.phase !== 'gameover' && guard++ < 30 * 60 * 45) {
+      step(state, DT);
+      for (const id of ['b1', 'b2']) stepBot(state, id, DT);
+      if (state.phase === 'shop' && lastPhase !== 'shop')
+        for (const id of ['b1', 'b2']) botShop(state, id);
+      lastPhase = state.phase;
+    }
+    expect(state.phase).toBe('gameover');
+    expect(['b1', 'b2']).toContain(state.winner);
   });
 });
 
