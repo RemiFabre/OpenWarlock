@@ -571,3 +571,81 @@ describe('serialization & misc', () => {
     expect(total).toBeGreaterThan(0);
   }, 30000);
 });
+
+describe('bot profiles', () => {
+  it('a stalker sidesteps a fireball flying at it', () => {
+    const state = createGame({ seed: 11 });
+    addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });
+    addPlayer(state, 'e', 'Enemy', { bot: true, kind: 'grunt' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const s = state.players.s;
+    s.x = 0; s.y = 0; s.vx = 0; s.vy = 0;
+    state.players.e.x = 0; state.players.e.y = 40; // parked far off the ray
+    // hostile fireball flying straight at the stalker along y = 0
+    state.projectiles.push({
+      id: 999, type: 'fireball', owner: 'e', level: 1,
+      x: 25, y: 0, vx: -SPELLS.fireball.speed, vy: 0,
+      traveled: 0, returning: false, hit: {},
+    });
+    // step (only the stalker thinks) until the fireball reaches x <= 0
+    let guard = 0;
+    while (guard++ < 90) {
+      const pr = state.projectiles.find((p) => p.id === 999);
+      if (!pr || pr.x <= 0) break;
+      step(state, DT);
+      stepBot(state, 's', DT);
+    }
+    expect(s.alive).toBe(true);
+    expect(s.hp).toBe(s.maxHp);               // it was never clipped
+    expect(Math.abs(s.y)).toBeGreaterThan(2); // and it left the threat ray
+  });
+
+  it('a stalker teleports out of lava when it owns teleport', () => {
+    const state = createGame({ seed: 12 });
+    addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });
+    addPlayer(state, 'e1', 'E1', { bot: true, kind: 'grunt' });
+    addPlayer(state, 'e2', 'E2', { bot: true, kind: 'grunt' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const s = state.players.s;
+    s.spells.teleport = 1;
+    s.x = ARENA.START_RADIUS + 3; s.y = 0; s.vx = 0; s.vy = 0; // swimming
+    const before = Math.hypot(s.x, s.y);
+    stepBot(state, 's', DT);
+    expect(s.cooldowns.teleport).toBeGreaterThan(0); // it cast the save
+    expect(Math.hypot(s.x, s.y)).toBeLessThan(before - 10);
+    expect(Math.hypot(s.x, s.y)).toBeLessThan(state.arenaRadius);
+    expect(state.events.some((e) => e.t === 'teleport' && e.id === 's')).toBe(true);
+  });
+
+  it('a mixed-kind full bot game reaches gameover', () => {
+    const state = createGame({ seed: 321 });
+    const kinds = ['grunt', 'berserker', 'stalker', 'grunt'];
+    kinds.forEach((k, i) => addPlayer(state, `b${i}`, `Bot${i}`, { bot: true, kind: k }));
+    startGame(state);
+    let guard = 0;
+    let lastPhase = state.phase;
+    while (state.phase !== 'gameover' && guard++ < 30 * 60 * 30) { // 30 min sim cap
+      step(state, DT);
+      for (const id of Object.keys(state.players)) stepBot(state, id, DT);
+      if (state.phase === 'shop' && lastPhase !== 'shop')
+        for (const id of Object.keys(state.players)) botShop(state, id);
+      lastPhase = state.phase;
+    }
+    expect(state.phase).toBe('gameover');
+    expect(state.winner).toBeTruthy();
+    const total = Object.values(state.players).reduce((s, p) => s + p.kills, 0);
+    expect(total).toBeGreaterThan(0);
+  }, 30000);
+
+  it('a berserker buys rush in its first affordable shop', () => {
+    const state = createGame({ seed: 13 });
+    addPlayer(state, 'z', 'Zerk', { bot: true, kind: 'berserker' });
+    addPlayer(state, 'e', 'Enemy', { bot: true });
+    state.phase = 'shop';
+    state.players.z.gold = 24; // a strong first round: kill + win bonuses
+    botShop(state, 'z');
+    expect(state.players.z.spells.rush).toBe(1);
+  });
+});
