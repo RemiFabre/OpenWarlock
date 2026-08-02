@@ -25,10 +25,7 @@ const p2 = await newPlayer('Rival');
 await p1.waitForTimeout(400);
 await p1.screenshot({ path: `${OUT}/1-lobby.png` });
 
-// buy something in the lobby shop with starting gold (fireball lv2 costs 6)
-await p1.click('#lobbyShop button.ware:nth-of-type(1)');
-await p1.waitForTimeout(300);
-
+// no lobby shop anymore — buying only happens during the shop phase
 await p1.click('#readyBtn');
 await p2.click('#readyBtn');
 await p1.waitForSelector('#lobby.hidden', { state: 'attached', timeout: 5000 });

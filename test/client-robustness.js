@@ -80,7 +80,10 @@ async function runScenario(engineName, engine) {
     await page.fill('#name', `Robo-${engineName}`);
     await page.click('#joinBtn');
     await page.waitForSelector('#lobby:not(.hidden)', { timeout: 8000 });
-    for (let i = 0; i < 3; i++) { await page.click('#addBotBtn'); await sleep(150); }
+    for (const kind of ['grunt', 'berserker', 'stalker']) {
+      await page.click(`#addBot-${kind}`);
+      await sleep(150);
+    }
     await page.click('#readyBtn');
     await page.waitForSelector('#lobby.hidden', { state: 'attached', timeout: 8000 });
     await page.waitForFunction(() => window.__phase === 'battle', null, { timeout: 20_000 });
