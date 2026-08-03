@@ -6,6 +6,94 @@ you asked before leaving.*
 
 ---
 
+## ROUND 5 — the overnight build (read this over coffee ☕)
+
+Everything you asked for is in, verified, and pushed. Four phases, each
+delegated to a subagent and verified between phases. `npm start` to play.
+
+### 1. Your six mechanics changes (all in, all tested)
+
+- **Knockback 2×** (fireball lv1 push now 72) and **friction 3.4 → 3.1** so
+  the impulse reads as flight. Measured result: **~86% of all deaths are
+  lava** — the game is now about throwing people in, exactly your intent.
+- **HP-scaled pushback**: `× (1 + 0.8·(1 − hp/maxHp))` — near-death players
+  fly ~1.8× further. Smash-style. `PLAYER.KB_HP_FACTOR` to tune.
+- **Adaptive lava**: base shrink 65 s, and the ring closes up to ~1.75×
+  faster as fighters die (`ARENA.SHRINK_ADAPT`) — no more waiting on a big
+  empty arena after a double kill.
+- **Damage halved + baseline regen 1.2 hp/s**: lv1-fireball-only TTK measured
+  at ~75–80 s (possible, hard). Damage builds still kill; lava does the rest.
+- **Six pillars** on a ring near the rim: block projectiles, lightning, and
+  dashes; you can slam someone against one (it kills their velocity) or be
+  cornered by one; the lava swallows them as the ring shrinks. Bots learned
+  not to wedge against them.
+
+### 2. Your art + music are in the game 🎨🎵
+
+Round n plays your level-n track (looping, ~900 ms crossfade) with its
+background painted dimly behind the lava sea; past round 10 it picks
+deterministically-random (all clients hear the same track). The countdown
+shows each level's title — Round 3 arrives as *"Locked in."* Separate ♫
+music mute next to the SFX mute. Assets compressed 106 MB → 8.3 MB (AAC/JPEG)
+and committed; the game works fine without them if they ever 404.
+
+### 3. The balance campaign — 46,000 games, 6 iterations (BALANCE.md)
+
+You asked to see iterations, not vibes. BALANCE.md report #2 has every step:
+measure → hypothesis → change → result. Highlights:
+
+- **New instruments**: mirror mode (same bot, builds differ) and an **item
+  probe** (identical bots, only the FIRST purchase differs — it caught the
+  winner-held stat lying: pricier treads *raised* its winner-held share
+  because only rich winners could buy it. Selection bias, proven and dodged).
+- **Changes kept**: fireball upgrades cost 8 g and push nerfed a hair; treads
+  −50% → −35% lava damage; cape −25% → −15% push taken; **boomerang rescued**
+  (cd 4.5, speed 31, push grows per level — its win rate tripled); teleport
+  and shield slightly slower.
+- **Your size-by-lead mechanic works**: with it OFF, comebacks (winning after
+  being ≥4 kills behind) happen far less; with it ON, up to **37% of
+  evenly-matched games feature one**. Data, not opinion.
+- **Honest residue** (in the report): bruiser dominates mirror matches mostly
+  because bots don't *cast* most spells they buy (a bot-pilot limitation, not
+  a numbers problem — top of the next campaign's list); venom see below.
+
+### 4. Elemental mode ⚗️ — your brainstorm, playable, fully separate
+
+Lobby button: **Rules: Classic / ⚗️ Elemental**. Classic is untouched (a test
+proves the wire format is byte-identical). In elemental mode, after Fireball
+lv1 you pick ONE element (10 g, permanent):
+
+🔥 Ember +3 dmg +6 push · ❄️ Frost slows 45% for 1.6 s · 🐍 Venom 6 dmg over
+4 s DoT · 🌪️ Gale +45% push −25% dmg · 🪙 Midas +1 gold per hit ·
+🪨 Terra bigger fireball, target grows +15% for 3 s
+
+Plus two experimental combo items: **Echo Stone** (every 4th fireball fires a
+twin) and **Cinder Crown** (unlocks Fireball lv4) — weak early, fun when the
+build comes online, and they compose with any element (echo×venom, crown×ember).
+
+First elemental data (100-game sanity runs, in the agent's report): **venom
+is overtuned** (DoT keeps kill credit alive in a lava-kill world) and
+**midas snowballs gold** (90–140 g banks) — bots can't spend it, a human
+might be degenerate with it. Left as-is per "brainstorm mode": that's what
+your play test is for.
+
+### State of the suite
+
+**73 unit tests**, 4 harness scenarios, 2-engine browser robustness, arena
+classic + elemental sanity runs — all green at the final commit. ~15 commits
+pushed tonight, each small.
+
+### Things I'd flag for your session
+
+1. Knockback×2 + HP-scaling + pillars is a BIG feel change — the two dials
+   are `KB_HP_FACTOR` and the spell knockback arrays.
+2. Try elemental with 3 stalker bots: frost-vs-gale fights around pillars are
+   the most fun thing the arena stats can't capture.
+3. Say the word and the next campaign gives bots real element/spell piloting,
+   then re-balances venom/midas with data.
+
+---
+
 ## ROUND 4 — kills win, size-by-lead, spectating, and the balance lab
 
 - **Win condition**: first to **15 kills** (`ROUND.KILLS_TO_WIN`), checked at
