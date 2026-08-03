@@ -1,6 +1,6 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
+import { SPELLS, ITEMS, ELEMENTS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -15,6 +15,7 @@ const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
   teleport: '🌀', shield: '🛡️', rush: '💨',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
+  echo: '🔁', crown: '👑',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -150,6 +151,8 @@ function onEvent(e) {
       if (e.spell === 'rush') fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.3 });
       if (e.spell === 'fireball') playSfx('whoosh');
       break;
+    case 'gold': fx.push({ ...e, type: 'gold', at: now, dur: 0.9 }); break;       // midas payout
+    case 'grow': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); break;       // terra pulse
   }
   while (fx.length > 200) fx.shift();
 }
@@ -392,6 +395,10 @@ $('spectateBtn').addEventListener('click', () => {
   const m = me(latest());
   send({ t: 'spectate', on: !(m && m.spectator) });
 });
+$('modeBtn').addEventListener('click', () => {
+  const s = latest();
+  send({ t: 'mode', mode: s && s.mode === 'elemental' ? 'classic' : 'elemental' });
+});
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('againBtn').addEventListener('click', () => send({ t: 'again' }));
@@ -481,7 +488,10 @@ function spellUpgradeLine(spec, level) {
 }
 
 // Build shop buttons once per container; refresh() updates them from state.
-function buildShop(container) {
+// mode-aware: 'elemental' adds the Elements section and the experimental
+// combo items; 'classic' shows exactly the pre-elemental shop.
+function buildShop(container, mode = 'classic') {
+  const elemental = mode === 'elemental';
   container.innerHTML = '';
   const wares = [];
   const mkLabel = (txt) => {
@@ -499,10 +509,24 @@ function buildShop(container) {
       <span class="stats">${spellStatLine(spec, 1)}</span></span><span class="cost num"></span>`;
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
-    wares.push({ key, spec, el: b, spell: true });
+    wares.push({ key, spec, el: b, kind: 'spell' });
+  }
+  if (elemental) {
+    mkLabel('Elements ⚗️ (pick one — forever)');
+    for (const [key, spec] of Object.entries(ELEMENTS)) {
+      const b = document.createElement('button');
+      b.className = 'ware';
+      b.innerHTML = `<span class="icon">${spec.icon}</span>
+        <span class="info"><span class="name">${spec.name}</span>
+        <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
+      b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
+      container.appendChild(b);
+      wares.push({ key, spec, el: b, kind: 'element' });
+    }
   }
   mkLabel('Items');
   for (const [key, spec] of Object.entries(ITEMS)) {
+    if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
@@ -510,7 +534,7 @@ function buildShop(container) {
       <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
-    wares.push({ key, spec, el: b, spell: false });
+    wares.push({ key, spec, el: b, kind: 'item' });
   }
   return function refresh(m) {
     if (!m) return;
@@ -519,20 +543,34 @@ function buildShop(container) {
     const items = Array.isArray(m.items) ? m.items : [];
     for (const w of wares) {
       const cost = w.el.querySelector('.cost');
-      if (w.spell) {
+      if (w.kind === 'spell') {
         const level = spells[w.key] || 0;
+        // the Cinder Crown raises the fireball cap by one (elemental only)
+        const maxLevel = w.spec.maxLevel +
+          (elemental && w.key === 'fireball' && items.includes('crown') ? 1 : 0);
         const lv = w.el.querySelector('.lv');
         lv.textContent = level ? `lv ${level}` : '';
         const stats = w.el.querySelector('.stats');
         stats.textContent = level <= 0 ? spellStatLine(w.spec, 1)
-          : level >= w.spec.maxLevel ? `${spellStatLine(w.spec, level)} · max`
+          : level >= maxLevel ? `${spellStatLine(w.spec, level)} · max`
           : spellUpgradeLine(w.spec, level);
-        if (level >= w.spec.maxLevel) {
+        if (level >= maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
           const c = w.spec.costs[level];
           cost.textContent = `${c} g`; cost.className = 'cost';
           w.el.disabled = gold < c;
+        }
+      } else if (w.kind === 'element') {
+        const picked = m.element === w.key;
+        w.el.classList.toggle('sel', picked);
+        if (picked) {
+          cost.textContent = 'picked ✓'; cost.className = 'cost owned'; w.el.disabled = true;
+        } else if (m.element) {
+          cost.textContent = '—'; cost.className = 'cost'; w.el.disabled = true;
+        } else {
+          cost.textContent = `${w.spec.cost} g`; cost.className = 'cost';
+          w.el.disabled = gold < w.spec.cost || (spells.fireball || 0) < 1;
         }
       } else {
         if (items.includes(w.key)) {
@@ -545,7 +583,8 @@ function buildShop(container) {
     }
   };
 }
-const refreshShop = buildShop($('shopGrid'));
+let shopModeBuilt = 'classic';
+let refreshShop = buildShop($('shopGrid'), shopModeBuilt);
 
 // Spell bar
 const spellEls = {};
@@ -555,7 +594,7 @@ const spellEls = {};
     const el = document.createElement('div');
     el.className = 'spell';
     el.innerHTML = `<span class="key"></span>${ICONS[key]}
-      <span class="lv"></span><span class="cd hidden"></span>`;
+      <span class="lv"></span><span class="elem"></span><span class="cd hidden"></span>`;
     bar.appendChild(el);
     spellEls[key] = el;
   }
@@ -603,9 +642,21 @@ function updateUi(s) {
     specBtn.textContent = watching ? 'Watching 👁' : 'Playing ⚔';
     specBtn.classList.toggle('watching', watching);
     specBtn.setAttribute('aria-pressed', watching ? 'true' : 'false');
+    // ruleset toggle — server-authoritative, everyone sees the same value
+    const modeBtn = $('modeBtn');
+    const elemental = s.mode === 'elemental';
+    modeBtn.textContent = elemental ? 'Rules: ⚗️ Elemental (experimental)' : 'Rules: Classic';
+    modeBtn.classList.toggle('elemental', elemental);
+    modeBtn.setAttribute('aria-pressed', elemental ? 'true' : 'false');
   }
 
   if (s.phase === 'shop') {
+    // rebuild the shop grid when the ruleset differs from what's on screen
+    const shopMode = s.mode === 'elemental' ? 'elemental' : 'classic';
+    if (shopMode !== shopModeBuilt) {
+      shopModeBuilt = shopMode;
+      refreshShop = buildShop($('shopGrid'), shopMode);
+    }
     const watching = !!(m && m.spectator);
     $('shopGold').textContent = !watching && m ? `${m.gold} g` : '';
     const timer = $('shopTimer');
@@ -687,6 +738,9 @@ function updateUi(s) {
       const level = spells[key] || 0;
       el.classList.toggle('owned', level > 0);
       el.querySelector('.lv').textContent = level > 1 ? 'lv' + level : '';
+      // your chosen element rides on the fireball slot (elemental mode)
+      el.querySelector('.elem').textContent =
+        key === 'fireball' && m.element && ELEMENTS[m.element] ? ELEMENTS[m.element].icon : '';
       const cd = fin(+cooldowns[key]) ? +cooldowns[key] : 0;
       const cdEl = el.querySelector('.cd');
       cdEl.classList.toggle('hidden', cd <= 0);

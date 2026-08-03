@@ -247,6 +247,15 @@
   /* spectate toggle: "pressed" while watching */
   #spectateBtn.watching { border-color: var(--ember); color: var(--ember); background: var(--obsidian); }
 
+  /* rules toggle: same family as the spectate toggle, alchemical when elemental */
+  #modeBtn.elemental { border-color: #9b59b6; color: #c9a0e8; background: var(--obsidian); }
+
+  /* element picked in the shop */
+  .ware.sel { border-color: var(--gold); }
+
+  /* chosen element badge on the fireball spell slot */
+  .spell .elem { position: absolute; top: 1px; right: 3px; font-size: 11px; }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
@@ -294,6 +303,10 @@
       <button id="readyBtn" class="primary">I am ready</button>
       <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing ⚔</button>
       <button id="lobbyKeysBtn" class="mini" type="button" style="margin-left:auto">⌨ Keys</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="modeBtn" type="button" aria-pressed="false"
+        title="Elemental (experimental): after Fireball lv1 the shop offers one-time element picks that transform your fireball, plus two experimental combo items. Applies to everyone.">Rules: Classic</button>
     </div>
     <div class="row" id="botRow" style="margin-top:10px; flex-wrap:wrap">
       <span id="botBtns" class="row" style="gap:8px; flex-wrap:wrap"></span>

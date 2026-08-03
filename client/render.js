@@ -35,6 +35,11 @@ export function makeView(canvas) {
 
 const fin = Number.isFinite;
 
+// Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
+const ELEM_CORE = {
+  frost: '#8fd8ff', venom: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
+};
+
 export function draw(view, vs, fx, myId, moveMark, now) {
   const { ctx, w, h, scale } = view;
   const t = now / 1000;
@@ -159,7 +164,9 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     if (!pr || !fin(pr.x) || !fin(pr.y)) continue;
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
-      const r = 1.0 * scale;
+      // elemental fireballs (elemental mode) tint the core; terra flies bigger
+      const r = (pr.element === 'terra' ? 1.4 : 1.0) * scale;
+      const core = ELEM_CORE[pr.element] || '#ffab40';
       const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
       // trail
       const g = ctx.createLinearGradient(x - Math.cos(ang) * r * 4, y - Math.sin(ang) * r * 4, x, y);
@@ -171,7 +178,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineTo(x, y); ctx.stroke();
       const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
       glow.addColorStop(0, '#fff3c8');
-      glow.addColorStop(0.35, '#ffab40');
+      glow.addColorStop(0.35, core);
       glow.addColorStop(1, 'rgba(255, 90, 20, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fill();
@@ -224,6 +231,12 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.strokeStyle = `rgba(255, 100, 20, ${0.5 + 0.4 * fl})`;
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (pl.slow) {
+      // frost chill: icy blue ring (elemental mode)
+      ctx.strokeStyle = 'rgba(140, 200, 255, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
     }
     if (fin(pl.shieldT) && pl.shieldT > 0) {
       ctx.strokeStyle = 'rgba(140, 210, 255, 0.9)';
@@ -391,8 +404,25 @@ function drawFx(view, fx, now) {
       case 'hit': {
         const x = view.sx(f.x), y = view.sy(f.y) - 18 - 26 * k;
         ctx.font = '700 15px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = `rgba(255, 120, 80, ${a})`;
+        // venom DoT ticks are green; normal hits stay ember-red
+        ctx.fillStyle = f.poison ? `rgba(130, 220, 110, ${a})` : `rgba(255, 120, 80, ${a})`;
         ctx.fillText(String(Math.round(+f.amount || 0)), x, y);
+        break;
+      }
+      case 'gold': {
+        // midas payout: a small "+1g" drifting up in gold
+        const x = view.sx(f.x), y = view.sy(f.y) - 10 - 20 * k;
+        ctx.font = '700 13px ui-monospace, Menlo, monospace';
+        ctx.fillStyle = `rgba(240, 182, 74, ${a})`;
+        ctx.fillText(`+${Math.round(+f.amount || 1)}g`, x, y);
+        break;
+      }
+      case 'grow': {
+        // terra: brief brown pulse around the growing target
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.strokeStyle = `rgba(170, 120, 70, ${a})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, (1.4 + 1.6 * k) * scale, 0, Math.PI * 2); ctx.stroke();
         break;
       }
       case 'death': {
