@@ -257,6 +257,38 @@ describe('gold accounting', () => {
     expect(a.goldEarned).toBe(GOLD.START + GOLD.PER_KILL + GOLD.ROUND_BASE + GOLD.ROUND_WIN);
     expect(a.goldEarned).toBeGreaterThanOrEqual(a.gold); // spending never lowers earnings
   });
+
+  it('anti-snowball hard cap: 4p top earner can never reach 2x the passive floor', () => {
+    // per-round max income is BASE + 3*PER_KILL + WIN, floor is BASE
+    expect(GOLD.ROUND_BASE).toBeGreaterThanOrEqual(3 * GOLD.PER_KILL + GOLD.ROUND_WIN);
+  });
+
+  it('bounty pays the underdog and never the leader', () => {
+    // underdog (0 kills) slays the leader (6 kills): gap 6 -> max bounty
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    b.kills = 6;
+    const g0 = a.gold;
+    b.hp = 1; a.x = 0; a.y = 0; b.x = 2; b.y = 0;
+    state.players.p2.x = 0; state.players.p2.y = -30;
+    castSpell(state, 'p0', 'fireball', 5, 0);
+    run(state, 0.3);
+    expect(b.alive).toBe(false);
+    expect(a.gold).toBe(g0 + GOLD.PER_KILL + GOLD.BOUNTY_MAX);
+    expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
+
+    // leader (6 kills) squashes the underdog (0 kills): plain kill gold only
+    const s2 = freshBattle(3);
+    const l = s2.players.p0, u = s2.players.p1;
+    l.kills = 6;
+    const g1 = l.gold;
+    u.hp = 1; l.x = 0; l.y = 0; u.x = 2; u.y = 0;
+    s2.players.p2.x = 0; s2.players.p2.y = -30;
+    castSpell(s2, 'p0', 'fireball', 5, 0);
+    run(s2, 0.3);
+    expect(u.alive).toBe(false);
+    expect(l.gold).toBe(g1 + GOLD.PER_KILL);
+  });
 });
 
 describe('spells', () => {
@@ -278,7 +310,7 @@ describe('spells', () => {
     const state = freshBattle(2);
     expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
     expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(false);
-    run(state, SPELLS.fireball.cooldown + 0.1);
+    run(state, SPELLS.fireball.cooldown[0] + 0.1);
     expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
   });
 
@@ -823,11 +855,11 @@ describe('elemental mode', () => {
     // refresh-not-stack: a second hit resets the clock to dotTime, never more
     const s2 = hitWith('venom');
     const b2 = s2.players.p1;
-    run(s2, 1.5); // burn 1.5 s off the first application
+    run(s2, 2.2); // burn 2.2 s off the first application (past the lv1 cd too)
     expect(b2.poisonT).toBeLessThan(2.5);
     b2.x = 8; b2.y = 0; b2.vx = 0; b2.vy = 0;
     s2.players.p0.x = 0; s2.players.p0.y = 0;
-    castSpell(s2, 'p0', 'fireball', 20, 0); // cooldown 1.6 s has passed
+    castSpell(s2, 'p0', 'fireball', 20, 0); // lv1 cooldown (2.1 s) has passed
     run(s2, 0.4);
     expect(b2.poisonT).toBeGreaterThan(3.5);
     expect(b2.poisonT).toBeLessThanOrEqual(ELEMENTS.venom.fx.dotTime);

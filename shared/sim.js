@@ -276,7 +276,8 @@ function fireLightning(state, pl, level, dx, dy) {
   });
   if (best) {
     if (best.shieldT > 0) return; // shield blocks (no reflect for hitscan)
-    applyKnockback(state, best, dx, dy, lvl(spec, 'knockback', level));
+    const kb = lvl(spec, 'knockback', level);
+    if (kb) applyKnockback(state, best, dx, dy, kb); // lightning has no push
     applyDamage(state, best, lvl(spec, 'damage', level), pl.id);
   }
 }
@@ -382,10 +383,20 @@ function kill(state, target, directSourceId) {
   }
   const killer = killerId != null ? state.players[killerId] : null;
   if (killer && killer !== target) {
+    // bounty: pays only when the victim was AHEAD of the killer on kills
+    // (gap taken before this kill counts). The leader can never collect one,
+    // which is what keeps the 2x income hard cap in constants.js intact.
+    const gap = target.kills - killer.kills;
+    const bounty = Math.min(GOLD.BOUNTY_MAX,
+      Math.max(0, Math.floor(gap * GOLD.BOUNTY_PER_GAP)));
     killer.kills++;
     killer.roundKills++;
-    killer.gold += GOLD.PER_KILL;
-    killer.goldEarned += GOLD.PER_KILL;
+    killer.gold += GOLD.PER_KILL + bounty;
+    killer.goldEarned += GOLD.PER_KILL + bounty;
+    if (bounty > 0) {
+      killer.roundBounty = (killer.roundBounty || 0) + bounty;
+      state.events.push({ t: 'gold', id: killer.id, amount: bounty, x: target.x, y: target.y });
+    }
   }
   if (!Object.values(state.players).some(p => p.deaths > 0 && p !== target && p.diedFirstRound === state.round)) {
     target.diedFirstRound = state.round;
@@ -426,6 +437,7 @@ function startRound(state) {
     pl.growT = 0; pl.echoN = 0;
     pl.lastHitBy = null;
     pl.roundKills = 0;
+    pl.roundBounty = 0;
     pl.shopReady = false;
   });
   for (const pl of Object.values(state.players)) {
@@ -453,7 +465,8 @@ function endRound(state) {
   const winner = alive.length === 1 ? alive[0] : null;
   const income = {};
   for (const pl of fighters(state)) {
-    let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL; // kill gold shown, already granted at kill time
+    // kill + bounty gold shown here, already granted at kill time
+    let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
     pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE;
     if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
     if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }

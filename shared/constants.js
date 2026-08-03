@@ -56,12 +56,23 @@ export const ROUND = {
   KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
 };
 
+// Anti-snowball economy (2026-08-03 playtest): passive income dominates.
+// HARD CAP: in a 4-player game the max per-round income is
+// ROUND_BASE + 3*PER_KILL + ROUND_WIN, and the floor is ROUND_BASE — keeping
+// ROUND_BASE >= 3*PER_KILL + ROUND_WIN guarantees the player with EVERY kill
+// can never out-earn a player with none by more than 2x. (Bounties can't
+// break the cap: the leader never collects one — see kill() in sim.js.)
 export const GOLD = {
   START: 12,
-  PER_KILL: 4,
-  ROUND_BASE: 3,
-  ROUND_WIN: 3,
+  PER_KILL: 3,
+  ROUND_BASE: 11,
+  ROUND_WIN: 2,
   FIRST_DEATH: 1,
+  // Bounty: killing someone AHEAD of you on kills pays extra, scaled by the
+  // kill gap — #2 sniping #1 earns little (the snowball would just move),
+  // the last player toppling the leader is an event. Always modest.
+  BOUNTY_PER_GAP: 0.5,  // gold per kill of gap, floored
+  BOUNTY_MAX: 3,
 };
 
 // ---- Spells -------------------------------------------------------------
@@ -71,15 +82,19 @@ export const SPELLS = {
     // the 4th damage/knockback/cost entries are only reachable in elemental
     // mode via the Cinder Crown (maxLevel stays 3 in classic — buy() enforces)
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8, 8],
-    cooldown: 1.6, speed: 41, radius: 0.8, range: Infinity,
+    // lv1 spam was too strong (2026-08-03): ~30% slower at lv1, upgrades
+    // buy the old cadence back
+    cooldown: [2.1, 1.85, 1.6, 1.5], speed: 41, radius: 0.8, range: Infinity,
     damage: [5, 9, 13, 17], knockback: [65, 70, 76, 83],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
+    // last-hitting from across the map was too strong (2026-08-03):
+    // range -30%, push removed entirely — damage untouched
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 5, range: 55, width: 1.2,
-    damage: [5, 8, 12], knockback: [29, 29, 29],
-    desc: 'Instant long-range bolt. Low knockback — a finisher.',
+    cooldown: 5, range: 38, width: 1.2,
+    damage: [5, 8, 12],
+    desc: 'Instant mid-range bolt. No push — a pure finisher.',
   },
   boomerang: {
     name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],

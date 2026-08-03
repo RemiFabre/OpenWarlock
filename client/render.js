@@ -229,6 +229,12 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.lineWidth = 2;
     ctx.strokeStyle = pl.id === myId ? '#fff' : 'rgba(0,0,0,0.45)';
     ctx.stroke();
+    // liseré rouge: a constant red ring so you can ALWAYS spot yourself
+    if (pl.id === myId) {
+      ctx.strokeStyle = 'rgba(255, 59, 48, 0.9)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
+    }
     // hood highlight
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
@@ -488,6 +494,16 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.strokeStyle = `rgba(200, 60, 30, ${a})`;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, 40 * k, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'kill': {
+        // you scored a kill: golden banner rising above the arena center
+        ctx.font = 'small-caps 700 34px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(240, 182, 74, ${a})`;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 12;
+        ctx.fillText('⚔ kill', view.cx, view.cy - 110 - 30 * k);
+        ctx.shadowBlur = 0;
         break;
       }
       case 'teleport': {

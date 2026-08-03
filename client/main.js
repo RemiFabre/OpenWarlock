@@ -145,6 +145,11 @@ function onEvent(e) {
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
       playSfx('death');
+      if (e.killer && myId && e.killer === myId) {
+        // that was YOUR kill — celebrate it
+        fx.push({ ...e, type: 'kill', at: now, dur: 1.4 });
+        playSfx('kill');
+      }
       window.__deaths = (window.__deaths || 0) + 1; // test/debug hook
       break;
     case 'teleport': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('teleport'); break;
@@ -319,7 +324,8 @@ syncAvatarGrid();
 // The gold rules, spelled out — no hidden income.
 const goldRules =
   `Gold: +${GOLD.ROUND_BASE} g every round · +${GOLD.PER_KILL} g per kill · ` +
-  `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first.`;
+  `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first · ` +
+  `bounty up to +${GOLD.BOUNTY_MAX} g for slaying someone ahead of you.`;
 $('lobbyFormat').textContent =
   `First to ${ROUND.KILLS_TO_WIN} kills wins. ${goldRules}`;
 $('shopIncome').textContent = goldRules;

@@ -119,6 +119,12 @@ const FX = {
   tick() { tone({ type: 'square', f0: 660, dur: 0.07, vol: 0.22 }); },
   go() { tone({ type: 'square', f0: 990, f1: 1320, dur: 0.18, vol: 0.32 }); },
 
+  // you scored a kill: quick bright three-note celebration
+  kill() {
+    [659.25, 880, 1318.5].forEach((f, i) =>
+      tone({ type: 'triangle', f0: f, dur: 0.12, vol: 0.32, t0: i * 0.06 }));
+  },
+
   // round end: short major arpeggio if I won / soft low note if I died
   victory() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
