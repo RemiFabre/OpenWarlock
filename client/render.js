@@ -16,17 +16,23 @@ for (let i = 0; i < 14; i++) {
 }
 
 export function makeView(canvas) {
+  const back = document.createElement('canvas'); // low-res backdrop layer
   return {
     canvas, ctx: canvas.getContext('2d'),
+    back, bctx: back.getContext('2d'),
     w: 0, h: 0, scale: 1, cx: 0, cy: 0,
     resize() {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
       this.w = window.innerWidth; this.h = window.innerHeight;
       canvas.width = this.w * dpr; canvas.height = this.h * dpr;
       canvas.style.width = this.w + 'px'; canvas.style.height = this.h + 'px';
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.cx = this.w / 2; this.cy = this.h / 2;
       this.scale = Math.min(this.w, this.h) / (2 * (ARENA.START_RADIUS + 9));
+      // backdrop renders at ~1/3 resolution and is stretched up — the image,
+      // wash and lava-blob gradients are by far the most expensive paints
+      back.width = Math.max(160, Math.round(this.w / 3));
+      back.height = Math.max(100, Math.round(this.h / 3));
     },
     sx(x) { return this.cx + x * this.scale; },
     sy(y) { return this.cy + y * this.scale; },
@@ -52,46 +58,12 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     : 0;
   const worldAlpha = 1 - reveal;
 
-  // --- lava sea ---
-  ctx.fillStyle = '#2b0800';
-  ctx.fillRect(0, 0, w, h);
-
-  // distant scenery: the current level's art at low alpha with a dark wash,
-  // "dezoomed" (between cover and contain) so most of the picture is visible;
-  // during the reveal it expands to the full picture at near-full alpha
-  try {
-    const lv = currentLevel();
-    if (lv && lv.image) {
-      const img = lv.image;
-      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-      const containS = Math.min(w / img.naturalWidth, h / img.naturalHeight);
-      const base = Math.max(containS, Math.sqrt(coverS * containS));
-      const sc = base + (containS - base) * reveal;
-      const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
-      ctx.globalAlpha = 0.22 + 0.72 * reveal;
-      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = `rgba(16, 6, 2, ${0.35 * worldAlpha})`;
-      ctx.fillRect(0, 0, w, h);
-    }
-  } catch { /* a broken image must never break the frame */ }
+  // --- lava sea + scenery: painted small offscreen, stretched up ---
+  drawBackdrop(view, reveal, worldAlpha, t);
+  ctx.drawImage(view.back, 0, 0, w, h);
 
   if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
   ctx.globalAlpha = worldAlpha;
-  const maxR = Math.hypot(w, h) / 2;
-  for (const b of BLOBS) {
-    const ang = b.a + t * b.speed + Math.sin(t * 0.3 + b.phase) * 0.4;
-    const rr = b.r * maxR;
-    const bx = view.cx + Math.cos(ang) * rr;
-    const by = view.cy + Math.sin(ang) * rr;
-    const size = b.size * maxR * (1 + 0.15 * Math.sin(t * 0.8 + b.phase));
-    const g = ctx.createRadialGradient(bx, by, 0, bx, by, size);
-    g.addColorStop(0, 'rgba(255, 106, 30, 0.34)');
-    g.addColorStop(0.5, 'rgba(200, 50, 8, 0.16)');
-    g.addColorStop(1, 'rgba(120, 20, 0, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(bx, by, size, 0, Math.PI * 2); ctx.fill();
-  }
 
   if (!vs) return;
   const R = (fin(vs.arenaRadius) ? vs.arenaRadius : ARENA.START_RADIUS) * scale;
@@ -278,6 +250,52 @@ export function draw(view, vs, fx, myId, moveMark, now) {
 
   ctx.globalAlpha = 1;
   drawBanners(view, vs, players, myId);
+}
+
+// The backdrop: base lava color, the level's art ("dezoomed" between cover
+// and contain; expanding to the full picture during the round-end reveal),
+// a dark wash, and the drifting lava blobs. Painted at ~1/3 resolution.
+function drawBackdrop(view, reveal, worldAlpha, t) {
+  const ctx = view.bctx;
+  const w = view.back.width, h = view.back.height;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#2b0800';
+  ctx.fillRect(0, 0, w, h);
+  try {
+    const lv = currentLevel();
+    if (lv && lv.image) {
+      const img = lv.image;
+      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const containS = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+      const base = Math.max(containS, Math.sqrt(coverS * containS));
+      const sc = base + (containS - base) * reveal;
+      const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
+      ctx.globalAlpha = 0.22 + 0.72 * reveal;
+      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(16, 6, 2, ${0.35 * worldAlpha})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  } catch { /* a broken image must never break the frame */ }
+
+  if (worldAlpha <= 0.01) return;
+  ctx.globalAlpha = worldAlpha;
+  const cx = w / 2, cy = h / 2;
+  const maxR = Math.hypot(w, h) / 2;
+  for (const b of BLOBS) {
+    const ang = b.a + t * b.speed + Math.sin(t * 0.3 + b.phase) * 0.4;
+    const rr = b.r * maxR;
+    const bx = cx + Math.cos(ang) * rr;
+    const by = cy + Math.sin(ang) * rr;
+    const size = b.size * maxR * (1 + 0.15 * Math.sin(t * 0.8 + b.phase));
+    const g = ctx.createRadialGradient(bx, by, 0, bx, by, size);
+    g.addColorStop(0, 'rgba(255, 106, 30, 0.34)');
+    g.addColorStop(0.5, 'rgba(200, 50, 8, 0.16)');
+    g.addColorStop(1, 'rgba(120, 20, 0, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(bx, by, size, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Banner-only path used when the round-end reveal has fully hidden the world.
