@@ -88,6 +88,44 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.beginPath(); ctx.arc(view.cx, view.cy, R * i / 3.4, 0, Math.PI * 2); ctx.stroke();
   }
 
+  // --- pillars: obsidian columns; sunken ones melt dimly under the lava ---
+  const pillars = Array.isArray(vs.pillars) ? vs.pillars : [];
+  for (const pil of pillars) {
+    if (!pil || !fin(pil.x) || !fin(pil.y) || !fin(pil.r)) continue;
+    const x = view.sx(pil.x), y = view.sy(pil.y);
+    const pr = pil.r * scale;
+    if (pil.sunk) {
+      // mostly swallowed: a dark stub in a dim ember glow, pulsing slightly
+      const pulse = 0.75 + 0.25 * Math.sin(t * 3 + pil.x + pil.y);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, pr * 1.15);
+      g.addColorStop(0, `rgba(255, 130, 45, ${0.30 * pulse})`);
+      g.addColorStop(0.6, `rgba(190, 55, 10, ${0.18 * pulse})`);
+      g.addColorStop(1, 'rgba(120, 20, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, pr * 1.15, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(28, 18, 14, 0.6)';
+      ctx.beginPath(); ctx.arc(x, y, pr * 0.5, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // drop shadow toward the lava glow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(x + pr * 0.2, y + pr * 0.45, pr * 1.05, pr * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      // obsidian body (rock palette, darker than the platform)
+      const g = ctx.createRadialGradient(x - pr * 0.35, y - pr * 0.4, pr * 0.15, x, y, pr);
+      g.addColorStop(0, '#4a4038');
+      g.addColorStop(0.55, '#2a221d');
+      g.addColorStop(1, '#14100c');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, pr, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.stroke();
+      // rim highlight catching the lava light
+      ctx.strokeStyle = 'rgba(255, 150, 70, 0.28)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, pr * 0.9, Math.PI * 0.55, Math.PI * 1.35); ctx.stroke();
+    }
+  }
+
   // --- move marker ---
   if (moveMark && fin(moveMark.x) && fin(moveMark.y) && now - moveMark.at < 700) {
     const a = 1 - (now - moveMark.at) / 700;

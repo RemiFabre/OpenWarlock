@@ -7,10 +7,22 @@ export const SNAPSHOT_RATE = 15;      // snapshots sent to clients Hz
 export const ARENA = {
   START_RADIUS: 56,
   MIN_RADIUS: 10,
-  SHRINK_TIME: 75,        // seconds from START to MIN
+  SHRINK_TIME: 65,        // seconds from START to MIN at the base rate
+  // the shrink RATE scales with deaths: rate *= 1 + ADAPT * (1 - alive/total)
+  // (4 fighters, 2 dead -> 1.75x faster) so small fights don't wait on a big arena
+  SHRINK_ADAPT: 1.5,
   OVERTIME_GRACE: 45,     // seconds the arena holds at MIN_RADIUS...
   OVERTIME_SHRINK: 30,    // ...then shrinks to 0 over this — every round ends
   SPAWN_RADIUS_FRAC: 0.6, // players spawn on this fraction of start radius
+  // obsidian pillars on a fixed ring near the rim: cover vs projectiles and
+  // knockback-stoppers; a pillar outside the current arena radius is sunk
+  PILLARS: {
+    COUNT: 6,
+    RADIUS: 2.5,
+    RING: 40,             // between the spawn ring (33.6) and the start rim (56)
+    BASE_ANGLE: Math.PI / 6, // keeps pillars off the axes (spawn/shot lanes)
+    JITTER: 0.12,         // per-pillar angle jitter span (radians), from the seed
+  },
 };
 
 export const PLAYER = {
@@ -20,8 +32,12 @@ export const PLAYER = {
   SIZE_LEAD: { PER_KILL: 0.08, MIN: 0.5, MAX: 2.0 },
   MAX_HP: 100,
   SPEED: 11,              // u/s (boots-maxed ≈ the old base speed)
-  FRICTION: 3.4,          // exponential velocity damping per second (more slide)
+  FRICTION: 3.1,          // exponential velocity damping per second (more slide)
   STOP_EPSILON: 0.3,
+  // knockback scales with missing hp: impulse *= 1 + KB_HP_FACTOR*(1 - hp/maxHp)
+  // full HP = baseline, near-death ≈ 1.8x — wounded warlocks fly
+  KB_HP_FACTOR: 0.8,
+  REGEN: 1.2,             // baseline hp/s for everyone (ring stacks on top)
 };
 
 export const LAVA = {
@@ -53,19 +69,19 @@ export const SPELLS = {
   fireball: {
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 6, 6],
     cooldown: 1.6, speed: 34, radius: 1.0, range: Infinity,
-    damage: [8, 11, 14], knockback: [36, 42, 48],
+    damage: [4, 7, 10], knockback: [72, 84, 96],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 5, range: 55, width: 1.2,
-    damage: [7, 9, 12], knockback: [16, 16, 16],
+    damage: [4, 6, 9], knockback: [32, 32, 32],
     desc: 'Instant long-range bolt. Low knockback — a finisher.',
   },
   boomerang: {
     name: 'Boomerang', hotkey: 'E', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 6, speed: 26, radius: 1.0, outDistance: 20, homing: 40,
-    damage: [8, 10, 13], knockback: [28, 28, 28],
+    damage: [4, 6, 8], knockback: [56, 56, 56],
     desc: 'Flies out and returns. Can hit on both legs.',
   },
   teleport: {
@@ -81,7 +97,7 @@ export const SPELLS = {
   rush: {
     name: 'Rush', hotkey: 'F', maxLevel: 2, costs: [12, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
-    damage: [7, 10], knockback: [44, 44],
+    damage: [4, 6], knockback: [88, 88],
     desc: 'Dash through enemies, blasting them aside.',
   },
 };

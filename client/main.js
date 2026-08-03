@@ -219,6 +219,7 @@ function interpolated(now) {
     phaseT,
     round: s.round,
     arenaRadius: fin(arenaRadius) ? arenaRadius : ARENA.START_RADIUS,
+    pillars: Array.isArray(s.pillars) ? s.pillars : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
     players, projectiles, me: me(s),
   };

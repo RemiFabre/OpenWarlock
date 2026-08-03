@@ -23,6 +23,9 @@ export function createGame({ seed = 1 } = {}) {
     round: 0,
     time: 0,               // elapsed battle time this round
     arenaRadius: ARENA.START_RADIUS,
+    graceT: ARENA.OVERTIME_GRACE, // overtime grace left once radius hits MIN
+    roundFighters: 0,      // fighters seated at round start (adaptive shrink)
+    pillars: [],           // [{x, y, r, sunk}] set each round start
     players: {},
     projectiles: [],
     events: [],            // transient, drained by the server each snapshot
@@ -98,7 +101,8 @@ export function removePlayer(state, id) {
 }
 
 function stats(pl) {
-  let speed = PLAYER.SPEED, lavaMult = 1, kbMult = 1, regen = 0, lifesteal = 0;
+  // everyone regenerates a little: spells only tickle — the lava is the killer
+  let speed = PLAYER.SPEED, lavaMult = 1, kbMult = 1, regen = PLAYER.REGEN, lifesteal = 0;
   let maxHp = PLAYER.MAX_HP, afterburnImmune = false;
   for (const it of pl.items) {
     const fx = ITEM_FX[it];
@@ -188,17 +192,24 @@ export function castSpell(state, id, key, tx, ty) {
 
 function fireLightning(state, pl, level, dx, dy) {
   const spec = SPELLS.lightning;
-  // hitscan: first live enemy within `width` of the ray, up to `range`
+  // pillars block the bolt: the ray stops at the first pillar intersection
+  let rayMax = spec.range;
+  for (const pil of state.pillars) {
+    if (pil.sunk) continue;
+    const t = rayCircleT(pl.x, pl.y, dx, dy, pil.x, pil.y, pil.r);
+    if (t != null && t < rayMax) rayMax = t;
+  }
+  // hitscan: first live enemy within `width` of the ray, up to the block point
   let best = null, bestT = Infinity;
   for (const other of Object.values(state.players)) {
     if (other === pl || !other.alive) continue;
     const ox = other.x - pl.x, oy = other.y - pl.y;
     const t = ox * dx + oy * dy;                 // projection along ray
-    if (t < 0 || t > spec.range) continue;
+    if (t < 0 || t > rayMax) continue;
     const perp = Math.abs(ox * dy - oy * dx);    // distance from ray
     if (perp <= spec.width + other.radius && t < bestT) { best = other; bestT = t; }
   }
-  const endT = best ? bestT : spec.range;
+  const endT = best ? bestT : rayMax;
   state.events.push({
     t: 'beam', id: pl.id,
     x1: pl.x, y1: pl.y, x2: pl.x + dx * endT, y2: pl.y + dy * endT,
@@ -242,8 +253,12 @@ export function buy(state, id, thing) {
 
 function applyKnockback(state, target, dx, dy, magnitude) {
   const { kbMult } = stats(target);
-  target.vx += dx * magnitude * kbMult;
-  target.vy += dy * magnitude * kbMult;
+  // the lower your CURRENT hp, the further you fly (full HP = baseline,
+  // near-death ≈ 1+KB_HP_FACTOR). Cape still multiplies on top.
+  const hpFrac = clamp(target.hp / target.maxHp, 0, 1);
+  const hpScale = 1 + PLAYER.KB_HP_FACTOR * (1 - hpFrac);
+  target.vx += dx * magnitude * kbMult * hpScale;
+  target.vy += dy * magnitude * kbMult * hpScale;
 }
 
 function applyDamage(state, target, amount, sourceId, { silent = false } = {}) {
@@ -299,8 +314,11 @@ function startRound(state) {
   state.phaseT = ROUND.COUNTDOWN;
   state.time = 0;
   state.arenaRadius = ARENA.START_RADIUS;
+  state.graceT = ARENA.OVERTIME_GRACE;
+  state.pillars = makePillars(state);
   state.projectiles = [];
   const fs = fighters(state);
+  state.roundFighters = fs.length;
   const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
   fs.forEach((pl, i) => {
     const a = (i / fs.length) * Math.PI * 2 - Math.PI / 2;
@@ -320,6 +338,19 @@ function startRound(state) {
   }
   updateRadii(state);
   state.events.push({ t: 'round', n: state.round });
+}
+
+// Obsidian pillars: a fixed ring near the rim, slight per-pillar angle jitter
+// from the seeded rng so every round reads a little different but stays
+// deterministic (and identical on server and in replays).
+function makePillars(state) {
+  const { COUNT, RADIUS, RING, BASE_ANGLE, JITTER } = ARENA.PILLARS;
+  const out = [];
+  for (let i = 0; i < COUNT; i++) {
+    const a = BASE_ANGLE + (i / COUNT) * Math.PI * 2 + (rng(state) - 0.5) * JITTER;
+    out.push({ x: Math.cos(a) * RING, y: Math.sin(a) * RING, r: RADIUS, sunk: false });
+  }
+  return out;
 }
 
 function endRound(state) {
@@ -398,13 +429,26 @@ export function step(state, dt) {
 function stepBattle(state, dt) {
   state.time += dt;
 
-  // arena shrink; after an overtime grace it shrinks to nothing (sudden
-  // death), so a round can never stall forever
-  const f = Math.min(1, state.time / ARENA.SHRINK_TIME);
-  state.arenaRadius = ARENA.START_RADIUS + (ARENA.MIN_RADIUS - ARENA.START_RADIUS) * f;
-  const overtime = state.time - ARENA.SHRINK_TIME - ARENA.OVERTIME_GRACE;
-  if (overtime > 0)
-    state.arenaRadius = Math.max(0, ARENA.MIN_RADIUS * (1 - overtime / ARENA.OVERTIME_SHRINK));
+  // arena shrink, integrated (not closed-form) so the RATE can adapt to
+  // deaths: the fewer fighters standing, the faster the lava closes. After
+  // the radius reaches MIN it holds for an overtime grace, then shrinks to
+  // nothing (sudden death), so a round can never stall forever.
+  const fsNow = fighters(state);
+  const totalF = Math.max(1, state.roundFighters || fsNow.length);
+  const aliveF = fsNow.filter(p => p.alive).length;
+  if (state.arenaRadius > ARENA.MIN_RADIUS) {
+    const baseRate = (ARENA.START_RADIUS - ARENA.MIN_RADIUS) / ARENA.SHRINK_TIME;
+    const speedMult = 1 + ARENA.SHRINK_ADAPT * (1 - Math.min(aliveF, totalF) / totalF);
+    state.arenaRadius = Math.max(ARENA.MIN_RADIUS, state.arenaRadius - baseRate * speedMult * dt);
+  } else if (state.graceT > 0) {
+    state.graceT = Math.max(0, state.graceT - dt);
+  } else {
+    state.arenaRadius = Math.max(0, state.arenaRadius - (ARENA.MIN_RADIUS / ARENA.OVERTIME_SHRINK) * dt);
+  }
+
+  // a pillar whose center the lava has passed is submerged: no collision,
+  // no blocking, just a melting stub for the client to render
+  for (const pil of state.pillars) pil.sunk = Math.hypot(pil.x, pil.y) > state.arenaRadius;
 
   const players = Object.values(state.players);
   updateRadii(state);
@@ -424,6 +468,11 @@ function stepBattle(state, dt) {
       const move = Math.min(spec.speed * dt, pl.dash.left);
       pl.x += pl.dash.dx * move; pl.y += pl.dash.dy * move;
       pl.dash.left -= move;
+      // a pillar stops the dash cold
+      if (resolvePillarHit(state, pl)) pl.dash = null;
+    }
+    if (pl.dash) {
+      const spec = SPELLS.rush;
       for (const other of players) {
         if (other === pl || !other.alive || pl.dash.hit[other.id]) continue;
         if (Math.hypot(other.x - pl.x, other.y - pl.y) <= spec.hitRadius + other.radius) {
@@ -456,6 +505,10 @@ function stepBattle(state, dt) {
     const damp = Math.exp(-PLAYER.FRICTION * dt);
     pl.vx *= damp; pl.vy *= damp;
 
+    // pillars: push the player out along the normal and kill the velocity
+    // component INTO the pillar — knockback slams you against cover and stops
+    collidePillars(state, pl);
+
     // lava (radius 0 = the whole world is lava)
     const inLava = state.arenaRadius <= 0 || Math.hypot(pl.x, pl.y) > state.arenaRadius;
     if (inLava) {
@@ -479,6 +532,57 @@ function stepBattle(state, dt) {
   const alive = fs.filter(p => p.alive).length;
   if (total >= 2 && alive <= 1) endRound(state);
   else if (total === 1 && alive === 0) endRound(state); // solo died: still cycle
+}
+
+// ---- pillar geometry ------------------------------------------------------
+
+// Push a player out of any live pillar it overlaps (along the surface normal).
+// Returns true if a hit was resolved. Position-only — used by the dash.
+function resolvePillarHit(state, pl) {
+  let hit = false;
+  for (const pil of state.pillars) {
+    if (pil.sunk) continue;
+    const dx = pl.x - pil.x, dy = pl.y - pil.y;
+    const d = Math.hypot(dx, dy);
+    const min = pil.r + pl.radius;
+    if (d >= min) continue;
+    const nx = d > 1e-6 ? dx / d : 1, ny = d > 1e-6 ? dy / d : 0;
+    pl.x = pil.x + nx * min;
+    pl.y = pil.y + ny * min;
+    hit = true;
+  }
+  return hit;
+}
+
+// Full player-vs-pillar resolution: push out AND kill the inward velocity.
+function collidePillars(state, pl) {
+  for (const pil of state.pillars) {
+    if (pil.sunk) continue;
+    const dx = pl.x - pil.x, dy = pl.y - pil.y;
+    const d = Math.hypot(dx, dy);
+    const min = pil.r + pl.radius;
+    if (d >= min) continue;
+    const nx = d > 1e-6 ? dx / d : 1, ny = d > 1e-6 ? dy / d : 0;
+    pl.x = pil.x + nx * min;
+    pl.y = pil.y + ny * min;
+    const vn = pl.vx * nx + pl.vy * ny;
+    if (vn < 0) { pl.vx -= vn * nx; pl.vy -= vn * ny; }
+  }
+}
+
+// Smallest non-negative t where the unit-direction ray (ox,oy)+(dx,dy)t
+// enters the circle, or null if it never does.
+function rayCircleT(ox, oy, dx, dy, cx, cy, r) {
+  const fx = ox - cx, fy = oy - cy;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - r * r;
+  const disc = b * b - 4 * c;
+  if (disc < 0) return null;
+  const sq = Math.sqrt(disc);
+  const t1 = (-b - sq) / 2, t2 = (-b + sq) / 2;
+  if (t1 >= 0) return t1;
+  if (t2 >= 0) return 0; // origin inside the pillar: blocked immediately
+  return null;
 }
 
 function stepProjectiles(state, dt) {
@@ -509,6 +613,18 @@ function stepProjectiles(state, dt) {
       pr.hit = {};
     }
     if (pr.type === 'boomerang' && pr.returning && pr.traveled > spec.outDistance + spec.homing) continue;
+
+    // pillars eat projectiles (swept against this tick's segment)
+    let blocked = false;
+    for (const pil of state.pillars) {
+      if (pil.sunk) continue;
+      if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) <= spec.radius + pil.r) {
+        state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) continue;
 
     // collide with players (swept: closest approach on this tick's segment)
     let dead = false;
@@ -567,6 +683,9 @@ export function snapshot(state) {
     phase: state.phase, phaseT: round2(state.phaseT),
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
+    pillars: (state.pillars || []).map(p => ({
+      x: round2(p.x), y: round2(p.y), r: round2(p.r), sunk: !!p.sunk,
+    })),
     winner: state.winner,
     roundSummary: state.roundSummary || null,
     players,
@@ -602,10 +721,34 @@ export function stepBot(state, id, dt) {
   const pl = state.players[id];
   if (!pl || !pl.alive || state.phase !== 'battle') return;
   switch (pl.kind) {
-    case 'berserker': return stepBerserker(state, pl, dt);
-    case 'stalker': return stepStalker(state, pl, dt);
-    default: return stepGrunt(state, pl, dt);
+    case 'berserker': stepBerserker(state, pl, dt); break;
+    case 'stalker': stepStalker(state, pl, dt); break;
+    default: stepGrunt(state, pl, dt); break;
   }
+  unwedgeFromPillars(state, pl, dt);
+}
+
+// Anti-wedge: a bot that sits pressed against a pillar for >1 s while its
+// path to the move target runs through that pillar gets its target nudged
+// tangentially, so it walks around the column instead of grinding into it.
+function unwedgeFromPillars(state, pl, dt) {
+  let near = null, nearGap = Infinity;
+  for (const pil of state.pillars) {
+    if (pil.sunk) continue;
+    const gap = Math.hypot(pl.x - pil.x, pl.y - pil.y) - pil.r - pl.radius;
+    if (gap < nearGap) { nearGap = gap; near = pil; }
+  }
+  if (!near || nearGap > 1.5) { pl._wedgeT = 0; return; }
+  pl._wedgeT = (pl._wedgeT || 0) + dt;
+  if (pl._wedgeT < 1 || !pl.moveTarget || pl.dash) return;
+  const mt = pl.moveTarget;
+  // only intervene when the pillar actually blocks the intended path
+  if (segmentPointDist(pl.x, pl.y, mt.x, mt.y, near.x, near.y) > near.r + pl.radius) return;
+  const nx = pl.x - near.x, ny = pl.y - near.y;
+  const n = Math.hypot(nx, ny) || 1;
+  const side = pl._strafe || 1;
+  const tx = (-ny / n) * side, ty = (nx / n) * side; // tangent around the pillar
+  setMoveTarget(state, pl.id, pl.x + tx * 8, pl.y + ty * 8);
 }
 
 // -- shared bot helpers -----------------------------------------------------

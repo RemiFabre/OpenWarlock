@@ -202,7 +202,9 @@ describe('spells', () => {
     state.players.p2.x = 0; state.players.p2.y = -20;
     expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
     run(state, 0.5);
-    expect(b.hp).toBe(b.maxHp - SPELLS.fireball.damage[0]);
+    // baseline regen ticks between the hit and the assertion: allow up to ~0.6 healed back
+    expect(b.hp).toBeGreaterThanOrEqual(b.maxHp - SPELLS.fireball.damage[0]);
+    expect(b.hp).toBeLessThan(b.maxHp - SPELLS.fireball.damage[0] + 1);
     expect(b.vx).toBeGreaterThan(0); // knocked away
     expect(state.projectiles.length).toBe(0);
   });
@@ -260,7 +262,8 @@ describe('spells', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 1);
     expect(b.hp).toBe(b.maxHp);                      // shielded
-    expect(a.hp).toBe(a.maxHp - SPELLS.fireball.damage[0]); // reflected back
+    expect(a.hp).toBeGreaterThanOrEqual(a.maxHp - SPELLS.fireball.damage[0]); // reflected back
+    expect(a.hp).toBeLessThan(a.maxHp - SPELLS.fireball.damage[0] + 1.5);     // (minus a little regen)
   });
 
   it('boomerang returns and can hit on the way back', () => {
@@ -286,7 +289,8 @@ describe('spells', () => {
     state.players.p2.y = 40;
     castSpell(state, 'p0', 'rush', 20, 0);
     run(state, 0.6);
-    expect(b.hp).toBe(b.maxHp - SPELLS.rush.damage[0]);
+    expect(b.hp).toBeGreaterThanOrEqual(b.maxHp - SPELLS.rush.damage[0]);
+    expect(b.hp).toBeLessThan(b.maxHp - SPELLS.rush.damage[0] + 1);
     expect(a.dash).toBe(null);
   });
 });
@@ -413,7 +417,8 @@ describe('edge cases (fuzz campaign probes)', () => {
       step(state, DT);
     }
     expect(state.projectiles.length).toBe(0);
-    expect(a.hp < a.maxHp || b.hp < b.maxHp).toBe(true);
+    // someone was eventually hit (baseline regen may have healed it back by now)
+    expect(state.events.some(e => e.t === 'hit' && (e.id === 'p0' || e.id === 'p1'))).toBe(true);
   });
 
   it('reflected fireball credits the shielder with the kill', () => {
@@ -722,4 +727,130 @@ describe('bot profiles', () => {
     botShop(state, 'z');
     expect(state.players.z.spells.rush).toBe(1);
   });
+});
+
+describe('v5 mechanics', () => {
+  it('low-HP players fly measurably further from the same hit', () => {
+    const peakKnockVx = (hpFrac) => {
+      const state = freshBattle(3);
+      const a = state.players.p0, b = state.players.p1;
+      state.players.p2.x = 0; state.players.p2.y = -45; // out of the way
+      state.pillars = []; // isolate: nothing to slam into
+      a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+      b.hp = b.maxHp * hpFrac;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      let peak = 0;
+      for (let i = 0; i < 30; i++) { step(state, DT); peak = Math.max(peak, b.vx); }
+      return peak;
+    };
+    const full = peakKnockVx(1.0);
+    const low = peakKnockVx(0.2);
+    expect(full).toBeGreaterThan(0);
+    // 20% hp -> 1 + 0.8*0.8 = 1.64x the impulse
+    expect(low).toBeGreaterThan(full * 1.4);
+    expect(low).toBeLessThan(full * 1.9);
+  });
+
+  it('the arena closes faster when fighters are dead', () => {
+    const mk = () => {
+      const s = freshBattle(4);
+      for (const pl of Object.values(s.players)) { pl.x = 0; pl.y = 0; }
+      return s;
+    };
+    const allAlive = mk();
+    run(allAlive, 21);
+
+    const twoDead = mk();
+    twoDead.players.p2.hp = 0.01; twoDead.players.p2.x = ARENA.START_RADIUS + 5;
+    twoDead.players.p3.hp = 0.01; twoDead.players.p3.x = -(ARENA.START_RADIUS + 5);
+    run(twoDead, 1); // they burn almost immediately
+    expect(twoDead.players.p2.alive).toBe(false);
+    expect(twoDead.players.p3.alive).toBe(false);
+    run(twoDead, 20);
+
+    // same elapsed time, 2 of 4 dead -> ~1.75x shrink rate -> clearly smaller
+    expect(twoDead.arenaRadius).toBeLessThan(allAlive.arenaRadius - 5);
+    expect(allAlive.arenaRadius).toBeGreaterThan(ARENA.MIN_RADIUS);
+  });
+
+  it('baseline regen heals a damaged idle player', () => {
+    const state = freshBattle(2);
+    state.players.p0.hp = 50;
+    run(state, 5); // idle at spawn, no lava, no items
+    expect(state.players.p0.hp).toBeGreaterThan(54.5); // ~50 + 1.2*5
+    expect(state.players.p0.hp).toBeLessThan(57.5);
+  });
+
+  it('a pillar blocks a fireball (no damage to the player behind it)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    state.pillars = [{ x: 10, y: 0, r: 2.5, sunk: false }];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 1.5);
+    expect(b.hp).toBe(b.maxHp);
+    expect(b.vx).toBe(0); // never knocked
+    expect(state.projectiles.length).toBe(0); // died on the pillar
+    expect(state.events.some(e => e.t === 'boom' && e.spell === 'fireball')).toBe(true);
+    expect(snapshot(state).pillars.length).toBe(1); // pillars are on the wire
+  });
+
+  it('a pillar blocks lightning (the ray stops at the pillar)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    a.spells.lightning = 1;
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    state.pillars = [{ x: 10, y: 0, r: 2.5, sunk: false }];
+    castSpell(state, 'p0', 'lightning', 30, 0);
+    expect(b.hp).toBe(b.maxHp);
+    const beam = state.events.find(e => e.t === 'beam');
+    expect(beam).toBeTruthy();
+    expect(beam.x2).toBeLessThan(10); // truncated at the pillar face
+    expect(beam.x2).toBeGreaterThan(6);
+  });
+
+  it('a player pushed against a pillar stops (stays outside, inward velocity killed)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    state.pillars = [{ x: 10, y: 0, r: 2.5, sunk: false }];
+    a.x = 4; a.y = 0; a.vx = 80; a.vy = 0; // hard knockback straight at the pillar
+    run(state, 1);
+    const gap = Math.hypot(a.x - 10, a.y - 0) - 2.5 - a.radius;
+    expect(gap).toBeGreaterThanOrEqual(-0.01); // pinned at the surface, not inside
+    expect(a.x).toBeLessThan(10);              // never tunneled through
+    expect(Math.abs(a.vx)).toBeLessThan(0.5);  // velocity into the pillar died
+  });
+
+  it('a sunken pillar no longer blocks anything', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    state.arenaRadius = 5; // the lava has swallowed everything past 5u
+    state.pillars = [{ x: 10, y: 0, r: 2.5, sunk: false }];
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 1.2);
+    expect(state.pillars[0].sunk).toBe(true); // maintained by stepBattle
+    // the fireball sailed straight over the melted pillar and hit b
+    expect(state.events.some(e => e.t === 'hit' && e.id === 'p1')).toBe(true);
+    expect(b.vx).toBeGreaterThan(0);
+  });
+
+  it('solo lv1 fireball TTK: slow (>30 s) but a kill within the round', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    let t = 0;
+    while (t < 135 && b.alive) {
+      // pin both so every fireball lands and knockback/lava can't interfere
+      a.x = 0; a.y = 0; a.vx = a.vy = 0;
+      b.x = 6; b.y = 0; b.vx = b.vy = 0;
+      if ((a.cooldowns.fireball || 0) <= 0) castSpell(state, 'p0', 'fireball', 20, 0);
+      step(state, DT);
+      t += DT;
+    }
+    expect(b.alive).toBe(false);     // it CAN kill...
+    expect(t).toBeGreaterThan(30);   // ...but regen makes it a long grind
+  }, 15000);
 });
