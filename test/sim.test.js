@@ -4,7 +4,7 @@ import {
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
   setMode, BOT_ELEMENTS,
 } from '../shared/sim.js';
-import { ARENA, PLAYER, SPELLS, ITEMS, ELEMENTS, GOLD, ROUND } from '../shared/constants.js';
+import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND } from '../shared/constants.js';
 
 const DT = 1 / 30;
 
@@ -192,8 +192,9 @@ describe('lava', () => {
     b.x = -(ARENA.START_RADIUS + 5); b.y = 0;
     run(state, 1);
     const lossA = a.maxHp - a.hp, lossB = b.maxHp - b.hp;
-    // treads lavaMult 0.65: loss ratio sits a bit above 0.65 after flat regen
-    expect(lossA).toBeLessThan(lossB * 0.75);
+    // treads lavaMult 0.8: net-of-regen loss ratio ≈ (14·0.8−1.2)/(14−1.2) ≈ 0.78
+    expect(lossA).toBeLessThan(lossB * 0.88);
+    expect(lossA).toBeGreaterThan(lossB * 0.6); // and it's a trim, not immunity
   });
 
   it('speeds you up instead of slowing you down (the lava dodge is real)', () => {
@@ -396,7 +397,7 @@ describe('shop & economy', () => {
     const state = shopState();
     state.players.a.gold = 99;
     buy(state, 'a', 'amulet');
-    expect(state.players.a.maxHp).toBe(PLAYER.MAX_HP + 30);
+    expect(state.players.a.maxHp).toBe(PLAYER.MAX_HP + ITEM_FX.amulet.maxHp);
   });
 
   it('rejects prototype-chain names as purchases and casts', () => {
@@ -809,9 +810,9 @@ describe('elemental mode', () => {
     const state = hitWith('venom');
     const b = state.players.p1, c = state.players.p2;
     expect(b.poisonT).toBeGreaterThan(3.5);
-    // direct hit was reduced 25%: 4 * 0.75 = 3 (allow a hair of regen)
-    expect(b.maxHp - b.hp).toBeGreaterThan(2.2);
-    expect(b.maxHp - b.hp).toBeLessThan(3.2);
+    // direct hit was reduced 25%: 5 * 0.75 = 3.75 (allow a hair of regen)
+    expect(b.maxHp - b.hp).toBeGreaterThan(2.9);
+    expect(b.maxHp - b.hp).toBeLessThan(4.0);
     // measure the DoT against an unpoisoned control with identical hp/regen
     b.hp = 50; c.hp = 50;
     b.x = 0; b.y = 45 - ARENA.START_RADIUS; // park b safely, away from p0
@@ -856,8 +857,8 @@ describe('elemental mode', () => {
     const state = hitWith('midas');
     const a = state.players.p0, b = state.players.p1;
     expect(a.gold).toBe(GOLD.START + ELEMENTS.midas.fx.goldOnHit);
-    expect(b.maxHp - b.hp).toBeGreaterThan(2.2); // 4 * 0.75 = 3, minus regen
-    expect(b.maxHp - b.hp).toBeLessThan(3.2);
+    expect(b.maxHp - b.hp).toBeGreaterThan(2.9); // 5 * 0.75 = 3.75, minus a hair of regen
+    expect(b.maxHp - b.hp).toBeLessThan(4.0);
     expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
   });
 

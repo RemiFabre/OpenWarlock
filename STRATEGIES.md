@@ -30,13 +30,19 @@ reading its priorities: what it wants first is what the strategy is about.
 |---|---|---|
 | **Bruiser** | 🔥 amulet 🔥 boots sword ring cape treads | Max fireball damage plus HP and lifesteal. Stands its ground and trades hits. |
 | **Sniper** | ⚡ 🔥 boots ⚡ 🔥 ⚡ cape ring | Lightning first: long-range instant poke, finishes low targets before they can heal. |
-| **Escape artist** | 🌀 boots 🔥 🌀 cape 🔥 ring treads | Teleport and speed. Nearly impossible to shove into the lava; wins by outliving. |
+| **Escape artist** | boots 🔥 🌀 🔥 🔥 cape 🌀 ring | Max fireball with an escape button. Slippery, still dangerous. |
 | **Turtle** | 🛡️ amulet ring cape 🛡️ treads 🔥 🔥 | Shield, regen, max HP, knockback resist. Outlasts everyone and lets the lava do the killing. |
-| **Rusher** | 💨 boots 🔥 💨 sword amulet 🔥 cape | Rush to close, shove you off the platform, lifesteal to stay in the fight. |
+| **Rusher** | 💨 🔥 boots sword 🔥 💨 amulet cape | Rush to close, shove you off the platform, lifesteal to stay in the fight. |
 | **Boomer** | 🪃 🔥 boots 🪃 amulet 🪃 ring sword | Boomerang stacking: wide projectiles that hit on the way out **and** back. |
 
 (The arena additionally runs a **greedless** control that never buys anything
 — it exists only to calibrate the tables and is not offered in the lobby.)
+
+**Which strategy fits which difficulty** (measured — BALANCE.md report #3,
+1000 mirror games per tier): **stalker → turtle or sniper · berserker →
+bruiser · grunt → boomer or sniper**. Rusher and escape are currently weak
+in bot hands (bots can't extract teleport/rush's reactive value the way a
+human can) — pick them for flavor, not challenge.
 
 ## How to read the arena reports
 

@@ -72,23 +72,23 @@ export const SPELLS = {
     // mode via the Cinder Crown (maxLevel stays 3 in classic — buy() enforces)
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8, 8],
     cooldown: 1.6, speed: 41, radius: 0.8, range: Infinity,
-    damage: [4, 7, 10, 13], knockback: [65, 70, 76, 83],
+    damage: [5, 9, 13, 17], knockback: [65, 70, 76, 83],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 5, range: 55, width: 1.2,
-    damage: [4, 6, 9], knockback: [29, 29, 29],
+    damage: [5, 8, 12], knockback: [29, 29, 29],
     desc: 'Instant long-range bolt. Low knockback — a finisher.',
   },
   boomerang: {
-    name: 'Boomerang', hotkey: 'E', maxLevel: 3, costs: [10, 6, 6],
+    name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 4.5, speed: 31, radius: 1.4, outDistance: 20, homing: 40,
-    damage: [4, 6, 8], knockback: [50, 59, 68],
+    damage: [5, 8, 10], knockback: [50, 59, 68],
     desc: 'Flies out and returns. Can hit on both legs.',
   },
   teleport: {
-    name: 'Teleport', hotkey: 'R', maxLevel: 2, costs: [14, 8],
+    name: 'Teleport', hotkey: 'F', maxLevel: 2, costs: [12, 8],
     cooldown: [16, 12], range: [18, 26],
     desc: 'Blink to cursor. Cancels your momentum — the lava save.',
   },
@@ -98,9 +98,9 @@ export const SPELLS = {
     desc: 'Reflects projectiles back at their owner for 1.25 s.',
   },
   rush: {
-    name: 'Rush', hotkey: 'F', maxLevel: 2, costs: [12, 6],
+    name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
-    damage: [4, 6], knockback: [79, 79],
+    damage: [5, 8], knockback: [79, 79],
     desc: 'Dash through enemies, blasting them aside.',
   },
 };
@@ -110,24 +110,28 @@ export const SPELLS = {
 // when the game runs the elemental ruleset; classic never sees them.
 export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed' },
-  treads: { name: 'Lava Treads',          cost: 10, desc: '-30% lava damage' },
-  amulet: { name: 'Amulet of Health',     cost: 12, desc: '+30 max HP' },
-  ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+1.2 HP/s' },
-  cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-15% knockback taken' },
-  sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 35% of spell damage you deal' },
+  treads: { name: 'Lava Treads',          cost: 10, desc: '-20% lava damage' },
+  amulet: { name: 'Amulet of Health',     cost: 12, desc: '+25 max HP' },
+  ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+0.9 HP/s' },
+  cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-10% knockback taken' },
+  sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 25% of spell damage you deal' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental',
             desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
   crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental',
-            desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +3 dmg, +7 push)' },
+            desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +4 dmg, +7 push)' },
 };
 
+// 2026-08-03 1k-game study: sustain items dominated every mirror table
+// (turtle 48-50%, bruiser 42-65% win rates vs the 25% baseline) after the
+// lava -30% / knockback -10% retune made chip damage weaker. All five
+// trimmed one gentle step; mobility spells got cheaper entries instead.
 export const ITEM_FX = {
   boots: { speedMult: 1.2 },
-  treads: { lavaMult: 0.7 },
-  amulet: { maxHp: 30 },
-  ring: { regen: 1.2 },
-  cape: { kbMult: 0.85 },
-  sword: { lifesteal: 0.35 },
+  treads: { lavaMult: 0.8 },
+  amulet: { maxHp: 25 },
+  ring: { regen: 0.9 },
+  cape: { kbMult: 0.9 },
+  sword: { lifesteal: 0.25 },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
   crown: { fireballMax: 1 },         // handled in buy()
 };
@@ -137,8 +141,8 @@ export const ITEM_FX = {
 // Requires Fireball >= 1. buy() rejects them entirely in classic mode.
 export const ELEMENTS = {
   ember: { name: 'Ember', icon: '🔥', cost: 10,
-           desc: 'Pure fire: +3 damage, +5 push.',
-           fx: { dmgAdd: 3, kbAdd: 5 } },
+           desc: 'Pure fire: +4 damage, +5 push.',
+           fx: { dmgAdd: 4, kbAdd: 5 } },
   frost: { name: 'Frost', icon: '❄️', cost: 10,
            desc: 'Hits chill: target moves at 55% speed for 1.6 s.',
            fx: { slowMult: 0.55, slowT: 1.6 } },
@@ -184,14 +188,14 @@ export const BUILDS = {
     desc: 'Lightning first. Pokes from long range and finishes low targets.',
     order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape', 'ring'] },
   escape:  { name: 'Escape artist',
-    desc: 'Teleport and boots. Slippery — very hard to shove into the lava.',
-    order: ['teleport', 'boots', 'fireball', 'teleport', 'cape', 'fireball', 'ring', 'treads'] },
+    desc: 'Max fireball with an escape button. Slippery, still dangerous.',
+    order: ['boots', 'fireball', 'teleport', 'fireball', 'fireball', 'cape', 'teleport', 'ring'] },
   turtle:  { name: 'Turtle',
     desc: 'Shield, regen and HP. Outlasts you and lets the lava do the work.',
     order: ['shield', 'amulet', 'ring', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
   rusher:  { name: 'Rusher',
     desc: 'Rush and lifesteal. Dives in and shoves you off the platform.',
-    order: ['rush', 'boots', 'fireball', 'rush', 'sword', 'amulet', 'fireball', 'cape'] },
+    order: ['rush', 'fireball', 'boots', 'sword', 'fireball', 'rush', 'amulet', 'cape'] },
   boomer:  { name: 'Boomer',
     desc: 'Boomerang stacking. Wide throws that hit on the way out and back.',
     order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'ring', 'sword'] },

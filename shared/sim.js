@@ -69,6 +69,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     alive: false,          // becomes true at round start
     ready: false,
     gold: GOLD.START, goldEarned: GOLD.START, kills: 0, deaths: 0,
+    dmgDealt: 0,           // damage dealt to enemies (incl. credited lava burn)
     spectator: false,
     radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
@@ -339,7 +340,21 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 
 function applyDamage(state, target, amount, sourceId, { silent = false } = {}) {
   if (!target.alive) return;
+  const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
+  // damage attribution: the direct source — or, for sourceless lava ticks,
+  // the last hitter within the kill-credit window (they knocked the victim
+  // in; the burn is theirs by the same rule that credits the kill)
+  let creditId = sourceId != null && sourceId !== target.id ? sourceId : null;
+  if (creditId == null && sourceId == null && target.lastHitBy &&
+      target.lastHitBy.id !== target.id &&
+      state.time - target.lastHitBy.t <= ROUND.KILL_CREDIT_WINDOW) {
+    creditId = target.lastHitBy.id;
+  }
+  if (creditId != null) {
+    const cr = state.players[creditId];
+    if (cr) cr.dmgDealt += effective;
+  }
   if (sourceId != null && sourceId !== target.id) {
     target.lastHitBy = { id: sourceId, t: state.time };
     const src = state.players[sourceId];
@@ -813,6 +828,7 @@ export function snapshot(state) {
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
       gold: p.gold, goldEarned: p.goldEarned, kills: p.kills, deaths: p.deaths,
+      dmgDealt: Math.round(p.dmgDealt),
       spectator: p.spectator, radius: round2(p.radius),
       spells: p.spells, items: p.items,
       cooldowns: mapRound(p.cooldowns),
@@ -890,10 +906,16 @@ function pilotOwnedSpells(state, pl, dt) {
   const arena = state.arenaRadius;
   const owns = (k) => (pl.spells[k] || 0) > 0 && (pl.cooldowns[k] || 0) <= 0;
 
-  // lava save for the grunt (stalker blinks and berserker rushes natively)
-  if (pl.kind === 'grunt' && owns('teleport') && arena > 2 &&
-      Math.hypot(pl.x, pl.y) > arena &&
-      castSpell(state, pl.id, 'teleport', 0, 0)) return;
+  // lava saves for whoever owns the tools (stalker teleports natively; the
+  // 1k-game study showed a build with unpiloted escapes is just dead gold:
+  // berserker/escape won 0.9% of its games before this block existed)
+  const dCenter = Math.hypot(pl.x, pl.y);
+  if (dCenter > arena && arena > 2) {
+    if (pl.kind !== 'stalker' && owns('teleport') &&
+        castSpell(state, pl.id, 'teleport', 0, 0)) return;
+    if (pl.kind !== 'berserker' && owns('rush') && !pl.dash &&
+        castSpell(state, pl.id, 'rush', 0, 0)) return; // dash is 5x walk speed
+  }
 
   const target = nearestEnemy(state, pl);
   if (!target) return;
@@ -904,6 +926,15 @@ function pilotOwnedSpells(state, pl, dt) {
   if (pl.kind !== 'stalker' && owns('shield')) {
     const threat = scanThreats(state, pl, 0.4, 2.0);
     if (threat && castSpell(state, pl.id, 'shield', threat.pr.x, threat.pr.y)) return;
+  }
+
+  // pressure blink: a wounded grunt with a teleport gets out of melee range
+  // (stalker does this natively; the berserker never retreats — by design)
+  if (pl.kind === 'grunt' && owns('teleport') && arena > 2 &&
+      pl.hp < pl.maxHp * 0.5 && dist < 5) {
+    let ex = pl.x - (tdx / dist) * 14, ey = pl.y - (tdy / dist) * 14;
+    if (Math.hypot(ex, ey) > arena - 4) { ex = 0; ey = 0; }
+    if (castSpell(state, pl.id, 'teleport', ex, ey)) return;
   }
 
   // boomerang at anything the out-leg can reach — wide, forgiving aim
@@ -923,13 +954,22 @@ function pilotOwnedSpells(state, pl, dt) {
         target.y + v.vy * 0.06 + (tdx / dist) * err)) return;
   }
 
-  // rush to close the gap (berserker rushes natively); never dash into lava
-  if (pl.kind !== 'berserker' && owns('rush') &&
+  // rush as a WEAPON only against rim-standers (berserker rushes natively).
+  // Blindly dashing to close the gap strands a grunt/stalker at point-blank
+  // where it gets traded down — the study measured that as a 3-6% win rate.
+  // Against prey near the rim, aim a hair center-side so the dash's
+  // perpendicular shove throws them outward, into the lava.
+  if (pl.kind !== 'berserker' && owns('rush') && !pl.dash &&
       dist > 3 && dist < SPELLS.rush.distance + 4) {
-    const ex = pl.x + (tdx / dist) * SPELLS.rush.distance;
-    const ey = pl.y + (tdy / dist) * SPELLS.rush.distance;
-    if (Math.hypot(ex, ey) < arena - 1.5)
-      castSpell(state, pl.id, 'rush', target.x, target.y);
+    const tc = Math.hypot(target.x, target.y);
+    if (tc > arena * 0.55 && tc > 1) {
+      const rx = target.x - (target.x / tc) * 1.2;
+      const ry = target.y - (target.y / tc) * 1.2;
+      const ex = pl.x + (tdx / dist) * SPELLS.rush.distance;
+      const ey = pl.y + (tdy / dist) * SPELLS.rush.distance;
+      if (Math.hypot(ex, ey) < arena - 1.5)
+        castSpell(state, pl.id, 'rush', rx, ry);
+    }
   }
 }
 

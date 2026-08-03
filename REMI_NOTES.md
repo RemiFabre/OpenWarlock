@@ -6,6 +6,51 @@ you asked before leaving.*
 
 ---
 
+## ROUND 7 — the 21k-game balance campaign (2026-08-03, same evening)
+
+You asked for 1k games; it turned into ~21k across four iterations (mixed
+studies, per-difficulty mirrors, item probes). **BALANCE.md is rewritten
+from scratch** in the new format — it now explains every metric before using
+it, starting with the one number that decodes everything: *4 players, so
+25% win rate = perfectly neutral; "3/5" style confusion shouldn't happen
+again anywhere.* Read it top to bottom, it's built for you.
+
+### What the games said, and what I changed
+
+- **Your retune made defense king.** With lava −30% and knockback −10%,
+  chip damage couldn't outpace regen: turtle won 48–50% of same-difficulty
+  games, bruiser up to 65%, and the item table was a defense monoculture.
+  Fix: one gentle trim each — ring 1.2→0.9 HP/s, amulet +30→+25, cape
+  −15%→−10% kb, sword 35%→25% lifesteal, treads −30%→−20% lava.
+- **Your +30% damage request landed mid-campaign** (fireball 5/9/13,
+  lightning 5/8/12, boomerang 5/8/10, rush 5/8, ember +4) and pulled the
+  same direction. Result: **lava kill share 86% → 77%** — killing without
+  the lava is finally real, and lava still rules.
+- **Mobility got cheaper instead of stronger**: teleport 14→12 g,
+  rush 12→10 g entry.
+- **Escape/rusher are bot-traps, maybe not human-traps**: bots can't fake
+  the reactive skill teleport rewards. I fixed the worst pilot holes (all
+  kinds now lava-save; wounded grunts blink out of melee; rush only used
+  to shove rim-standers) and gave escape a real damage kit, but they still
+  sit at 3–12% in bot hands. Deliberately NOT buffing their numbers off
+  bot data — that lands on you too. Playtest teleport and tell me.
+- **Healthy identity, kept on purpose**: bruiser is *the* berserker build
+  (57%), boomer is the sloppy-aim grunt's equalizer (46%). Bot picking
+  guide: stalker → turtle/sniper, berserker → bruiser, grunt → boomer.
+
+### Your three quick asks, also in
+
+- **Stats readability**: the "3/5" fraction is gone — the shop roster now
+  shows ⚔ kills, 💀 deaths, and 🗡 **damage dealt** separately (lava burn
+  you caused is credited to you by the same last-hitter rule as kills).
+  Damage is also a column on the final standings.
+- **Keys**: blink (teleport) is now **F**, dash (rush) is **E**, boomerang
+  moved to R — both QWERTY and AZERTY presets. Your saved custom bindings
+  still win over presets.
+- All 78 tests green, harness + 2-browser robustness pass, everything pushed.
+
+---
+
 ## ROUND 6 — your playtest feedback, applied (2026-08-03)
 
 All nine changes from your voice notes are in and verified (78 tests green,

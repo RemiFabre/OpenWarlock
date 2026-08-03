@@ -43,7 +43,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: Elo per strategy, `--mirror=`, `--probe=`, `--mode=elemental` |
-| `BALANCE.md` | report #2: the 46k-game rebalance campaign, iteration by iteration (numbers STALE since the 2026-08-03 retune) |
+| `BALANCE.md` | report #3: the 21k-game post-retune campaign (current numbers; report #2 lives in git history at 9a96b47) |
 | `STRATEGIES.md` | the bot difficulty × build chart + how to read arena reports |
 | `REMI_NOTES.md` | per-round changelog Remi actually reads (newest on top) |
 | `BUGS.md` | resolved liveness issues, for the record |
@@ -54,9 +54,12 @@ First to **15 kills** (25-round cap). Rounds: countdown → battle → roundEnd
 (banner + art reveal) → shop (Ready skips; full player roster with kits shown) → …;
 lava ring shrinks faster as fighters die, sudden-death to 0 after overtime;
 lava = 14 DPS + 30% speed boost, no afterburn; 6 pillars sink into the lava;
-knockback HP-scaled (`KB_HP_FACTOR`; all spell KB −10% on 2026-08-03);
-fireball fast+slim (41 u/s, r 0.8), boomerang wide (r 1.4); size-by-lead;
-`goldEarned` tracked besides the wallet (standings show earnings);
+knockback HP-scaled (`KB_HP_FACTOR`; all spell KB −10%, all spell dmg +30%
+on 2026-08-03 — lava kill share now ~77%); fireball fast+slim (41 u/s,
+r 0.8), boomerang wide (r 1.4); sustain items trimmed (see BALANCE.md #3);
+default keys: teleport F, rush E, boomerang R; size-by-lead;
+`goldEarned` + `dmgDealt` tracked per player (lava burn credited to the
+last hitter, same window as kill credit; shop roster + standings show both);
 spectator mode; bot tiers ★/★★/★★★ × selectable build strategy (lobby
 dropdown, 🎲 random rolls one); **elemental mode** ⚗️ (lobby toggle):
 6 fireball elements + Echo Stone/Cinder Crown, classic wire-format untouched.
@@ -77,10 +80,10 @@ Playwright chromium+webkit installed. Server for manual poking:
 
 ## Known debt / next candidates (rough priority)
 
-1. **Re-run the balance campaign**: the 2026-08-03 retune (KB −10%, lava −30%
-   +speed boost, fireball fast/slim, boomerang wide) PLUS bots finally casting
-   their whole kit (`pilotOwnedSpells`) invalidate BALANCE.md's numbers.
-   Write the next report per the explain-everything rule (see STRATEGIES.md).
+1. **Playtest questions from BALANCE.md #3**: is teleport worth 12 g for
+   humans now that lava is weaker? Do escape/rusher feel fine in human hands
+   (they're bot-traps at 3–12%, deliberately not number-buffed)? Raising
+   their bot floor means smarter piloting (kiting), not bigger numbers.
 2. **Elemental balance**: venom overtuned, midas gold-snowball (flagged, not
    tuned — Remi playtests first).
 3. Remi's **reaction-time dodge-window framework** (map projectile speed ×

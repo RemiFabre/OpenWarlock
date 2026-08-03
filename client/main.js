@@ -19,9 +19,11 @@ const ICONS = {
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
+// Defaults per Remi 2026-08-03: blink (teleport) on F, dash (rush) on E,
+// boomerang moves to R. Saved custom bindings in localStorage still win.
 const KEY_PRESETS = {
-  qwerty: { fireball: 'q', lightning: 'w', boomerang: 'e', teleport: 'r', shield: 'd', rush: 'f' },
-  azerty: { fireball: 'a', lightning: 'z', boomerang: 'e', teleport: 'r', shield: 'd', rush: 'f' },
+  qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e' },
+  azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e' },
 };
 
 function loadKeys() {
@@ -706,7 +708,9 @@ function updateUi(s) {
       <div class="pl${p.id === myId ? ' me' : ''}">
         <span class="dot" style="background:${p.color}"></span>
         <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}</span>
-        <span class="num" title="kills / deaths">⚔ ${p.kills || 0}/${p.deaths || 0}</span>
+        <span class="num" title="kills">⚔ ${p.kills || 0}</span>
+        <span class="num" title="deaths">💀 ${p.deaths || 0}</span>
+        <span class="num" title="damage dealt (incl. lava burns you caused)">🗡 ${p.dmgDealt || 0}</span>
         <span class="num gd" title="gold to spend (total earned)">${p.gold || 0}g <span class="dim">(${p.goldEarned ?? p.gold ?? 0} earned)</span></span>
         <span class="kit" title="spells & items owned">${kitIcons(p)}</span>
       </div>`).join('');
@@ -755,13 +759,14 @@ function updateUi(s) {
     const rows = fightersL.map((p, i) =>
       `<tr class="${w && p.id === w.id ? 'winner' : ''}"><td>${i + 1}</td>${who(p)}
        <td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td>
+       <td class="num" title="damage dealt, incl. lava burns you caused">${p.dmgDealt || 0}</td>
        <td class="num" title="total earned (unspent: ${p.gold || 0})">${p.goldEarned ?? p.gold ?? 0}</td>
        <td class="kit">${kitIcons(p)}</td></tr>`)
       .concat(specs.map((p) =>
-        `<tr class="spec"><td>👁</td>${who(p)}<td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>`))
+        `<tr class="spec"><td>👁</td>${who(p)}<td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>`))
       .join('');
     $('standings').innerHTML =
-      `<tr><th></th><th>Warlock</th><th class="num">Kills</th><th class="num">Deaths</th><th class="num">Gold earned</th><th>Upgrades</th></tr>${rows}`;
+      `<tr><th></th><th>Warlock</th><th class="num">Kills</th><th class="num">Deaths</th><th class="num">Damage</th><th class="num">Gold earned</th><th>Upgrades</th></tr>${rows}`;
   }
 
   // topbar scoreboard — fighters ranked by kills, spectators last and dimmed
