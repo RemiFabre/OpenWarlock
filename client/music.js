@@ -144,6 +144,25 @@ export function currentLevel() {
   } catch { return null; }
 }
 
+// Safari (and strict autoplay policies) can block the play() of a track swap
+// that happens outside a user gesture (round transitions). Any later gesture
+// retries the active track, so one tap/keypress restores the music.
+try {
+  const retry = () => {
+    try {
+      if (!players) return;
+      const cur = players[active];
+      if (cur && cur.src && cur.paused) {
+        cur.volume = targetVolume();
+        const p = cur.play();
+        if (p && p.catch) p.catch(() => { });
+      }
+    } catch { /* never break input handling */ }
+  };
+  window.addEventListener('pointerdown', retry, { passive: true });
+  window.addEventListener('keydown', retry, { passive: true });
+} catch { }
+
 // test/debug hook — mirrors window.__phase / __deaths in main.js
 try {
   window.__music = () => players ? {
