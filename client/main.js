@@ -3,6 +3,7 @@
 import { SPELLS, ITEMS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
+import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -174,6 +175,18 @@ function phaseSounds(s) {
   }
 }
 
+// ---- phase-driven music -------------------------------------------------------
+// Each round plays its level's track (render.js shows the matching art):
+// countdown of round n -> level n (random past the last level), lobby ->
+// level 1 ("What lies ahead?"). Gameover keeps the last round's track going.
+let musicPhase = null;
+function phaseMusic(s) {
+  if (s.phase === musicPhase) return;
+  musicPhase = s.phase;
+  if (s.phase === 'countdown') setLevel(fin(+s.round) ? +s.round : 1);
+  else if (s.phase === 'lobby') setLevel(1);
+}
+
 // ---- interpolation -----------------------------------------------------------
 
 const RENDER_DELAY = 1000 / SNAPSHOT_RATE * 1.6 + 25;
@@ -270,6 +283,7 @@ window.addEventListener('keydown', (e) => {
 $('name').value = localStorage.getItem('warlockName') || '';
 function doJoin() {
   initSfx(); // user gesture: the earliest moment browsers allow audio
+  initMusic(); // same gesture unlocks the soundtrack
   const name = $('name').value.trim() || 'warlock';
   localStorage.setItem('warlockName', name);
   connect(name);
@@ -405,6 +419,21 @@ const botStars = (kind) => BOTS[kind] ? '★'.repeat(BOTS[kind].difficulty) : ''
   btn.addEventListener('click', () => {
     initSfx(); // a gesture too — lets sound start here if join predates audio
     setMuted(!isMuted());
+    paint();
+  });
+  paint();
+}
+
+// music mute toggle (persisted in localStorage 'owMusicMuted'), separate from SFX
+{
+  const btn = $('musicBtn');
+  const paint = () => {
+    btn.classList.toggle('off', isMusicMuted());
+    btn.title = isMusicMuted() ? 'Music off' : 'Music on';
+  };
+  btn.addEventListener('click', () => {
+    initMusic(); // a gesture too — lets the soundtrack start here
+    setMusicMuted(!isMusicMuted());
     paint();
   });
   paint();
@@ -554,6 +583,7 @@ function updateUi(s) {
   setVisible('topbar', !!myId && s.phase !== 'lobby');
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
   phaseSounds(s);
+  phaseMusic(s);
 
   if (s.phase === 'lobby') {
     const list = $('playerList');

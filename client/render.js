@@ -1,6 +1,7 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
 import { ARENA, PLAYER, ROUND } from '../shared/constants.js';
+import { currentLevel } from './music.js';
 
 // Precomputed drifting lava blobs (deterministic, just for looks).
 const BLOBS = [];
@@ -41,6 +42,23 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   // --- lava sea ---
   ctx.fillStyle = '#2b0800';
   ctx.fillRect(0, 0, w, h);
+
+  // distant scenery: the current level's art, cover-fit at low alpha with a
+  // dark wash on top, so it reads as backdrop and never competes with play
+  try {
+    const lv = currentLevel();
+    if (lv && lv.image) {
+      const img = lv.image;
+      const cover = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const dw = img.naturalWidth * cover, dh = img.naturalHeight * cover;
+      ctx.globalAlpha = 0.22;
+      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(16, 6, 2, 0.35)';
+      ctx.fillRect(0, 0, w, h);
+    }
+  } catch { /* a broken image must never break the frame */ }
+
   const maxR = Math.hypot(w, h) / 2;
   for (const b of BLOBS) {
     const ang = b.a + t * b.speed + Math.sin(t * 0.3 + b.phase) * 0.4;
@@ -243,6 +261,13 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.shadowColor = '#ff5d1f'; ctx.shadowBlur = 30;
     ctx.fillText(String(n), view.cx, view.cy + 20);
     ctx.shadowBlur = 0;
+    // the level's title, small under the count — quotes included
+    const lv = currentLevel();
+    if (lv && lv.title) {
+      ctx.font = 'italic 16px Georgia, serif';
+      ctx.fillStyle = '#9a8d80';
+      ctx.fillText(`“${lv.title}”`, view.cx, view.cy + 64);
+    }
   }
   if (vs.phase === 'roundEnd' && vs.roundSummary && typeof vs.roundSummary === 'object') {
     drawRoundEndBanner(view, vs, players, myId);

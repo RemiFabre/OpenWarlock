@@ -129,11 +129,14 @@
   #shopReadyBtn:disabled { opacity: .8; color: var(--ash); }
   .botadd { padding: 6px 12px; font-size: 13px; }
   .botadd .stars, .pl .stars { color: var(--ash); font-size: 12px; }
-  #muteBtn {
-    position: fixed; right: 12px; bottom: 12px; z-index: 90;
+  #muteBtn, #musicBtn {
+    position: fixed; bottom: 12px; z-index: 90;
     font-size: 16px; line-height: 1; padding: 7px 9px;
     background: rgba(20, 16, 14, .82); border-color: #2e241c;
   }
+  #muteBtn { right: 12px; }
+  #musicBtn { right: 52px; }
+  #musicBtn.off { color: var(--ash); opacity: .5; }
   .shopgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
   @media (max-width: 560px) { .shopgrid { grid-template-columns: 1fr; } }
   .ware {
@@ -338,6 +341,7 @@
   </div>
 </div>
 
+<button id="musicBtn" type="button" title="Music on/off">♫</button>
 <button id="muteBtn" type="button" title="Sound on/off">🔊</button>
 
 <script type="module" src="/client/main.js"></script>
