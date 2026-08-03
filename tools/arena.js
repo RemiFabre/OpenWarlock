@@ -17,20 +17,17 @@ import {
   createGame, addPlayer, startGame, step, stepBot, botShop, buy, setShopReady, makeRng,
   castSpell,
 } from '../shared/sim.js';
-import { BOTS, ROUND, SPELLS, ELEMENTS } from '../shared/constants.js';
+import { BOTS, ROUND, SPELLS, ELEMENTS, BUILDS as SHARED_BUILDS } from '../shared/constants.js';
 
 const DT = 1 / 30;
 const MAX_TICKS = 30 * 60 * 45; // 45 sim-minutes hard cap per game
 
 // ---- build schemes --------------------------------------------------------
 // Priority lists consumed greedily every shop (first affordable next step).
+// The real builds live in shared/constants.js (BUILDS) — same lists the
+// lobby's per-bot strategy picker uses — plus one arena-only control.
 export const BUILDS = {
-  bruiser:   ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'ring', 'cape', 'treads'],
-  sniper:    ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape', 'ring'],
-  escape:    ['teleport', 'boots', 'fireball', 'teleport', 'cape', 'fireball', 'ring', 'treads'],
-  turtle:    ['shield', 'amulet', 'ring', 'cape', 'shield', 'treads', 'fireball', 'fireball'],
-  rusher:    ['rush', 'boots', 'fireball', 'rush', 'sword', 'amulet', 'fireball', 'cape'],
-  boomer:    ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'ring', 'sword'],
+  ...Object.fromEntries(Object.entries(SHARED_BUILDS).map(([k, v]) => [k, v.order])),
   greedless: [], // control: never buys anything
 };
 
@@ -44,34 +41,12 @@ export function strategies() {
   return out;
 }
 
-// ---- boomerang assist -------------------------------------------------------
-// NO bot profile in shared/sim.js ever casts boomerang (grep castSpell: it
-// appears only in fireball/rush/teleport/shield/lightning bot logic). Without
-// help, the 'boomer' build is 22g of dead gold and boomerang numbers are
-// unmeasurable. This harness-side micro-pilot throws the boomerang at the
-// nearest enemy in range whenever it's off cooldown — deliberately simple, so
-// the measurement reflects the spell's numbers, not pilot cleverness.
-// Disable with --noboomassist (or boomerangAssist: false) for a faithful run.
-
-function assistBoomerang(state, id) {
-  const pl = state.players[id];
-  if (!pl || !pl.alive) return;
-  if ((pl.spells.boomerang || 0) < 1 || (pl.cooldowns.boomerang || 0) > 0) return;
-  const spec = SPELLS.boomerang;
-  let best = null, bd = Infinity;
-  for (const o of Object.values(state.players)) {
-    if (o === pl || !o.alive) continue;
-    const d = Math.hypot(o.x - pl.x, o.y - pl.y);
-    if (d < bd) { bd = d; best = o; }
-  }
-  if (!best || bd > spec.outDistance + 4) return; // out-leg must be able to reach
-  const t = bd / spec.speed; // crude lead on knockback velocity
-  castSpell(state, id, 'boomerang', best.x + (best.vx || 0) * t, best.y + (best.vy || 0) * t);
-}
-
 // ---- single game ------------------------------------------------------------
+// (The old harness-side boomerang assist is gone: shared/sim.js bots now
+// pilot every spell their build buys — boomerang included — so arena games
+// measure exactly what live-server games do.)
 
-export function playGame(lineup, seed, { boomerangAssist = true, mode = 'classic' } = {}) {
+export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   const state = createGame({ seed, mode });
   lineup.forEach((strat, i) => {
     addPlayer(state, `s${i}`, strat.id, { bot: true, kind: strat.kind });
@@ -89,10 +64,7 @@ export function playGame(lineup, seed, { boomerangAssist = true, mode = 'classic
   while (state.phase !== 'gameover' && ticks++ < MAX_TICKS) {
     step(state, DT);
     if (state.phase === 'battle') {
-      for (const id of Object.keys(state.players)) {
-        stepBot(state, id, DT);
-        if (boomerangAssist) assistBoomerang(state, id);
-      }
+      for (const id of Object.keys(state.players)) stepBot(state, id, DT);
     }
     // drain the transient event queue (the server normally does this) and
     // classify deaths: a death at a position outside the current arena radius
@@ -147,7 +119,7 @@ export function playGame(lineup, seed, { boomerangAssist = true, mode = 'classic
 // degenerate element (e.g. a midas gold snowball) shows up as a win-rate or
 // gold outlier. Not a tuning tool — a smoke alarm.
 
-export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, log = console.error } = {}) {
   const elements = Object.keys(ELEMENTS);
   const wins = Object.fromEntries(elements.map(e => [e, 0]));
   const played = Object.fromEntries(elements.map(e => [e, 0]));
@@ -165,7 +137,7 @@ export function runElementalStudy({ kind = 'berserker', games = 100, playersPerG
       const el = pool.splice(Math.floor(rand() * pool.length), 1)[0];
       lineup.push({ id: `${kind}+${el}`, kind, build: 'bruiser', element: el });
     }
-    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist, mode: 'elemental' });
+    const res = playGame(lineup, seed * 100000 + g, { mode: 'elemental' });
     if (!res.finished) { unfinished++; continue; }
     res.ranking.forEach((r, place) => {
       const el = lineup[r.idx].element;
@@ -223,7 +195,7 @@ function makeElo(ids) {
 // are already winning (they live long and stack gold), which inflates their
 // "winner-held" share. Buying the probe item first removes that.
 
-export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, log = console.error } = {}) {
   const TAIL = ['fireball', 'fireball', 'amulet', 'boots'];
   const probes = ['treads', 'cape', 'ring', 'sword', 'boots', 'amulet', 'none'];
   const priorities = (p) => (p === 'none' ? TAIL : [p, ...TAIL.filter(x => x !== p)]);
@@ -240,7 +212,7 @@ export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame 
       const p = pool.splice(Math.floor(rand() * pool.length), 1)[0];
       lineup.push({ id: `${kind}+${p}`, kind, probe: p, priorities: priorities(p) });
     }
-    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist });
+    const res = playGame(lineup, seed * 100000 + g);
     if (!res.finished) { unfinished++; continue; }
     res.ranking.forEach((r, place) => {
       const p = lineup[r.idx].probe;
@@ -262,7 +234,7 @@ export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame 
 
 // ---- study ----------------------------------------------------------------------
 
-export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = console.error } = {}) {
   const strats = strategies();
   const elo = makeElo(strats.map(s => s.id));
   const wins = Object.fromEntries(strats.map(s => [s.id, 0]));
@@ -279,7 +251,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, boomerang
     for (let i = 0; i < playersPerGame; i++) {
       lineup.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     }
-    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist });
+    const res = playGame(lineup, seed * 100000 + g);
     if (!res.finished) { unfinished++; continue; }
     finished++;
     lavaDeaths += res.lavaDeaths;
@@ -330,7 +302,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, boomerang
 // profile confound (skill dwarfs shopping) and answers the real balance
 // question: within one skill tier, is any build a trap or an auto-win?
 
-export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, log = console.error } = {}) {
   const builds = Object.keys(BUILDS);
   const wins = Object.fromEntries(builds.map(b => [b, 0]));
   const played = Object.fromEntries(builds.map(b => [b, 0]));
@@ -347,7 +319,7 @@ export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, 
       const build = pool.splice(Math.floor(rand() * pool.length), 1)[0];
       lineup.push({ id: `${kind}/${build}`, kind, build });
     }
-    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist });
+    const res = playGame(lineup, seed * 100000 + g);
     if (!res.finished) { unfinished++; continue; }
     finished++;
     lavaDeaths += res.lavaDeaths;
@@ -389,13 +361,12 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   const games = argNum('games', 1000);
   const playersPerGame = argNum('players', 4);
   const seed = argNum('seed', 1);
-  const boomerangAssist = !process.argv.includes('--noboomassist');
 
   const mode = (process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1];
   if (mode === 'elemental') {
     const kind = (process.argv.find(a => a.startsWith('--kind=')) || '').split('=')[1] || 'berserker';
     console.error(`elemental study: ${games} games of ${playersPerGame} × ${kind}, elements only differ, seed ${seed}`);
-    const res = runElementalStudy({ kind, games, playersPerGame, seed, boomerangAssist });
+    const res = runElementalStudy({ kind, games, playersPerGame, seed });
     console.log(`\n=== elemental: all ${kind}/bruiser, element pick differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
     console.log('win%   avg-place  avg-gold  avg-kills  games  element');
     for (const r of res.table)
@@ -411,7 +382,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   if (mirror) {
     if (!BOTS[mirror]) { console.error(`unknown profile: ${mirror}`); process.exit(1); }
     console.error(`mirror arena: ${games} games of ${playersPerGame} × ${mirror}, seed ${seed}`);
-    const res = runMirror({ kind: mirror, games, playersPerGame, seed, boomerangAssist });
+    const res = runMirror({ kind: mirror, games, playersPerGame, seed });
     console.log(`\n=== mirror: all ${mirror}, builds only (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
     console.log('win%   avg-place  games  build');
     for (const r of res.table)
@@ -428,7 +399,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   if (probe) {
     if (!BOTS[probe]) { console.error(`unknown profile: ${probe}`); process.exit(1); }
     console.error(`item probe: ${games} games of ${playersPerGame} × ${probe}, seed ${seed}`);
-    const res = runItemProbe({ kind: probe, games, playersPerGame, seed, boomerangAssist });
+    const res = runItemProbe({ kind: probe, games, playersPerGame, seed });
     console.log(`\n=== item probe: all ${probe}, first purchase differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
     console.log('win%   games  first item');
     for (const r of res.table)
@@ -439,7 +410,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   }
 
   console.error(`arena: ${games} games of ${playersPerGame}, seed ${seed}, ${strategies().length} strategies`);
-  const res = runStudy({ games, playersPerGame, seed, boomerangAssist });
+  const res = runStudy({ games, playersPerGame, seed });
 
   console.log(`\n=== Elo table (${games} games, expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
   console.log('elo    games  win%   strategy');

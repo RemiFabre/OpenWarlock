@@ -1,6 +1,6 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, ELEMENTS, BOTS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
+import { SPELLS, ITEMS, ELEMENTS, BOTS, BUILDS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -314,8 +314,13 @@ function syncAvatarGrid() {
 }
 syncAvatarGrid();
 
+// The gold rules, spelled out — no hidden income.
+const goldRules =
+  `Gold: +${GOLD.ROUND_BASE} g every round · +${GOLD.PER_KILL} g per kill · ` +
+  `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first.`;
 $('lobbyFormat').textContent =
-  `First to ${ROUND.KILLS_TO_WIN} kills wins. Kills +${GOLD.PER_KILL} g · round win +${GOLD.ROUND_WIN} g.`;
+  `First to ${ROUND.KILLS_TO_WIN} kills wins. ${goldRules}`;
+$('shopIncome').textContent = goldRules;
 
 // ---- key bindings panel -------------------------------------------------------
 
@@ -403,20 +408,45 @@ $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('againBtn').addEventListener('click', () => send({ t: 'again' }));
 
-// bot picker: one button per bot kind, difficulty as stars, desc as tooltip
+// bot picker: per difficulty, an add button + a build-strategy select
+// (🎲 random = the server rolls one of the six builds when the bot is seated)
 const botStars = (kind) => BOTS[kind] ? '★'.repeat(BOTS[kind].difficulty) : '';
 {
   const wrap = $('botBtns');
   for (const [kind, spec] of Object.entries(BOTS)) {
+    const group = document.createElement('span');
+    group.className = 'botgroup';
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'botadd';
     b.id = `addBot-${kind}`;
     b.title = spec.desc;
     b.innerHTML = `+ ${esc(spec.name)} <span class="stars">${botStars(kind)}</span>`;
-    b.addEventListener('click', () => send({ t: 'addBot', kind }));
-    wrap.appendChild(b);
+    const sel = document.createElement('select');
+    sel.className = 'botsel';
+    sel.id = `botBuild-${kind}`;
+    sel.title = 'Build strategy for the next added bot (see “strategies explained” below)';
+    sel.innerHTML = `<option value="random">🎲 random</option>` +
+      Object.entries(BUILDS).map(([k, bs]) =>
+        `<option value="${k}" title="${esc(bs.desc)}">${esc(bs.name.toLowerCase())}</option>`).join('');
+    b.addEventListener('click', () => send({ t: 'addBot', kind, build: sel.value }));
+    group.append(b, sel);
+    wrap.appendChild(group);
   }
+}
+
+// strategy chart: what each difficulty does and what each build buys
+{
+  const rowsKinds = Object.values(BOTS).map(b =>
+    `<tr><td class="stars">${'★'.repeat(b.difficulty)}</td><td>${esc(b.name)}</td><td>${esc(b.desc)}</td></tr>`).join('');
+  const rowsBuilds = Object.values(BUILDS).map(b =>
+    `<tr><td>${esc(b.name)}</td><td>${b.order.map(k => ICONS[k] || k).join(' ')}</td><td>${esc(b.desc)}</td></tr>`).join('');
+  $('botHelpBody').innerHTML = `
+    <p><b>Difficulty</b> is how the bot fights:</p>
+    <table class="helptable">${rowsKinds}</table>
+    <p><b>Strategy</b> is what it buys — each shop it grabs the first thing on its list it can afford:</p>
+    <table class="helptable">${rowsBuilds}</table>
+    <p>🎲 random rolls one of the six strategies when the bot is added.</p>`;
 }
 
 // mute toggle (persisted in localStorage 'owMuted')
@@ -609,6 +639,18 @@ function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
 const byRank = (a, b) =>
   (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0);
 
+// A player's full kit as icons: spells (with level) then items, plus the
+// chosen element in elemental mode. Shown in the shop roster and standings.
+function kitIcons(p) {
+  const parts = [];
+  for (const [k, lv] of Object.entries(p.spells || {}))
+    if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
+  for (const it of (Array.isArray(p.items) ? p.items : []))
+    if (ICONS[it]) parts.push(ICONS[it]);
+  if (p.element && ELEMENTS[p.element]) parts.push(ELEMENTS[p.element].icon);
+  return parts.join(' ');
+}
+
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
   const m = me(s);
@@ -631,7 +673,7 @@ function updateUi(s) {
       const div = document.createElement('div');
       div.className = 'pl';
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
       list.appendChild(div);
     }
@@ -659,6 +701,15 @@ function updateUi(s) {
     }
     const watching = !!(m && m.spectator);
     $('shopGold').textContent = !watching && m ? `${m.gold} g` : '';
+    // roster: everyone's kills, deaths, gold (now + total earned) and full kit
+    $('shopRoster').innerHTML = playerList.filter(p => !p.spectator).sort(byRank).map(p => `
+      <div class="pl${p.id === myId ? ' me' : ''}">
+        <span class="dot" style="background:${p.color}"></span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="num" title="kills / deaths">⚔ ${p.kills || 0}/${p.deaths || 0}</span>
+        <span class="num gd" title="gold to spend (total earned)">${p.gold || 0}g <span class="dim">(${p.goldEarned ?? p.gold ?? 0} earned)</span></span>
+        <span class="kit" title="spells & items owned">${kitIcons(p)}</span>
+      </div>`).join('');
     const timer = $('shopTimer');
     timer.textContent = `${Math.ceil(phaseT)} s`;
     timer.classList.toggle('low', phaseT <= 5);
@@ -703,12 +754,14 @@ function updateUi(s) {
       `<td><span class="dot" style="display:inline-block;background:${p.color}"></span> ${esc(p.avatar || '🧙')} ${esc(p.name)}</td>`;
     const rows = fightersL.map((p, i) =>
       `<tr class="${w && p.id === w.id ? 'winner' : ''}"><td>${i + 1}</td>${who(p)}
-       <td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td><td class="num">${p.gold || 0}</td></tr>`)
+       <td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td>
+       <td class="num" title="total earned (unspent: ${p.gold || 0})">${p.goldEarned ?? p.gold ?? 0}</td>
+       <td class="kit">${kitIcons(p)}</td></tr>`)
       .concat(specs.map((p) =>
-        `<tr class="spec"><td>👁</td>${who(p)}<td class="num"></td><td class="num"></td><td class="num"></td></tr>`))
+        `<tr class="spec"><td>👁</td>${who(p)}<td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>`))
       .join('');
     $('standings').innerHTML =
-      `<tr><th></th><th>Warlock</th><th class="num">Kills</th><th class="num">Deaths</th><th class="num">Gold</th></tr>${rows}`;
+      `<tr><th></th><th>Warlock</th><th class="num">Kills</th><th class="num">Deaths</th><th class="num">Gold earned</th><th>Upgrades</th></tr>${rows}`;
   }
 
   // topbar scoreboard — fighters ranked by kills, spectators last and dimmed

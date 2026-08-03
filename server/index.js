@@ -13,7 +13,7 @@ import {
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator, fighters,
   setMode,
 } from '../shared/sim.js';
-import { TICK_RATE, SNAPSHOT_RATE, BOTS } from '../shared/constants.js';
+import { TICK_RATE, SNAPSHOT_RATE, BOTS, BUILDS } from '../shared/constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -138,7 +138,7 @@ function resetToLobby() {
   journaledEvents = 0;
   for (const [id, p] of Object.entries(old)) {
     if (p.bot || sockets.has(id)) {
-      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind });
+      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind, build: p.build });
       np.ready = false;
       np.spectator = p.spectator;
     }
@@ -219,9 +219,13 @@ wss.on('connection', (ws) => {
       case 'addBot': {
         if (game.phase !== 'lobby' || playerCount() >= MAX_PLAYERS) break;
         const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
+        // build strategy: explicit lobby pick, or a random one ('random'/absent)
+        const buildKeys = Object.keys(BUILDS);
+        const build = typeof m.build === 'string' && Object.hasOwn(BUILDS, m.build)
+          ? m.build : buildKeys[(Math.random() * buildKeys.length) | 0];
         const bid = 'bot' + nextBotId++;
         const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {
-          bot: true, kind, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
+          bot: true, kind, build, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
         });
         bp.ready = true;
         maybeAutoStart();

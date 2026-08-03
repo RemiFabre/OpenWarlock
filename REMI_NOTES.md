@@ -6,6 +6,73 @@ you asked before leaving.*
 
 ---
 
+## ROUND 6 — your playtest feedback, applied (2026-08-03)
+
+All nine changes from your voice notes are in and verified (78 tests green,
+harness + 2-browser robustness + arena all pass). Restart the server and
+hard-refresh after pulling.
+
+### Feel changes — the numbers you asked for
+
+- **Lava now makes you FASTER, not slower.** There never was a slow — the
+  helpless feeling was 20 DPS + knockback momentum. Now: **+30% move speed
+  in lava** (`LAVA.SPEED_MULT`), **lava damage −30%** (20 → 14 DPS), and
+  **no more lingering burn** — step out and the damage stops instantly.
+  Diving through the lava to dodge or flank is now a real play.
+- **Fireballs: 20% slimmer (radius 1.0 → 0.8), 20% faster (34 → 41).**
+  Snappier to fire, easier to dodge. (I read "the blaze" in your dictation
+  as the fireball — shout if you meant something else.)
+- **Boomerang 40% wider** (radius 1.0 → 1.4). It's now the easy-to-land spell.
+- **Knockback −10% on every spell** (fireball 72→65 lv1, lightning 32→29,
+  boomerang 56→50, rush 88→79, ember's bonus 6→5). Lava kill share measured
+  after the change: still ~86% — the identity is intact.
+
+### Gold — the "bug" and the clarity pass
+
+- The end screen showed your **unspent wallet**, not your income — buy three
+  items and of course it looks pathetic. The game now tracks **gold earned**
+  separately and the standings show that (wallet in the tooltip).
+- Income rules are now written where you can see them (lobby + shop):
+  **+3 g every round · +4 g per kill · +3 g round win · +1 g if you died
+  first.** You start with 12 g.
+- **The shop now shows a full roster** during the lull: everyone's kills,
+  deaths, gold now + earned, and every upgrade they own as icons.
+
+### Bots — pick their strategy
+
+- Each difficulty button in the lobby now has a **strategy dropdown**:
+  🎲 random (default) or bruiser / sniper / escape artist / turtle / rusher /
+  boomer — the exact builds the balance lab rates. The lobby list shows each
+  bot's rolled strategy.
+- **"Bot difficulties & strategies explained"** (collapsible, in the lobby)
+  is the chart you asked for: what each difficulty does, what each strategy
+  buys and why. Long version: `STRATEGIES.md`, which also documents how to
+  read the arena reports (win rate baseline 25%, Elo, mirror tables…) — and
+  I've made "explain the metrics" a standing rule for future reports.
+- **Bots now cast what they buy** (the old debt #1): a generic pilot layer
+  throws boomerangs, zaps, shields, rushes and lava-saves with teleport for
+  any build. The arena's boomerang crutch is gone — lab and live games now
+  measure the same thing.
+
+### Backgrounds — found the blur, twice over
+
+Your originals are fine (1024×1536). Two things were degrading them:
+1. The committed JPEGs had been **downscaled to 682×1024** — recommitted at
+   native resolution (q65, ~6 MB total) from
+   `~/reachy_mini_apps/fire_nation_attacked_assets/`.
+2. The renderer painted the art on the **1/3-resolution backdrop layer** and
+   stretched it up. The art now draws full-res on the main canvas; only the
+   lava-blob gradients (the actually-expensive paints) stay on the cheap layer.
+
+### Worth a fresh balance campaign
+
+Knockback −10%, lava −30%, faster+slimmer fireballs, wide boomerang AND bots
+that finally use their kits — the old BALANCE.md numbers are stale now. Next
+session should re-run the full study (and write the report per the new
+explain-everything rule).
+
+---
+
 ## ROUND 5 — the overnight build (read this over coffee ☕)
 
 Everything you asked for is in, verified, and pushed. Four phases, each

@@ -1,6 +1,6 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS } from '../shared/constants.js';
 import { currentLevel } from './music.js';
 
 // Precomputed drifting lava blobs (deterministic, just for looks).
@@ -31,6 +31,8 @@ export function makeView(canvas) {
       this.scale = Math.min(this.w, this.h) / (2 * (ARENA.START_RADIUS + 9));
       // backdrop renders at ~1/3 resolution and is stretched up — the image,
       // wash and lava-blob gradients are by far the most expensive paints
+      // the back layer only carries the lava-blob gradients now (the level
+      // art is drawn full-res on the main canvas — one cheap drawImage)
       back.width = Math.max(160, Math.round(this.w / 3));
       back.height = Math.max(100, Math.round(this.h / 3));
     },
@@ -58,8 +60,34 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     : 0;
   const worldAlpha = 1 - reveal;
 
-  // --- lava sea + scenery: painted small offscreen, stretched up ---
-  drawBackdrop(view, reveal, worldAlpha, t);
+  // --- backdrop: base + level art at FULL resolution on the main canvas
+  // (the art used to live on the 1/3-res layer and came out visibly blurry;
+  // a single full-res drawImage is cheap — the gradients were the expensive
+  // part, and those stay on the low-res layer below) ---
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#2b0800';
+  ctx.fillRect(0, 0, w, h);
+  try {
+    const lv = currentLevel();
+    if (lv && lv.image) {
+      const img = lv.image;
+      // "dezoomed" between cover and contain; expands to the full picture
+      // (contain) during the round-end reveal
+      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const containS = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+      const base = Math.max(containS, Math.sqrt(coverS * containS));
+      const sc = base + (containS - base) * reveal;
+      const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
+      ctx.globalAlpha = 0.22 + 0.72 * reveal;
+      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(16, 6, 2, ${0.35 * worldAlpha})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  } catch { /* a broken image must never break the frame */ }
+
+  // --- drifting lava blobs: painted small offscreen, stretched up ---
+  drawBackdrop(view, worldAlpha, t);
   ctx.drawImage(view.back, 0, 0, w, h);
 
   if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
@@ -151,7 +179,8 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
       // elemental fireballs (elemental mode) tint the core; terra flies bigger
-      const r = (pr.element === 'terra' ? 1.4 : 1.0) * scale;
+      const r = SPELLS.fireball.radius *
+        (pr.element === 'terra' ? ELEMENTS.terra.fx.projRadiusMult : 1) * scale;
       const core = ELEM_CORE[pr.element] || '#ffab40';
       const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
       // trail
@@ -169,7 +198,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fill();
     } else if (pr.type === 'boomerang') {
-      const r = 0.9 * scale;
+      const r = SPELLS.boomerang.radius * 0.9 * scale; // drawn a hair inside the hitbox
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(t * 14);
@@ -212,7 +241,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.fillText(String(pl.avatar || '🧙'), x, y);
     ctx.textBaseline = 'alphabetic';
 
-    if (pl.burn || pl.inLava) {
+    if (pl.inLava) {
       const fl = 0.5 + 0.5 * Math.sin(t * 20 + x);
       ctx.strokeStyle = `rgba(255, 100, 20, ${0.5 + 0.4 * fl})`;
       ctx.lineWidth = 3;
@@ -252,32 +281,13 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   drawBanners(view, vs, players, myId);
 }
 
-// The backdrop: base lava color, the level's art ("dezoomed" between cover
-// and contain; expanding to the full picture during the round-end reveal),
-// a dark wash, and the drifting lava blobs. Painted at ~1/3 resolution.
-function drawBackdrop(view, reveal, worldAlpha, t) {
+// The low-res layer: only the drifting lava-blob gradients (by far the most
+// expensive paints), at ~1/3 resolution. Base color and level art are drawn
+// full-res on the main canvas by draw().
+function drawBackdrop(view, worldAlpha, t) {
   const ctx = view.bctx;
   const w = view.back.width, h = view.back.height;
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = '#2b0800';
-  ctx.fillRect(0, 0, w, h);
-  try {
-    const lv = currentLevel();
-    if (lv && lv.image) {
-      const img = lv.image;
-      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-      const containS = Math.min(w / img.naturalWidth, h / img.naturalHeight);
-      const base = Math.max(containS, Math.sqrt(coverS * containS));
-      const sc = base + (containS - base) * reveal;
-      const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
-      ctx.globalAlpha = 0.22 + 0.72 * reveal;
-      ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = `rgba(16, 6, 2, ${0.35 * worldAlpha})`;
-      ctx.fillRect(0, 0, w, h);
-    }
-  } catch { /* a broken image must never break the frame */ }
-
+  ctx.clearRect(0, 0, w, h);
   if (worldAlpha <= 0.01) return;
   ctx.globalAlpha = worldAlpha;
   const cx = w / 2, cy = h / 2;

@@ -41,9 +41,10 @@ export const PLAYER = {
 };
 
 export const LAVA = {
-  DPS: 20,
-  AFTERBURN_DPS: 4,
-  AFTERBURN_TIME: 2,
+  DPS: 14,          // hp/s while swimming (was 20; -30% 2026-08 playtest round)
+  // you move FASTER in lava, not slower: dipping through the lava is a real
+  // play (dodge route, flank), the DPS is the price of admission
+  SPEED_MULT: 1.3,
 };
 
 export const ROUND = {
@@ -70,20 +71,20 @@ export const SPELLS = {
     // the 4th damage/knockback/cost entries are only reachable in elemental
     // mode via the Cinder Crown (maxLevel stays 3 in classic — buy() enforces)
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8, 8],
-    cooldown: 1.6, speed: 34, radius: 1.0, range: Infinity,
-    damage: [4, 7, 10, 13], knockback: [72, 78, 84, 92],
+    cooldown: 1.6, speed: 41, radius: 0.8, range: Infinity,
+    damage: [4, 7, 10, 13], knockback: [65, 70, 76, 83],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 5, range: 55, width: 1.2,
-    damage: [4, 6, 9], knockback: [32, 32, 32],
+    damage: [4, 6, 9], knockback: [29, 29, 29],
     desc: 'Instant long-range bolt. Low knockback — a finisher.',
   },
   boomerang: {
     name: 'Boomerang', hotkey: 'E', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 4.5, speed: 31, radius: 1.0, outDistance: 20, homing: 40,
-    damage: [4, 6, 8], knockback: [56, 66, 76],
+    cooldown: 4.5, speed: 31, radius: 1.4, outDistance: 20, homing: 40,
+    damage: [4, 6, 8], knockback: [50, 59, 68],
     desc: 'Flies out and returns. Can hit on both legs.',
   },
   teleport: {
@@ -99,7 +100,7 @@ export const SPELLS = {
   rush: {
     name: 'Rush', hotkey: 'F', maxLevel: 2, costs: [12, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
-    damage: [4, 6], knockback: [88, 88],
+    damage: [4, 6], knockback: [79, 79],
     desc: 'Dash through enemies, blasting them aside.',
   },
 };
@@ -109,7 +110,7 @@ export const SPELLS = {
 // when the game runs the elemental ruleset; classic never sees them.
 export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed' },
-  treads: { name: 'Lava Treads',          cost: 10, desc: '-30% lava damage, no afterburn' },
+  treads: { name: 'Lava Treads',          cost: 10, desc: '-30% lava damage' },
   amulet: { name: 'Amulet of Health',     cost: 12, desc: '+30 max HP' },
   ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+1.2 HP/s' },
   cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-15% knockback taken' },
@@ -117,7 +118,7 @@ export const ITEMS = {
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental',
             desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
   crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental',
-            desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +3 dmg, +8 push)' },
+            desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +3 dmg, +7 push)' },
 };
 
 export const ITEM_FX = {
@@ -136,8 +137,8 @@ export const ITEM_FX = {
 // Requires Fireball >= 1. buy() rejects them entirely in classic mode.
 export const ELEMENTS = {
   ember: { name: 'Ember', icon: '🔥', cost: 10,
-           desc: 'Pure fire: +3 damage, +6 push.',
-           fx: { dmgAdd: 3, kbAdd: 6 } },
+           desc: 'Pure fire: +3 damage, +5 push.',
+           fx: { dmgAdd: 3, kbAdd: 5 } },
   frost: { name: 'Frost', icon: '❄️', cost: 10,
            desc: 'Hits chill: target moves at 55% speed for 1.6 s.',
            fx: { slowMult: 0.55, slowT: 1.6 } },
@@ -167,4 +168,31 @@ export const BOTS = {
   grunt:     { name: 'Grunt',     difficulty: 1, desc: 'Wanders and throws. Cannon fodder.' },
   berserker: { name: 'Berserker', difficulty: 2, desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats.' },
   stalker:   { name: 'Stalker',   difficulty: 3, desc: 'Dodges, leads its shots, saves itself with teleport and shield.' },
+};
+
+// ---- Bot build strategies -------------------------------------------------
+// A bot = a combat profile (BOTS kind: HOW it fights) × a build strategy
+// (WHAT it buys). Each order list is consumed greedily every shop: first
+// affordable next step, skipping what's owned/maxed. Selectable per bot in
+// the lobby ('random' picks one at seat time); the balance lab (tools/
+// arena.js) rates every kind × build pairing.
+export const BUILDS = {
+  bruiser: { name: 'Bruiser',
+    desc: 'Max fireball, then HP and lifesteal. Stands its ground and trades.',
+    order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'ring', 'cape', 'treads'] },
+  sniper:  { name: 'Sniper',
+    desc: 'Lightning first. Pokes from long range and finishes low targets.',
+    order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape', 'ring'] },
+  escape:  { name: 'Escape artist',
+    desc: 'Teleport and boots. Slippery — very hard to shove into the lava.',
+    order: ['teleport', 'boots', 'fireball', 'teleport', 'cape', 'fireball', 'ring', 'treads'] },
+  turtle:  { name: 'Turtle',
+    desc: 'Shield, regen and HP. Outlasts you and lets the lava do the work.',
+    order: ['shield', 'amulet', 'ring', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
+  rusher:  { name: 'Rusher',
+    desc: 'Rush and lifesteal. Dives in and shoves you off the platform.',
+    order: ['rush', 'boots', 'fireball', 'rush', 'sword', 'amulet', 'fireball', 'cape'] },
+  boomer:  { name: 'Boomer',
+    desc: 'Boomerang stacking. Wide throws that hit on the way out and back.',
+    order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'ring', 'sword'] },
 };

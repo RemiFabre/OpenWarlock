@@ -151,19 +151,20 @@ describe('movement & physics', () => {
 });
 
 describe('lava', () => {
-  it('damages players standing in it and applies afterburn', () => {
+  it('damages players standing in it, with no lingering burn once out', () => {
     const state = freshBattle(3); // 3 players so round doesn't end
     const pl = state.players.p0;
     pl.x = ARENA.START_RADIUS + 5; pl.y = 0;
     const hp0 = pl.hp;
     run(state, 1);
-    expect(pl.hp).toBeLessThan(hp0 - 15); // ~20 dps
-    // step out: afterburn keeps ticking
+    expect(pl.hp).toBeLessThan(hp0 - 10);    // ~14 dps minus baseline regen
+    expect(pl.hp).toBeGreaterThan(hp0 - 16);
+    // step out: the damage stops immediately and regen takes over
     pl.x = 0; pl.y = 0;
+    run(state, DT * 2);
     const hp1 = pl.hp;
     run(state, 1);
-    expect(pl.hp).toBeLessThan(hp1);
-    expect(pl.hp).toBeGreaterThan(hp1 - 8);
+    expect(pl.hp).toBeGreaterThan(hp1); // healing, not burning
   });
 
   it('lava kill credits the last hitter', () => {
@@ -176,9 +177,9 @@ describe('lava', () => {
     castSpell(state, 'p0', 'fireball', 10, 0);
     run(state, 0.5);
     expect(victim.hp).toBeLessThan(30);
-    // then victim burns to death
+    // then victim burns to death (14 dps net of regen: ~2.4 s for 30 hp)
     victim.x = ARENA.START_RADIUS + 10; victim.y = 0;
-    run(state, 2);
+    run(state, 3);
     expect(victim.alive).toBe(false);
     expect(state.players.p0.kills).toBe(1);
   });
@@ -193,6 +194,67 @@ describe('lava', () => {
     const lossA = a.maxHp - a.hp, lossB = b.maxHp - b.hp;
     // treads lavaMult 0.65: loss ratio sits a bit above 0.65 after flat regen
     expect(lossA).toBeLessThan(lossB * 0.75);
+  });
+
+  it('speeds you up instead of slowing you down (the lava dodge is real)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.x = ARENA.START_RADIUS + 6; a.y = 0; // swimming
+    b.x = 0; b.y = 0;                      // walking the same course on land
+    step(state, DT); // latch the inLava flags
+    const ax0 = a.x, bx0 = b.x;
+    setMoveTarget(state, 'p0', ax0 + 25, 0);
+    setMoveTarget(state, 'p1', bx0 + 25, 0);
+    run(state, 1);
+    expect(b.x - bx0).toBeCloseTo(PLAYER.SPEED, 0);          // baseline on land
+    expect(a.x - ax0).toBeGreaterThan((b.x - bx0) * 1.2);    // ~30% faster in lava
+  });
+});
+
+describe('bot builds & piloting', () => {
+  it('a lobby build strategy overrides the kind default in the shop', () => {
+    const state = createGame({ seed: 5 });
+    addPlayer(state, 'b1', 'boomer-grunt', { bot: true, kind: 'grunt', build: 'boomer' });
+    addPlayer(state, 'b2', 'stock-grunt', { bot: true, kind: 'grunt' });
+    state.phase = 'shop';
+    state.players.b1.gold = 40; state.players.b2.gold = 40;
+    botShop(state, 'b1'); botShop(state, 'b2');
+    expect(state.players.b1.spells.boomerang || 0).toBeGreaterThan(0); // boomer list
+    expect(state.players.b2.spells.boomerang || 0).toBe(0);           // grunt default
+  });
+
+  it('bots actually cast the spells their build buys (boomerang pilot)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.bot = true; a.kind = 'grunt';
+    a.spells.boomerang = 1;
+    a.x = 0; a.y = 0;
+    state.players.p1.x = 10; state.players.p1.y = 0;
+    state.players.p2.x = 0; state.players.p2.y = -20;
+    for (let i = 0; i < 60 && !state.projectiles.some(p => p.type === 'boomerang'); i++) {
+      stepBot(state, 'p0', DT);
+      step(state, DT);
+    }
+    expect(state.projectiles.some(p => p.type === 'boomerang')).toBe(true);
+  });
+
+  it('unknown builds are rejected at addPlayer (no crash later)', () => {
+    const state = createGame({ seed: 6 });
+    const pl = addPlayer(state, 'b1', 'x', { bot: true, kind: 'grunt', build: 'nonsense' });
+    expect(pl.build).toBe(null);
+  });
+});
+
+describe('gold accounting', () => {
+  it('goldEarned tracks lifetime income; gold is just the wallet', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; b.x = 2; b.y = 0; b.hp = 1;
+    castSpell(state, 'p0', 'fireball', 5, 0);
+    run(state, 0.5); // kill lands -> round ends -> income granted
+    expect(a.kills).toBe(1);
+    expect(a.goldEarned).toBe(GOLD.START + GOLD.PER_KILL + GOLD.ROUND_BASE + GOLD.ROUND_WIN);
+    expect(a.goldEarned).toBeGreaterThanOrEqual(a.gold); // spending never lowers earnings
   });
 });
 
@@ -474,7 +536,7 @@ describe('edge cases (fuzz campaign probes)', () => {
     a.spells.teleport = 2;
     state.players.p1.x = 0; state.players.p1.y = 40;
     state.players.p2.x = 0; state.players.p2.y = -40;
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 300; i++) { // ~10 s: enough for the 14 dps lava to finish them
       a.cooldowns.teleport = 0; // force-spam past the cooldown
       castSpell(state, 'p0', 'teleport', a.x + 1000, 0);
       step(state, DT);
@@ -567,7 +629,7 @@ describe('size-by-lead & spectators', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.y = -40;
-    a.x = 0; a.y = 0; b.x = 15; b.y = 3.0; // grazing shot: misses a normal body (reach 2.4)
+    a.x = 0; a.y = 0; b.x = 15; b.y = 2.6; // grazing shot: misses a normal body (reach 2.2)
     b.kills = 10; // big lead -> big body
     step(state, DT);
     castSpell(state, 'p0', 'fireball', 15, 0); // aimed straight, not at b

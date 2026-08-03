@@ -3,6 +3,7 @@
 
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
+  BUILDS,
 } from './constants.js';
 
 // Tiny deterministic RNG (mulberry32) so tests are reproducible.
@@ -52,26 +53,27 @@ function rng(state) {
 
 // ---- players ------------------------------------------------------------
 
-export function addPlayer(state, id, name, { bot = false, color, avatar, kind } = {}) {
+export function addPlayer(state, id, name, { bot = false, color, avatar, kind, build } = {}) {
   const n = Object.keys(state.players).length;
   state.players[id] = {
     id, name: String(name).slice(0, 16) || 'warlock', bot,
     color: color || COLORS[n % COLORS.length],
     avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 8) : '🧙',
     kind: bot ? (kind || 'grunt') : null,
+    // bots only: shop build strategy (BUILDS key); null = the kind's default
+    build: bot && build && Object.hasOwn(BUILDS, build) ? build : null,
     shopReady: false,
     x: 0, y: 0, vx: 0, vy: 0,
     moveTarget: null,
     hp: PLAYER.MAX_HP, maxHp: PLAYER.MAX_HP,
     alive: false,          // becomes true at round start
     ready: false,
-    gold: GOLD.START, kills: 0, deaths: 0,
+    gold: GOLD.START, goldEarned: GOLD.START, kills: 0, deaths: 0,
     spectator: false,
     radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
     items: [],
     cooldowns: {},
-    burn: 0,               // afterburn time remaining
     shieldT: 0,
     // ---- elemental mode only (all stay 0/null for the whole game in classic)
     element: null,         // chosen fireball element key, or null
@@ -128,19 +130,20 @@ export function removePlayer(state, id) {
 function stats(pl) {
   // everyone regenerates a little: spells only tickle — the lava is the killer
   let speed = PLAYER.SPEED, lavaMult = 1, kbMult = 1, regen = PLAYER.REGEN, lifesteal = 0;
-  let maxHp = PLAYER.MAX_HP, afterburnImmune = false;
+  let maxHp = PLAYER.MAX_HP;
   for (const it of pl.items) {
     const fx = ITEM_FX[it];
     if (!fx) continue;
     if (fx.speedMult) speed *= fx.speedMult;
-    if (fx.lavaMult != null) { lavaMult *= fx.lavaMult; afterburnImmune = true; }
+    if (fx.lavaMult != null) lavaMult *= fx.lavaMult;
     if (fx.kbMult) kbMult *= fx.kbMult;
     if (fx.regen) regen += fx.regen;
     if (fx.lifesteal) lifesteal += fx.lifesteal;
     if (fx.maxHp) maxHp += fx.maxHp;
   }
+  if (pl.inLava) speed *= LAVA.SPEED_MULT; // lava is fast — and it burns
   if (pl.slowT > 0) speed *= ELEMENTS.frost.fx.slowMult; // frost chill (elemental)
-  return { speed, lavaMult, kbMult, regen, lifesteal, maxHp, afterburnImmune };
+  return { speed, lavaMult, kbMult, regen, lifesteal, maxHp };
 }
 
 // Per-level value helper: spec fields may be scalar or per-level arrays.
@@ -367,6 +370,7 @@ function kill(state, target, directSourceId) {
     killer.kills++;
     killer.roundKills++;
     killer.gold += GOLD.PER_KILL;
+    killer.goldEarned += GOLD.PER_KILL;
   }
   if (!Object.values(state.players).some(p => p.deaths > 0 && p !== target && p.diedFirstRound === state.round)) {
     target.diedFirstRound = state.round;
@@ -402,7 +406,7 @@ function startRound(state) {
     pl.hp = pl.maxHp;
     pl.alive = true;
     pl.cooldowns = {};
-    pl.burn = 0; pl.shieldT = 0; pl.dash = null;
+    pl.inLava = false; pl.shieldT = 0; pl.dash = null;
     pl.slowT = 0; pl.poisonT = 0; pl.poisonBy = null; pl._poisonAcc = 0;
     pl.growT = 0; pl.echoN = 0;
     pl.lastHitBy = null;
@@ -435,9 +439,9 @@ function endRound(state) {
   const income = {};
   for (const pl of fighters(state)) {
     let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL; // kill gold shown, already granted at kill time
-    pl.gold += GOLD.ROUND_BASE;
-    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
-    if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
+    pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE;
+    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
+    if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
     income[pl.id] = g;
     pl.dash = null; pl.moveTarget = null;
     pl.shopReady = false;
@@ -600,15 +604,10 @@ function stepBattle(state, dt) {
     // component INTO the pillar — knockback slams you against cover and stops
     collidePillars(state, pl);
 
-    // lava (radius 0 = the whole world is lava)
+    // lava (radius 0 = the whole world is lava). No lingering burn: step out
+    // and the damage stops — the price is only paid while swimming.
     const inLava = state.arenaRadius <= 0 || Math.hypot(pl.x, pl.y) > state.arenaRadius;
-    if (inLava) {
-      applyDamage(state, pl, LAVA.DPS * st.lavaMult * dt, null, { silent: true });
-      if (!st.afterburnImmune) pl.burn = LAVA.AFTERBURN_TIME;
-    } else if (pl.burn > 0) {
-      pl.burn = Math.max(0, pl.burn - dt);
-      applyDamage(state, pl, LAVA.AFTERBURN_DPS * dt, null, { silent: true });
-    }
+    if (inLava) applyDamage(state, pl, LAVA.DPS * st.lavaMult * dt, null, { silent: true });
     if (pl.alive) pl.inLava = inLava;
 
     // regen
@@ -790,6 +789,7 @@ function applyElementHit(state, pr, target) {
     const owner = state.players[pr.owner];
     if (owner) {
       owner.gold += efx.goldOnHit;
+      owner.goldEarned += efx.goldOnHit;
       state.events.push({ t: 'gold', id: pr.owner, amount: efx.goldOnHit, x: pr.x, y: pr.y });
     }
   }
@@ -808,16 +808,16 @@ export function snapshot(state) {
   for (const [id, p] of Object.entries(state.players)) {
     players[id] = {
       id: p.id, name: p.name, color: p.color, bot: p.bot, avatar: p.avatar,
-      kind: p.kind, shopReady: p.shopReady,
+      kind: p.kind, build: p.build || null, shopReady: p.shopReady,
       x: round2(p.x), y: round2(p.y),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
-      gold: p.gold, kills: p.kills, deaths: p.deaths,
+      gold: p.gold, goldEarned: p.goldEarned, kills: p.kills, deaths: p.deaths,
       spectator: p.spectator, radius: round2(p.radius),
       spells: p.spells, items: p.items,
       cooldowns: mapRound(p.cooldowns),
       shieldT: round2(p.shieldT),
-      inLava: !!p.inLava, burn: p.burn > 0,
+      inLava: !!p.inLava,
       dashing: !!p.dash,
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
@@ -874,7 +874,63 @@ export function stepBot(state, id, dt) {
     case 'stalker': stepStalker(state, pl, dt); break;
     default: stepGrunt(state, pl, dt); break;
   }
+  pilotOwnedSpells(state, pl, dt);
   unwedgeFromPillars(state, pl, dt);
+}
+
+// Generic "use what you own" pilot. Each kind's native logic covers its own
+// kit; this layer opportunistically casts the REST of a build's spells (a
+// sniper-build grunt actually zaps, a boomer-build berserker actually
+// throws). Native casts always win: cooldowns gate everything here. Runs on
+// its own slow, jittered timer so bots don't turn into spell turrets.
+function pilotOwnedSpells(state, pl, dt) {
+  pl._pilotT = (pl._pilotT || 0) - dt;
+  if (pl._pilotT > 0) return;
+  pl._pilotT = 0.3 + rng(state) * 0.3;
+  const arena = state.arenaRadius;
+  const owns = (k) => (pl.spells[k] || 0) > 0 && (pl.cooldowns[k] || 0) <= 0;
+
+  // lava save for the grunt (stalker blinks and berserker rushes natively)
+  if (pl.kind === 'grunt' && owns('teleport') && arena > 2 &&
+      Math.hypot(pl.x, pl.y) > arena &&
+      castSpell(state, pl.id, 'teleport', 0, 0)) return;
+
+  const target = nearestEnemy(state, pl);
+  if (!target) return;
+  const tdx = target.x - pl.x, tdy = target.y - pl.y;
+  const dist = Math.hypot(tdx, tdy) || 1;
+
+  // shield an imminent projectile (stalker does this natively)
+  if (pl.kind !== 'stalker' && owns('shield')) {
+    const threat = scanThreats(state, pl, 0.4, 2.0);
+    if (threat && castSpell(state, pl.id, 'shield', threat.pr.x, threat.pr.y)) return;
+  }
+
+  // boomerang at anything the out-leg can reach — wide, forgiving aim
+  if (owns('boomerang') && dist < SPELLS.boomerang.outDistance + 4) {
+    const t = dist / SPELLS.boomerang.speed;
+    const v = estVel(target);
+    if (castSpell(state, pl.id, 'boomerang',
+        target.x + v.vx * t, target.y + v.vy * t)) return;
+  }
+
+  // lightning poke (stalker uses it natively); grunts stay a bit sloppy
+  if (pl.kind !== 'stalker' && owns('lightning') && dist < SPELLS.lightning.range - 2) {
+    const v = estVel(target);
+    const err = pl.kind === 'grunt' ? (rng(state) - 0.5) * dist * 0.15 : 0;
+    if (castSpell(state, pl.id, 'lightning',
+        target.x + v.vx * 0.06 - (tdy / dist) * err,
+        target.y + v.vy * 0.06 + (tdx / dist) * err)) return;
+  }
+
+  // rush to close the gap (berserker rushes natively); never dash into lava
+  if (pl.kind !== 'berserker' && owns('rush') &&
+      dist > 3 && dist < SPELLS.rush.distance + 4) {
+    const ex = pl.x + (tdx / dist) * SPELLS.rush.distance;
+    const ey = pl.y + (tdy / dist) * SPELLS.rush.distance;
+    if (Math.hypot(ex, ey) < arena - 1.5)
+      castSpell(state, pl.id, 'rush', target.x, target.y);
+  }
 }
 
 // Anti-wedge: a bot that sits pressed against a pillar for >1 s while its
@@ -1243,7 +1299,9 @@ export function botShop(state, id) {
   if (!pl) return;
   if (state.mode === 'elemental' && !pl.element)
     buy(state, id, BOT_ELEMENTS[pl.kind] || 'ember'); // quietly skipped in classic
-  const order = BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
+  // an explicit build strategy (lobby pick) beats the kind's default list
+  const order = (pl.build && BUILDS[pl.build] && BUILDS[pl.build].order) ||
+    BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   for (const thing of order) {
     buy(state, id, thing); // ignores failures (owned / poor / maxed)
   }
