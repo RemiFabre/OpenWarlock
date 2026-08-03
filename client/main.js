@@ -154,6 +154,10 @@ function onEvent(e) {
       break;
     case 'teleport': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('teleport'); break;
     case 'reflect': fx.push({ ...e, type: 'reflect', at: now, dur: 0.4 }); playSfx('reflect'); break;
+    case 'catch':
+      fx.push({ ...e, type: 'catch', at: now, dur: 0.35 });
+      if (e.id === myId) playSfx('catch'); // your snag, your snap
+      break;
     case 'cast':
       if (e.spell === 'rush') fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.3 });
       if (e.spell === 'fireball') playSfx('whoosh');

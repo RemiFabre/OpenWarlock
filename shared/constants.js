@@ -62,10 +62,12 @@ export const ROUND = {
 // ROUND_BASE >= 3*PER_KILL + ROUND_WIN guarantees the player with EVERY kill
 // can never out-earn a player with none by more than 2x. (Bounties can't
 // break the cap: the leader never collects one — see kill() in sim.js.)
+// Totals tuned down 2026-08-03 evening playtest: with 11/3/2 everyone was
+// full-build before the end — the cap ratio was right, the volume wasn't.
 export const GOLD = {
   START: 12,
-  PER_KILL: 3,
-  ROUND_BASE: 11,
+  PER_KILL: 2,
+  ROUND_BASE: 8,   // = 3*PER_KILL + ROUND_WIN: sits exactly on the 2x cap
   ROUND_WIN: 2,
   FIRST_DEATH: 1,
   // Bounty: killing someone AHEAD of you on kills pays extra, scaled by the
@@ -97,10 +99,13 @@ export const SPELLS = {
     desc: 'Instant mid-range bolt. No push — a pure finisher.',
   },
   boomerang: {
+    // 2026-08-03 rework: +40% reach, and it returns to the LAUNCH POINT, not
+    // to the player. Catch it there (touch it on the return leg) to halve the
+    // cooldown; let it pass and it flies on in a straight line, gone forever.
     name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 4.5, speed: 31, radius: 1.4, outDistance: 20, homing: 40,
-    damage: [5, 8, 10], knockback: [50, 59, 68],
-    desc: 'Flies out and returns. Can hit on both legs.',
+    cooldown: 5.5, speed: 31, radius: 1.4, outDistance: 28,
+    damage: [4, 6, 8], knockback: [50, 59, 68],
+    desc: 'Out and back to where you threw it. Catch it: cooldown halved. Miss it: gone.',
   },
   teleport: {
     name: 'Teleport', hotkey: 'F', maxLevel: 2, costs: [12, 8],

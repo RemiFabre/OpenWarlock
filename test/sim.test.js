@@ -368,14 +368,49 @@ describe('spells', () => {
     const a = state.players.p0, b = state.players.p1;
     a.spells.boomerang = 1;
     a.x = 0; a.y = 0;
-    b.x = 30; b.y = 0;                    // beyond outDistance: missed going out
+    b.x = 34; b.y = 0;                    // beyond outDistance 28: missed going out
     state.players.p2.y = 40;
     castSpell(state, 'p0', 'boomerang', 20, 0);
-    run(state, 0.9);                       // flew out ~20u, turning back
+    run(state, 1.0);                       // flew out ~28u, turning back
     b.x = 10; b.y = 0;                     // step into the return path
     run(state, 1.5);
     expect(b.hp).toBeLessThan(b.maxHp);
-    expect(state.projectiles.length).toBe(0); // caught by owner
+    expect(state.projectiles.length).toBe(0); // caught by the waiting owner
+  });
+
+  it('boomerang catch halves the remaining cooldown', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.spells.boomerang = 1;
+    a.x = 0; a.y = 0;
+    state.players.p1.x = 0; state.players.p1.y = 40;
+    state.players.p2.x = 0; state.players.p2.y = -40;
+    castSpell(state, 'p0', 'boomerang', 20, 0); // owner stays at the launch point
+    run(state, 2.2); // out 28u + back ≈ 1.9 s: caught by now
+    expect(state.projectiles.length).toBe(0);
+    // cd started at 4.5; ~2.2 s elapsed leaves ~2.3, halved on catch ≈ 1.15
+    expect(a.cooldowns.boomerang).toBeGreaterThan(0.5);
+    expect(a.cooldowns.boomerang).toBeLessThan(SPELLS.boomerang.cooldown - 2.2);
+  });
+
+  it('an uncaught boomerang flies past its launch point and is gone forever', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.spells.boomerang = 1;
+    a.x = 0; a.y = 0;
+    state.players.p1.x = 0; state.players.p1.y = 40;
+    state.players.p2.x = 0; state.players.p2.y = -40;
+    castSpell(state, 'p0', 'boomerang', 20, 0);
+    run(state, 0.2);
+    a.x = 0; a.y = 12; // side-step: refuse the catch
+    const cdBefore = () => a.cooldowns.boomerang;
+    run(state, 2.2); // it passed the launch point without being caught
+    expect(state.projectiles.length).toBe(1); // still flying, straight out
+    const pr = state.projectiles[0];
+    expect(pr.lost).toBe(true);
+    run(state, 4);   // 31 u/s: exits the world (cull at 2x START_RADIUS)
+    expect(state.projectiles.length).toBe(0);
+    expect(cdBefore()).toBe(0); // full cooldown was served, no refund
   });
 
   it('rush damages enemies passed through', () => {
@@ -493,7 +528,9 @@ describe('edge cases (fuzz campaign probes)', () => {
     run(state, 0.3);
     expect(state.projectiles.length).toBe(1);
     removePlayer(state, 'p0');
-    run(state, 5);
+    // nobody left to catch it: it returns, passes the launch point, and
+    // flies straight off the world (culled at 2x START_RADIUS)
+    run(state, 7);
     expect(state.projectiles.length).toBe(0);
     expect(() => JSON.stringify(snapshot(state))).not.toThrow();
   });

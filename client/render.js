@@ -415,6 +415,21 @@ function drawRoundEndBanner(view, vs, players, myId) {
     ctx.font = '15px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = '#f0b64a';
     ctx.fillText(`+${+income[myId]} gold`, view.cx, view.cy + 56);
+    // itemized: exactly where this round's gold came from
+    const d = rs.detail && typeof rs.detail === 'object' ? rs.detail[myId] : null;
+    if (d && typeof d === 'object') {
+      const parts = [];
+      if (fin(+d.base) && d.base > 0) parts.push(`${d.base} round`);
+      if (fin(+d.kills) && d.kills > 0) parts.push(`${d.kills} kills`);
+      if (fin(+d.bounty) && d.bounty > 0) parts.push(`${d.bounty} bounty`);
+      if (fin(+d.win) && d.win > 0) parts.push(`${d.win} round win`);
+      if (fin(+d.first) && d.first > 0) parts.push(`${d.first} first death`);
+      if (parts.length > 1) {
+        ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+        ctx.fillStyle = '#9a8d80';
+        ctx.fillText(parts.join(' · '), view.cx, view.cy + 76);
+      }
+    }
   }
   ctx.restore();
 }
@@ -511,6 +526,14 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.strokeStyle = `rgba(190, 140, 255, ${a})`;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, (1.6 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'catch': {
+        // boomerang caught: small contracting ring in the boomerang's color
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.strokeStyle = `rgba(207, 232, 255, ${a})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x, y, (2.2 - 1.6 * k) * scale, 0, Math.PI * 2); ctx.stroke();
         break;
       }
       case 'reflect': {

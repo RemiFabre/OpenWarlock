@@ -191,14 +191,19 @@ export function castSpell(state, id, key, tx, ty) {
     }
     case 'boomerang': {
       // spawn at the caster: the owner is excluded from collisions, and this
-      // makes point-blank shots connect instead of spawning past the target
+      // makes point-blank shots connect instead of spawning past the target.
+      // ox/oy remember the LAUNCH POINT: the boomerang flies back there (not
+      // to the player) — stand in its path to catch it (halves the cooldown),
+      // or let it fly on past forever.
+      const ox = pl.x + dx * pl.radius * 0.5;
+      const oy = pl.y + dy * pl.radius * 0.5;
       state.projectiles.push({
         id: state.nextId++, type: key, owner: id, level,
-        x: pl.x + dx * pl.radius * 0.5,
-        y: pl.y + dy * pl.radius * 0.5,
+        x: ox, y: oy, ox, oy,
         vx: dx * spec.speed, vy: dy * spec.speed,
         traveled: 0,
         returning: false,           // boomerang only
+        lost: false,                // flew past its launch point: uncatchable
         hit: {},                    // players hit this leg
       });
       break;
@@ -464,6 +469,7 @@ function endRound(state) {
   const alive = fighters(state).filter(p => p.alive);
   const winner = alive.length === 1 ? alive[0] : null;
   const income = {};
+  const detail = {};
   for (const pl of fighters(state)) {
     // kill + bounty gold shown here, already granted at kill time
     let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
@@ -471,13 +477,21 @@ function endRound(state) {
     if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
     if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
     income[pl.id] = g;
+    // itemized for the round-end banner: where did each gold piece come from
+    detail[pl.id] = {
+      base: GOLD.ROUND_BASE,
+      kills: pl.roundKills * GOLD.PER_KILL,
+      bounty: pl.roundBounty || 0,
+      win: pl === winner ? GOLD.ROUND_WIN : 0,
+      first: pl.diedFirstRound === state.round ? GOLD.FIRST_DEATH : 0,
+    };
     pl.dash = null; pl.moveTarget = null;
     pl.shopReady = false;
   }
   state.projectiles = [];
   const topKills = Math.max(0, ...fighters(state).map(p => p.kills));
   state.roundSummary = {
-    n: state.round, winner: winner ? winner.id : null, income,
+    n: state.round, winner: winner ? winner.id : null, income, detail,
     final: topKills >= ROUND.KILLS_TO_WIN || state.round >= ROUND.MAX_ROUNDS,
   };
   state.events.push({ t: 'roundEnd', winner: winner ? winner.id : null });
@@ -726,14 +740,18 @@ function stepProjectiles(state, dt) {
     // per-projectile radius (terra fireballs are larger); others use the spec
     const prRadius = pr.radius != null ? pr.radius : spec.radius;
 
-    if (pr.type === 'boomerang' && pr.returning) {
-      // home toward owner's current position
+    if (pr.type === 'boomerang' && pr.returning && !pr.lost) {
+      // returning along its own path toward the LAUNCH point. The owner can
+      // catch it anywhere on this leg (halves the remaining cooldown); once
+      // it has flown past the launch point it is lost — straight on, forever.
       const owner = state.players[pr.owner];
-      if (!owner) continue; // owner left: boomerang vanishes
-      const dx = owner.x - pr.x, dy = owner.y - pr.y;
-      const d = Math.hypot(dx, dy) || 1;
-      pr.vx = (dx / d) * spec.speed; pr.vy = (dy / d) * spec.speed;
-      if (d < owner.radius + spec.radius) continue; // caught
+      if (owner && owner.alive &&
+          Math.hypot(owner.x - pr.x, owner.y - pr.y) < owner.radius + spec.radius) {
+        owner.cooldowns.boomerang = (owner.cooldowns.boomerang || 0) / 2;
+        state.events.push({ t: 'catch', id: owner.id, x: pr.x, y: pr.y });
+        continue; // caught
+      }
+      if (pr.traveled >= spec.outDistance * 2 + 1) pr.lost = true; // grace past origin
     }
 
     const px0 = pr.x, py0 = pr.y; // for swept collision below
@@ -744,10 +762,16 @@ function stepProjectiles(state, dt) {
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
     if (Math.hypot(pr.x, pr.y) > ARENA.START_RADIUS * 2) continue;
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance) {
+      // turn: fly back toward the launch point (NOT the player). pr.hit is
+      // deliberately KEPT: the out-leg knockback shoves victims along the
+      // throw lane and the straight return would re-hit them for free — one
+      // hit per enemy per throw; the return leg only threatens fresh targets
       pr.returning = true;
-      pr.hit = {};
+      const bx = (pr.ox ?? pr.x) - pr.x, by = (pr.oy ?? pr.y) - pr.y;
+      const bd = Math.hypot(bx, by);
+      if (bd > 1e-6) { pr.vx = (bx / bd) * spec.speed; pr.vy = (by / bd) * spec.speed; }
+      else { pr.vx = -pr.vx; pr.vy = -pr.vy; }
     }
-    if (pr.type === 'boomerang' && pr.returning && pr.traveled > spec.outDistance + spec.homing) continue;
 
     // pillars eat projectiles (swept against this tick's segment)
     let blocked = false;
@@ -774,7 +798,12 @@ function stepProjectiles(state, dt) {
         pr.owner = other.id;
         pr.hit = {};
         pr.traveled = 0;
-        if (pr.type === 'boomerang') pr.returning = false;
+        if (pr.type === 'boomerang') {
+          // the reflector re-launches it: fresh legs, returns to THIS spot
+          pr.returning = false;
+          pr.lost = false;
+          pr.ox = pr.x; pr.oy = pr.y;
+        }
         state.events.push({ t: 'reflect', id: other.id, x: pr.x, y: pr.y });
         break;
       }
@@ -950,12 +979,19 @@ function pilotOwnedSpells(state, pl, dt) {
     if (castSpell(state, pl.id, 'teleport', ex, ey)) return;
   }
 
-  // boomerang at anything the out-leg can reach — wide, forgiving aim
-  if (owns('boomerang') && dist < SPELLS.boomerang.outDistance + 4) {
+  // boomerang at anything the out-leg can reach. Aim error and engagement
+  // range scale with the kind: a grunt lobbing lab-grade intercepts from max
+  // range measured 58-77% win rates in grunt mirrors (nobody in that tier
+  // dodges), so grunts only throw at closer targets, and sloppily.
+  const boomMaxD = pl.kind === 'grunt' ? 20 : SPELLS.boomerang.outDistance + 4;
+  if (owns('boomerang') && dist < boomMaxD) {
     const t = dist / SPELLS.boomerang.speed;
     const v = estVel(target);
+    const errMult = pl.kind === 'grunt' ? 0.3 : pl.kind === 'berserker' ? 0.12 : 0.04;
+    const err = (rng(state) - 0.5) * dist * errMult;
     if (castSpell(state, pl.id, 'boomerang',
-        target.x + v.vx * t, target.y + v.vy * t)) return;
+        target.x + v.vx * t - (tdy / dist) * err,
+        target.y + v.vy * t + (tdx / dist) * err)) return;
   }
 
   // lightning poke (stalker uses it natively); grunts stay a bit sloppy

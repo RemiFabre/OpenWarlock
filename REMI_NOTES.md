@@ -6,6 +6,65 @@ you asked before leaving.*
 
 ---
 
+## ROUND 8 — feedback en français, deux phases (2026-08-03, late evening)
+
+Phase 1 (anti-snowball + feel) shipped first at `9347bd4` so you could play;
+phase 2 (boomerang rework) and your post-game gold correction follow in the
+next commit. 82 tests green, harness + 2 browsers pass.
+
+### L'économie anti-snowball
+
+- **Hard cap as requested**: with 4 players it is now *mathematically
+  impossible* for the player with every kill to earn 2× more than a player
+  with none. The invariant is `ROUND_BASE ≥ 3×PER_KILL + ROUND_WIN`, it's
+  enforced by a test, and the comment in constants.js explains it.
+- **First pass (11/3/2) had the right ratio, too much volume** — your
+  post-game note confirmed everyone ended full-build. Now: **+8 g/round,
+  +2 g/kill, +2 g round win** (still exactly on the cap).
+- **Bounty, gap-scaled exactly as you specified**: killing someone ahead of
+  you pays `floor(gap/2)` capped at +3 g. The #2 sniping the #1 gets ~+1;
+  the last player toppling the leader gets +3; **the leader collects
+  nothing** (nobody is ahead of them) — which is also what makes the 2× cap
+  unbreakable by bounties. Bounty pops as a gold float on the kill.
+- **Round-end banner now itemizes income**: "+12 gold — 8 round · 4 kills ·
+  2 round win" so gold-per-kill vs gold-per-round is never a mystery.
+
+### Lisibilité
+
+- **Liseré rouge** permanent around YOUR warlock (plus the white stroke).
+- **Kill feedback**: a golden "⚔ kill" banner + a bright three-note jingle
+  whenever a kill is credited to you (works for lava shoves too, via the
+  last-hitter rule).
+
+### Équilibrage sorts
+
+- **Lightning**: damage untouched, **push removed entirely**, range −30%
+  (55 → 38). The cross-map last-hit is dead; it's a mid-range finisher now.
+- **Fireball**: interpreted your (garbled) transcription as "lv1 spams too
+  fast" → **lv1 cooldown 1.6 → 2.1 s**, and upgrades now buy the cadence
+  back (lv2 1.85, lv3 1.6). If you meant the opposite — a 30% FASTER lv1 —
+  say so, it's a one-line change in constants.js.
+
+### Le boomerang (phase 2 — le rework profond)
+
+Exactly your design: **+40% reach** (20 → 28 u), it returns **to the launch
+point** (not to you), and the choice is yours: **catch it** (touch it on the
+return leg) → **cooldown halved**; let it pass → it flies on in a straight
+line, gone forever. Catching plays a crisp snap sound. A shielded reflect
+re-launches it as the reflector's, returning to the reflect spot.
+
+Balance guardrails I had to add after measuring (the raw rework won 77% of
+grunt-mirror games): damage back to 4/6/8 (the doubled corridor IS the +30%
+buff for this spell), cooldown 4.5 → 5.5 s (catchers get ~2.75 s effective —
+the skill is the buff), and one throw can hit each enemy only once (the
+out-leg knockback shoves victims along the lane; the straight return was a
+guaranteed free double-tap). It still lands at ~46–58% in bot mirrors —
+strongest in dumb-bot tiers because a wide spell forgives bad aim; humans
+who sidestep and catch will experience it very differently. Playtest verdict
+is yours.
+
+---
+
 ## ROUND 7 — the 21k-game balance campaign (2026-08-03, same evening)
 
 You asked for 1k games; it turned into ~21k across four iterations (mixed

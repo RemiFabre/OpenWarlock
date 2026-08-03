@@ -38,11 +38,13 @@ reading its priorities: what it wants first is what the strategy is about.
 (The arena additionally runs a **greedless** control that never buys anything
 — it exists only to calibrate the tables and is not offered in the lobby.)
 
-**Which strategy fits which difficulty** (measured — BALANCE.md report #3,
-1000 mirror games per tier): **stalker → turtle or sniper · berserker →
-bruiser · grunt → boomer or sniper**. Rusher and escape are currently weak
-in bot hands (bots can't extract teleport/rush's reactive value the way a
-human can) — pick them for flavor, not challenge.
+**Which strategy fits which difficulty** (post-boomerang-rework spot checks,
+500 mirror games per tier): **grunt → boomer · stalker → turtle or boomer ·
+berserker → bruiser**. The reworked boomerang (long, wide, returns to its
+launch point) is the strongest bot build everywhere — wide spells forgive
+bot aim. Rusher and escape are currently weak in bot hands (bots can't
+extract teleport/rush's reactive value the way a human can) — pick them for
+flavor, not challenge.
 
 ## How to read the arena reports
 

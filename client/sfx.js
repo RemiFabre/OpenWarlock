@@ -119,6 +119,9 @@ const FX = {
   tick() { tone({ type: 'square', f0: 660, dur: 0.07, vol: 0.22 }); },
   go() { tone({ type: 'square', f0: 990, f1: 1320, dur: 0.18, vol: 0.32 }); },
 
+  // boomerang caught: crisp upward snap (your cooldown just halved)
+  catch() { tone({ type: 'triangle', f0: 990, f1: 1480, dur: 0.09, vol: 0.3 }); },
+
   // you scored a kill: quick bright three-note celebration
   kill() {
     [659.25, 880, 1318.5].forEach((f, i) =>

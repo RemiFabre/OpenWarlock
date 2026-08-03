@@ -39,7 +39,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `server/index.js` | one-process authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=` env), crash dumps, `/health`, static serving (no-cache for code, 1-day for assets) |
 | `client/` | canvas client: main.js (net/input/HUD), render.js (world + offscreen backdrop layer), music.js, sfx.js (synthesized) |
 | `assets/` | Remi's level art+music, `manifest.json` (10 levels + intro track) |
-| `test/sim.test.js` | 78 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 82 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: Elo per strategy, `--mirror=`, `--probe=`, `--mode=elemental` |
@@ -51,15 +51,21 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 ## Game rules snapshot (v5/v6)
 
 First to **15 kills** (25-round cap). Rounds: countdown → battle → roundEnd
-(banner + art reveal) → shop (Ready skips; full player roster with kits shown) → …;
+(banner + art reveal + itemized income) → shop (Ready skips; full player
+roster with kits shown) → …;
 lava ring shrinks faster as fighters die, sudden-death to 0 after overtime;
 lava = 14 DPS + 30% speed boost, no afterburn; 6 pillars sink into the lava;
-knockback HP-scaled (`KB_HP_FACTOR`; all spell KB −10%, all spell dmg +30%
-on 2026-08-03 — lava kill share now ~77%); fireball fast+slim (41 u/s,
-r 0.8), boomerang wide (r 1.4); sustain items trimmed (see BALANCE.md #3);
-default keys: teleport F, rush E, boomerang R; size-by-lead;
-`goldEarned` + `dmgDealt` tracked per player (lava burn credited to the
-last hitter, same window as kill credit; shop roster + standings show both);
+knockback HP-scaled (`KB_HP_FACTOR`); **anti-snowball economy**: 8 g/round,
+2 g/kill, 2 g round win, gap-scaled bounty (max 3 g, leader never collects)
+— invariant `ROUND_BASE >= 3*PER_KILL + ROUND_WIN` caps the 4p earn spread
+at 2×, test-enforced; fireball fast+slim (41 u/s, r 0.8, lv1 cd 2.1 s
+scaling to 1.6); lightning = mid-range finisher (range 38, NO push);
+**boomerang rework**: out 28 u, returns to the LAUNCH POINT, owner-touch on
+the return leg halves the cooldown, uncaught = flies straight forever, one
+hit per enemy per throw; own player wears a permanent red ring; kill banner
++ jingle for your kills; default keys: teleport F, rush E, boomerang R;
+size-by-lead; `goldEarned` + `dmgDealt` tracked per player (lava burn
+credited to the last hitter, same window as kill credit);
 spectator mode; bot tiers ★/★★/★★★ × selectable build strategy (lobby
 dropdown, 🎲 random rolls one); **elemental mode** ⚗️ (lobby toggle):
 6 fireball elements + Echo Stone/Cinder Crown, classic wire-format untouched.
@@ -69,7 +75,7 @@ at round end (world fades 0.6 s, art full for ~3 s).
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 78 green
+npx vitest run                                   # 82 green
 node test/harness/run.js test/harness/scenarios/bots.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/arena.js --games=60 --players=4       # games finish, sane kills
@@ -80,10 +86,11 @@ Playwright chromium+webkit installed. Server for manual poking:
 
 ## Known debt / next candidates (rough priority)
 
-1. **Playtest questions from BALANCE.md #3**: is teleport worth 12 g for
-   humans now that lava is weaker? Do escape/rusher feel fine in human hands
-   (they're bot-traps at 3–12%, deliberately not number-buffed)? Raising
-   their bot floor means smarter piloting (kiting), not bigger numbers.
+1. **Playtest questions**: does the reworked boomerang (catch mechanic) feel
+   right for humans? Is teleport worth 12 g now that lava is weaker? Do
+   escape/rusher feel fine in human hands (bot-traps at 3–12%, deliberately
+   not number-buffed)? Also: BALANCE.md #3 tables predate the round-8
+   changes (see its addendum) — next campaign re-measures from scratch.
 2. **Elemental balance**: venom overtuned, midas gold-snowball (flagged, not
    tuned — Remi playtests first).
 3. Remi's **reaction-time dodge-window framework** (map projectile speed ×

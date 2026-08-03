@@ -5,6 +5,16 @@ the bottom). Report #2 (the 46k-game v5 campaign) is preserved in git history
 at `9a96b47` and earlier — all of its numbers are obsolete: this campaign
 re-measured everything after Remi's playtest retune and the bot-piloting fix.*
 
+> **⚠ Addendum (same evening, "round 8"):** this report predates the
+> anti-snowball economy (8/2/2 gold + gap bounty), the lightning nerf
+> (range 38, no push), the fireball lv1 cadence (cd 2.1 s), and the
+> boomerang rework (28 u out, launch-point return, catch = half cooldown,
+> one hit per enemy per throw). Spot checks after those changes: lava kill
+> share ~73%, comeback rate ~17%, and boomer is now the strongest bot build
+> (~46–58% in mirrors — wide spells forgive bot aim; human verdict pending).
+> The strategy tables above are directionally useful, not current. Next
+> campaign re-measures from scratch.
+
 ---
 
 ## How to read this report (start here)
