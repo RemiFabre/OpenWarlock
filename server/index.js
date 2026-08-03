@@ -86,7 +86,16 @@ const httpServer = http.createServer((req, res) => {
   if (!ok) { res.writeHead(404); res.end('not found'); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    // Cache policy: code (html/js) must revalidate on every load so players
+    // never run stale clients after an update; media assets are immutable-ish.
+    const ext = path.extname(file);
+    const cache = file.includes(`${path.sep}assets${path.sep}`)
+      ? 'public, max-age=86400'
+      : 'no-cache';
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': cache,
+    });
     res.end(data);
   });
 });
