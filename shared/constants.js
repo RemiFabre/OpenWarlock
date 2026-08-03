@@ -67,9 +67,11 @@ export const GOLD = {
 // costs[i] = cost to reach level i+1 (level 0 = not owned)
 export const SPELLS = {
   fireball: {
-    name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8],
+    // the 4th damage/knockback/cost entries are only reachable in elemental
+    // mode via the Cinder Crown (maxLevel stays 3 in classic — buy() enforces)
+    name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8, 8],
     cooldown: 1.6, speed: 34, radius: 1.0, range: Infinity,
-    damage: [4, 7, 10], knockback: [72, 78, 84],
+    damage: [4, 7, 10, 13], knockback: [72, 78, 84, 92],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
@@ -103,6 +105,8 @@ export const SPELLS = {
 };
 
 // ---- Items (passive, max 1 each) ---------------------------------------
+// mode: 'elemental' marks experimental wares that only exist (shop + buy)
+// when the game runs the elemental ruleset; classic never sees them.
 export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed' },
   treads: { name: 'Lava Treads',          cost: 10, desc: '-30% lava damage, no afterburn' },
@@ -110,6 +114,10 @@ export const ITEMS = {
   ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+1.2 HP/s' },
   cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-15% knockback taken' },
   sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 35% of spell damage you deal' },
+  echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental',
+            desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
+  crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental',
+            desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +3 dmg, +8 push)' },
 };
 
 export const ITEM_FX = {
@@ -119,6 +127,32 @@ export const ITEM_FX = {
   ring: { regen: 1.2 },
   cape: { kbMult: 0.85 },
   sword: { lifesteal: 0.35 },
+  echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
+  crown: { fireballMax: 1 },         // handled in buy()
+};
+
+// ---- Elements (elemental mode only) --------------------------------------
+// One-time, exclusive fireball transformations: pick exactly one, ever.
+// Requires Fireball >= 1. buy() rejects them entirely in classic mode.
+export const ELEMENTS = {
+  ember: { name: 'Ember', icon: '🔥', cost: 10,
+           desc: 'Pure fire: +3 damage, +6 push.',
+           fx: { dmgAdd: 3, kbAdd: 6 } },
+  frost: { name: 'Frost', icon: '❄️', cost: 10,
+           desc: 'Hits chill: target moves at 55% speed for 1.6 s.',
+           fx: { slowMult: 0.55, slowT: 1.6 } },
+  venom: { name: 'Venom', icon: '🐍', cost: 10,
+           desc: 'Hits poison: 6 dmg over 4 s (re-hits refresh, not stack). −25% direct damage.',
+           fx: { dmgMult: 0.75, dotDamage: 6, dotTime: 4 } },
+  gale:  { name: 'Gale', icon: '🌪️', cost: 10,
+           desc: 'A gust in a ball: +45% push, −25% damage.',
+           fx: { kbMult: 1.45, dmgMult: 0.75 } },
+  midas: { name: 'Midas', icon: '🪙', cost: 10,
+           desc: 'Every hit pays +1 gold. −25% damage.',
+           fx: { goldOnHit: 1, dmgMult: 0.75 } },
+  terra: { name: 'Terra', icon: '🪨', cost: 10,
+           desc: '40% bigger fireball; hits make the target grow +15% for 3 s (easier to hit).',
+           fx: { projRadiusMult: 1.4, growMult: 1.15, growT: 3, growCap: 2.2 } },
 };
 
 export const COLORS = [

@@ -2,7 +2,7 @@
 // except through state.rng (seeded). Runs on the server; unit-testable.
 
 import {
-  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, COLORS,
+  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
 } from './constants.js';
 
 // Tiny deterministic RNG (mulberry32) so tests are reproducible.
@@ -16,10 +16,11 @@ export function makeRng(seed) {
   };
 }
 
-export function createGame({ seed = 1 } = {}) {
+export function createGame({ seed = 1, mode = 'classic' } = {}) {
   return {
     phase: 'lobby',        // lobby | countdown | battle | shop | gameover
     phaseT: 0,             // time remaining in countdown/shop
+    mode: mode === 'elemental' ? 'elemental' : 'classic',
     round: 0,
     time: 0,               // elapsed battle time this round
     arenaRadius: ARENA.START_RADIUS,
@@ -28,11 +29,20 @@ export function createGame({ seed = 1 } = {}) {
     pillars: [],           // [{x, y, r, sunk}] set each round start
     players: {},
     projectiles: [],
+    delayedShots: [],      // Echo Stone: fireballs waiting to fire (elemental)
     events: [],            // transient, drained by the server each snapshot
     nextId: 1,
     winner: null,
     seed,
   };
+}
+
+// Ruleset toggle — lobby only, so a running game can never change rules.
+export function setMode(state, mode) {
+  if (state.phase !== 'lobby') return false;
+  if (mode !== 'classic' && mode !== 'elemental') return false;
+  state.mode = mode;
+  return true;
 }
 
 function rng(state) {
@@ -63,6 +73,13 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind } 
     cooldowns: {},
     burn: 0,               // afterburn time remaining
     shieldT: 0,
+    // ---- elemental mode only (all stay 0/null for the whole game in classic)
+    element: null,         // chosen fireball element key, or null
+    slowT: 0,              // frost: seconds of slow remaining
+    poisonT: 0,            // venom: seconds of DoT remaining
+    poisonBy: null,        // venom: who poisoned us (kill credit)
+    growT: 0,              // terra: seconds of forced growth remaining
+    echoN: 0,              // echo stone: fireballs cast this round
     dash: null,            // {dx, dy, left, hit:Set-as-object}
     lastHitBy: null,       // {id, t}  t = state.time when hit
     diedFirst: false,
@@ -90,7 +107,15 @@ function updateRadii(state) {
   const avg = fs.reduce((sum, p) => sum + p.kills, 0) / fs.length;
   const { PER_KILL, MIN, MAX } = PLAYER.SIZE_LEAD;
   for (const pl of fs) {
-    pl.radius = PLAYER.RADIUS * clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
+    let mult = clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
+    // terra hits force the target bigger for a moment; stacks multiplicatively
+    // with size-by-lead but the TOTAL multiplier is capped (elemental only —
+    // growT stays 0 in classic)
+    if (pl.growT > 0) {
+      const { growMult, growCap } = ELEMENTS.terra.fx;
+      mult = Math.min(growCap, mult * growMult);
+    }
+    pl.radius = PLAYER.RADIUS * mult;
   }
 }
 
@@ -114,6 +139,7 @@ function stats(pl) {
     if (fx.lifesteal) lifesteal += fx.lifesteal;
     if (fx.maxHp) maxHp += fx.maxHp;
   }
+  if (pl.slowT > 0) speed *= ELEMENTS.frost.fx.slowMult; // frost chill (elemental)
   return { speed, lavaMult, kbMult, regen, lifesteal, maxHp, afterburnImmune };
 }
 
@@ -148,7 +174,17 @@ export function castSpell(state, id, key, tx, ty) {
   pl.cooldowns[key] = lvl(spec, 'cooldown', level);
 
   switch (key) {
-    case 'fireball':
+    case 'fireball': {
+      spawnFireball(state, pl, level, dx, dy);
+      // Echo Stone (elemental): every Nth fireball fires a second one shortly
+      // after, along the same aim direction
+      if (state.mode === 'elemental' && pl.items.includes('echo')) {
+        pl.echoN = (pl.echoN || 0) + 1;
+        if (pl.echoN % ITEM_FX.echo.every === 0)
+          state.delayedShots.push({ t: ITEM_FX.echo.delay, owner: id, level, dx, dy });
+      }
+      break;
+    }
     case 'boomerang': {
       // spawn at the caster: the owner is excluded from collisions, and this
       // makes point-blank shots connect instead of spawning past the target
@@ -188,6 +224,26 @@ export function castSpell(state, id, key, tx, ty) {
   }
   state.events.push({ t: 'cast', id, spell: key, x: pl.x, y: pl.y, dx, dy });
   return true;
+}
+
+// Fireball factory shared by castSpell and the Echo Stone delayed shot.
+// Spawns at the caster (owner is excluded from collisions; point-blank shots
+// connect). In elemental mode the caster's element rides on the projectile.
+function spawnFireball(state, pl, level, dx, dy) {
+  const spec = SPELLS.fireball;
+  const element = state.mode === 'elemental' ? (pl.element || null) : null;
+  const radius = spec.radius *
+    (element === 'terra' ? ELEMENTS.terra.fx.projRadiusMult : 1);
+  state.projectiles.push({
+    id: state.nextId++, type: 'fireball', owner: pl.id, level,
+    x: pl.x + dx * pl.radius * 0.5,
+    y: pl.y + dy * pl.radius * 0.5,
+    vx: dx * spec.speed, vy: dy * spec.speed,
+    traveled: 0,
+    returning: false,
+    hit: {},
+    element, radius,
+  });
 }
 
 function fireLightning(state, pl, level, dx, dy) {
@@ -230,14 +286,31 @@ export function buy(state, id, thing) {
   if (Object.hasOwn(SPELLS, thing)) {
     const spec = SPELLS[thing];
     const level = pl.spells[thing] || 0;
-    if (level >= spec.maxLevel) return { ok: false, err: 'max level' };
+    // Cinder Crown (elemental) raises the fireball cap by one
+    let maxLevel = spec.maxLevel;
+    if (thing === 'fireball' && state.mode === 'elemental' && pl.items.includes('crown'))
+      maxLevel += ITEM_FX.crown.fireballMax;
+    if (level >= maxLevel) return { ok: false, err: 'max level' };
     const cost = spec.costs[level];
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
     pl.gold -= cost;
     pl.spells[thing] = level + 1;
     return { ok: true };
   }
+  if (Object.hasOwn(ELEMENTS, thing)) {
+    // one-time exclusive fireball element — elemental ruleset only
+    if (state.mode !== 'elemental') return { ok: false, err: 'elemental mode only' };
+    if ((pl.spells.fireball || 0) < 1) return { ok: false, err: 'requires fireball' };
+    if (pl.element) return { ok: false, err: 'element already chosen' };
+    const cost = ELEMENTS[thing].cost;
+    if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
+    pl.gold -= cost;
+    pl.element = thing;
+    return { ok: true };
+  }
   if (Object.hasOwn(ITEMS, thing)) {
+    if (ITEMS[thing].mode === 'elemental' && state.mode !== 'elemental')
+      return { ok: false, err: 'elemental mode only' };
     if (pl.items.includes(thing)) return { ok: false, err: 'already owned' };
     const cost = ITEMS[thing].cost;
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
@@ -317,6 +390,7 @@ function startRound(state) {
   state.graceT = ARENA.OVERTIME_GRACE;
   state.pillars = makePillars(state);
   state.projectiles = [];
+  state.delayedShots = [];
   const fs = fighters(state);
   state.roundFighters = fs.length;
   const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
@@ -329,6 +403,8 @@ function startRound(state) {
     pl.alive = true;
     pl.cooldowns = {};
     pl.burn = 0; pl.shieldT = 0; pl.dash = null;
+    pl.slowT = 0; pl.poisonT = 0; pl.poisonBy = null; pl._poisonAcc = 0;
+    pl.growT = 0; pl.echoN = 0;
     pl.lastHitBy = null;
     pl.roundKills = 0;
     pl.shopReady = false;
@@ -462,6 +538,21 @@ function stepBattle(state, dt) {
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
 
+    // elemental timed effects (all timers stay 0 in classic mode)
+    if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
+    if (pl.growT > 0) pl.growT = Math.max(0, pl.growT - dt);
+    if (pl.poisonT > 0) {
+      pl.poisonT = Math.max(0, pl.poisonT - dt);
+      const dps = ELEMENTS.venom.fx.dotDamage / ELEMENTS.venom.fx.dotTime;
+      pl._poisonAcc = (pl._poisonAcc || 0) + dps * dt;
+      applyDamage(state, pl, dps * dt, pl.poisonBy, { silent: true });
+      // surface the DoT as a green tick roughly once a second (cheap fx)
+      if (pl.alive && pl._poisonAcc >= dps) {
+        state.events.push({ t: 'hit', id: pl.id, amount: pl._poisonAcc, x: pl.x, y: pl.y, poison: true });
+        pl._poisonAcc = 0;
+      }
+    }
+
     // dash movement (overrides normal control)
     if (pl.dash) {
       const spec = SPELLS.rush;
@@ -522,6 +613,21 @@ function stepBattle(state, dt) {
 
     // regen
     if (pl.alive && st.regen > 0) pl.hp = Math.min(pl.maxHp, pl.hp + st.regen * dt);
+  }
+
+  // Echo Stone delayed fireballs (elemental; the list is empty in classic)
+  if (state.delayedShots && state.delayedShots.length) {
+    const rest = [];
+    for (const ds of state.delayedShots) {
+      ds.t -= dt;
+      if (ds.t > 0) { rest.push(ds); continue; }
+      const owner = state.players[ds.owner];
+      if (owner && owner.alive) {
+        spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
+        state.events.push({ t: 'cast', id: owner.id, spell: 'fireball', x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy });
+      }
+    }
+    state.delayedShots = rest;
   }
 
   stepProjectiles(state, dt);
@@ -590,6 +696,8 @@ function stepProjectiles(state, dt) {
   const keep = [];
   for (const pr of state.projectiles) {
     const spec = SPELLS[pr.type];
+    // per-projectile radius (terra fireballs are larger); others use the spec
+    const prRadius = pr.radius != null ? pr.radius : spec.radius;
 
     if (pr.type === 'boomerang' && pr.returning) {
       // home toward owner's current position
@@ -618,7 +726,7 @@ function stepProjectiles(state, dt) {
     let blocked = false;
     for (const pil of state.pillars) {
       if (pil.sunk) continue;
-      if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) <= spec.radius + pil.r) {
+      if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) <= prRadius + pil.r) {
         state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
         blocked = true;
         break;
@@ -631,7 +739,7 @@ function stepProjectiles(state, dt) {
     for (const other of players) {
       if (!other.alive || other.id === pr.owner || pr.hit[other.id]) continue;
       const dist = segmentPointDist(px0, py0, pr.x, pr.y, other.x, other.y);
-      if (dist > spec.radius + other.radius) continue;
+      if (dist > prRadius + other.radius) continue;
 
       if (other.shieldT > 0) {
         // reflect: reverse velocity, transfer ownership
@@ -645,8 +753,18 @@ function stepProjectiles(state, dt) {
       }
 
       const v = Math.hypot(pr.vx, pr.vy) || 1;
-      applyKnockback(state, other, pr.vx / v, pr.vy / v, lvl(spec, 'knockback', pr.level));
-      applyDamage(state, other, lvl(spec, 'damage', pr.level), pr.owner);
+      let dmg = lvl(spec, 'damage', pr.level);
+      let kb = lvl(spec, 'knockback', pr.level);
+      if (pr.element) { // elemental fireballs bend their numbers
+        const efx = ELEMENTS[pr.element].fx;
+        if (efx.dmgAdd) dmg += efx.dmgAdd;
+        if (efx.kbAdd) kb += efx.kbAdd;
+        if (efx.dmgMult) dmg *= efx.dmgMult;
+        if (efx.kbMult) kb *= efx.kbMult;
+      }
+      applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
+      applyDamage(state, other, dmg, pr.owner);
+      if (pr.element) applyElementHit(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       if (pr.type === 'fireball') dead = true;      // fireball pops on hit
@@ -658,10 +776,34 @@ function stepProjectiles(state, dt) {
   state.projectiles = keep;
 }
 
+// Elemental on-hit riders (frost / venom / midas / terra). Ember and gale are
+// pure number tweaks handled at the damage/knockback computation above.
+function applyElementHit(state, pr, target) {
+  const efx = ELEMENTS[pr.element].fx;
+  if (efx.slowT) target.slowT = efx.slowT;
+  if (efx.dotDamage) {
+    // re-hits REFRESH the duration; the dps never stacks
+    target.poisonT = efx.dotTime;
+    target.poisonBy = pr.owner;
+  }
+  if (efx.goldOnHit && pr.owner != null) {
+    const owner = state.players[pr.owner];
+    if (owner) {
+      owner.gold += efx.goldOnHit;
+      state.events.push({ t: 'gold', id: pr.owner, amount: efx.goldOnHit, x: pr.x, y: pr.y });
+    }
+  }
+  if (efx.growMult) {
+    target.growT = efx.growT;
+    state.events.push({ t: 'grow', id: target.id, x: target.x, y: target.y });
+  }
+}
+
 // ---- serialization ------------------------------------------------------
 
 // Strip internals for the wire. Events are drained separately by the server.
 export function snapshot(state) {
+  const elemental = state.mode === 'elemental';
   const players = {};
   for (const [id, p] of Object.entries(state.players)) {
     players[id] = {
@@ -677,10 +819,16 @@ export function snapshot(state) {
       shieldT: round2(p.shieldT),
       inLava: !!p.inLava, burn: p.burn > 0,
       dashing: !!p.dash,
+      // elemental-only wire fields — classic snapshots stay byte-identical
+      ...(elemental ? {
+        element: p.element,
+        slow: p.slowT > 0, poison: p.poisonT > 0, grow: p.growT > 0,
+      } : {}),
     };
   }
   return {
     phase: state.phase, phaseT: round2(state.phaseT),
+    mode: state.mode,
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
     pillars: (state.pillars || []).map(p => ({
@@ -692,6 +840,7 @@ export function snapshot(state) {
     projectiles: state.projectiles.map(p => ({
       id: p.id, type: p.type, x: round2(p.x), y: round2(p.y),
       vx: round2(p.vx), vy: round2(p.vy), owner: p.owner,
+      ...(p.element ? { element: p.element } : {}),
     })),
   };
 }
@@ -1084,9 +1233,16 @@ const BOT_BUILDS = {
     'shield', 'lightning', 'cape', 'ring', 'teleport', 'lightning', 'shield'],
 };
 
+// In elemental mode each bot kind commits to a fixed element (bought as soon
+// as affordable) so bots-only elemental games exercise the effect code paths.
+// Their combat logic needs no changes — elements apply passively on hit.
+export const BOT_ELEMENTS = { berserker: 'gale', stalker: 'frost', grunt: 'ember' };
+
 export function botShop(state, id) {
   const pl = state.players[id];
   if (!pl) return;
+  if (state.mode === 'elemental' && !pl.element)
+    buy(state, id, BOT_ELEMENTS[pl.kind] || 'ember'); // quietly skipped in classic
   const order = BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   for (const thing of order) {
     buy(state, id, thing); // ignores failures (owned / poor / maxed)

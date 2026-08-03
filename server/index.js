@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator, fighters,
+  setMode,
 } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE, BOTS } from '../shared/constants.js';
 
@@ -121,7 +122,8 @@ function maybeAutoStart() {
 function resetToLobby() {
   journal('reset', {});
   const old = game.players;
-  game = createGame({ seed: SEED + game.round + 1 });
+  // the ruleset (like avatars) survives "play again"
+  game = createGame({ seed: SEED + game.round + 1, mode: game.mode });
   // the new game starts with an empty events array; a stale counter would
   // make the journal skip the first events of the new game
   journaledEvents = 0;
@@ -135,7 +137,7 @@ function resetToLobby() {
 }
 
 // ---- websocket protocol ---------------------------------------------------
-// client -> server: join, ready, move, cast, buy, addBot, removeBot, again
+// client -> server: join, ready, spectate, mode, move, cast, buy, addBot, removeBot, again
 // server -> client: welcome {id}, snap {state, events}, denied {reason}
 
 const wss = new WebSocketServer({ server: httpServer });
@@ -185,6 +187,11 @@ wss.on('connection', (ws) => {
       case 'spectate':
         setSpectator(game, id, !!m.on);
         maybeAutoStart();
+        break;
+      case 'mode':
+        // any player may flip the ruleset, but only in the lobby;
+        // setMode validates both the phase and the value
+        if (typeof m.mode === 'string') setMode(game, m.mode);
         break;
       case 'move':
         if (typeof m.x === 'number' && typeof m.y === 'number')
