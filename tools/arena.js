@@ -7,6 +7,7 @@
 //
 //   node tools/arena.js                         # default: full round-robin-ish study
 //   node tools/arena.js --games=2000 --players=4 --seed=1
+//   node tools/arena.js --mirror=stalker --games=1500   # same profile, builds only
 //   node tools/arena.js --list                  # show strategies
 //
 // Output: a ranked Elo table + item/spell win-rate stats (and JSON via --json=path).
@@ -14,8 +15,9 @@
 import fs from 'node:fs';
 import {
   createGame, addPlayer, startGame, step, stepBot, botShop, buy, setShopReady, makeRng,
+  castSpell,
 } from '../shared/sim.js';
-import { BOTS, ROUND } from '../shared/constants.js';
+import { BOTS, ROUND, SPELLS } from '../shared/constants.js';
 
 const DT = 1 / 30;
 const MAX_TICKS = 30 * 60 * 45; // 45 sim-minutes hard cap per game
@@ -42,26 +44,77 @@ export function strategies() {
   return out;
 }
 
+// ---- boomerang assist -------------------------------------------------------
+// NO bot profile in shared/sim.js ever casts boomerang (grep castSpell: it
+// appears only in fireball/rush/teleport/shield/lightning bot logic). Without
+// help, the 'boomer' build is 22g of dead gold and boomerang numbers are
+// unmeasurable. This harness-side micro-pilot throws the boomerang at the
+// nearest enemy in range whenever it's off cooldown — deliberately simple, so
+// the measurement reflects the spell's numbers, not pilot cleverness.
+// Disable with --noboomassist (or boomerangAssist: false) for a faithful run.
+
+function assistBoomerang(state, id) {
+  const pl = state.players[id];
+  if (!pl || !pl.alive) return;
+  if ((pl.spells.boomerang || 0) < 1 || (pl.cooldowns.boomerang || 0) > 0) return;
+  const spec = SPELLS.boomerang;
+  let best = null, bd = Infinity;
+  for (const o of Object.values(state.players)) {
+    if (o === pl || !o.alive) continue;
+    const d = Math.hypot(o.x - pl.x, o.y - pl.y);
+    if (d < bd) { bd = d; best = o; }
+  }
+  if (!best || bd > spec.outDistance + 4) return; // out-leg must be able to reach
+  const t = bd / spec.speed; // crude lead on knockback velocity
+  castSpell(state, id, 'boomerang', best.x + (best.vx || 0) * t, best.y + (best.vy || 0) * t);
+}
+
 // ---- single game ------------------------------------------------------------
 
-export function playGame(lineup, seed) {
+export function playGame(lineup, seed, { boomerangAssist = true } = {}) {
   const state = createGame({ seed });
   lineup.forEach((strat, i) => {
     addPlayer(state, `s${i}`, strat.id, { bot: true, kind: strat.kind });
   });
   startGame(state);
+  // a lineup entry may carry an explicit priority list (item probes) instead
+  // of naming one of BUILDS
+  const buildList = (strat) => strat.priorities || BUILDS[strat.build];
 
   let ticks = 0;
   let lastPhase = state.phase;
+  // per-game trackers: kill causes (lava vs direct-damage) + comeback deficits
+  let lavaDeaths = 0, directDeaths = 0;
+  const maxDeficit = Object.fromEntries(Object.keys(state.players).map(id => [id, 0]));
   while (state.phase !== 'gameover' && ticks++ < MAX_TICKS) {
     step(state, DT);
     if (state.phase === 'battle') {
-      for (const id of Object.keys(state.players)) stepBot(state, id, DT);
+      for (const id of Object.keys(state.players)) {
+        stepBot(state, id, DT);
+        if (boomerangAssist) assistBoomerang(state, id);
+      }
+    }
+    // drain the transient event queue (the server normally does this) and
+    // classify deaths: a death at a position outside the current arena radius
+    // is a lava death, anything inside died to direct spell damage.
+    if (state.events.length) {
+      for (const ev of state.events) {
+        if (ev.t !== 'death') continue;
+        const inLava = state.arenaRadius <= 0 ||
+          Math.hypot(ev.x, ev.y) > state.arenaRadius;
+        if (inLava) lavaDeaths++; else directDeaths++;
+        // kill counts just changed: refresh every player's worst deficit
+        const top = Math.max(...Object.values(state.players).map(p => p.kills));
+        for (const p of Object.values(state.players)) {
+          maxDeficit[p.id] = Math.max(maxDeficit[p.id], top - p.kills);
+        }
+      }
+      state.events.length = 0;
     }
     if (state.phase === 'shop' && lastPhase !== 'shop') {
       lineup.forEach((strat, i) => {
         const id = `s${i}`;
-        for (const thing of BUILDS[strat.build]) buy(state, id, thing);
+        for (const thing of buildList(strat)) buy(state, id, thing);
         setShopReady(state, id);
       });
     }
@@ -75,6 +128,10 @@ export function playGame(lineup, seed) {
   return {
     finished: state.phase === 'gameover',
     rounds: state.round,
+    lavaDeaths, directDeaths,
+    // comeback: the eventual winner was at some point >= 4 kills behind
+    winnerMaxDeficit: maxDeficit[ranked[0].id],
+    comeback: maxDeficit[ranked[0].id] >= 4,
     ranking: ranked.map(p => ({
       idx: Number(p.id.slice(1)), kills: p.kills, deaths: p.deaths,
       items: p.items, spells: p.spells,
@@ -105,15 +162,61 @@ function makeElo(ids) {
   };
 }
 
+// ---- item probe -------------------------------------------------------------
+// De-confounded single-item comparison: every seat runs the SAME profile and
+// the SAME build tail; only the FIRST purchase differs (one item under test,
+// or nothing for the control). The winner-held table in the main study is
+// confounded — items late in a priority list are bought mostly by players who
+// are already winning (they live long and stack gold), which inflates their
+// "winner-held" share. Buying the probe item first removes that.
+
+export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+  const TAIL = ['fireball', 'fireball', 'amulet', 'boots'];
+  const probes = ['treads', 'cape', 'ring', 'sword', 'boots', 'amulet', 'none'];
+  const priorities = (p) => (p === 'none' ? TAIL : [p, ...TAIL.filter(x => x !== p)]);
+  const wins = Object.fromEntries(probes.map(p => [p, 0]));
+  const played = Object.fromEntries(probes.map(p => [p, 0]));
+  const rand = makeRng(seed);
+  let unfinished = 0;
+  const t0 = Date.now();
+
+  for (let g = 0; g < games; g++) {
+    const pool = [...probes];
+    const lineup = [];
+    for (let i = 0; i < playersPerGame; i++) {
+      const p = pool.splice(Math.floor(rand() * pool.length), 1)[0];
+      lineup.push({ id: `${kind}+${p}`, kind, probe: p, priorities: priorities(p) });
+    }
+    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist });
+    if (!res.finished) { unfinished++; continue; }
+    res.ranking.forEach((r, place) => {
+      const p = lineup[r.idx].probe;
+      played[p]++;
+      if (place === 0) wins[p]++;
+    });
+    if ((g + 1) % 500 === 0) log(`  ${g + 1}/${games} probe games (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+  }
+
+  const table = probes.map(p => ({
+    probe: p, games: played[p],
+    winRate: played[p] ? wins[p] / played[p] : 0,
+  })).sort((a, b) => b.winRate - a.winRate);
+  return {
+    kind, games, playersPerGame, unfinished, expectedWinRate: 1 / playersPerGame,
+    seconds: (Date.now() - t0) / 1000, table,
+  };
+}
+
 // ---- study ----------------------------------------------------------------------
 
-export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = console.error } = {}) {
+export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
   const strats = strategies();
   const elo = makeElo(strats.map(s => s.id));
   const wins = Object.fromEntries(strats.map(s => [s.id, 0]));
   const itemWins = {}, itemGames = {};   // per item: games where owner won / played
   const rand = makeRng(seed);
   let unfinished = 0;
+  let lavaDeaths = 0, directDeaths = 0, comebacks = 0, finished = 0;
   const t0 = Date.now();
 
   for (let g = 0; g < games; g++) {
@@ -123,8 +226,12 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = con
     for (let i = 0; i < playersPerGame; i++) {
       lineup.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     }
-    const res = playGame(lineup, seed * 100000 + g);
+    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist });
     if (!res.finished) { unfinished++; continue; }
+    finished++;
+    lavaDeaths += res.lavaDeaths;
+    directDeaths += res.directDeaths;
+    if (res.comeback) comebacks++;
 
     const placement = res.ranking.map(r => lineup[r.idx].id);
     elo.update(placement);
@@ -159,7 +266,62 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = con
 
   return {
     games, playersPerGame, unfinished, expectedWinRate,
+    lavaShare: lavaDeaths / Math.max(1, lavaDeaths + directDeaths),
+    comebackRate: comebacks / Math.max(1, finished),
     seconds: (Date.now() - t0) / 1000, table, items,
+  };
+}
+
+// ---- mirror study -----------------------------------------------------------
+// All seats use the SAME combat profile; only builds differ. This removes the
+// profile confound (skill dwarfs shopping) and answers the real balance
+// question: within one skill tier, is any build a trap or an auto-win?
+
+export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+  const builds = Object.keys(BUILDS);
+  const wins = Object.fromEntries(builds.map(b => [b, 0]));
+  const played = Object.fromEntries(builds.map(b => [b, 0]));
+  const placeSum = Object.fromEntries(builds.map(b => [b, 0]));
+  const rand = makeRng(seed);
+  let unfinished = 0, finished = 0;
+  let lavaDeaths = 0, directDeaths = 0, comebacks = 0;
+  const t0 = Date.now();
+
+  for (let g = 0; g < games; g++) {
+    const pool = [...builds];
+    const lineup = [];
+    for (let i = 0; i < playersPerGame; i++) {
+      const build = pool.splice(Math.floor(rand() * pool.length), 1)[0];
+      lineup.push({ id: `${kind}/${build}`, kind, build });
+    }
+    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist });
+    if (!res.finished) { unfinished++; continue; }
+    finished++;
+    lavaDeaths += res.lavaDeaths;
+    directDeaths += res.directDeaths;
+    if (res.comeback) comebacks++;
+    res.ranking.forEach((r, place) => {
+      const b = lineup[r.idx].build;
+      played[b]++;
+      placeSum[b] += place + 1;
+      if (place === 0) wins[b]++;
+    });
+    if ((g + 1) % 500 === 0) log(`  ${g + 1}/${games} mirror games (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+  }
+
+  const expectedWinRate = 1 / playersPerGame;
+  const table = builds.map(b => ({
+    build: b,
+    games: played[b],
+    winRate: played[b] ? wins[b] / played[b] : 0,
+    avgPlace: played[b] ? placeSum[b] / played[b] : 0,
+  })).sort((a, b) => b.winRate - a.winRate);
+
+  return {
+    kind, games, playersPerGame, unfinished, expectedWinRate,
+    lavaShare: lavaDeaths / Math.max(1, lavaDeaths + directDeaths),
+    comebackRate: comebacks / Math.max(1, finished),
+    seconds: (Date.now() - t0) / 1000, table,
   };
 }
 
@@ -174,8 +336,41 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   const games = argNum('games', 1000);
   const playersPerGame = argNum('players', 4);
   const seed = argNum('seed', 1);
+  const boomerangAssist = !process.argv.includes('--noboomassist');
+
+  const mirror = (process.argv.find(a => a.startsWith('--mirror=')) || '').split('=')[1];
+  if (mirror) {
+    if (!BOTS[mirror]) { console.error(`unknown profile: ${mirror}`); process.exit(1); }
+    console.error(`mirror arena: ${games} games of ${playersPerGame} × ${mirror}, seed ${seed}`);
+    const res = runMirror({ kind: mirror, games, playersPerGame, seed, boomerangAssist });
+    console.log(`\n=== mirror: all ${mirror}, builds only (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
+    console.log('win%   avg-place  games  build');
+    for (const r of res.table)
+      console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${String(r.games).padEnd(6)} ${r.build}`);
+    console.log(`\nlava kill share: ${(res.lavaShare * 100).toFixed(1)}%   comeback rate (winner was >=4 behind): ${(res.comebackRate * 100).toFixed(1)}%`);
+    if (res.unfinished) console.log(`(unfinished games: ${res.unfinished})`);
+    console.log(`${res.seconds.toFixed(1)}s total`);
+    const jsonPathM = (process.argv.find(a => a.startsWith('--json=')) || '').split('=')[1];
+    if (jsonPathM) fs.writeFileSync(jsonPathM, JSON.stringify(res, null, 2));
+    process.exit(0);
+  }
+
+  const probe = (process.argv.find(a => a.startsWith('--probe=')) || '').split('=')[1];
+  if (probe) {
+    if (!BOTS[probe]) { console.error(`unknown profile: ${probe}`); process.exit(1); }
+    console.error(`item probe: ${games} games of ${playersPerGame} × ${probe}, seed ${seed}`);
+    const res = runItemProbe({ kind: probe, games, playersPerGame, seed, boomerangAssist });
+    console.log(`\n=== item probe: all ${probe}, first purchase differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
+    console.log('win%   games  first item');
+    for (const r of res.table)
+      console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${String(r.games).padEnd(6)} ${r.probe}`);
+    if (res.unfinished) console.log(`(unfinished games: ${res.unfinished})`);
+    console.log(`${res.seconds.toFixed(1)}s total`);
+    process.exit(0);
+  }
+
   console.error(`arena: ${games} games of ${playersPerGame}, seed ${seed}, ${strategies().length} strategies`);
-  const res = runStudy({ games, playersPerGame, seed });
+  const res = runStudy({ games, playersPerGame, seed, boomerangAssist });
 
   console.log(`\n=== Elo table (${games} games, expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
   console.log('elo    games  win%   strategy');
@@ -187,6 +382,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   for (const it of res.items)
     console.log(`${(it.winRate * 100).toFixed(1).padStart(5)}  ${String(it.picked).padEnd(7)} ${it.thing}`);
 
+  console.log(`\nlava kill share: ${(res.lavaShare * 100).toFixed(1)}%   comeback rate (winner was >=4 behind): ${(res.comebackRate * 100).toFixed(1)}%`);
   if (res.unfinished) console.log(`\n(unfinished games: ${res.unfinished})`);
   console.log(`\n${res.seconds.toFixed(1)}s total`);
 
