@@ -1,5 +1,6 @@
 {
   "credit": "Art & music by Remi Fabre, from 'Fire Nation Attacked' (HF Space RemiFabre/fire_nation_attacked). AAC 96k mono from 44.1kHz PCM; JPEG q65 from 1024x1536 PNG.",
+  "intro": { "title": "Overture", "music": "/assets/music/intro.m4a" },
   "levels": [
     { "n": 1,  "title": "What lies ahead?", "theme": "fox",      "music": "/assets/music/level01.m4a", "background": "/assets/backgrounds/level01.jpg" },
     { "n": 2,  "title": "Forward.",         "theme": "gazelle",  "music": "/assets/music/level02.m4a", "background": "/assets/backgrounds/level02.jpg" },
