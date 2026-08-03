@@ -187,7 +187,7 @@ function phaseMusic(s) {
   if (s.phase === musicPhase) return;
   musicPhase = s.phase;
   if (s.phase === 'countdown') setLevel(fin(+s.round) ? +s.round : 1);
-  else if (s.phase === 'lobby') setLevel(1);
+  else if (s.phase === 'lobby' || s.phase === 'gameover') setLevel('intro');
 }
 
 // ---- interpolation -----------------------------------------------------------

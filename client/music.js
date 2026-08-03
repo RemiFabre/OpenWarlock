@@ -8,12 +8,13 @@ const VOLUME = 0.35;
 const FADE_MS = 900;
 
 let levels = [];        // manifest.levels once fetched
+let intro = null;       // manifest.intro: menu/gameover track
 let images = [];        // preloaded background Image per level
 let players = null;     // two <audio> elements; crossfade between them
 let active = 0;
 let fadeTimer = null;
-let currentIdx = -1;    // level index currently playing (-1 = nothing yet)
-let wantedN = 1;        // last setLevel() argument; replayed once ready
+let currentKey = null;  // track key currently playing ('lv3' | 'intro' | null)
+let wantedN = 'intro';  // last setLevel() argument; menus start on the intro track
 let inited = false;
 
 let musicMuted = false;
@@ -36,6 +37,7 @@ function resolveIndex(n) {
     const res = await fetch('/assets/manifest.json');
     const m = await res.json();
     if (m && Array.isArray(m.levels)) {
+      if (m.intro && typeof m.intro.music === 'string') intro = m.intro;
       levels = m.levels.filter(lv => lv && typeof lv === 'object');
       images = levels.map(lv => {
         const img = new Image();
@@ -70,9 +72,14 @@ function targetVolume() { return musicMuted ? 0 : VOLUME; }
 function apply() {
   try {
     if (!inited || !players || !levels.length) return;
-    const idx = resolveIndex(wantedN);
-    if (idx < 0) return;
-    if (idx === currentIdx) {
+    let key, src;
+    if (wantedN === 'intro' && intro) { key = 'intro'; src = intro.music; }
+    else {
+      const idx = resolveIndex(wantedN === 'intro' ? 1 : wantedN);
+      if (idx < 0) return;
+      key = 'lv' + idx; src = levels[idx].music;
+    }
+    if (key === currentKey) {
       // same track: just make sure it's actually running (autoplay may have
       // blocked an earlier attempt; a later gesture-driven call can succeed)
       const cur = players[active];
@@ -86,8 +93,8 @@ function apply() {
     const from = players[active];
     const to = players[1 - active];
     active = 1 - active;
-    currentIdx = idx;
-    to.src = levels[idx].music;
+    currentKey = key;
+    to.src = src;
     to.loop = true;
     to.volume = 0;
     const p = to.play();
@@ -124,7 +131,8 @@ export function setMusicMuted(m) {
 // image (image is null until it has actually arrived).
 export function currentLevel() {
   try {
-    const idx = resolveIndex(wantedN);
+    // during intro (menus/gameover) the renderer shows level 1's art
+    const idx = resolveIndex(wantedN === 'intro' ? 1 : wantedN);
     if (idx < 0) return null;
     const lv = levels[idx];
     const img = images[idx];
@@ -142,6 +150,6 @@ try {
     src: players[active].src,
     paused: players[active].paused,
     err: players[active].error ? players[active].error.code : null,
-    level: currentIdx + 1,
+    level: currentKey,
   } : null;
 } catch { }
