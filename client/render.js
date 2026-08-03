@@ -44,26 +44,40 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   const { ctx, w, h, scale } = view;
   const t = now / 1000;
 
+  // Round-end art reveal: while the roundEnd banner shows, the whole world
+  // (lava, platform, players) fades away over 0.6 s and the level art is
+  // shown fully for the remaining ~3 s.
+  const reveal = vs && vs.phase === 'roundEnd' && Number.isFinite(vs.phaseT)
+    ? Math.min(1, Math.max(0, (ROUND.SUMMARY_TIME - vs.phaseT) / 0.6))
+    : 0;
+  const worldAlpha = 1 - reveal;
+
   // --- lava sea ---
   ctx.fillStyle = '#2b0800';
   ctx.fillRect(0, 0, w, h);
 
-  // distant scenery: the current level's art, cover-fit at low alpha with a
-  // dark wash on top, so it reads as backdrop and never competes with play
+  // distant scenery: the current level's art at low alpha with a dark wash,
+  // "dezoomed" (between cover and contain) so most of the picture is visible;
+  // during the reveal it expands to the full picture at near-full alpha
   try {
     const lv = currentLevel();
     if (lv && lv.image) {
       const img = lv.image;
-      const cover = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-      const dw = img.naturalWidth * cover, dh = img.naturalHeight * cover;
-      ctx.globalAlpha = 0.22;
+      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const containS = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+      const base = Math.max(containS, Math.sqrt(coverS * containS));
+      const sc = base + (containS - base) * reveal;
+      const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
+      ctx.globalAlpha = 0.22 + 0.72 * reveal;
       ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = 'rgba(16, 6, 2, 0.35)';
+      ctx.fillStyle = `rgba(16, 6, 2, ${0.35 * worldAlpha})`;
       ctx.fillRect(0, 0, w, h);
     }
   } catch { /* a broken image must never break the frame */ }
 
+  if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
+  ctx.globalAlpha = worldAlpha;
   const maxR = Math.hypot(w, h) / 2;
   for (const b of BLOBS) {
     const ang = b.a + t * b.speed + Math.sin(t * 0.3 + b.phase) * 0.4;
@@ -260,9 +274,21 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   }
 
   // --- fx ---
-  drawFx(view, fx, now);
+  drawFx(view, fx, now, worldAlpha);
 
-  // --- canvas banners ---
+  ctx.globalAlpha = 1;
+  drawBanners(view, vs, players, myId);
+}
+
+// Banner-only path used when the round-end reveal has fully hidden the world.
+function drawWorldDone(view, vs, fx, myId, now) {
+  if (!vs) return;
+  view.ctx.globalAlpha = 1;
+  drawBanners(view, vs, Array.isArray(vs.players) ? vs.players : [], myId);
+}
+
+function drawBanners(view, vs, players, myId) {
+  const { ctx } = view;
   ctx.textAlign = 'center';
   if (vs.phase === 'countdown') {
     const n = Math.ceil(fin(vs.phaseT) ? vs.phaseT : 0);
@@ -359,7 +385,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.restore();
 }
 
-function drawFx(view, fx, now) {
+function drawFx(view, fx, now, baseAlpha = 1) {
   const { ctx, scale } = view;
   for (const f of fx) {
     if (!f) continue;
@@ -428,9 +454,9 @@ function drawFx(view, fx, now) {
       case 'death': {
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.font = `${Math.round(18 * scale / 8 + 14)}px serif`;
-        ctx.globalAlpha = a;
+        ctx.globalAlpha = a * baseAlpha;
         ctx.fillText('💀', x, y - 20 * k);
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = baseAlpha;
         ctx.strokeStyle = `rgba(200, 60, 30, ${a})`;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, 40 * k, 0, Math.PI * 2); ctx.stroke();
