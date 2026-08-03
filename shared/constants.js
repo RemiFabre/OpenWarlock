@@ -67,9 +67,9 @@ export const GOLD = {
 // costs[i] = cost to reach level i+1 (level 0 = not owned)
 export const SPELLS = {
   fireball: {
-    name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 6, 6],
+    name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8],
     cooldown: 1.6, speed: 34, radius: 1.0, range: Infinity,
-    damage: [4, 7, 10], knockback: [72, 84, 96],
+    damage: [4, 7, 10], knockback: [72, 78, 84],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
@@ -80,19 +80,19 @@ export const SPELLS = {
   },
   boomerang: {
     name: 'Boomerang', hotkey: 'E', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 6, speed: 26, radius: 1.0, outDistance: 20, homing: 40,
-    damage: [4, 6, 8], knockback: [56, 56, 56],
+    cooldown: 4.5, speed: 31, radius: 1.0, outDistance: 20, homing: 40,
+    damage: [4, 6, 8], knockback: [56, 66, 76],
     desc: 'Flies out and returns. Can hit on both legs.',
   },
   teleport: {
-    name: 'Teleport', hotkey: 'R', maxLevel: 2, costs: [12, 6],
-    cooldown: [12, 9], range: [18, 26],
+    name: 'Teleport', hotkey: 'R', maxLevel: 2, costs: [14, 8],
+    cooldown: [16, 12], range: [18, 26],
     desc: 'Blink to cursor. Cancels your momentum — the lava save.',
   },
   shield: {
     name: 'Shield', hotkey: 'D', maxLevel: 2, costs: [12, 6],
-    cooldown: [13, 10], duration: 1.5,
-    desc: 'Reflects projectiles back at their owner for 1.5 s.',
+    cooldown: [15, 12], duration: 1.25,
+    desc: 'Reflects projectiles back at their owner for 1.25 s.',
   },
   rush: {
     name: 'Rush', hotkey: 'F', maxLevel: 2, costs: [12, 6],
@@ -105,19 +105,19 @@ export const SPELLS = {
 // ---- Items (passive, max 1 each) ---------------------------------------
 export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed' },
-  treads: { name: 'Lava Treads',          cost: 10, desc: '-50% lava damage, no afterburn' },
+  treads: { name: 'Lava Treads',          cost: 10, desc: '-30% lava damage, no afterburn' },
   amulet: { name: 'Amulet of Health',     cost: 12, desc: '+30 max HP' },
   ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+1.2 HP/s' },
-  cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-25% knockback taken' },
+  cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-15% knockback taken' },
   sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 35% of spell damage you deal' },
 };
 
 export const ITEM_FX = {
   boots: { speedMult: 1.2 },
-  treads: { lavaMult: 0.5 },
+  treads: { lavaMult: 0.7 },
   amulet: { maxHp: 30 },
   ring: { regen: 1.2 },
-  cape: { kbMult: 0.75 },
+  cape: { kbMult: 0.85 },
   sword: { lifesteal: 0.35 },
 };
 

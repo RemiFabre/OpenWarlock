@@ -182,7 +182,7 @@ describe('lava', () => {
     expect(state.players.p0.kills).toBe(1);
   });
 
-  it('lava treads halve lava damage', () => {
+  it('lava treads reduce lava damage', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.items = ['treads'];
@@ -190,7 +190,8 @@ describe('lava', () => {
     b.x = -(ARENA.START_RADIUS + 5); b.y = 0;
     run(state, 1);
     const lossA = a.maxHp - a.hp, lossB = b.maxHp - b.hp;
-    expect(lossA).toBeLessThan(lossB * 0.6);
+    // treads lavaMult 0.65: loss ratio sits a bit above 0.65 after flat regen
+    expect(lossA).toBeLessThan(lossB * 0.75);
   });
 });
 
@@ -723,7 +724,8 @@ describe('bot profiles', () => {
     addPlayer(state, 'z', 'Zerk', { bot: true, kind: 'berserker' });
     addPlayer(state, 'e', 'Enemy', { bot: true });
     state.phase = 'shop';
-    state.players.z.gold = 24; // a strong first round: kill + win bonuses
+    state.players.z.gold = 28; // strong first rounds: kill + win bonuses
+    // (fireball L2+L3 cost 16 since the v5 rebalance; rush needs 12 more)
     botShop(state, 'z');
     expect(state.players.z.spells.rush).toBe(1);
   });
