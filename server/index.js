@@ -56,6 +56,7 @@ const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.json': 'application/json',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.m4a': 'audio/mp4',
 };
 
 const httpServer = http.createServer((req, res) => {
@@ -79,7 +80,8 @@ const httpServer = http.createServer((req, res) => {
   if (urlPath === '/') urlPath = '/client/index.html';
   const file = path.normalize(path.join(ROOT, urlPath));
   const ok = file.startsWith(path.join(ROOT, 'client')) ||
-             file.startsWith(path.join(ROOT, 'shared'));
+             file.startsWith(path.join(ROOT, 'shared')) ||
+             file.startsWith(path.join(ROOT, 'assets'));
   if (!ok) { res.writeHead(404); res.end('not found'); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
