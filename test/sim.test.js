@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
+  setMode, BOT_ELEMENTS,
 } from '../shared/sim.js';
-import { ARENA, PLAYER, SPELLS, ITEMS, GOLD, ROUND } from '../shared/constants.js';
+import { ARENA, PLAYER, SPELLS, ITEMS, ELEMENTS, GOLD, ROUND } from '../shared/constants.js';
 
 const DT = 1 / 30;
 
@@ -649,6 +650,280 @@ describe('serialization & misc', () => {
     expect(state.winner).toBeTruthy();
     const total = Object.values(state.players).reduce((s, p) => s + p.kills, 0);
     expect(total).toBeGreaterThan(0);
+  }, 30000);
+});
+
+describe('elemental mode', () => {
+  // Like freshBattle but on the elemental ruleset.
+  function elementalBattle(nPlayers = 2) {
+    const state = createGame({ seed: 42, mode: 'elemental' });
+    for (let i = 0; i < nPlayers; i++) addPlayer(state, `p${i}`, `Player${i}`);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    return state;
+  }
+
+  // Point-blank elemental fireball: a (with `element`) shoots b, 3rd player
+  // parked far away so the round can't end. Returns the state.
+  function hitWith(element) {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.element = element;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4); // enough for the hit, not the cooldown
+    return state;
+  }
+
+  it('setMode works only in the lobby, validates values, and ships in snapshot', () => {
+    const state = createGame({ seed: 1 });
+    expect(state.mode).toBe('classic');
+    expect(snapshot(state).mode).toBe('classic');
+    expect(setMode(state, 'nonsense')).toBe(false);
+    expect(setMode(state, 'elemental')).toBe(true);
+    expect(snapshot(state).mode).toBe('elemental');
+    addPlayer(state, 'a', 'Alice');
+    addPlayer(state, 'b', 'Bob');
+    startGame(state);
+    expect(state.phase).toBe('countdown');
+    expect(setMode(state, 'classic')).toBe(false); // locked once the game runs
+    expect(state.mode).toBe('elemental');
+  });
+
+  it('element purchases: elemental-only, need fireball, exclusive, cost gold', () => {
+    // classic: flatly rejected
+    const classic = createGame({ seed: 5 });
+    addPlayer(classic, 'a', 'Alice');
+    classic.phase = 'shop';
+    classic.players.a.gold = 99;
+    const rc = buy(classic, 'a', 'frost');
+    expect(rc.ok).toBe(false);
+    expect(rc.err).toBe('elemental mode only');
+
+    // elemental: fireball >= 1 required, one element ever, gold charged
+    const state = createGame({ seed: 5, mode: 'elemental' });
+    addPlayer(state, 'a', 'Alice');
+    state.phase = 'shop';
+    const a = state.players.a;
+    a.gold = 30;
+    a.spells.fireball = 0;
+    expect(buy(state, 'a', 'frost').err).toBe('requires fireball');
+    a.spells.fireball = 1;
+    a.gold = ELEMENTS.frost.cost - 1;
+    expect(buy(state, 'a', 'frost').err).toBe('not enough gold');
+    a.gold = 30;
+    expect(buy(state, 'a', 'frost').ok).toBe(true);
+    expect(a.element).toBe('frost');
+    expect(a.gold).toBe(30 - ELEMENTS.frost.cost);
+    expect(buy(state, 'a', 'gale').err).toBe('element already chosen');
+    expect(buy(state, 'a', 'frost').err).toBe('element already chosen'); // no re-buys either
+    expect(a.element).toBe('frost');
+  });
+
+  it('frost hits slow the target for the slow window', () => {
+    const walked = (element) => {
+      const state = element ? hitWith(element) : hitWith('ember');
+      const b = state.players.p1;
+      if (!element) b.slowT = 0; // control: same hit, slow scrubbed
+      expect(element ? b.slowT : 0).toBeLessThanOrEqual(ELEMENTS.frost.fx.slowT);
+      b.vx = 0; b.vy = 0; // strip knockback so we measure walking only
+      const x0 = b.x;
+      setMoveTarget(state, 'p1', b.x + 30, b.y);
+      run(state, 1);
+      return b.x - x0;
+    };
+    const slow = walked('frost');
+    const normal = walked(null);
+    expect(normal).toBeGreaterThan(PLAYER.SPEED * 0.85); // sanity: ~11u in 1 s
+    // slowMult 0.55 for 1.6 s covers the whole measured second
+    expect(slow).toBeLessThan(normal * 0.65);
+    expect(slow).toBeGreaterThan(normal * 0.45);
+  });
+
+  it('venom deals ~6 damage over 4 s and re-hits refresh, not stack', () => {
+    const state = hitWith('venom');
+    const b = state.players.p1, c = state.players.p2;
+    expect(b.poisonT).toBeGreaterThan(3.5);
+    // direct hit was reduced 25%: 4 * 0.75 = 3 (allow a hair of regen)
+    expect(b.maxHp - b.hp).toBeGreaterThan(2.2);
+    expect(b.maxHp - b.hp).toBeLessThan(3.2);
+    // measure the DoT against an unpoisoned control with identical hp/regen
+    b.hp = 50; c.hp = 50;
+    b.x = 0; b.y = 45 - ARENA.START_RADIUS; // park b safely, away from p0
+    run(state, 4.2);
+    expect(c.hp - b.hp).toBeGreaterThan(5.2);   // ≈ 6 total
+    expect(c.hp - b.hp).toBeLessThan(6.8);
+
+    // refresh-not-stack: a second hit resets the clock to dotTime, never more
+    const s2 = hitWith('venom');
+    const b2 = s2.players.p1;
+    run(s2, 1.5); // burn 1.5 s off the first application
+    expect(b2.poisonT).toBeLessThan(2.5);
+    b2.x = 8; b2.y = 0; b2.vx = 0; b2.vy = 0;
+    s2.players.p0.x = 0; s2.players.p0.y = 0;
+    castSpell(s2, 'p0', 'fireball', 20, 0); // cooldown 1.6 s has passed
+    run(s2, 0.4);
+    expect(b2.poisonT).toBeGreaterThan(3.5);
+    expect(b2.poisonT).toBeLessThanOrEqual(ELEMENTS.venom.fx.dotTime);
+  });
+
+  it('gale pushes measurably further than ember on the same hit', () => {
+    const peakVx = (element) => {
+      const state = elementalBattle(3);
+      const a = state.players.p0, b = state.players.p1;
+      state.players.p2.x = 0; state.players.p2.y = -45;
+      state.pillars = [];
+      a.element = element;
+      a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      let peak = 0;
+      for (let i = 0; i < 30; i++) { step(state, DT); peak = Math.max(peak, b.vx); }
+      return peak;
+    };
+    const gale = peakVx('gale');
+    const ember = peakVx('ember');
+    expect(ember).toBeGreaterThan(0);
+    // gale 72*1.45 = 104.4 vs ember 72+6 = 78 -> ~1.34x
+    expect(gale).toBeGreaterThan(ember * 1.2);
+  });
+
+  it('midas pays +1 gold per fireball hit (and hits softer)', () => {
+    const state = hitWith('midas');
+    const a = state.players.p0, b = state.players.p1;
+    expect(a.gold).toBe(GOLD.START + ELEMENTS.midas.fx.goldOnHit);
+    expect(b.maxHp - b.hp).toBeGreaterThan(2.2); // 4 * 0.75 = 3, minus regen
+    expect(b.maxHp - b.hp).toBeLessThan(3.2);
+    expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
+  });
+
+  it('terra grows the target and respects the total 2.2x size cap', () => {
+    const state = hitWith('terra');
+    const b = state.players.p1;
+    expect(b.growT).toBeGreaterThan(2);
+    step(state, DT);
+    // equal kills -> lead mult 1, grown radius = RADIUS * 1.15
+    expect(b.radius).toBeCloseTo(PLAYER.RADIUS * ELEMENTS.terra.fx.growMult, 2);
+    // with a maxed size lead (2.0x) the grow would reach 2.3x -> capped at 2.2x
+    b.kills = 100;
+    step(state, DT);
+    expect(b.radius).toBeCloseTo(PLAYER.RADIUS * ELEMENTS.terra.fx.growCap, 2);
+    // and once growT expires the cap logic no longer applies
+    run(state, ELEMENTS.terra.fx.growT + 0.1);
+    expect(b.radius).toBeCloseTo(PLAYER.RADIUS * PLAYER.SIZE_LEAD.MAX, 2);
+  });
+
+  it('terra fireballs fly 40% larger', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0;
+    state.players.p1.x = 0; state.players.p1.y = 45;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    a.element = 'terra';
+    a.x = 0; a.y = 0;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    expect(state.projectiles[0].radius).toBeCloseTo(
+      SPELLS.fireball.radius * ELEMENTS.terra.fx.projRadiusMult, 3);
+    expect(state.projectiles[0].element).toBe('terra');
+  });
+
+  it('combo items are elemental-only; the crown unlocks fireball lv4', () => {
+    const classic = createGame({ seed: 6 });
+    addPlayer(classic, 'a', 'Alice');
+    classic.phase = 'shop';
+    classic.players.a.gold = 99;
+    expect(buy(classic, 'a', 'echo').err).toBe('elemental mode only');
+    expect(buy(classic, 'a', 'crown').err).toBe('elemental mode only');
+    // classic fireball stays capped at 3 even with gold to burn
+    for (let i = 0; i < 5; i++) buy(classic, 'a', 'fireball');
+    expect(classic.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
+
+    const state = createGame({ seed: 6, mode: 'elemental' });
+    addPlayer(state, 'a', 'Alice');
+    state.phase = 'shop';
+    const a = state.players.a;
+    a.gold = 99;
+    buy(state, 'a', 'fireball'); buy(state, 'a', 'fireball'); // -> lv3
+    expect(buy(state, 'a', 'fireball').err).toBe('max level'); // no crown yet
+    expect(buy(state, 'a', 'echo').ok).toBe(true);
+    expect(buy(state, 'a', 'crown').ok).toBe(true);
+    const gold = a.gold;
+    expect(buy(state, 'a', 'fireball').ok).toBe(true); // lv4 unlocked
+    expect(a.spells.fireball).toBe(4);
+    expect(a.gold).toBe(gold - SPELLS.fireball.costs[3]);
+    expect(buy(state, 'a', 'fireball').err).toBe('max level'); // 4 is the end
+  });
+
+  it('echo stone doubles every 4th fireball, 0.15 s later on the same aim', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0;
+    state.players.p1.x = 0; state.players.p1.y = 45;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.items.push('echo');
+    a.x = 0; a.y = 0;
+    for (let i = 0; i < 4; i++) {
+      a.cooldowns.fireball = 0;
+      expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
+      step(state, DT);
+    }
+    expect(state.projectiles.length).toBe(4);      // echo not fired yet
+    expect(state.delayedShots.length).toBe(1);
+    run(state, 0.2);
+    expect(state.projectiles.length).toBe(5);      // the echo is airborne
+    const last = state.projectiles[state.projectiles.length - 1];
+    expect(last.vx).toBeGreaterThan(0);            // same aim: straight +x
+    expect(Math.abs(last.vy)).toBeLessThan(0.001);
+  });
+
+  it('elemental bots-only game reaches gameover with each kind on its element', () => {
+    const state = createGame({ seed: 77, mode: 'elemental' });
+    const kinds = ['grunt', 'berserker', 'stalker'];
+    kinds.forEach((k, i) => addPlayer(state, `b${i}`, `Bot${i}`, { bot: true, kind: k }));
+    startGame(state);
+    let guard = 0;
+    let lastPhase = state.phase;
+    while (state.phase !== 'gameover' && guard++ < 30 * 60 * 30) {
+      step(state, DT);
+      for (const id of Object.keys(state.players)) stepBot(state, id, DT);
+      if (state.phase === 'shop' && lastPhase !== 'shop')
+        for (const id of Object.keys(state.players)) botShop(state, id);
+      lastPhase = state.phase;
+    }
+    expect(state.phase).toBe('gameover');
+    expect(state.winner).toBeTruthy();
+    kinds.forEach((k, i) => expect(state.players[`b${i}`].element).toBe(BOT_ELEMENTS[k]));
+  }, 30000);
+
+  it('classic regression: a full bot game keeps every element null to gameover', () => {
+    const state = createGame({ seed: 88 }); // classic by default
+    const kinds = ['grunt', 'berserker', 'stalker'];
+    kinds.forEach((k, i) => addPlayer(state, `b${i}`, `Bot${i}`, { bot: true, kind: k }));
+    startGame(state);
+    let guard = 0;
+    let lastPhase = state.phase;
+    while (state.phase !== 'gameover' && guard++ < 30 * 60 * 30) {
+      step(state, DT);
+      for (const id of Object.keys(state.players)) stepBot(state, id, DT);
+      if (state.phase === 'shop' && lastPhase !== 'shop')
+        for (const id of Object.keys(state.players)) botShop(state, id);
+      lastPhase = state.phase;
+    }
+    expect(state.phase).toBe('gameover');
+    for (const p of Object.values(state.players)) {
+      expect(p.element).toBe(null);
+      expect(p.items).not.toContain('echo');
+      expect(p.items).not.toContain('crown');
+      expect(p.spells.fireball).toBeLessThanOrEqual(SPELLS.fireball.maxLevel);
+    }
+    // and the classic wire never mentions elemental fields
+    const snap = snapshot(state);
+    expect(snap.mode).toBe('classic');
+    for (const p of Object.values(snap.players)) {
+      expect(p.element).toBeUndefined();
+      expect(p.slow).toBeUndefined();
+    }
   }, 30000);
 });
 

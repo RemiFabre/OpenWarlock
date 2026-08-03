@@ -17,7 +17,7 @@ import {
   createGame, addPlayer, startGame, step, stepBot, botShop, buy, setShopReady, makeRng,
   castSpell,
 } from '../shared/sim.js';
-import { BOTS, ROUND, SPELLS } from '../shared/constants.js';
+import { BOTS, ROUND, SPELLS, ELEMENTS } from '../shared/constants.js';
 
 const DT = 1 / 30;
 const MAX_TICKS = 30 * 60 * 45; // 45 sim-minutes hard cap per game
@@ -71,8 +71,8 @@ function assistBoomerang(state, id) {
 
 // ---- single game ------------------------------------------------------------
 
-export function playGame(lineup, seed, { boomerangAssist = true } = {}) {
-  const state = createGame({ seed });
+export function playGame(lineup, seed, { boomerangAssist = true, mode = 'classic' } = {}) {
+  const state = createGame({ seed, mode });
   lineup.forEach((strat, i) => {
     addPlayer(state, `s${i}`, strat.id, { bot: true, kind: strat.kind });
   });
@@ -114,6 +114,8 @@ export function playGame(lineup, seed, { boomerangAssist = true } = {}) {
     if (state.phase === 'shop' && lastPhase !== 'shop') {
       lineup.forEach((strat, i) => {
         const id = `s${i}`;
+        // elemental probes: the seat's element is the FIRST purchase
+        if (strat.element) buy(state, id, strat.element);
         for (const thing of buildList(strat)) buy(state, id, thing);
         setShopReady(state, id);
       });
@@ -134,8 +136,59 @@ export function playGame(lineup, seed, { boomerangAssist = true } = {}) {
     comeback: maxDeficit[ranked[0].id] >= 4,
     ranking: ranked.map(p => ({
       idx: Number(p.id.slice(1)), kills: p.kills, deaths: p.deaths,
-      items: p.items, spells: p.spells,
+      gold: p.gold, items: p.items, spells: p.spells,
     })),
+  };
+}
+
+// ---- elemental study --------------------------------------------------------
+// Sanity check for the experimental ruleset: mirror games (all seats the same
+// combat profile + build) where only the element pick differs, so any
+// degenerate element (e.g. a midas gold snowball) shows up as a win-rate or
+// gold outlier. Not a tuning tool — a smoke alarm.
+
+export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, boomerangAssist = true, log = console.error } = {}) {
+  const elements = Object.keys(ELEMENTS);
+  const wins = Object.fromEntries(elements.map(e => [e, 0]));
+  const played = Object.fromEntries(elements.map(e => [e, 0]));
+  const placeSum = Object.fromEntries(elements.map(e => [e, 0]));
+  const goldSum = Object.fromEntries(elements.map(e => [e, 0]));
+  const killSum = Object.fromEntries(elements.map(e => [e, 0]));
+  const rand = makeRng(seed);
+  let unfinished = 0;
+  const t0 = Date.now();
+
+  for (let g = 0; g < games; g++) {
+    const pool = [...elements];
+    const lineup = [];
+    for (let i = 0; i < playersPerGame; i++) {
+      const el = pool.splice(Math.floor(rand() * pool.length), 1)[0];
+      lineup.push({ id: `${kind}+${el}`, kind, build: 'bruiser', element: el });
+    }
+    const res = playGame(lineup, seed * 100000 + g, { boomerangAssist, mode: 'elemental' });
+    if (!res.finished) { unfinished++; continue; }
+    res.ranking.forEach((r, place) => {
+      const el = lineup[r.idx].element;
+      played[el]++;
+      placeSum[el] += place + 1;
+      goldSum[el] += r.gold;
+      killSum[el] += r.kills;
+      if (place === 0) wins[el]++;
+    });
+    if ((g + 1) % 50 === 0) log(`  ${g + 1}/${games} elemental games (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+  }
+
+  const table = elements.map(e => ({
+    element: e, games: played[e],
+    winRate: played[e] ? wins[e] / played[e] : 0,
+    avgPlace: played[e] ? placeSum[e] / played[e] : 0,
+    avgGold: played[e] ? goldSum[e] / played[e] : 0,
+    avgKills: played[e] ? killSum[e] / played[e] : 0,
+  })).sort((a, b) => b.winRate - a.winRate);
+
+  return {
+    kind, games, playersPerGame, unfinished, expectedWinRate: 1 / playersPerGame,
+    seconds: (Date.now() - t0) / 1000, table,
   };
 }
 
@@ -337,6 +390,22 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   const playersPerGame = argNum('players', 4);
   const seed = argNum('seed', 1);
   const boomerangAssist = !process.argv.includes('--noboomassist');
+
+  const mode = (process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1];
+  if (mode === 'elemental') {
+    const kind = (process.argv.find(a => a.startsWith('--kind=')) || '').split('=')[1] || 'berserker';
+    console.error(`elemental study: ${games} games of ${playersPerGame} × ${kind}, elements only differ, seed ${seed}`);
+    const res = runElementalStudy({ kind, games, playersPerGame, seed, boomerangAssist });
+    console.log(`\n=== elemental: all ${kind}/bruiser, element pick differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
+    console.log('win%   avg-place  avg-gold  avg-kills  games  element');
+    for (const r of res.table)
+      console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${r.avgGold.toFixed(1).padStart(8)}  ${r.avgKills.toFixed(1).padStart(9)}  ${String(r.games).padEnd(6)} ${r.element}`);
+    if (res.unfinished) console.log(`(unfinished games: ${res.unfinished})`);
+    console.log(`${res.seconds.toFixed(1)}s total`);
+    const jsonPathE = (process.argv.find(a => a.startsWith('--json=')) || '').split('=')[1];
+    if (jsonPathE) fs.writeFileSync(jsonPathE, JSON.stringify(res, null, 2));
+    process.exit(0);
+  }
 
   const mirror = (process.argv.find(a => a.startsWith('--mirror=')) || '').split('=')[1];
   if (mirror) {
