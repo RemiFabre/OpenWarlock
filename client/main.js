@@ -13,7 +13,8 @@ window.addEventListener('resize', () => view.resize());
 
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
-  teleport: '🌀', shield: '🛡️', rush: '💨',
+  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿',
+  meteor: '☄️', hook: '🪝', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   echo: '🔁', crown: '👑',
 };
@@ -22,8 +23,10 @@ const ICONS = {
 // Defaults per Remi 2026-08-03: blink (teleport) on F, dash (rush) on E,
 // boomerang moves to R. Saved custom bindings in localStorage still win.
 const KEY_PRESETS = {
-  qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e' },
-  azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e' },
+  qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
+            pillar: 's', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
+  azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
+            pillar: 's', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
 };
 
 function loadKeys() {
@@ -162,8 +165,13 @@ function onEvent(e) {
       if (e.spell === 'rush') fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.3 });
       if (e.spell === 'fireball') playSfx('whoosh');
       break;
-    case 'gold': fx.push({ ...e, type: 'gold', at: now, dur: 0.9 }); break;       // midas payout
+    case 'gold': fx.push({ ...e, type: 'gold', at: now, dur: 0.9 }); break;       // midas / bounty payout
     case 'grow': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); break;       // terra pulse
+    case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
+    case 'hooked': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('zap'); break;
+    case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
+    case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
+    case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;
   }
   while (fx.length > 200) fx.shift();
 }
@@ -247,6 +255,9 @@ function interpolated(now) {
     round: s.round,
     arenaRadius: fin(arenaRadius) ? arenaRadius : ARENA.START_RADIUS,
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
+    hazards: Array.isArray(s.hazards) ? s.hazards : [],
+    meteors: Array.isArray(s.meteors) ? s.meteors : [],
+    walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
     players, projectiles, me: me(s),
   };
@@ -507,6 +518,8 @@ const SPELL_STAT_FIELDS = [
   ['range', 'rng', ''],
   ['duration', 'dur', 's'],
   ['distance', 'dash', ''],
+  ['charge', 'charge', 's'],
+  ['delay', 'delay', 's'],
 ];
 
 function spellStatLine(spec, level) {
@@ -541,8 +554,7 @@ function buildShop(container, mode = 'classic') {
     el.className = 'shoplabel'; el.textContent = txt;
     container.appendChild(el);
   };
-  mkLabel('Spells');
-  for (const [key, spec] of Object.entries(SPELLS)) {
+  const mkSpell = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
@@ -552,14 +564,20 @@ function buildShop(container, mode = 'classic') {
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
     wares.push({ key, spec, el: b, kind: 'spell' });
-  }
+  };
+  mkLabel('Spells');
+  for (const [key, spec] of Object.entries(SPELLS))
+    if (spec.tier !== 'power') mkSpell(key, spec);
+  mkLabel('Powerful ⚡ (unlock after round 5 — pricey, decisive)');
+  for (const [key, spec] of Object.entries(SPELLS))
+    if (spec.tier === 'power') mkSpell(key, spec);
   if (elemental) {
-    mkLabel('Elements ⚗️ (pick one — forever)');
+    mkLabel('Elements ⚗️ (3 levels each — and they stack)');
     for (const [key, spec] of Object.entries(ELEMENTS)) {
       const b = document.createElement('button');
       b.className = 'ware';
       b.innerHTML = `<span class="icon">${spec.icon}</span>
-        <span class="info"><span class="name">${spec.name}</span>
+        <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
         <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
       b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
       container.appendChild(b);
@@ -578,7 +596,7 @@ function buildShop(container, mode = 'classic') {
     container.appendChild(b);
     wares.push({ key, spec, el: b, kind: 'item' });
   }
-  return function refresh(m) {
+  return function refresh(m, round = 0) {
     if (!m) return;
     const gold = fin(+m.gold) ? +m.gold : 0;
     const spells = m.spells || {};
@@ -586,6 +604,12 @@ function buildShop(container, mode = 'classic') {
     for (const w of wares) {
       const cost = w.el.querySelector('.cost');
       if (w.kind === 'spell') {
+        // power tier stays locked until enough rounds have been fought
+        if (w.spec.minRound && round < w.spec.minRound) {
+          cost.textContent = `🔒 r${w.spec.minRound + 1}`; cost.className = 'cost';
+          w.el.disabled = true;
+          continue;
+        }
         const level = spells[w.key] || 0;
         // the Cinder Crown raises the fireball cap by one (elemental only)
         const maxLevel = w.spec.maxLevel +
@@ -604,15 +628,17 @@ function buildShop(container, mode = 'classic') {
           w.el.disabled = gold < c;
         }
       } else if (w.kind === 'element') {
-        const picked = m.element === w.key;
-        w.el.classList.toggle('sel', picked);
-        if (picked) {
-          cost.textContent = 'picked ✓'; cost.className = 'cost owned'; w.el.disabled = true;
-        } else if (m.element) {
-          cost.textContent = '—'; cost.className = 'cost'; w.el.disabled = true;
+        const elevel = (m.elements && m.elements[w.key]) || 0;
+        w.el.classList.toggle('sel', elevel > 0);
+        const lv = w.el.querySelector('.lv');
+        lv.textContent = elevel ? `lv ${elevel}` : '';
+        if (elevel >= w.spec.maxLevel) {
+          cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
-          cost.textContent = `${w.spec.cost} g`; cost.className = 'cost';
-          w.el.disabled = gold < w.spec.cost || (spells.fireball || 0) < 1;
+          const c = w.spec.costs[elevel];
+          cost.textContent = `${c} g`; cost.className = 'cost';
+          w.el.disabled = gold < c ||
+            (w.key !== 'arcane' && (spells.fireball || 0) < 1);
         }
       } else {
         if (items.includes(w.key)) {
@@ -659,7 +685,8 @@ function kitIcons(p) {
     if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
   for (const it of (Array.isArray(p.items) ? p.items : []))
     if (ICONS[it]) parts.push(ICONS[it]);
-  if (p.element && ELEMENTS[p.element]) parts.push(ELEMENTS[p.element].icon);
+  for (const [k, v] of Object.entries(p.elements || {}))
+    if (v > 0 && ELEMENTS[k]) parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}`);
   return parts.join(' ');
 }
 
@@ -732,7 +759,7 @@ function updateUi(s) {
     setVisible('shopGrid', !watching);
     setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
     if (!watching) {
-      refreshShop(m);
+      refreshShop(m, fin(+s.round) ? +s.round : 0);
       // ready button: bots are always ready and spectators don't gate the shop;
       // only fighting humans are counted/shown
       const humans = playerList.filter(p => !p.bot && !p.spectator);
@@ -806,9 +833,12 @@ function updateUi(s) {
       const level = spells[key] || 0;
       el.classList.toggle('owned', level > 0);
       el.querySelector('.lv').textContent = level > 1 ? 'lv' + level : '';
-      // your chosen element rides on the fireball slot (elemental mode)
+      // your owned elements ride on the fireball slot (elemental mode)
       el.querySelector('.elem').textContent =
-        key === 'fireball' && m.element && ELEMENTS[m.element] ? ELEMENTS[m.element].icon : '';
+        key === 'fireball' && m.elements
+          ? Object.keys(m.elements).filter(k => m.elements[k] > 0 && ELEMENTS[k])
+              .map(k => ELEMENTS[k].icon).join('')
+          : '';
       const cd = fin(+cooldowns[key]) ? +cooldowns[key] : 0;
       const cdEl = el.querySelector('.cd');
       cdEl.classList.toggle('hidden', cd <= 0);

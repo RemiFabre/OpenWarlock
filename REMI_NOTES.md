@@ -6,6 +6,70 @@ you asked before leaving.*
 
 ---
 
+## ROUND 9 — la grosse nuit : élémental v2, sorts puissants, ~14 000 games (2026-08-04)
+
+Tout ce que tu as demandé est implémenté, équilibré au lab, vérifié (92
+tests, harness, 2 navigateurs) et poussé. Redémarre le serveur + hard-refresh.
+
+### Élémental v2 — multi-éléments, 3 niveaux
+
+- **Chaque élément a 3 niveaux** (10+8+8 g) et **ils se cumulent** : glace+feu
+  marche exactement comme tu l'imaginais — les deux effets montent sur chaque
+  boule de feu. Le shop les affiche comme les sorts (lv, prix du niveau suivant).
+- **Nouvel élément Arcane 🔮** : −10/−18/−25 % de cooldown sur TOUS tes sorts
+  (pas besoin de fireball, c'est un passif global).
+- **Poison buffé + traînée au sol** : tes boules de feu laissent des flaques
+  toxiques (vertes, qui s'estompent) — y marcher brûle un peu et teinte la
+  cible. DoT 4/7/10 sur 4 s.
+- **Terre** : la taille du projectile monte par niveau (+25/+45/+65 %).
+- **Air nerfé** : la poussée est étalée sur 3 niveaux (1.18/1.32/1.45×) — le
+  1.45× ne coûte plus 10 g mais 26 g. **Gold nerfé** doucement (−10 % dégâts).
+- **La vraie découverte de la nuit** : le poison **volait tous les kills
+  lave** — chaque tick de DoT re-stampait « dernier tireur » 30 fois par
+  seconde, donc un empoisonné qui tombait dans la lave créditait toujours le
+  venom. Corrigé (les DoT ne prennent plus le crédit) ; le venom passait de
+  50-86 % de win rate à ~10 %, puis remonté avec de vrais chiffres. Les
+  premières mesures « air/gold cheatés » de l'ancien système souffraient
+  peut-être du même biais.
+- Spread final par élément (800 games par tier, baseline 25 %) : tout le
+  monde entre 10 et 48 % avec des affinités nettes — terre→stalker,
+  arcane/ember→berserker, venom→grunt. **Midas reste au sol chez les bots
+  (~3 %)** : c'est un élément ÉCONOMIQUE et les bots saturés n'ont rien à
+  acheter avec l'or (300+ g d'or inutile en fin de game). À juger en vrai.
+
+### Sorts nouveaux
+
+- **🗿 Pilier (sort normal, touche S)** : pose un pilier d'obsidienne au
+  curseur (10-16 s, un seul à la fois, le nouveau remplace l'ancien). Cover,
+  stoppeur de knockback, bloqueur de hook/météore-esquive.
+- **Tier "Puissant" — débloqué à la fin du round 5, cher, décisif** :
+  - **☄️ Météore (T, 22 g)** : marque au sol qui clignote 1,25 s, puis 16-24
+    dégâts + blast radial énorme (110-130 push). Touche aussi le lanceur !
+  - **🪝 Hook (G, 20 g)** : harponne le premier ennemi touché et le tire
+    JUSTE DERRIÈRE toi. Momentum annulé. Ton dos face à la lave = son problème.
+  - **💥 Répulsion (X, 20 g)** : 2 s de charge (double anneau qui clignote
+    fort, autres sorts verrouillés), puis tout le monde autour valse
+    (130-150 push). Le shield la bloque.
+  - **🪞 Mur miroir (C, 24 g)** : mur perpendiculaire à ta visée qui
+    **renvoie les projectiles ennemis** (ils changent de propriétaire !) et
+    bloque leurs éclairs ; les tiens passent. 5 s, un seul à la fois.
+- Les bots ne pilotent pas encore ces sorts — c'est du contenu joueur ;
+  l'arène ne peut donc pas les équilibrer, vos parties le feront.
+
+### Knockback
+
+- **Multiplicateur bas-PV réduit** : 0.8 → **0.55** (près de la mort ≈
+  1.55× au lieu de 1.8×).
+- **Audit du "bug petits joueurs"** : le knockback n'a AUCUN terme de
+  taille (test de régression ajouté) et il était déjà fonction du **% de PV
+  manquants** (l'amulette compte). La perception venait du fait que les
+  petits (à la traîne) sont souvent bas en PV%.
+- Effet mesurable : la part de kills lave descend à ~68 % (77 % avant) —
+  moins de morts « valse dans la lave » depuis les bas PV. À toi de dire si
+  c'est le bon curseur.
+
+---
+
 ## ROUND 8 — feedback en français, deux phases (2026-08-03, late evening)
 
 Phase 1 (anti-snowball + feel) shipped first at `9347bd4` so you could play;

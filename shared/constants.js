@@ -34,9 +34,11 @@ export const PLAYER = {
   SPEED: 11,              // u/s (boots-maxed ≈ the old base speed)
   FRICTION: 3.1,          // exponential velocity damping per second (more slide)
   STOP_EPSILON: 0.3,
-  // knockback scales with missing hp: impulse *= 1 + KB_HP_FACTOR*(1 - hp/maxHp)
-  // full HP = baseline, near-death ≈ 1.8x — wounded warlocks fly
-  KB_HP_FACTOR: 0.8,
+  // knockback scales with the PERCENT of hp missing (hp/maxHp — amulet HP
+  // counts): impulse *= 1 + KB_HP_FACTOR*(1 - hp/maxHp). Full HP = baseline,
+  // near-death ≈ 1.55x. Body size plays NO role in knockback (audited
+  // 2026-08-04: being big is only ever a disadvantage — easier to hit).
+  KB_HP_FACTOR: 0.55, // was 0.8: near-death launches felt excessive
   REGEN: 1.2,             // baseline hp/s for everyone (ring stacks on top)
 };
 
@@ -123,6 +125,37 @@ export const SPELLS = {
     damage: [5, 8], knockback: [79, 79],
     desc: 'Dash through enemies, blasting them aside.',
   },
+  pillar: {
+    name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [10, 6],
+    cooldown: [14, 11], range: 20, radius: 2.2, duration: [10, 16],
+    desc: 'Raise an obsidian pillar: cover, blocker, knockback-stopper. One standing at a time.',
+  },
+  // ---- power tier: expensive, unlockable only after round 5 ---------------
+  // Going for these is a real tradeoff (their entry costs rival a full item)
+  // but they end fights: buy() enforces minRound.
+  meteor: {
+    name: 'Meteor', hotkey: 'T', tier: 'power', minRound: 5, maxLevel: 2, costs: [22, 10],
+    cooldown: [15, 13], range: 45, delay: 1.25, radius: 6,
+    damage: [16, 24], knockback: [110, 130],
+    desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast. From round 6.',
+  },
+  hook: {
+    name: 'Hook', hotkey: 'G', tier: 'power', minRound: 5, maxLevel: 2, costs: [20, 8],
+    cooldown: [13, 10], speed: 48, radius: 0.9, range: [26, 34],
+    damage: [4, 6],
+    desc: '🪝 Skewer the first enemy hit and yank them BEHIND you. From round 6.',
+  },
+  repulse: {
+    name: 'Repulse', hotkey: 'X', tier: 'power', minRound: 5, maxLevel: 2, costs: [20, 8],
+    cooldown: [16, 13], charge: 2, radius: [9, 11],
+    damage: [8, 12], knockback: [130, 150],
+    desc: '💥 Charge for 2 s (visibly), then blast everyone around you away. From round 6.',
+  },
+  wall: {
+    name: 'Mirror Wall', hotkey: 'C', tier: 'power', minRound: 5, maxLevel: 2, costs: [24, 10],
+    cooldown: [18, 15], range: 20, length: [8, 11], duration: 5,
+    desc: '🪞 A wall that reflects ENEMY projectiles and blocks their lightning. Yours pass. From round 6.',
+  },
 };
 
 // ---- Items (passive, max 1 each) ---------------------------------------
@@ -157,27 +190,36 @@ export const ITEM_FX = {
 };
 
 // ---- Elements (elemental mode only) --------------------------------------
-// One-time, exclusive fireball transformations: pick exactly one, ever.
-// Requires Fireball >= 1. buy() rejects them entirely in classic mode.
+// 2026-08-04 rework (Remi): each element is a 3-LEVEL upgrade path and they
+// STACK — frost+ember is a chilling fire; buy as many as you can afford.
+// Adds are summed, mults multiplied across everything you own. Per-level
+// values are arrays indexed by level-1; scalars apply at every level.
+// Riders need Fireball >= 1; arcane is global (no fireball needed).
+// Balance notes vs the old one-pick system: gale and midas nerfed (were
+// dominant), venom buffed (+ground trail), terra size now scales per level.
 export const ELEMENTS = {
-  ember: { name: 'Ember', icon: '🔥', cost: 10,
-           desc: 'Pure fire: +4 damage, +5 push.',
-           fx: { dmgAdd: 4, kbAdd: 5 } },
-  frost: { name: 'Frost', icon: '❄️', cost: 10,
-           desc: 'Hits chill: target moves at 55% speed for 1.6 s.',
-           fx: { slowMult: 0.55, slowT: 1.6 } },
-  venom: { name: 'Venom', icon: '🐍', cost: 10,
-           desc: 'Hits poison: 6 dmg over 4 s (re-hits refresh, not stack). −25% direct damage.',
-           fx: { dmgMult: 0.75, dotDamage: 6, dotTime: 4 } },
-  gale:  { name: 'Gale', icon: '🌪️', cost: 10,
-           desc: 'A gust in a ball: +45% push, −25% damage.',
-           fx: { kbMult: 1.45, dmgMult: 0.75 } },
-  midas: { name: 'Midas', icon: '🪙', cost: 10,
-           desc: 'Every hit pays +1 gold. −25% damage.',
-           fx: { goldOnHit: 1, dmgMult: 0.75 } },
-  terra: { name: 'Terra', icon: '🪨', cost: 10,
-           desc: '40% bigger fireball; hits make the target grow +15% for 3 s (easier to hit).',
-           fx: { projRadiusMult: 1.4, growMult: 1.15, growT: 3, growCap: 2.2 } },
+  ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Pure fire: more damage and push each level.',
+           fx: { dmgAdd: [2, 4, 6], kbAdd: [2, 4, 6] } },
+  frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Hits chill the target — deeper and longer each level.',
+           fx: { slowMult: [0.65, 0.55, 0.45], slowT: [1.5, 1.8, 2.1] } },
+  venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Hits poison, and your fireballs leave a toxic trail on the ground. −15% direct damage.',
+           fx: { dmgMult: 0.85, dotDamage: [4, 7, 10], dotTime: 4,
+                 trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
+  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'A gust in a ball: more push each level. −5% damage.',
+           fx: { kbMult: [1.18, 1.32, 1.45], dmgMult: 0.95 } },
+  midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Hits pay gold (+2 g at lv3). −10% damage.',
+           fx: { goldOnHit: [1, 1, 2], dmgMult: 0.9 } },
+  terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Bigger fireball each level; hits briefly grow the target.',
+           fx: { projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
+  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'ALL your cooldowns run faster: −10% / −18% / −25%.',
+           fx: { cdrMult: [0.9, 0.82, 0.75] } },
 };
 
 export const COLORS = [

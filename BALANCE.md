@@ -5,6 +5,20 @@ the bottom). Report #2 (the 46k-game v5 campaign) is preserved in git history
 at `9a96b47` and earlier — all of its numbers are obsolete: this campaign
 re-measured everything after Remi's playtest retune and the bot-piloting fix.*
 
+> **⚠ Addendum 2 (2026-08-04, "round 9", ~14k games):** elemental mode was
+> reworked (3-level stackable elements + arcane) and rebalanced through four
+> iterations. Key discovery: **poison DoT ticks were re-stamping the
+> last-hitter slot 30×/s, stealing nearly every lava-kill credit** — venom
+> measured 75–86% win rate before the fix and ~15% after, with identical
+> numbers. DoT no longer stamps credit. Final per-element spread (800 games
+> × 3 tiers, 25% baseline): 10–48% everywhere with clear tier affinities
+> (terra→stalker 45%, arcane/ember→berserker 44–48%, venom→grunt 38%);
+> midas floors at ~3% only because gold-saturated bots have nothing to buy —
+> judge it by human play. Classic spot-checks after KB_HP_FACTOR 0.55 and
+> the lightning nerf: lava share ~68%, comeback ~16%, sniper down to
+> 18–20% (intended). Power spells (meteor/hook/repulse/wall/pillar) are
+> **not piloted by bots** and therefore unmeasured.
+>
 > **⚠ Addendum (same evening, "round 8"):** this report predates the
 > anti-snowball economy (8/2/2 gold + gap bounty), the lightning nerf
 > (range 38, no push), the fireball lv1 cadence (cd 2.1 s), and the

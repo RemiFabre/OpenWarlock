@@ -35,11 +35,11 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | Path | What |
 |---|---|
 | `shared/constants.js` | ALL game numbers (spells, items, elements, arena, bots roster, BUILDS) |
-| `shared/sim.js` | pure simulation + bot AIs (grunt/berserker/stalker + generic pilotOwnedSpells layer) + elemental effects |
+| `shared/sim.js` | pure simulation + bot AIs (grunt/berserker/stalker + generic pilotOwnedSpells layer) + elemental effects, hazards, meteors, walls |
 | `server/index.js` | one-process authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=` env), crash dumps, `/health`, static serving (no-cache for code, 1-day for assets) |
 | `client/` | canvas client: main.js (net/input/HUD), render.js (world + offscreen backdrop layer), music.js, sfx.js (synthesized) |
 | `assets/` | Remi's level art+music, `manifest.json` (10 levels + intro track) |
-| `test/sim.test.js` | 82 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 92 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: Elo per strategy, `--mirror=`, `--probe=`, `--mode=elemental` |
@@ -67,15 +67,27 @@ hit per enemy per throw; own player wears a permanent red ring; kill banner
 size-by-lead; `goldEarned` + `dmgDealt` tracked per player (lava burn
 credited to the last hitter, same window as kill credit);
 spectator mode; bot tiers ★/★★/★★★ × selectable build strategy (lobby
-dropdown, 🎲 random rolls one); **elemental mode** ⚗️ (lobby toggle):
-6 fireball elements + Echo Stone/Cinder Crown, classic wire-format untouched.
+dropdown, 🎲 random rolls one); KB_HP_FACTOR 0.55 (% of maxHp; NO size term
+— audited + regression-tested); **pillar spell** (S: placeable blocker, one
+each, 10-16 s); **power tier** unlocked after round 5 (buy() enforces
+minRound): meteor T (telegraphed AoE), hook G (yanks victim behind caster),
+repulse X (2 s visible charge, spell-locked, radial burst), mirror wall C
+(reflects enemy projectiles — ownership flips — blocks enemy lightning; own
+shots pass); bots do NOT pilot power spells (player content, arena can't
+rate it); DoT ticks never stamp lastHitBy (kill credit stays with the real
+last hitter — poison used to steal every lava kill);
+**elemental mode** ⚗️ (lobby toggle): 7 elements (incl. arcane 🔮 global
+CDR), each 3 levels (10+8+8 g), STACKABLE (frost+ember works), venom drips
+ground trails (state.hazards), terra size per level; midas measures ~3% in
+bot studies only because saturated bots can't use gold — economy element,
+judge by playtest; classic wire-format untouched by elemental fields.
 Music: intro track on menus/gameover, level n track+art per round, art reveal
 at round end (world fades 0.6 s, art full for ~3 s).
 
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 82 green
+npx vitest run                                   # 92 green
 node test/harness/run.js test/harness/scenarios/bots.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/arena.js --games=60 --players=4       # games finish, sane kills
@@ -91,8 +103,10 @@ Playwright chromium+webkit installed. Server for manual poking:
    escape/rusher feel fine in human hands (bot-traps at 3–12%, deliberately
    not number-buffed)? Also: BALANCE.md #3 tables predate the round-8
    changes (see its addendum) — next campaign re-measures from scratch.
-2. **Elemental balance**: venom overtuned, midas gold-snowball (flagged, not
-   tuned — Remi playtests first).
+2. **Power spells are unmeasured**: bots don't pilot meteor/hook/repulse/
+   wall/pillar, so their numbers are design guesses — first human sessions
+   decide. Piloting them (esp. pillar as cover, hook near lava) would also
+   make the arena able to rate them.
 3. Remi's **reaction-time dodge-window framework** (map projectile speed ×
    hitbox × distance vs ~150 ms reaction) for the next projectile-feel pass.
 4. Rendering perf round 2 if needed: cache rock/rim gradients per radius;

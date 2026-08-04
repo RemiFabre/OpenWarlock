@@ -163,6 +163,53 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     }
   }
 
+  // --- venom ground trails (elemental): toxic green puddles, fading out ---
+  const hazards = Array.isArray(vs.hazards) ? vs.hazards : [];
+  for (const h of hazards) {
+    if (!h || !fin(h.x) || !fin(h.y) || !fin(h.r)) continue;
+    const alpha = fin(+h.a) ? Math.max(0, Math.min(1, +h.a)) : 1;
+    const x = view.sx(h.x), y = view.sy(h.y);
+    ctx.fillStyle = `rgba(110, 200, 90, ${0.10 + 0.16 * alpha})`;
+    ctx.beginPath(); ctx.arc(x, y, h.r * scale, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(130, 220, 110, ${0.25 * alpha})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // --- meteor telegraphs: a red mark that blinks faster as the rock nears ---
+  const meteors = Array.isArray(vs.meteors) ? vs.meteors : [];
+  for (const m of meteors) {
+    if (!m || !fin(m.x) || !fin(m.y)) continue;
+    const tt = fin(+m.t) ? Math.max(0, +m.t) : 0;
+    const blink = 0.45 + 0.45 * Math.abs(Math.sin(now / (60 + tt * 220)));
+    const x = view.sx(m.x), y = view.sy(m.y);
+    const R2 = 6 * scale; // SPELLS.meteor.radius
+    ctx.strokeStyle = `rgba(255, 80, 40, ${blink})`;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(255, 80, 40, ${0.10 + 0.12 * blink})`;
+    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // --- mirror walls: shimmering reflective lines ---
+  const walls = Array.isArray(vs.walls) ? vs.walls : [];
+  for (const wl of walls) {
+    if (!wl || !fin(wl.x1) || !fin(wl.y1) || !fin(wl.x2) || !fin(wl.y2)) continue;
+    const shimmer = 0.65 + 0.3 * Math.sin(t * 6 + wl.x1);
+    ctx.strokeStyle = `rgba(160, 225, 255, ${shimmer})`;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(view.sx(wl.x1), view.sy(wl.y1));
+    ctx.lineTo(view.sx(wl.x2), view.sy(wl.y2));
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 * shimmer})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
   // --- move marker ---
   if (moveMark && fin(moveMark.x) && fin(moveMark.y) && now - moveMark.at < 700) {
     const a = 1 - (now - moveMark.at) / 700;
@@ -178,10 +225,17 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     if (!pr || !fin(pr.x) || !fin(pr.y)) continue;
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
-      // elemental fireballs (elemental mode) tint the core; terra flies bigger
-      const r = SPELLS.fireball.radius *
-        (pr.element === 'terra' ? ELEMENTS.terra.fx.projRadiusMult : 1) * scale;
-      const core = ELEM_CORE[pr.element] || '#ffab40';
+      // elemental fireballs tint the core by their strongest rider element;
+      // terra flies bigger per level
+      let coreKey = null, coreLv = 0;
+      if (pr.elements) {
+        for (const [k, v] of Object.entries(pr.elements))
+          if (ELEM_CORE[k] && v > coreLv) { coreKey = k; coreLv = v; }
+      }
+      const terraMult = pr.elements && pr.elements.terra
+        ? ELEMENTS.terra.fx.projRadiusMult[Math.min(pr.elements.terra, 3) - 1] : 1;
+      const r = SPELLS.fireball.radius * terraMult * scale;
+      const core = ELEM_CORE[coreKey] || '#ffab40';
       const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
       // trail
       const g = ctx.createLinearGradient(x - Math.cos(ang) * r * 4, y - Math.sin(ang) * r * 4, x, y);
@@ -258,6 +312,15 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.strokeStyle = 'rgba(140, 200, 255, 0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (pl.charging) {
+      // repulse wind-up: hard-blinking double ring — VERY visible on purpose
+      const on = Math.sin(now / 70) > 0;
+      ctx.strokeStyle = on ? 'rgba(255, 230, 120, 0.95)' : 'rgba(255, 120, 40, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.stroke();
     }
     if (fin(pl.shieldT) && pl.shieldT > 0) {
       ctx.strokeStyle = 'rgba(140, 210, 255, 0.9)';
@@ -526,6 +589,28 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.strokeStyle = `rgba(190, 140, 255, ${a})`;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, (1.6 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'meteorHit': {
+        // impact: heavy expanding shockwave + hot flash
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const R3 = (fin(+f.r) ? +f.r : 6) * scale;
+        ctx.strokeStyle = `rgba(255, 120, 40, ${a})`;
+        ctx.lineWidth = 5 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, R3 * (0.4 + 0.8 * k), 0, Math.PI * 2); ctx.stroke();
+        const g3 = ctx.createRadialGradient(x, y, 0, x, y, R3);
+        g3.addColorStop(0, `rgba(255, 230, 160, ${a * 0.9})`);
+        g3.addColorStop(1, 'rgba(255, 90, 20, 0)');
+        ctx.fillStyle = g3;
+        ctx.beginPath(); ctx.arc(x, y, R3, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'repulse': {
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const R4 = (fin(+f.r) ? +f.r : 9) * scale;
+        ctx.strokeStyle = `rgba(255, 230, 120, ${a})`;
+        ctx.lineWidth = 4 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, R4 * k, 0, Math.PI * 2); ctx.stroke();
         break;
       }
       case 'catch': {
