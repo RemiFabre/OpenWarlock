@@ -151,9 +151,24 @@ function resetToLobby() {
 
 const wss = new WebSocketServer({ server: httpServer });
 
+// Zombie reaper: connections through tunnels (cloudflared) often die WITHOUT
+// a close frame, leaving a ghost warlock seated forever — blocking the lobby
+// (start needs every human ready). Ping every 15 s; a socket that misses two
+// pongs is terminated, which fires 'close' and removes the player normally.
+const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 15000);
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) { try { ws.terminate(); } catch { } continue; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch { }
+  }
+}, HEARTBEAT_MS);
+
 wss.on('connection', (ws) => {
   const id = 'c' + nextConnId++;
   let joined = false;
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
 
   ws.on('message', (raw) => {
     let m;
@@ -234,6 +249,23 @@ wss.on('connection', (ws) => {
       case 'removeBot': {
         const bots = Object.values(game.players).filter(p => p.bot);
         if (bots.length && game.phase === 'lobby') removePlayer(game, bots[bots.length - 1].id);
+        break;
+      }
+      case 'kick': {
+        // lobby-only: boot a HUMAN player (ghost seats, AFK friends). It's a
+        // friends-hosted game — anyone may kick; the victim can just rejoin.
+        if (game.phase !== 'lobby' || typeof m.id !== 'string') break;
+        const target = game.players[m.id];
+        if (!target || target.bot || m.id === id) break;
+        const tws = sockets.get(m.id);
+        if (tws) {
+          try { tws.send(JSON.stringify({ t: 'denied', reason: 'kicked from the lobby' })); } catch { }
+          try { tws.close(); } catch { }
+          sockets.delete(m.id);
+        }
+        journal('kick', { by: id, target: m.id });
+        removePlayer(game, m.id);
+        maybeAutoStart();
         break;
       }
       case 'again':

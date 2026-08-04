@@ -714,6 +714,16 @@ function updateUi(s) {
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
         <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
+      // kick button on other humans: clears ghost seats blocking the start
+      if (!p.bot && p.id !== myId) {
+        const kb = document.createElement('button');
+        kb.type = 'button';
+        kb.className = 'mini kick';
+        kb.title = `Kick ${p.name} (they can rejoin)`;
+        kb.textContent = '✕';
+        kb.addEventListener('click', () => send({ t: 'kick', id: p.id }));
+        div.appendChild(kb);
+      }
       list.appendChild(div);
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
