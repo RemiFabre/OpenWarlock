@@ -119,7 +119,17 @@ function connect(name) {
       if (snaps.length > 40) snaps.shift();
       if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
       window.__phase = m.s.phase; // test/debug hook
-    } else if (m.t === 'denied') toast(m.reason);
+    } else if (m.t === 'denied') {
+      toast(m.reason);
+      // kicked or banned: stop the auto-reconnect loop and show the join
+      // screen again — otherwise this tab would hammer the server forever
+      if (/kicked|banned/.test(String(m.reason || ''))) {
+        joinedName = null;
+        clearTimeout(reconnectTimer); reconnectTimer = null;
+        myId = null;
+        $('join').classList.remove('hidden');
+      }
+    }
   };
   sock.onerror = () => {}; // close always follows; handled there
   sock.onclose = () => {
@@ -429,6 +439,7 @@ $('modeBtn').addEventListener('click', () => {
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
+$('unbanBtn').addEventListener('click', () => { send({ t: 'unbanAll' }); toast('bans cleared'); });
 $('againBtn').addEventListener('click', () => send({ t: 'again' }));
 
 // bot picker: per difficulty, an add button + a build-strategy select
@@ -714,14 +725,15 @@ function updateUi(s) {
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
         <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
-      // kick button on other humans: clears ghost seats blocking the start
+      // ban button on other humans: clears ghost seats AND keeps them out
+      // (name+ip blocked until the server restarts or someone unbans)
       if (!p.bot && p.id !== myId) {
         const kb = document.createElement('button');
         kb.type = 'button';
         kb.className = 'mini kick';
-        kb.title = `Kick ${p.name} (they can rejoin)`;
+        kb.title = `Ban ${p.name} from this lobby (until server restart / unban)`;
         kb.textContent = '✕';
-        kb.addEventListener('click', () => send({ t: 'kick', id: p.id }));
+        kb.addEventListener('click', () => send({ t: 'kick', id: p.id, ban: true }));
         div.appendChild(kb);
       }
       list.appendChild(div);

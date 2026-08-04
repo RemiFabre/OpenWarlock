@@ -164,8 +164,23 @@ setInterval(() => {
   }
 }, HEARTBEAT_MS);
 
-wss.on('connection', (ws) => {
+// Bans (until the server restarts): a kicked-with-ban player is blocked by
+// NAME and by IP. Name catches the classic offender — an abandoned tab that
+// auto-reconnects under the same name 2 s after every kick; IP catches
+// renames. Behind cloudflared every socket is local, so trust the
+// CF-Connecting-IP header first.
+const bannedNames = new Set();
+const bannedIps = new Set();
+const ipsById = new Map(); // playerId -> remote ip
+const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16);
+const ipOf = (req) => String(
+  req.headers['cf-connecting-ip'] ||
+  String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+  req.socket.remoteAddress || '');
+
+wss.on('connection', (ws, req) => {
   const id = 'c' + nextConnId++;
+  const ip = ipOf(req);
   let joined = false;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
@@ -176,6 +191,12 @@ wss.on('connection', (ws) => {
     journal('msg', { id, m });
     if (!joined) {
       if (m.t !== 'join') return;
+      if (bannedNames.has(normName(m.name)) || (ip && bannedIps.has(ip))) {
+        journal('banned-join', { id, ip, name: String(m.name || '').slice(0, 16) });
+        ws.send(JSON.stringify({ t: 'denied', reason: 'banned from this lobby' }));
+        ws.close();
+        return;
+      }
       if (playerCount() >= MAX_PLAYERS) {
         ws.send(JSON.stringify({ t: 'denied', reason: 'game is full' }));
         ws.close();
@@ -196,6 +217,7 @@ wss.on('connection', (ws) => {
         pl.alive = false;
       }
       sockets.set(id, ws);
+      ipsById.set(id, ip);
       joined = true;
       ws.send(JSON.stringify({ t: 'welcome', id }));
       return;
@@ -252,20 +274,32 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'kick': {
-        // lobby-only: boot a HUMAN player (ghost seats, AFK friends). It's a
-        // friends-hosted game — anyone may kick; the victim can just rejoin.
+        // lobby-only: boot a HUMAN player (ghost seats, AFK friends). With
+        // ban:true their name+ip stay blocked until the server restarts —
+        // else an abandoned tab just auto-reconnects 2 s later, forever.
         if (game.phase !== 'lobby' || typeof m.id !== 'string') break;
         const target = game.players[m.id];
         if (!target || target.bot || m.id === id) break;
+        if (m.ban) {
+          bannedNames.add(normName(target.name));
+          const tip = ipsById.get(m.id);
+          if (tip) bannedIps.add(tip);
+        }
         const tws = sockets.get(m.id);
         if (tws) {
-          try { tws.send(JSON.stringify({ t: 'denied', reason: 'kicked from the lobby' })); } catch { }
+          try { tws.send(JSON.stringify({ t: 'denied', reason: m.ban ? 'banned from this lobby' : 'kicked from the lobby' })); } catch { }
           try { tws.close(); } catch { }
           sockets.delete(m.id);
         }
-        journal('kick', { by: id, target: m.id });
+        journal('kick', { by: id, target: m.id, ban: !!m.ban });
         removePlayer(game, m.id);
         maybeAutoStart();
+        break;
+      }
+      case 'unbanAll': {
+        journal('unbanAll', { by: id, names: bannedNames.size, ips: bannedIps.size });
+        bannedNames.clear();
+        bannedIps.clear();
         break;
       }
       case 'again':
@@ -278,6 +312,7 @@ wss.on('connection', (ws) => {
     if (!joined) return;
     journal('disconnect', { id });
     sockets.delete(id);
+    ipsById.delete(id);
     removePlayer(game, id);
     if (playerCount() === 0 || Object.values(game.players).every(p => p.bot)) {
       resetToLobby(); // don't let bot-only games spin forever
