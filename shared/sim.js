@@ -1299,7 +1299,7 @@ function pilotOwnedSpells(state, pl, dt) {
   if (owns('boomerang') && dist < boomMaxD) {
     const t = dist / SPELLS.boomerang.speed;
     const v = estVel(target);
-    const errMult = pl.kind === 'grunt' ? 0.3 : pl.kind === 'berserker' ? 0.12 : 0.04;
+    const errMult = pl.kind === 'grunt' ? 0.3 : pl.kind === 'berserker' ? 0.18 : 0.04;
     const err = (rng(state) - 0.5) * dist * errMult;
     if (castSpell(state, pl.id, 'boomerang',
         target.x + v.vx * t - (tdy / dist) * err,

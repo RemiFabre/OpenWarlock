@@ -167,9 +167,9 @@ export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed' },
   treads: { name: 'Lava Treads',          cost: 10, desc: '-20% lava damage' },
   amulet: { name: 'Amulet of Health',     cost: 12, desc: '+25 max HP' },
-  ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+0.9 HP/s' },
+  ring:   { name: 'Ring of Regeneration', cost: 12, desc: '+0.7 HP/s' },
   cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-10% knockback taken' },
-  sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 25% of the damage you deal (poison too — lava excluded)' },
+  sword:  { name: 'Blood Sword',          cost: 15, desc: 'Heal 18% of the damage you deal (poison too — lava excluded)' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental',
             desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
   crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental',
@@ -184,9 +184,9 @@ export const ITEM_FX = {
   boots: { speedMult: 1.2 },
   treads: { lavaMult: 0.8 },
   amulet: { maxHp: 25 },
-  ring: { regen: 0.9 },
+  ring: { regen: 0.7 },
   cape: { kbMult: 0.9 },
-  sword: { lifesteal: 0.25 },
+  sword: { lifesteal: 0.18 },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
   crown: { fireballMax: 1 },         // handled in buy()
 };
@@ -212,12 +212,12 @@ export const ELEMENTS = {
   // stamp the last-hitter slot (the round-9 credit rule).
   venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Hits poison: 1 tick/s for 5 s. Re-hits refresh the clock AND strengthen the ticks. Trail on the ground. −15% direct damage.',
-           fx: { dmgMult: 0.85, tickDmg: [1, 1.5, 2], stackAdd: [0.5, 0.75, 1],
+           fx: { dmgMult: 0.85, tickDmg: [1, 1.5, 2], stackAdd: [0.4, 0.6, 0.8],
                  stackCap: [3, 4.5, 6], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'A gust in a ball: more push each level. −5% damage.',
-           fx: { kbMult: [1.18, 1.32, 1.45], dmgMult: 0.95 } },
+           desc: 'A gust in a ball: more push each level.',
+           fx: { kbMult: [1.22, 1.38, 1.55] } },
   // 2026-08-05 nerf (Remi: "2 g per hit is a kill's worth"): every hit pays
   // a flat 1 g; lv3's edge is a +1 bonus on the FIRST hit on each enemy each
   // round — farming one victim pays no better than spreading it around.
@@ -232,13 +232,13 @@ export const ELEMENTS = {
   // LAND this round makes the next ones hit harder and push further (capped,
   // resets at round start). Starts weak by design: −20% base damage.
   critical: { name: 'Critical', icon: '💢', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every fireball you LAND this round rams the next ones: more damage and push per hit. Starts weak: −20% damage.',
-           fx: { dmgMult: 0.8, rampDmg: [0.35, 0.5, 0.65], rampKb: [1.5, 2.2, 3], rampCap: 20 } },
+           desc: 'Every fireball you LAND this round rams the next ones: more damage and push per hit. Starts weak: −15% damage.',
+           fx: { dmgMult: 0.85, rampDmg: [0.45, 0.6, 0.8], rampKb: [1.8, 2.6, 3.5], rampCap: 20 } },
   // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
   // badges every spell slot with 🔮 so the owner SEES it working.
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'ALL your cooldowns run faster: −12% / −22% / −32%.',
-           fx: { cdrMult: [0.88, 0.78, 0.68] } },
+           desc: 'ALL your cooldowns run faster: −10% / −19% / −28%.',
+           fx: { cdrMult: [0.9, 0.81, 0.72] } },
 };
 
 export const COLORS = [

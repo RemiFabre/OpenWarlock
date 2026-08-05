@@ -12,7 +12,7 @@ this chart is under "Bot difficulties & strategies explained" in the lobby.*
 | ★ | Name | How it plays |
 |---|---|---|
 | ★ | **Grunt** | Wanders the safe ring and lobs fireballs with sloppy aim. Cannon fodder. |
-| ★★ | **Berserker** | Hunts the nearest wounded/isolated prey, rushes in, herds rim-standers into the lava, never retreats (except from the lava's edge). |
+| ★★ | **Berserker** | Hunts the nearest wounded/isolated prey, rushes in, herds rim-standers into the lava, never retreats (except from the lava's edge). Since round 10 it has a **human-ish reaction time** (~0.2 s): it aims from a slightly stale picture of you and its point-blank aim has real scatter — juking it in a duel works now. |
 | ★★★ | **Stalker** | Sidesteps incoming projectiles (or shields late ones), leads its shots with a real intercept solve, finishes with lightning, teleports out of lava and point-blank pressure, kites harder when hurt. |
 
 All three now also **pilot whatever their build buys** (the "use what you own"
@@ -63,8 +63,11 @@ conventions — keep these in mind and the numbers stop being mysterious:
   `grunt/anything` because piloting dwarfs purchases. To compare *builds*,
   read the **mirror** tables (`--mirror=stalker`: all seats the same
   difficulty, only builds differ) — that isolates the shopping question.
-- **lava kill share**: fraction of deaths where the victim died in lava
-  (~86% by design — knockback into lava IS the game).
+- **lava kill share**: fraction of deaths where the victim died in lava.
+  Knockback into lava IS the game, but the target share has drifted with the
+  retunes: ~86% originally, ~68% after round 8/9, **~45–60% after round 10**
+  (softer low-HP knockback + 2× swim speed make lava escapable). Remi hasn't
+  ruled on the right value yet — treat big moves as a signal, not a bug.
 - **comeback rate**: fraction of games the winner was at some point ≥4
   kills behind — a health check that games aren't decided in round 3.
 
