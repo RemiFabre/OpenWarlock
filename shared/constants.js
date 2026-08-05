@@ -218,9 +218,13 @@ export const ELEMENTS = {
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'A gust in a ball: more push each level. −5% damage.',
            fx: { kbMult: [1.18, 1.32, 1.45], dmgMult: 0.95 } },
+  // 2026-08-05 nerf (Remi: "2 g per hit is a kill's worth"): every hit pays
+  // a flat 1 g; lv3's edge is a +1 bonus on the FIRST hit on each enemy each
+  // round — farming one victim pays no better than spreading it around.
+  // Damage penalty deepened 10% → 15%.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits pay gold (+2 g at lv3). −10% damage.',
-           fx: { goldOnHit: [1, 1, 2], dmgMult: 0.9 } },
+           desc: 'Hits pay +1 g. At lv3 your first hit on each enemy each round pays +2 g. −15% damage.',
+           fx: { goldOnHit: [1, 1, 1], firstHitBonus: [0, 0, 1], dmgMult: 0.85 } },
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Bigger fireball each level; hits briefly grow the target.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },

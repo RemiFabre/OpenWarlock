@@ -544,6 +544,7 @@ function startRound(state) {
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0; pl.critHits = 0;
+    pl._midasHit = {};
     pl.lastHitBy = null;
     pl.roundKills = 0;
     pl.roundBounty = 0;
@@ -1097,7 +1098,17 @@ function applyElementsHit(state, pr, target) {
     if (f.goldOnHit && pr.owner != null) {
       const owner = state.players[pr.owner];
       if (owner) {
-        const pay = efxV(f.goldOnHit, el);
+        let pay = efxV(f.goldOnHit, el);
+        // first-hit bonus (midas lv3): once per victim per round — spreading
+        // hits around pays better than farming one target
+        const bonus = f.firstHitBonus ? efxV(f.firstHitBonus, el) : 0;
+        if (bonus > 0) {
+          owner._midasHit = owner._midasHit || {};
+          if (!owner._midasHit[target.id]) {
+            owner._midasHit[target.id] = true;
+            pay += bonus;
+          }
+        }
         owner.gold += pay;
         owner.goldEarned += pay;
         state.events.push({ t: 'gold', id: pr.owner, amount: pay, x: pr.x, y: pr.y });

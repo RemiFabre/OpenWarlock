@@ -1079,6 +1079,34 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
   });
 
+  it('midas lv3: first hit on each enemy each round pays the bonus, repeats pay 1', () => {
+    const f = ELEMENTS.midas.fx;
+    const state = hitWith({ midas: 3 });
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    const base = f.goldOnHit[2], bonus = f.firstHitBonus[2];
+    expect(a.gold).toBe(GOLD.START + base + bonus); // fresh victim: 1 + 1 = 2 g
+    // second hit on the SAME victim: flat 1 g
+    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(a.gold).toBe(GOLD.START + base + bonus + base);
+    // a DIFFERENT victim is fresh: bonus pays again
+    c.x = 8; c.y = 0; c.vx = 0; c.vy = 0;
+    b.x = 0; b.y = -40; // park the first victim out of the lane
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(a.gold).toBe(GOLD.START + 3 * base + 2 * bonus);
+    // the first-hit ledger resets every round
+    expect(a._midasHit && Object.keys(a._midasHit).length).toBe(2);
+    state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
+    state.players.p2.hp = 0.01; state.players.p2.x = ARENA.START_RADIUS + 5;
+    run(state, 1 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.phase).toBe('battle');
+    expect(Object.keys(a._midasHit || {}).length).toBe(0);
+  });
+
   it('terra grows the target and respects the total 2.2x size cap', () => {
     const state = hitWith('terra');
     const b = state.players.p1;
