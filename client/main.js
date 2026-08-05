@@ -855,12 +855,16 @@ function updateUi(s) {
       const level = spells[key] || 0;
       el.classList.toggle('owned', level > 0);
       el.querySelector('.lv').textContent = level > 1 ? 'lv' + level : '';
-      // your owned elements ride on the fireball slot (elemental mode)
-      el.querySelector('.elem').textContent =
-        key === 'fireball' && m.elements
-          ? Object.keys(m.elements).filter(k => m.elements[k] > 0 && ELEMENTS[k])
-              .map(k => ELEMENTS[k].icon).join('')
-          : '';
+      // your owned elements ride on the fireball slot (elemental mode);
+      // arcane is global CDR, so it badges EVERY owned spell slot — that's
+      // how you see it working
+      const riders = key === 'fireball' && m.elements
+        ? Object.keys(m.elements).filter(k => k !== 'arcane' && m.elements[k] > 0 && ELEMENTS[k])
+            .map(k => ELEMENTS[k].icon).join('')
+        : '';
+      const arcane = m.elements && m.elements.arcane > 0 && level > 0
+        ? ELEMENTS.arcane.icon : '';
+      el.querySelector('.elem').textContent = riders + arcane;
       const cd = fin(+cooldowns[key]) ? +cooldowns[key] : 0;
       const cdEl = el.querySelector('.cd');
       cdEl.classList.toggle('hidden', cd <= 0);

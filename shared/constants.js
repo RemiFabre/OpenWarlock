@@ -234,9 +234,11 @@ export const ELEMENTS = {
   critical: { name: 'Critical', icon: '💢', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Every fireball you LAND this round rams the next ones: more damage and push per hit. Starts weak: −20% damage.',
            fx: { dmgMult: 0.8, rampDmg: [0.35, 0.5, 0.65], rampKb: [1.5, 2.2, 3], rampCap: 20 } },
+  // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
+  // badges every spell slot with 🔮 so the owner SEES it working.
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'ALL your cooldowns run faster: −10% / −18% / −25%.',
-           fx: { cdrMult: [0.9, 0.82, 0.75] } },
+           desc: 'ALL your cooldowns run faster: −12% / −22% / −32%.',
+           fx: { cdrMult: [0.88, 0.78, 0.68] } },
 };
 
 export const COLORS = [
