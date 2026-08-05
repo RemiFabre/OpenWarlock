@@ -38,13 +38,29 @@ reading its priorities: what it wants first is what the strategy is about.
 (The arena additionally runs a **greedless** control that never buys anything
 — it exists only to calibrate the tables and is not offered in the lobby.)
 
-**Which strategy fits which difficulty** (post-boomerang-rework spot checks,
-500 mirror games per tier): **grunt → boomer · stalker → turtle or boomer ·
-berserker → bruiser**. The reworked boomerang (long, wide, returns to its
-launch point) is the strongest bot build everywhere — wide spells forgive
-bot aim. Rusher and escape are currently weak in bot hands (bots can't
-extract teleport/rush's reactive value the way a human can) — pick them for
-flavor, not challenge.
+**Which strategy fits which difficulty** (report #4, 1500 mirror games per
+tier — full tables in `BALANCE.md`):
+
+| Build | ★ grunt | ★★ berserker | ★★★ stalker |
+|---|---|---|---|
+| **boomer** | **61.7%** | **62.3%** | **54.0%** |
+| bruiser | 37.4% | 54.8% | 36.3% |
+| turtle | 36.9% | 22.8% | 45.6% |
+| sniper | 27.6% | 6.4% | 20.2% |
+| rusher | 8.7% | 25.5% | 11.9% |
+| escape | 1.4% | 0.6% | 5.1% |
+
+**Boomer is the strongest pick at every tier**, and that is partly a bot
+artifact: nothing in the bot code dodges a boomerang (the ★★★ dodge routine
+follows a projectile's current velocity ray, which is exactly what a
+returning boomerang violates) and no bot ever *catches* one to halve its
+cooldown, so the lab over-rates the weapon and under-rates the skill in it.
+For the hardest fight, pick **boomer**; for a brawl, **berserker/bruiser**;
+for a war of attrition, **stalker/turtle**. Rusher and escape stay weak in
+bot hands (bots can't extract teleport/rush's reactive value the way a human
+can) — pick them for flavor, not challenge. Sniper on a berserker (6.4%) is
+a deliberate mismatch: a no-push mid-range finisher handed to the profile
+whose whole plan is to be in your face.
 
 ## How to read the arena reports
 
