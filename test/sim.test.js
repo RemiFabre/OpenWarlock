@@ -1672,10 +1672,14 @@ describe('bot reaction time', () => {
   });
 
   it('berserker aim error no longer vanishes at point-blank range', () => {
-    // fixed-seed statistical check: at 3 u the old error term (dist * 0.12)
-    // was ±0.18 u — pixel-perfect. The floor makes point-blank shots spread.
+    // fixed-seed statistical check. The old error term was purely
+    // distance-proportional (dist * 0.12), so at 3 u it could never scatter a
+    // shot by more than (3*0.12/2)/3 = 0.06 of a unit direction — effectively
+    // pixel-perfect in a knife fight. The absolute floor must beat that
+    // ceiling clearly; anything at or under 0.06 means the floor is gone.
+    const OLD_CEILING = (3 * 0.12 / 2) / 3;
     const spreads = [];
-    for (let seed = 1; seed <= 8; seed++) {
+    for (let seed = 1; seed <= 16; seed++) {
       const state = createGame({ seed });
       addPlayer(state, 'h', 'Human');
       addPlayer(state, 'b', 'Bot', { bot: true, kind: 'berserker' });
@@ -1694,10 +1698,8 @@ describe('bot reaction time', () => {
       const cast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball' && e.id === 'b');
       if (cast) spreads.push(Math.abs(cast.dy)); // perpendicular miss component
     }
-    expect(spreads.length).toBeGreaterThan(4);
-    // old code: max |dy| ≈ 0.18/3 = 0.06. With the 1.8u floor some shots
-    // must scatter well beyond that.
-    expect(Math.max(...spreads)).toBeGreaterThan(0.12);
+    expect(spreads.length).toBeGreaterThan(8);
+    expect(Math.max(...spreads)).toBeGreaterThan(OLD_CEILING * 1.3);
   });
 });
 

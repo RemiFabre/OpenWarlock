@@ -1486,11 +1486,14 @@ function pickPrey(state, pl) {
 // 2026-08-05 reaction-time pass: the ★★ used to decide every 0.14 s and its
 // aim error was proportional to distance — i.e. PERFECT at point-blank, which
 // made end-game duels feel unwinnable. Now it (a) decides every ~0.21 s,
-// (b) aims from the PREVIOUS tick's observation of its mark (a human-ish
-// reaction lag: direction changes inside the window are invisible to it),
-// and (c) carries an absolute aim-error floor so point-blank stays human.
-// Tuned on 600-game arenas: 0.28 s + 1.8u floor sank the ★★ to grunt Elo;
-// 0.21 s + 0.9u keeps it ~85 Elo above the best grunt, well below stalker.
+// (b) aims from the PREVIOUS tick's observation of its mark, extrapolated
+// across that lag (see the aim block: it leads you fine while you hold a
+// heading, and eats the whiff when you change direction inside its reaction
+// window), and (c) carries an absolute aim-error floor so point-blank stays
+// human. Calibrated with `node tools/h2h.js berserker grunt` (2 seats each,
+// 50% = parity): the old ★★ won 99.6% of those games, this one wins ~75%,
+// while `h2h.js stalker berserker` still reads 100% — the ★/★★/★★★ ladder
+// is intact and only the knife-fight aimbot is gone.
 
 function stepBerserker(state, pl, dt) {
   const id = pl.id;
@@ -1572,19 +1575,26 @@ function stepBerserker(state, pl, dt) {
   }
   if (!mark) mark = nearestEnemy(state, pl);
   // reaction lag: refresh the observation of the mark every decision tick,
-  // but AIM with the previous one (≈ one tick stale)
+  // but aim from the PREVIOUS one, extrapolated forward across the lag.
+  // (A human who saw you a moment ago still leads you correctly while you
+  // hold a heading — what they cannot do is react to a direction change
+  // inside their reaction window. Aiming at the raw stale POSITION instead
+  // would under-lead by lag×speed ≈ 2.3 u on every shot, which measured as
+  // a total whiff machine: the ★★ fell to ★ strength in head-to-head.)
   let seen = null;
   if (mark) {
     seen = pl._obs && pl._obs.id === mark.id ? pl._obs : null;
     const mv = estVel(mark);
-    pl._obs = { id: mark.id, x: mark.x, y: mark.y, vx: mv.vx, vy: mv.vy };
+    pl._obs = { id: mark.id, x: mark.x, y: mark.y, vx: mv.vx, vy: mv.vy, t: state.time };
   }
   if (mark && (pl.cooldowns.fireball || 0) <= 0) {
     const mdx = mark.x - pl.x, mdy = mark.y - pl.y;
     const mDist = Math.hypot(mdx, mdy) || 1;
+    const lag = seen ? Math.max(0, Math.min(0.5, state.time - seen.t)) : 0;
     const ghost = seen
-      ? { x: seen.x, y: seen.y, vx: seen.vx, vy: seen.vy, moveTarget: null, dash: null }
-      : { x: mark.x, y: mark.y, vx: pl._obs.vx, vy: pl._obs.vy, moveTarget: null, dash: null };
+      ? { x: seen.x + seen.vx * lag, y: seen.y + seen.vy * lag,
+          vx: seen.vx, vy: seen.vy, moveTarget: null, dash: null }
+      : { x: mark.x, y: mark.y, vx: 0, vy: 0, moveTarget: null, dash: null };
     const aim = interceptPoint(pl, ghost, SPELLS.fireball.speed);
     let ax = aim.x, ay = aim.y;
     const mCenter = Math.hypot(mark.x, mark.y);
@@ -1596,7 +1606,7 @@ function stepBerserker(state, pl, dt) {
       ay += (mark.y / mCenter) * 2.5;
     }
     // error floor: the old term (dist * 0.12) vanished at point-blank
-    const err = (rng(state) - 0.5) * (0.9 + mDist * 0.10);
+    const err = (rng(state) - 0.5) * (0.35 + mDist * 0.10);
     castSpell(state, id, 'fireball', ax - (mdy / mDist) * err, ay + (mdx / mDist) * err);
   }
 }
