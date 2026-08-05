@@ -187,7 +187,11 @@ export function castSpell(state, id, key, tx, ty) {
   const level = pl.spells[key] || 0;
   if (level < 1) return false;
   if ((pl.cooldowns[key] || 0) > 0) return false;
-  if (pl.dash || pl.charging) return false;
+  // power combos (2026-08-05): a charging repulse may still reposition —
+  // teleport/rush into the pack and let the burst land there. Everything
+  // else stays locked, and mid-dash you may only START the charge.
+  if (pl.dash && key !== 'repulse') return false;
+  if (pl.charging && key !== 'teleport' && key !== 'rush') return false;
 
   let dx = tx - pl.x, dy = ty - pl.y;
   const d = Math.hypot(dx, dy) || 1;

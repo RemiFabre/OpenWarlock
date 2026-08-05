@@ -1208,6 +1208,46 @@ describe('power spells & pillar', () => {
     expect(b.hp).toBeLessThan(hp0);
   });
 
+  it('repulse combos: teleport and rush still work mid-charge, the burst still fires', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.repulse = 1; a.spells.teleport = 1; a.spells.rush = 1;
+    state.pillars = [];
+    a.x = -20; a.y = 0; b.x = 5; b.y = 0; b.vx = 0;
+    state.players.p2.x = 0; state.players.p2.y = -40;
+    castSpell(state, 'p0', 'repulse', 0, 0);
+    expect(a.charging).toBeTruthy();
+    // blink INTO the pack while winding up — the combo Remi asked for
+    expect(castSpell(state, 'p0', 'teleport', 5, 0)).toBe(true);
+    expect(Math.abs(a.x - 5)).toBeLessThan(SPELLS.teleport.range[0]); // moved
+    expect(a.charging).toBeTruthy(); // charge survives the blink
+    run(state, 2.1);
+    expect(a.charging).toBeFalsy();
+    expect(b.hp).toBeLessThan(b.maxHp); // burst landed after repositioning
+    // rush works mid-charge too
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'repulse', 0, 0);
+    expect(castSpell(state, 'p0', 'rush', a.x + 10, 0)).toBe(true);
+    expect(a.dash).toBeTruthy();
+    // ...but attack spells stay locked while charging
+    expect(castSpell(state, 'p0', 'fireball', 10, 0)).toBe(false);
+    expect(castSpell(state, 'p0', 'lightning', 10, 0)).toBe(false);
+  });
+
+  it('repulse can be started mid-dash (dash locks everything else)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.spells.repulse = 1; a.spells.rush = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0;
+    state.players.p1.x = 30; state.players.p2.y = -40;
+    castSpell(state, 'p0', 'rush', 16, 0);
+    expect(a.dash).toBeTruthy();
+    expect(castSpell(state, 'p0', 'fireball', 10, 0)).toBe(false); // still locked
+    expect(castSpell(state, 'p0', 'repulse', 0, 0)).toBe(true);    // the one exception
+    expect(a.charging).toBeTruthy();
+  });
+
   it('mirror wall reflects ENEMY projectiles and lets your own pass', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;

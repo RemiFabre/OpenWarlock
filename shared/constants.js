@@ -151,7 +151,7 @@ export const SPELLS = {
     name: 'Repulse', hotkey: 'X', tier: 'power', minRound: 5, maxLevel: 2, costs: [20, 8],
     cooldown: [16, 13], charge: 2, radius: [9, 11],
     damage: [8, 12], knockback: [130, 150],
-    desc: '💥 Charge for 2 s (visibly), then blast everyone around you away. From round 6.',
+    desc: '💥 Charge for 2 s (visibly — Teleport and Rush still work), then blast everyone around you away. From round 6.',
   },
   wall: {
     name: 'Mirror Wall', hotkey: 'C', tier: 'power', minRound: 5, maxLevel: 2, costs: [24, 10],
