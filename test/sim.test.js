@@ -1304,9 +1304,24 @@ describe('power spells & pillar', () => {
     state.players.p2.y = -40;
     castSpell(state, 'p0', 'hook', 20, 0);
     run(state, 0.6);
-    expect(b.x).toBeLessThan(0);           // hook flew +x, victim lands behind
+    expect(b.x).toBeLessThan(-1);          // hook flew +x, victim lands a full
+    expect(b.x).toBeGreaterThan(-8);       // body BEHIND the caster (throw side flipped)
     expect(Math.abs(b.y)).toBeLessThan(1);
+    expect(Math.hypot(b.vx, b.vy)).toBeLessThan(1); // momentum wiped
     expect(b.hp).toBeLessThan(b.maxHp);
+  });
+
+  it('hook: a victim killed by the hook damage is not yanked', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.hook = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.hp = 1;
+    state.players.p2.y = -40;
+    castSpell(state, 'p0', 'hook', 20, 0);
+    run(state, 0.6);
+    expect(b.alive).toBe(false);
+    expect(b.x).toBeGreaterThan(5); // died where the hook found them
   });
 
   it('repulse: 2 s visible charge (spell-locked), then a radial blast', () => {

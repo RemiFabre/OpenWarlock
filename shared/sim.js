@@ -1056,8 +1056,10 @@ function stepProjectiles(state, dt) {
       if (pr.type === 'hook' && other.alive) {
         const owner = state.players[pr.owner];
         if (owner && owner.alive) {
-          other.x = owner.x - (pr.vx / v) * (owner.radius + other.radius + 0.6);
-          other.y = owner.y - (pr.vy / v) * (owner.radius + other.radius + 0.6);
+          // land them a full body clear behind (0.6 → 1.4 2026-08-05: at 0.6
+          // the swap read as "next to me", not "behind me")
+          other.x = owner.x - (pr.vx / v) * (owner.radius + other.radius + 1.4);
+          other.y = owner.y - (pr.vy / v) * (owner.radius + other.radius + 1.4);
           other.vx = 0; other.vy = 0;
           other.moveTarget = null;
           resolvePillarHit(state, other);
