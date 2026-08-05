@@ -1,215 +1,444 @@
-# Balance report #3 — after the "faster lava" playtest retune
+# Balance report #4 — the round-10 campaign
 
-*2026-08-03. ~21,000 headless games via `tools/arena.js` (rerun commands at
-the bottom). Report #2 (the 46k-game v5 campaign) is preserved in git history
-at `9a96b47` and earlier — all of its numbers are obsolete: this campaign
-re-measured everything after Remi's playtest retune and the bot-piloting fix.*
+*2026-08-05. ~58,000 headless games via `tools/arena.js` and the new
+`tools/h2h.js`, across five measure-change-remeasure iterations (rerun
+commands at the bottom). This report supersedes report #3 in full: every
+number below was re-measured on the locked round-10 build. Report #3 (21k
+games, 2026-08-03) and report #2 (46k games, v5) live in git history at
+`ab48932` and `9a96b47` — their tables are obsolete, the *lessons* in them
+are not.*
 
-> **⚠ Addendum 2 (2026-08-04, "round 9", ~14k games):** elemental mode was
-> reworked (3-level stackable elements + arcane) and rebalanced through four
-> iterations. Key discovery: **poison DoT ticks were re-stamping the
-> last-hitter slot 30×/s, stealing nearly every lava-kill credit** — venom
-> measured 75–86% win rate before the fix and ~15% after, with identical
-> numbers. DoT no longer stamps credit. Final per-element spread (800 games
-> × 3 tiers, 25% baseline): 10–48% everywhere with clear tier affinities
-> (terra→stalker 45%, arcane/ember→berserker 44–48%, venom→grunt 38%);
-> midas floors at ~3% only because gold-saturated bots have nothing to buy —
-> judge it by human play. Classic spot-checks after KB_HP_FACTOR 0.55 and
-> the lightning nerf: lava share ~68%, comeback ~16%, sniper down to
-> 18–20% (intended). Power spells (meteor/hook/repulse/wall/pillar) are
-> **not piloted by bots** and therefore unmeasured.
->
-> **⚠ Addendum (same evening, "round 8"):** this report predates the
-> anti-snowball economy (8/2/2 gold + gap bounty), the lightning nerf
-> (range 38, no push), the fireball lv1 cadence (cd 2.1 s), and the
-> boomerang rework (28 u out, launch-point return, catch = half cooldown,
-> one hit per enemy per throw). Spot checks after those changes: lava kill
-> share ~73%, comeback rate ~17%, and boomer is now the strongest bot build
-> (~46–58% in mirrors — wide spells forgive bot aim; human verdict pending).
-> The strategy tables above are directionally useful, not current. Next
-> campaign re-measures from scratch.
+**One-line summary:** round 10's feel changes (softer low-HP knockback,
+escapable lava, poison ticks, bot reaction time) pushed the game from
+*knockback-execution* toward *attrition*, which quietly crowned the sustain
+items; they were trimmed twice, and the lava kill share fell from ~68% to
+**~47%** — the one number in here that needs a human ruling, not a lab one.
 
 ---
 
 ## How to read this report (start here)
 
 Games are 4-player free-for-alls, so **every percentage has the same
-baseline: 25%**. A strategy/item at 25% is perfectly neutral; the further
+baseline: 25%**. A strategy or item at 25% is perfectly neutral; the further
 from 25%, the stronger the signal.
 
-| Metric | Meaning | Neutral | Worry when |
+| Metric | What it means | Neutral | Worry when |
 |---|---|---|---|
 | **win rate** | how often it finished 1st of 4 | 25% | > ~45% (dominant) or < ~10% (trap) |
-| **Elo** | rating from *pairwise placements* — finishing 2nd still beats the two below you, so it's more stable than win rate | 1000 | gaps > 150 within one skill tier |
+| **Elo** | rating from *pairwise placements* — finishing 2nd still beats the two below you, so it is far more stable than win rate | 1000 | gaps > 150 **within** one difficulty tier |
 | **avg-place** | mean finishing position, 1–4 | 2.5 | — (sanity check on win rate) |
-| **lava kill share** | deaths in lava vs to direct damage | — | far from ~75–86%: knockback-into-lava IS the game |
-| **comeback rate** | winner was ≥4 kills behind at some point | — | near 0%: games decided too early |
+| **lava kill share** | share of deaths that happened in the lava rather than to direct damage | — | see the open question below — the target moved this round |
+| **comeback rate** | share of games where the eventual winner was ≥4 kills behind at some point | — | near 0% means games are decided too early |
+| **h2h win%** | in `tools/h2h.js`, two seats of tier A vs two of tier B: each side's neutral share is **50%** | 50% | used only to check the ★/★★/★★★ ladder |
 
 **Strategy = difficulty × build.** `stalker/sniper` means the ★★★ combat
 profile playing the lightning-first shopping list. What each difficulty does
-and what each build buys is charted in `STRATEGIES.md` — read that first if
-the codenames (bruiser, boomer, …) mean nothing to you.
+and what each build buys is charted in **`STRATEGIES.md`** — read that first
+if the codenames (bruiser, boomer, turtle…) mean nothing to you.
 
-**Two kinds of tables, two kinds of conclusions:**
+**Four instruments, four different questions:**
 
-- **Mixed study**: all 21 strategies thrown together. It mostly measures
-  *piloting skill* — every stalker build outrates every berserker build.
-  Use it for the big picture, never to compare builds.
-- **Mirror study** (`--mirror=stalker`): all four seats are the SAME
-  difficulty, only builds differ. This isolates the shopping question and
-  is the primary balance instrument.
-- **Item probe** (`--probe=berserker`): all seats same difficulty AND same
-  build tail; only the *first purchase* differs. This kills the survivor
-  bias in "winner-held" item tables (items bought late are held by players
+- **Mixed study** (all 21 strategies together) — the big picture. It mostly
+  measures *piloting skill*: every stalker build outrates every berserker
+  build. Never use it to compare builds.
+- **Mirror study** (`--mirror=stalker`) — all four seats are the SAME
+  difficulty, only builds differ. This isolates the shopping question and is
+  the primary build-balance instrument.
+- **Item probe** (`--probe=berserker`) — all seats same difficulty AND same
+  build tail; only the *first purchase* differs. This kills the survivor bias
+  in "winner-held" item tables (items bought late are mostly held by players
   who were already winning).
+- **Head-to-head** (`tools/h2h.js berserker grunt`, new this round) — two
+  seats of each difficulty in the same game. The mixed Elo table dilutes the
+  tier question across lineups; this answers it directly.
 
-**Caveat that explains most weird numbers**: bots extract far less value
-from *reactive* spells (teleport, shield) than humans do. A bot-trap build
-is not automatically a human-trap build — those cells are flagged, not
-nerfed into oblivion.
+**The caveat that explains most weird numbers:** bots extract far less value
+from *reactive* tools than humans do — teleport saves, shield timing,
+boomerang catches, and all four power spells (bots pilot **none** of the
+power tier). A bot-trap is not automatically a human-trap. Those cells are
+flagged below, not nerfed into oblivion.
 
 ---
 
 ## What changed going into this campaign
 
-Remi's 2026-08-03 playtest feedback, applied before measuring:
+Remi's 2026-08-05 playtest notes, all implemented before measuring (player-
+facing changelog in `REMI_NOTES.md`):
 
 | Change | Old → New |
 |---|---|
-| Lava damage | 20 → **14 DPS** (−30%) |
-| Lava movement | normal → **+30% speed** (lava is a dodge route now) |
-| Afterburn (lingering burn) | 4 DPS × 2 s → **removed** |
-| All spell knockback | **−10%** |
-| Fireball | speed 34 → **41**, radius 1.0 → **0.8** |
-| Boomerang | radius 1.0 → **1.4** (+40%) |
-| All spell damage | **+30%** (mid-campaign, also from Remi: "almost impossible to kill without lava") — fireball 5/9/13, lightning 5/8/12, boomerang 5/8/10, rush 5/8 |
-| Bots | now cast **everything their build buys** (pilot layer) — report #2's finding 0 is fixed, so build ratings are finally real |
+| Low-HP knockback (`KB_HP_FACTOR`) | 0.55 → **0.385** (−30%) |
+| Lava movement | +30% → **×2 speed** (swimming is a real escape now) |
+| Poison (venom) | continuous 4/7/10 dmg over 4 s → **discrete 1 tick/s for 5 s**, re-hits refresh the clock *and* stack the tick, **a lethal tick takes the kill** |
+| Midas | +1/+1/+2 g per hit, −10% dmg → flat **+1 g**, lv3 pays **+2 g on the first hit of each enemy each round**, −15% dmg |
+| Arcane (CDR) | −10/−18/−25% → **−10/−19/−28%**, and 🔮 now badges every owned spell slot |
+| **New element: Critical 💢** | — → every fireball you *land* this round ramps the next ones (+dmg +push, capped at 20 hits, resets each round), −15% base dmg |
+| Repulse | fully spell-locked while charging → **Teleport and Rush still work** mid-charge (and repulse can start mid-dash) |
+| Hook | invisible projectile, victim landed flush against you → **visible chain + 🪝 head**, victim lands a full body *behind* you |
+| Lifesteal (Blood Sword) | healed on raw damage incl. overkill → heals on **damage actually dealt**, all sources incl. DoT, never lava (5 new tests lock the rule) |
+| Bot ★★ berserker | 0.14 s decisions, distance-proportional aim error | **~0.21 s decisions + reaction-lag aim + absolute error floor** |
+| Sustain items (mid-campaign, see Finding 1) | sword 25% @14 g, ring 0.9 HP/s @10 g → **sword 18% @15 g, ring 0.7 HP/s @12 g** |
+| Gale (mid-campaign, see Finding 3) | 1.18/1.32/1.45× push, −5% dmg → **1.22/1.38/1.55×, no damage penalty** |
 
-## Finding 1 — the retune made sustain king (fixed)
+---
 
-First 1k-game sweep + mirrors, before any balance changes: **turtle won
-48–50%** of mirror games on two of three tiers and **bruiser 42–65%**, while
-every mobility build starved. The winner-held item table was a defense
-monoculture: cape 59%, treads 57%, sword 57%.
+## Finding 1 — the feel changes made attrition king (trimmed twice)
 
-Cause: lava −30% and knockback −10% weakened chip damage across the board,
-so regen/HP/lifesteal items could out-heal what spells dished out. (The
-mid-campaign +30% spell damage pushed the same direction as the item trims
-below — offense caught back up from both sides.)
+The first 12,900-game sweep on the round-10 build showed the sustain items
+running away with the game. In the de-confounded item probe (only the *first*
+purchase differs, so this is not survivor bias):
 
-**Applied fixes (one gentle step each):**
+| First purchase | win% before the trim | (baseline 25%) |
+|---|---|---|
+| Blood Sword | **61.3%** | |
+| Ring of Regeneration | **59.2%** | |
+| Lava Treads | 12.5% | |
+| Boots of Speed | 11.3% | |
+| *nothing* (control) | 10.4% | |
+| Amulet of Health | 10.0% | |
+| Cape of the Magi | 8.8% | |
 
-| Item / spell | Old → New |
-|---|---|
-| Ring of Regeneration | +1.2 → **+0.9 HP/s** |
-| Amulet of Health | +30 → **+25 max HP** |
-| Cape of the Magi | −15% → **−10% knockback taken** |
-| Blood Sword | 35% → **25% lifesteal** (two steps; the item probe still had sword-first at 53% after the first) |
-| Lava Treads | −30% → **−20% lava damage** |
-| Teleport | entry cost 14 → **12 g** |
-| Rush | entry cost 12 → **10 g** |
+**Why it happened — the mechanism, not the numbers.** Two round-10 changes
+both push the same direction: −30% low-HP knockback means a wounded player is
+much harder to *launch*, and ×2 lava speed means the ones you do launch swim
+back out. Fights therefore last longer, and in a long fight healing per
+second compounds while burst damage does not. This is the same shape as
+report #3's Finding 1 (the lava −30% retune crowned sustain then too) — the
+lesson repeats: **whenever knockback or lava gets weaker, sustain gets
+stronger, and it needs re-checking in the same commit.**
 
-## Finding 2 — escape and rusher were part pilot-hole (partly fixed)
+**What was done.** Two gentle steps rather than one big swing, re-measured
+between them: sword 25% → 21% → **18%** lifesteal (cost 14 → 15 g), ring
+0.9 → 0.8 → **0.7 HP/s** (cost 10 → 12 g).
 
-`berserker/escape` won **0.9%** of its mirror games — the berserker never
-cast teleport at all, so the build was 20 g of dead gold. Fixes: every kind
-now teleport- or rush-saves out of lava, grunts blink out of melee pressure
-when wounded, non-berserkers only use rush as a weapon against rim-standers
-(dash-to-close was measured at 3–6% — it strands the caster at point-blank),
-and the escape build now carries max fireball ("an escape button on a real
-damage kit") instead of double-teleport-first.
+**Result on the locked build** (1400-game probes, both tiers):
 
-Result: improved but still weak (see final tables). The residual gap is
-structural — teleport's value is reactive human skill the pilot can't fake.
-**Escape and rusher are bot-traps, not proven human-traps.** Flagged for
-playtesting, deliberately not compensated with number buffs that would
-land on human players too.
+| First purchase | berserker | stalker |
+|---|---|---|
+| Blood Sword | 52.6% | 30.9% |
+| Ring of Regeneration | 51.0% | 49.6% |
+| Lava Treads | 14.7% | 24.2% |
+| Cape of the Magi | 10.9% | 19.4% |
+| Amulet of Health | 15.6% | 18.9% |
+| Boots of Speed | 11.6% | 17.4% |
+| *nothing* (control) | 17.6% | 14.9% |
+
+**Honest reporting: this is a partial fix.** Sword came down hard (61% → 53%
+on berserkers, and it is merely good rather than dominant on stalkers at
+31%). Ring barely moved — 59% → 51% on berserkers, 50% on stalkers — and a
+−22% strength cut plus a +20% price rise buying only ~8 points tells us the
+*cost* is not the lever. Any first-purchase sustain item is still worth ~3×
+the "buy nothing" control in bot hands, and I stopped there deliberately
+rather than nerf regen into uselessness on a bot signal.
+
+**Why I believe this is substantially a bot artifact.** Bots do not burst:
+their aim error, cooldown discipline and target switching mean damage arrives
+in a thin, steady trickle, which is precisely the input regen is best
+against. A human landing fireball → hook → fireball delivers a lump of damage
+that outruns 0.7 HP/s entirely. **The real lever if Remi wants regen weaker
+is mechanical, not numeric**: suppress or halve regen for a couple of seconds
+after taking damage (an "in combat" rule). That is a design change, so it is
+an open question below rather than something I shipped unasked.
+
+## Finding 2 — the ★★ berserker was an execution machine, and my first fix broke it
+
+Remi's report: *"the medium bots are fine in normal play (from afar) but
+unbeatable from close up, typically in an end-game duel — I suspect they play
+with 0 reaction time and perfect aim."*
+
+**He was right, and the mixed Elo table had been hiding it.** In the mixed
+study the ★★ sits only ~80 Elo above the ★, which reads like a modest gap.
+Put them in the same game with `tools/h2h.js` (new this round) and the truth
+appears:
+
+| Head-to-head, 2 seats each (50% = parity) | ★★ berserker | ★ grunt |
+|---|---|---|
+| Before this round | **99.6%** | 0.4% |
+
+The cause was exactly as diagnosed: its aim error was `distance × 0.12`,
+which **vanishes at point-blank** (±0.18 u at 3 u — pixel-perfect), and it
+re-decided every 0.14 s with a live, current-frame read of the target.
+
+**The fix, and the mistake inside it.** I gave it (a) a slower ~0.21 s
+decision tick, (b) an absolute aim-error floor so knife range is no longer
+exact, and (c) *reaction-lag aim*: it aims from the previous tick's
+observation of its target, not the current one. The first implementation of
+(c) aimed at the raw stale **position** — which under-leads by
+`lag × speed ≈ 2.3 u` on every single shot, against a hit window of about
+2.2 u. That is not a reaction time, it is a permanent handicap, and it
+measured as one:
+
+| Head-to-head | ★★ berserker | ★ grunt |
+|---|---|---|
+| Raw stale-position aim (rejected) | 46.3% | 53.8% |
+
+The ★★ had fallen *below* the ★. **The corrected model:** take the stale
+observation and extrapolate it forward across the lag, then lead the shot
+from there. A human who saw you a moment ago still leads you correctly while
+you hold a heading; what they cannot do is react to a direction change inside
+their reaction window — and that is now exactly what the bot cannot do.
+
+**Locked-build ladder** (800 games each, `bruiser` build both sides):
+
+| Head-to-head, 2 seats each | winner | loser |
+|---|---|---|
+| ★★★ stalker vs ★★ berserker | **100.0%** (avg place 1.50) | 0.0% |
+| ★★ berserker vs ★ grunt | **75.4%** (avg place 2.06) | 24.6% |
+
+The ladder ★ < ★★ < ★★★ is strictly intact, the hardest bot is untouched (as
+Remi asked), and the ★★ went from winning 99.6% of its games against a ★ to
+75.4% — still clearly the better fighter, no longer an aimbot in a duel.
+**Whether the duel now *feels* fair is a human verdict**; the lab can only
+confirm the aimbot is gone and the tier survived.
+
+## Finding 3 — gale had been buried by two unrelated knockback nerfs
+
+Gale (the push element) measured 8.9–15.6% across all three tiers — a trap.
+Nothing had been done to gale itself since round 9; it was collateral damage
+from two *global* knockback cuts (round 9's `KB_HP_FACTOR` 0.8 → 0.55 and
+this round's 0.55 → 0.385). A push-multiplier element is worth exactly as
+much as the push it multiplies.
+
+Restored to 1.22/1.38/1.55× and its −5% damage penalty dropped (the penalty
+was priced against a stronger baseline). It now lands at 21.6–27.2% — neutral
+to slightly favoured, which is where a pure-utility element belongs.
+**Standing lesson: element multipliers are priced against global constants,
+so any global constant change silently re-prices them.**
+
+## Finding 4 — Critical 💢 landed playable, and the ramp is self-correcting
+
+The new element needed two iterations. First numbers (ramp 0.35/0.5/0.65 per
+hit, −20% base damage) were too timid on the two lower tiers (13.2% and
+21.4%); a jump to 0.5/0.7/0.9 overshot on grunts (50.2%, a clear outlier).
+Settled at **0.45/0.6/0.8 (+1.8/2.6/3.5 push), −15% base damage**, which
+reads 21.5–36.7% across the tiers.
+
+The interesting part is *why* it self-corrects: the ramp only counts hits you
+**land**, so it rewards exactly the players who were already connecting and
+gives nothing to the ones who are missing. That makes it a snowball *within*
+a round (it resets every round, so it cannot snowball a whole game) and it
+tends to sit highest for the tier whose aim is worst-but-not-hopeless — hence
+grunt 36.7% > berserker 21.5%. In human hands its ceiling is higher than any
+of these numbers, because a human who is hitting keeps hitting.
+
+## Finding 5 — poison's round-9 credit rule survived the rework
+
+Round 9's discovery was that poison DoT ticks re-stamped the "last hitter"
+slot 30×/s and stole nearly every lava kill (venom measured 75–86% before the
+fix, ~15% after, with identical damage numbers). Round 10 deliberately gave
+poison ticks *more* power — a lethal tick now takes the kill outright, so you
+can finish someone in the lava with a tick — which is exactly the kind of
+change that could resurrect that bug.
+
+It did not. Ticks pass the poisoner as the **direct** damage source (so the
+kill is theirs) while still never writing `lastHitBy` (so they cannot steal
+credit for a lava death they did not cause). Both halves are locked by tests,
+and venom's measured spread is 27.2–39.0% — strong, not degenerate. Tick
+damage stacking was trimmed one step during the campaign
+(+0.5/0.75/1.0 → **+0.4/0.6/0.8** per re-hit) after venom read 39–47%.
+
+## Finding 6 — arcane's buff had to be walked halfway back
+
+Remi's note was that the CDR upgrade *"didn't seem very strong — either buff
+it or make it more visible."* Both were done, and the buff alone
+(−12/−22/−32%) measured 42.8–59.1%, i.e. the best element in the game on two
+of three tiers. Global cooldown reduction scales with *everything* you own,
+so it is worth more the longer a game runs — and round 10's longer fights
+amplified it further.
+
+Settled at **−10/−19/−28%** (26.9–38.7%). The visibility half is the part
+that probably mattered more anyway and cost no balance at all: the 🔮 icon
+now appears on **every owned spell slot** in the HUD, not just fireball, so
+you can see the thing you bought doing its job.
+
+---
 
 ## Final state (all numbers from the locked build)
 
-### Mirror tables — the build balance verdict (1000 games each)
+### Head-to-head — the difficulty ladder (800 games each)
 
-```
-stalker ★★★          berserker ★★           grunt ★
-win%  build          win%  build            win%  build
-43.1  turtle         57.4  bruiser          46.0  boomer
-42.1  sniper         34.8  turtle           43.1  sniper
-38.8  boomer         32.2  boomer           38.3  turtle
-29.0  bruiser        24.8  sniper           35.5  bruiser
-12.4  rusher         23.6  rusher            7.7  rusher
-10.1  escape          3.1  escape            4.7  escape
- 0.0  greedless       0.0  greedless         0.0  greedless
-```
+| Matchup | Result |
+|---|---|
+| ★★★ stalker vs ★★ berserker | 100.0% / 0.0% |
+| ★★ berserker vs ★ grunt | 75.4% / 24.6% |
 
-Reading it: the four "real" builds (turtle/sniper/boomer/bruiser) sit in a
-healthy 25–46% band on stalker and grunt. Two cells stand out and are
-**accepted as identity, not bugs**:
+### Mirror tables — the build balance verdict (1500 games each)
 
-- `berserker/bruiser` 57% — a point-blank brawler with max fireball +
-  lifesteal is *supposed* to be the brawler's best build.
-- `grunt/boomer` 46% — the 40%-wider boomerang is the forgiving spell, and
-  sloppy-aim grunts benefit most.
+All four seats the same difficulty; only the shopping list differs.
 
-Per-difficulty best picks (useful when setting up lobby bots):
-**stalker → turtle/sniper · berserker → bruiser · grunt → boomer/sniper**.
-Avoid rusher/escape on bots for now.
+| Build | ★ grunt | ★★ berserker | ★★★ stalker |
+|---|---|---|---|
+| **boomer** | **61.7%** | **62.3%** | **54.0%** |
+| **bruiser** | 37.4% | 54.8% | 36.3% |
+| **turtle** | 36.9% | 22.8% | 45.6% |
+| **sniper** | 27.6% | 6.4% | 20.2% |
+| **rusher** | 8.7% | 25.5% | 11.9% |
+| **escape** | 1.4% | 0.6% | 5.1% |
+| *greedless* (control) | 0.0% | 0.0% | 0.0% |
+| lava kill share | 45.7% | 39.3% | 60.2% |
+| comeback rate | 40.5% | 39.0% | 44.0% |
 
-### Mixed study — the big picture (1000 games)
+**Boomer is the strongest bot build at every tier (54–62%) and is deliberately
+NOT nerfed.** The mechanism is a bot artifact: the boomerang is a large, slow,
+long-lived projectile that hits on both legs, and *no bot dodges it* — the ★★★
+stalker's dodge routine reacts to a projectile's current velocity ray, which
+is the one thing a returning boomerang violates. Meanwhile the human upside of
+the round-8 rework (catching it at the launch point to halve the cooldown) is
+worth 0 to a bot: they never catch it. So the lab both over-rates the weapon
+and under-rates the skill in it. **If human play confirms it is too strong,
+the honest levers are the reactive ones** (shorter return window, or a catch
+that is harder to line up), not damage.
 
-Top and bottom of the Elo table (full run via the repro commands):
+**Escape and rusher remain bot-traps (0.6–11.9%), also unchanged**, for the
+reason report #3 gave: their value is in reactive piloting a bot cannot
+express. Raising them means smarter bot code, not bigger numbers.
 
-```
-elo    win%   strategy            elo    win%   strategy
-1688   83.9   stalker/sniper      760     3.4   grunt/sniper
-1535   65.6   stalker/bruiser     727     2.7   grunt/bruiser
-1510   72.1   stalker/boomer      ...
-1108   19.9   berserker/bruiser   589     0.0   grunt/greedless
-```
+The sniper collapse on berserkers (6.4%) is a *fit* problem, not a balance
+one: lightning is a mid-range finisher with no push, handed to the one profile
+whose entire plan is to be in your face.
 
-Piloting still dwarfs shopping (a greedless stalker at Elo 1060 beats every
-berserker build) — that's the difficulty ladder working as intended.
+### Mixed study — the big picture (2500 games)
 
-### Item probe — first-purchase value on a berserker (1400 games)
+Top and bottom of the 21-strategy table; the middle is monotonic.
 
-```
-win%   first item          win%   first item
-45.6   sword               17.3   treads
-42.4   ring                14.0   boots
-22.7   amulet              11.9   cape
-21.2   none (control)
-```
+| Elo | win% | strategy |
+|---|---|---|
+| 1764 | 80.0% | stalker/boomer |
+| 1741 | 72.0% | stalker/bruiser |
+| 1666 | 62.7% | stalker/turtle |
+| 1657 | 74.2% | stalker/sniper |
+| 1629 | 60.7% | stalker/rusher |
+| 1495 | 52.2% | stalker/escape |
+| 904 | 16.4% | berserker/bruiser |
+| 897 | 25.4% | berserker/boomer |
+| 833 | 9.2% | grunt/bruiser |
+| 825 | 18.7% | grunt/boomer |
+| 573 | 2.1% | berserker/escape |
+| 409 | 0.0% | berserker/greedless |
 
-Sword and ring remain the strong openers for a brawler (down from 53%
-pre-trim); cape and boots are *late-game* value — buying them first is worse
-than buying nothing (the control sits at 21%). The winner-held mixed table
-still shows cape at 55%, which is exactly the survivor bias the probe
-exists to expose.
+Read this as a *skill* table, not a build table: the six stalker rows occupy
+the entire top of it. The `greedless` controls (never buy anything) sitting at
+the very bottom at 0.0% is the sanity check that the shop matters at all.
+
+### Item / spell winner-held share (2500 games — confounded, kept for continuity)
+
+| win% | picked | thing |
+|---|---|---|
+| 41.3% | 1458 | boomerang |
+| 37.9% | 3726 | sword |
+| 33.2% | 6477 | ring |
+| 33.1% | 5487 | amulet |
+| 32.7% | 2630 | treads |
+| 30.8% | 6158 | cape |
+| 29.2% | 7195 | boots |
+| 28.2% | 1406 | shield |
+| 27.9% | 1454 | lightning |
+| 25.3% | 1366 | rush |
+| 18.1% | 1517 | teleport |
+
+**This table is survivor-biased by construction** — items late in a build
+order are bought mostly by players who were already winning. The item probe
+in Finding 1 is the de-confounded version and should win any disagreement.
+Teleport at 18.1% is the standing bot-artifact flag: it is a *reactive* save
+button, and bots barely use it.
+
+### Elemental mode — per-element spread (1200 games per tier, 8 elements)
+
+All seats the same difficulty and build; only the element pick differs.
+
+| Element | ★ grunt | ★★ berserker | ★★★ stalker |
+|---|---|---|---|
+| ember 🔥 | **42.0%** | **44.3%** | 25.3% |
+| venom 🐍 | 39.0% | 36.9% | 27.2% |
+| critical 💢 | 36.7% | 21.5% | 25.1% |
+| arcane 🔮 | 30.4% | 38.7% | 27.6% |
+| gale 🌪️ | 22.3% | 23.5% | 21.6% |
+| frost ❄️ | 16.0% | 27.1% | 31.4% |
+| terra 🪨 | 12.3% | 7.4% | **39.4%** |
+| midas 🪙 | 0.5% | 1.3% | 1.8% |
+
+Seven of eight elements sit between 7% and 44% with legible tier affinities:
+raw damage (ember) for the sloppy tiers, projectile size (terra) for the tier
+that already aims well, frost for the kiter. Nothing here is degenerate.
+
+**Midas at 0.5–1.8% is a measurement artifact, not a balance verdict, and I
+did not touch its numbers because of it.** The tell is in the same table: the
+midas seats finish with **215–260 average gold** against 53–80 for everyone
+else. They are not losing because Midas is weak — they are drowning in gold
+they cannot spend, because a bot's shopping list is finite and ends. Midas is
+an *economic* element in a simulation with no economy left by round 6. It was
+still nerfed this round (Remi's call: 2 g per hit was a kill's worth of
+income), and that nerf is unmeasurable here **by design** — the first-hit-per-
+enemy rule specifically punishes farming one target, which is a human
+behaviour bots don't exhibit. **Human verdict required.**
 
 ### Health metrics
 
-- **Lava kill share 76.7%** (was ~86%): spells can finally kill on their own
-  — the +30% damage did what Remi asked — while lava remains the main killer.
-- **Comeback rate 13.4%** mixed, 25–39% in mirrors: games aren't decided in
-  round 3.
+| Metric | Report #3 | Round 10 | Note |
+|---|---|---|---|
+| lava kill share (mixed) | ~73% → ~68% | **47.3%** | see open question 1 |
+| lava kill share (mirrors) | — | 39.3–60.2% | lowest for the brawler tier |
+| comeback rate (mixed) | ~17% | **17.5%** | healthy, unchanged |
+| comeback rate (mirrors) | — | 39.0–44.0% | healthy |
+| unfinished games | 0 | **0** | every game reached a winner |
 
-## Open questions for the next campaign
+---
 
-1. **Teleport for humans**: indirectly nerfed by the whole retune (weaker
-   lava, less knockback = fewer saves needed). Entry cheapened to 12 g;
-   whether it's worth it now is a playtest question, not a lab question.
-2. **Escape/rusher bot floor**: raising it means smarter piloting (kiting
-   with mobility, dash-cancel plays), not bigger numbers.
-3. **Elemental mode untouched** this campaign: venom-overtuned and
-   midas-snowball flags from report #2 still stand.
-4. Whether `grunt/boomer` at 46% creeps further as boomerang players
-   level it — watch after the next feel pass.
+## Open questions — these need Remi, not more games
+
+1. **Is a ~47% lava kill share the game you want?** This is the biggest
+   number in the report. It was ~86% at launch, ~68% after round 9, and
+   **47.3% now** — the direct consequence of two changes you asked for
+   (−30% low-HP knockback so launches are survivable, ×2 lava speed so
+   swimmers get out). Knockback-into-lava used to be *the* win condition;
+   now it is roughly half of deaths, and the other half is people being shot
+   to death on the platform. Both one-line reverts are in
+   `shared/constants.js` (`KB_HP_FACTOR`, `LAVA.SPEED_MULT`) with dated
+   comments. **The lab cannot answer this one — it is a taste question.**
+2. **Regen: numbers or a mechanic?** Ring-first still wins ~51% of probe
+   games after a −22% strength cut and a +20% price rise. If it feels
+   oppressive in human play, the effective fix is an **in-combat rule**
+   (regen suppressed or halved for ~2 s after taking damage) rather than
+   another number. That is a design change and I did not ship it unasked.
+3. **Boomer at 54–62% in every mirror** — bot artifact (nothing dodges a
+   boomerang, nothing catches one either). Does it feel oppressive to *play
+   against*? If yes, nerf the reactive side, not the damage.
+4. **The whole power tier is still unmeasured.** Bots pilot none of meteor /
+   hook / repulse / mirror wall, so every number in them remains a design
+   guess — including this round's new repulse combos (teleport/rush
+   mid-charge) and the now-visible hook. Teaching bots to pilot them is the
+   top item in the lab backlog; until then these are decided by your games.
+5. **Does the ★★ duel feel fair now?** 99.6% → 75.4% against a ★ says the
+   aimbot is gone and the tier survived, but "can I juke it at point-blank"
+   is a feel question only you can answer.
+6. **Critical in human hands** should outperform every number in this report
+   (a human who is hitting keeps hitting, and the ramp only counts landed
+   hits). Watch for it being *too* strong late in a round.
 
 ## Reproduce
 
+Every table above, in order. Seeds are fixed, so these reproduce exactly on
+the locked build.
+
 ```bash
-node tools/arena.js --games=1000 --players=4 --seed=41            # mixed
-node tools/arena.js --mirror=stalker   --games=1000 --seed=43     # per tier
-node tools/arena.js --mirror=berserker --games=1000 --seed=43
-node tools/arena.js --mirror=grunt     --games=1000 --seed=43
-node tools/arena.js --probe=berserker  --games=1400 --seed=47     # item probe
+# difficulty ladder (Finding 2)
+node tools/h2h.js berserker grunt --games=800
+node tools/h2h.js stalker berserker --games=800
+
+# mirrors — the build verdict
+node tools/arena.js --mirror=grunt     --games=1500 --seed=201
+node tools/arena.js --mirror=berserker --games=1500 --seed=202
+node tools/arena.js --mirror=stalker   --games=1500 --seed=203
+
+# mixed study — the big picture
+node tools/arena.js --games=2500 --players=4 --seed=101
+
+# item probes — de-confounded first-purchase value (Finding 1)
+node tools/arena.js --probe=berserker --games=1400 --seed=204
+node tools/arena.js --probe=stalker   --games=1400 --seed=205
+
+# elemental mode — per-element spread
+node tools/arena.js --mode=elemental --kind=grunt     --games=1200 --seed=401
+node tools/arena.js --mode=elemental --kind=berserker --games=1200 --seed=402
+node tools/arena.js --mode=elemental --kind=stalker   --games=1200 --seed=403
 ```

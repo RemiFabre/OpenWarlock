@@ -6,8 +6,15 @@ import WebSocket from 'ws';
 import { spawn } from 'node:child_process';
 
 const PORT = Number(process.env.PORT || 3987);
+// stderr is 'ignore', not 'inherit': an inherited pipe that outlives us keeps
+// a piped stdout (`node tools/reconnect-test.js | tail`) open forever. Paired
+// with the 'exit' hook below — process.exit() skips finally blocks, so that
+// hook is the only reliable place to reap the server.
 const srv = spawn('node', ['server/index.js', `--port=${PORT}`, '--seed=7'],
-  { stdio: ['ignore', 'ignore', 'inherit'] });
+  { stdio: ['ignore', 'ignore', 'ignore'] });
+process.on('exit', () => { try { srv.kill(); } catch { } });
+for (const sig of ['SIGINT', 'SIGTERM'])
+  process.on(sig, () => { try { srv.kill(); } catch { } process.exit(1); });
 const url = `ws://localhost:${PORT}`;
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -91,6 +98,4 @@ try {
 } catch (err) {
   console.error('\nreconnect-test FAILED:', err.message);
   process.exit(1);
-} finally {
-  srv.kill();
 }

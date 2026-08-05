@@ -6,6 +6,87 @@ you asked before leaving.*
 
 ---
 
+## ROUND 10 — reconnexion, combos, poison v2, Critical, bots humains, ~40 000 games (2026-08-05)
+
+Tes 11 retours sont tous implémentés, mesurés au lab et poussés (107 tests
+verts, harness, 2 navigateurs, test e2e de reconnexion). Redémarre le serveur
++ hard-refresh. Le rapport complet chiffré : `BALANCE.md` (rapport #4).
+
+### Ce que tu as demandé → ce que j'ai fait
+
+- **Déco/reco : tu gardes tout.** Ton or, tes kills, tes sorts, tes items
+  survivent à une déconnexion — clé = ton **pseudo** (insensible à la casse,
+  10 min max). Et si TOUS les humains tombent en pleine partie (tunnel qui
+  hoquette), le serveur attend 60 s avant de rendre la partie aux bots.
+  Vérifié par un test e2e réel (`node tools/reconnect-test.js`).
+- **Répulsion + dash / + flash : activés.** Pendant la charge des 2 s tu
+  peux lancer **Teleport et Rush** (et seulement eux) — tu te téléportes AU
+  MILIEU du pack et la déflagration part de là. L'inverse marche aussi
+  (commencer la charge en plein dash).
+- **Poison v2 : des vrais ticks.** 1 tick/s pendant 5 s. Re-toucher un
+  empoisonné **relance le chrono ET renforce le tick** (+0.4/+0.6/+0.8
+  par niveau, plafonné). **Un tick mortel te donne le kill — même dans la
+  lave** ; mais les ticks ne volent jamais le crédit du dernier tireur
+  (la règle du round 9 tient toujours).
+- **Nouvel élément Critical 💢** : chaque boule de feu QUE TU TOUCHES ce
+  round renforce les suivantes (+dégâts +poussée, plafonné à 20 hits, reset
+  à chaque round). Départ faible (−15 % dégâts). Mesuré viable partout
+  (21-34 % selon le tier, baseline 25 %).
+- **Midas nerfé** : +1 g par touche à tous les niveaux ; au lv3 la PREMIÈRE
+  touche sur chaque ennemi du round paye +2 g (farmer un seul mec ne
+  rapporte plus). Dégâts −10 % → −15 %. (Au lab il reste ~1 % mais c'est
+  l'artéfact connu : les bots saturés d'or n'achètent rien — verdict humain.)
+- **Arcane (CDR) buffé et VISIBLE** : −10/−19/−28 % (au lieu de −10/−18/−25),
+  et le 🔮 s'affiche maintenant sur CHAQUE slot de sort possédé dans la
+  barre. (J'avais d'abord mis −12/−22/−32 : 47-59 % au lab, dominant —
+  redescendu.)
+- **Bots moyens : temps de réaction implémenté.** Le berserker (★★) vise
+  maintenant avec l'image d'il y a ~0,2 s (ta direction peut changer dans
+  cette fenêtre, il ne le voit pas) + une vraie dispersion à bout portant
+  (l'ancienne erreur était proportionnelle à la distance → parfaite au
+  corps-à-corps, exactement ton duel frustrant). Le ★★★ reste un tueur.
+  Calibré sur 600 games : ★★ reste nettement au-dessus du ★.
+- **Pushback bas-HP −30 %** : KB_HP_FACTOR 0,55 → 0,385.
+- **Lave : ×2 vitesse** (au lieu de +30 %). Tu peux vraiment esquiver en
+  nageant maintenant. Conséquence mesurée : la part des kills-lave passe de
+  ~68 % à **~45-60 %** — à toi de dire si c'est le jeu que tu veux (voir
+  BALANCE.md, question ouverte #1).
+- **Lifesteal : audité, verrouillé par 5 tests.** Il marchait déjà sur TOUT
+  dégât sourcé (poison, traînées, rush, météore) et jamais sur la lave.
+  Corrigé : l'overkill ne soigne plus (tuer un mec à 2 HP avec 13 dégâts
+  soigne sur 2, pas 13).
+- **Hook : visible et lisible.** Le grappin était **invisible** (aucun rendu
+  pour ce type de projectile !) — maintenant : chaîne pointillée + 🪝, tu
+  vois sa portée. La victime atterrit un corps entier DERRIÈRE toi (avant :
+  collée à toi, illisible). Ton combo lave→hook→fireball est jouable.
+
+### Équilibrage (~40 000 games au total, 4 itérations)
+
+- La méta a basculé **attrition** (moins de morts lave + moins de knockback
+  → les combats durent) : épée de sang et anneau de régén redevenaient
+  rois. Retaillés : épée 25 % → **18 %** de vol de vie (15 g), anneau
+  0,9 → **0,7 HP/s** (12 g).
+- **Gale rebuffé** (1,22/1,38/1,55× poussée, plus aucun malus dégâts) : les
+  deux baisses globales de knockback l'avaient enterré (9-16 %).
+- **Boomer domine les miroirs bots (55-67 %)** : artéfact bot pour
+  l'essentiel (personne n'esquive un projectile large chez les bots). PAS
+  nerfé — verdict humain d'abord ; leviers proposés dans BALANCE.md.
+- Détail des itérations, tables finales et questions ouvertes : BALANCE.md.
+
+### Interprétations que j'ai prises (dis-moi si faux)
+
+- « repulsion + flash » = flash → **Teleport** (touche F).
+- « 1 tick/s pendant 5 s » : les ticks tombent à 1 s, 2 s, 3 s, 4 s, 5 s
+  après la touche ; un re-hit repart pour 5 s sans re-tick immédiat.
+- « le +2 gold une seule fois par joueur » : par joueur **et par round**
+  (sinon Midas devient mort passé le round 2).
+- « super fast dans la lave, x2 » : ×2 de TA vitesse (boots et frost
+  comptent), pas une vitesse fixe.
+- Reverts une-ligne si besoin : chaque changement est isolé dans
+  `shared/constants.js` avec un commentaire daté.
+
+---
+
 ## ROUND 9 — la grosse nuit : élémental v2, sorts puissants, ~14 000 games (2026-08-04)
 
 Tout ce que tu as demandé est implémenté, équilibré au lab, vérifié (92
