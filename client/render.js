@@ -46,6 +46,7 @@ const fin = Number.isFinite;
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
   frost: '#8fd8ff', venom: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
+  critical: '#ff5d5d',
 };
 
 export function draw(view, vs, fx, myId, moveMark, now) {

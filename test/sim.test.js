@@ -970,6 +970,63 @@ describe('elemental mode', () => {
     expect(b2.lastHitBy).toBe(null);        // round-9 rule: DoT never stamps
   });
 
+  it('critical 💢: starts weak, every landed hit ramps damage and push', () => {
+    const f = ELEMENTS.critical.fx;
+    // hit 1: no ramp yet — 5 * 0.8 = 4 dmg (minus a hair of regen)
+    const s1 = hitWith('critical');
+    const b1 = s1.players.p1;
+    expect(b1.maxHp - b1.hp).toBeGreaterThan(3.2);
+    expect(b1.maxHp - b1.hp).toBeLessThan(4.2);
+    expect(s1.players.p0.critHits).toBe(1);
+    // after 10 landed hits, the next one carries the ramp:
+    // (5 + 10*0.35) * 0.8 = 6.8 dmg
+    const s2 = hitWith('critical');
+    const a2 = s2.players.p0, b2 = s2.players.p1;
+    a2.critHits = 10;
+    b2.hp = b2.maxHp; b2.x = 8; b2.y = 0; b2.vx = 0; b2.vy = 0;
+    a2.cooldowns = {};
+    castSpell(s2, 'p0', 'fireball', 20, 0);
+    run(s2, 0.4);
+    const dealt = b2.maxHp - b2.hp;
+    const expected = (SPELLS.fireball.damage[0] + 10 * f.rampDmg[0]) * f.dmgMult;
+    expect(dealt).toBeGreaterThan(expected - 0.8); // regen nibbles a little
+    expect(dealt).toBeLessThan(expected + 0.5);
+    expect(a2.critHits).toBe(11);
+    // knockback ramps too: same hit, compare fresh vs ramped launch speed
+    const peak = (hits) => {
+      const s = hitWith('critical');
+      const a = s.players.p0, b = s.players.p1;
+      a.critHits = hits;
+      b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
+      a.cooldowns = {};
+      castSpell(s, 'p0', 'fireball', 20, 0);
+      for (let i = 0; i < 12; i++) { step(s, DT); if (b.vx > 1) break; }
+      return b.vx;
+    };
+    expect(peak(15)).toBeGreaterThan(peak(0) * 1.25);
+    // the ramp is capped
+    const s3 = hitWith('critical');
+    s3.players.p0.critHits = 500;
+    const b3 = s3.players.p1;
+    b3.hp = b3.maxHp; b3.x = 8; b3.y = 0; b3.vx = 0; b3.vy = 0;
+    s3.players.p0.cooldowns = {};
+    castSpell(s3, 'p0', 'fireball', 20, 0);
+    run(s3, 0.4);
+    const capped = (SPELLS.fireball.damage[0] + f.rampCap * f.rampDmg[0]) * f.dmgMult;
+    expect(b3.maxHp - b3.hp).toBeLessThan(capped + 0.5);
+  });
+
+  it('critical ramp resets at round start', () => {
+    const state = hitWith('critical');
+    expect(state.players.p0.critHits).toBe(1);
+    // kill everyone else -> round ends -> next round starts fresh
+    state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
+    state.players.p2.hp = 0.01; state.players.p2.x = ARENA.START_RADIUS + 5;
+    run(state, 1 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.phase).toBe('battle');
+    expect(state.players.p0.critHits).toBe(0);
+  });
+
   it('venom fireballs drip a trail that burns whoever stands in it', () => {
     const state = hitWith('venom');
     expect(state.hazards.length).toBeGreaterThan(0); // trail was dropped

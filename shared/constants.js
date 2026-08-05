@@ -224,6 +224,12 @@ export const ELEMENTS = {
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Bigger fireball each level; hits briefly grow the target.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
+  // 2026-08-05 (Remi): snowball-within-the-round element — every fireball you
+  // LAND this round makes the next ones hit harder and push further (capped,
+  // resets at round start). Starts weak by design: −20% base damage.
+  critical: { name: 'Critical', icon: '💢', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Every fireball you LAND this round rams the next ones: more damage and push per hit. Starts weak: −20% damage.',
+           fx: { dmgMult: 0.8, rampDmg: [0.35, 0.5, 0.65], rampKb: [1.5, 2.2, 3], rampCap: 20 } },
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
            desc: 'ALL your cooldowns run faster: −10% / −18% / −25%.',
            fx: { cdrMult: [0.9, 0.82, 0.75] } },

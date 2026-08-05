@@ -88,6 +88,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     poisonBy: null,        // venom: who poisoned us (kill credit)
     growT: 0,              // terra: seconds of forced growth remaining
     growMultHit: 1,        // terra: strength of the grow that hit us
+    critHits: 0,           // critical: fireball hits landed this round (ramp)
     echoN: 0,              // echo stone: fireballs cast this round
     dash: null,            // {dx, dy, left, hit:Set-as-object}
     lastHitBy: null,       // {id, t}  t = state.time when hit
@@ -542,7 +543,7 @@ function startRound(state) {
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
-    pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0;
+    pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0; pl.critHits = 0;
     pl.lastHitBy = null;
     pl.roundKills = 0;
     pl.roundBounty = 0;
@@ -1030,6 +1031,14 @@ function stepProjectiles(state, dt) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
           if (f.kbAdd) kb += efxV(f.kbAdd, el);
+          if (f.rampDmg) {
+            // critical: the ramp counts hits landed so far this round, read
+            // at hit time from the owner (an add, so dmgMult applies on top)
+            const own = state.players[pr.owner];
+            const hits = Math.min((own && own.critHits) || 0, f.rampCap);
+            dmg += hits * efxV(f.rampDmg, el);
+            kb += hits * efxV(f.rampKb, el);
+          }
           if (f.dmgMult) dmg *= efxV(f.dmgMult, el);
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
@@ -1093,6 +1102,10 @@ function applyElementsHit(state, pr, target) {
         owner.goldEarned += pay;
         state.events.push({ t: 'gold', id: pr.owner, amount: pay, x: pr.x, y: pr.y });
       }
+    }
+    if (f.rampDmg && pr.owner != null) {
+      const owner = state.players[pr.owner];
+      if (owner) owner.critHits = (owner.critHits || 0) + 1;
     }
     if (f.growMult) {
       target.growT = f.growT;
