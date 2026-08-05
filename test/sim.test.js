@@ -1626,3 +1626,64 @@ describe('v5 mechanics', () => {
     expect(t).toBeGreaterThan(30);   // ...but regen makes it a long grind
   }, 15000);
 });
+
+describe('lifesteal (Blood Sword)', () => {
+  // p0 owns a sword and sits at 50 hp; p2, parked far away and also at 50 hp,
+  // is the regen control — any hp gap between them is lifesteal healing.
+  function swordBattle() {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.items = ['sword'];
+    a.x = 0; a.y = 0; a.vx = 0; a.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = 0; b.moveTarget = null;
+    c.x = 0; c.y = -40; c.vx = 0; c.moveTarget = null;
+    a.hp = 50; c.hp = 50;
+    return state;
+  }
+
+  it('heals 25% of direct spell damage', () => {
+    const state = swordBattle();
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const a = state.players.p0, c = state.players.p2;
+    expect(a.hp - c.hp).toBeCloseTo(SPELLS.fireball.damage[0] * ITEM_FX.sword.lifesteal, 1);
+  });
+
+  it('heals from your poison ticks — DoT damage counts', () => {
+    const state = swordBattle();
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    b.poisonT = 3; b.poisonTick = 2; b._poisonNext = 0.1; b.poisonBy = 'p0';
+    run(state, 0.5); // exactly one tick of 2
+    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+  });
+
+  it('heals from your ground trails', () => {
+    const state = swordBattle();
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.hazards.push({ x: b.x, y: b.y, r: 1.3, owner: 'p0', dps: 2, until: state.time + 5 });
+    run(state, 1);
+    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+  });
+
+  it('never heals from lava burn, even when the burn is credited to you', () => {
+    const state = swordBattle();
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    b.x = ARENA.START_RADIUS + 3; b.y = 0; b.moveTarget = null; // swimming
+    b.lastHitBy = { id: 'p0', t: state.time };   // p0 shoved them in
+    const dmg0 = a.dmgDealt;
+    run(state, 1);
+    expect(a.dmgDealt).toBeGreaterThan(dmg0);    // the burn IS credited...
+    expect(Math.abs(a.hp - c.hp)).toBeLessThan(0.15); // ...but heals nothing
+  });
+
+  it('healing is capped by the damage actually dealt (no overkill farming)', () => {
+    const state = swordBattle();
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    b.hp = 2; // fireball deals 5, but only 2 are real
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(b.alive).toBe(false);
+    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+  });
+});

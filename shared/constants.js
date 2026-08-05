@@ -169,7 +169,7 @@ export const ITEMS = {
   amulet: { name: 'Amulet of Health',     cost: 12, desc: '+25 max HP' },
   ring:   { name: 'Ring of Regeneration', cost: 10, desc: '+0.9 HP/s' },
   cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-10% knockback taken' },
-  sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 25% of spell damage you deal' },
+  sword:  { name: 'Blood Sword',          cost: 14, desc: 'Heal 25% of the damage you deal (poison too — lava excluded)' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental',
             desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
   crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental',

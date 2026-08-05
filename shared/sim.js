@@ -464,8 +464,10 @@ function applyDamage(state, target, amount, sourceId, { silent = false, stamp = 
     if (stamp) target.lastHitBy = { id: sourceId, t: state.time };
     const src = state.players[sourceId];
     if (src && src.alive) {
+      // heal on EFFECTIVE damage (overkill doesn't feed the sword); works on
+      // everything with a source — spells, DoT ticks, trails — never lava
       const { lifesteal } = stats(src);
-      if (lifesteal > 0) src.hp = Math.min(src.maxHp, src.hp + amount * lifesteal);
+      if (lifesteal > 0) src.hp = Math.min(src.maxHp, src.hp + effective * lifesteal);
     }
   }
   if (!silent)
