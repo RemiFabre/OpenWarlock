@@ -130,6 +130,7 @@ function maybeAutoStart() {
 
 function resetToLobby() {
   journal('reset', {});
+  ghosts.clear(); // progress stashes never outlive the game they came from
   const old = game.players;
   // the ruleset (like avatars) survives "play again"
   game = createGame({ seed: SEED + game.round + 1, mode: game.mode });
@@ -171,6 +172,33 @@ setInterval(() => {
 // CF-Connecting-IP header first.
 const bannedNames = new Set();
 const bannedIps = new Set();
+
+// Reconnect persistence (2026-08-05): a human who drops mid-game keeps their
+// progress. On disconnect during a running game the player's earnings/score/
+// build are stashed under their normalized NAME; the next join with that name
+// gets them back (10-minute freshness cap). Stashes die with the game
+// (resetToLobby) — names are trusted within a friends lobby, same as bans.
+const GHOST_TTL_MS = 10 * 60 * 1000;
+const ghosts = new Map(); // normName -> {at, ...progress}
+
+// Humans-all-gone mid-game: wait this long for a reconnect before resetting.
+const RESET_GRACE_MS = Number(process.env.RESET_GRACE_MS || 60_000);
+let lobbyResetTimer = null;
+function scheduleLobbyReset() {
+  if (lobbyResetTimer) return;
+  journal('reset-scheduled', { inMs: RESET_GRACE_MS });
+  lobbyResetTimer = setTimeout(() => {
+    lobbyResetTimer = null;
+    // a human made it back during the grace window: keep the game alive
+    if (Object.values(game.players).some(p => !p.bot)) return;
+    resetToLobby();
+  }, RESET_GRACE_MS);
+}
+function cancelLobbyReset() {
+  if (!lobbyResetTimer) return;
+  clearTimeout(lobbyResetTimer);
+  lobbyResetTimer = null;
+}
 const ipsById = new Map(); // playerId -> remote ip
 const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16);
 const ipOf = (req) => String(
@@ -215,6 +243,21 @@ wss.on('connection', (ws, req) => {
       } else if (game.phase !== 'lobby') {
         // mid-battle joiners are seated but dead until the next round
         pl.alive = false;
+      }
+      cancelLobbyReset(); // a human is back: the game no longer needs to die
+      // returning player? restore the progress their dropped socket stashed
+      const ghost = ghosts.get(normName(m.name));
+      if (ghost && Date.now() - ghost.at < GHOST_TTL_MS && game.phase !== 'lobby') {
+        pl.color = ghost.color;
+        if (pl.avatar === '🧙') pl.avatar = ghost.avatar;
+        pl.gold = ghost.gold; pl.goldEarned = ghost.goldEarned;
+        pl.kills = ghost.kills; pl.deaths = ghost.deaths;
+        pl.dmgDealt = ghost.dmgDealt;
+        pl.maxHp = ghost.maxHp; // amulet hp travels here — never re-apply items
+        pl.hp = Math.min(pl.hp, pl.maxHp);
+        pl.spells = ghost.spells; pl.items = ghost.items; pl.elements = ghost.elements;
+        ghosts.delete(normName(m.name));
+        journal('reconnect-restore', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
       }
       sockets.set(id, ws);
       ipsById.set(id, ip);
@@ -311,11 +354,28 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     if (!joined) return;
     journal('disconnect', { id });
+    // stash a mid-game fighter's progress so a reconnect (same name) keeps it
+    const pl = game.players[id];
+    if (pl && !pl.bot && !pl.spectator &&
+        game.phase !== 'lobby' && game.phase !== 'gameover') {
+      ghosts.set(normName(pl.name), {
+        at: Date.now(), color: pl.color, avatar: pl.avatar,
+        gold: pl.gold, goldEarned: pl.goldEarned, kills: pl.kills,
+        deaths: pl.deaths, dmgDealt: pl.dmgDealt, maxHp: pl.maxHp,
+        spells: { ...pl.spells }, items: [...pl.items],
+        elements: { ...(pl.elements || {}) },
+      });
+      journal('reconnect-stash', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
+    }
     sockets.delete(id);
     ipsById.delete(id);
     removePlayer(game, id);
     if (playerCount() === 0 || Object.values(game.players).every(p => p.bot)) {
-      resetToLobby(); // don't let bot-only games spin forever
+      // don't let bot-only games spin forever — but if a game is RUNNING,
+      // give the vanished humans a grace window to reconnect first (a tunnel
+      // hiccup must not wipe a solo-vs-bots game; see the ghost stash above)
+      if (game.phase === 'lobby' || game.phase === 'gameover') resetToLobby();
+      else scheduleLobbyReset();
     }
   });
 });
