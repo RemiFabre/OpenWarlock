@@ -206,9 +206,14 @@ export const ELEMENTS = {
   frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Hits chill the target — deeper and longer each level.',
            fx: { slowMult: [0.65, 0.55, 0.45], slowT: [1.5, 1.8, 2.1] } },
+  // 2026-08-05 rework: the DoT is now DISCRETE ticks (1/s for 5 s) and
+  // re-hits refresh the clock AND stack the tick damage (capped). A lethal
+  // tick gives the poisoner the kill — even in lava — but ticks still never
+  // stamp the last-hitter slot (the round-9 credit rule).
   venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits poison, and your fireballs leave a toxic trail on the ground. −15% direct damage.',
-           fx: { dmgMult: 0.85, dotDamage: [4, 7, 10], dotTime: 4,
+           desc: 'Hits poison: 1 tick/s for 5 s. Re-hits refresh the clock AND strengthen the ticks. Trail on the ground. −15% direct damage.',
+           fx: { dmgMult: 0.85, tickDmg: [1, 1.5, 2], stackAdd: [0.5, 0.75, 1],
+                 stackCap: [3, 4.5, 6], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'A gust in a ball: more push each level. −5% damage.',

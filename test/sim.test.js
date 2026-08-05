@@ -906,31 +906,68 @@ describe('elemental mode', () => {
     expect(slow3).toBeLessThan(slow1 * 0.85);
   });
 
-  it('venom lv1 poisons ~4 dmg over 4 s and re-hits refresh, not stack', () => {
-    const state = hitWith('venom');
+  it('venom lv1: discrete 1-per-second ticks, ~5 dmg over 5 s, then it stops', () => {
+    // manual poison application for exact timing (a fireball hit lands at an
+    // uncontrolled sub-second offset); c is the untouched regen control
+    const state = elementalBattle(3);
     const b = state.players.p1, c = state.players.p2;
-    expect(b.poisonT).toBeGreaterThan(3.5);
-    // direct hit reduced 15%: 5 * 0.85 = 4.25 (± regen and a brush with the trail)
-    expect(b.maxHp - b.hp).toBeGreaterThan(3.2);
-    expect(b.maxHp - b.hp).toBeLessThan(5.2);
-    // measure the DoT against an unpoisoned control with identical hp/regen
+    b.x = 10; b.y = 0; b.vx = 0; b.moveTarget = null;
+    c.x = -10; c.y = 0; c.vx = 0; c.moveTarget = null;
+    state.players.p0.y = -40;
     b.hp = 50; c.hp = 50;
-    b.x = 0; b.y = 45 - ARENA.START_RADIUS; // park b safely, away from the trail
-    run(state, 4.2);
-    expect(c.hp - b.hp).toBeGreaterThan(2.7);   // ≈ 2.7 left of the 3 total
-    expect(c.hp - b.hp).toBeLessThan(4.5);
+    b.poisonT = ELEMENTS.venom.fx.dotTime;
+    b.poisonTick = ELEMENTS.venom.fx.tickDmg[0];
+    b._poisonNext = ELEMENTS.venom.fx.tickEvery;
+    b.poisonBy = 'p0';
+    run(state, 0.9);
+    expect(c.hp - b.hp).toBeLessThan(0.3);  // discrete: nothing before the 1 s mark
+    run(state, 0.2);
+    expect(c.hp - b.hp).toBeCloseTo(1, 1);  // first tick landed
+    run(state, 4.3);                        // t ≈ 5.4: all 5 ticks in
+    expect(c.hp - b.hp).toBeCloseTo(5, 1);
+    expect(b.poisonTick).toBe(0);           // expired poison leaves no residue
+    run(state, 2);
+    expect(c.hp - b.hp).toBeCloseTo(5, 1);  // and it STOPPED
+  });
 
-    // refresh-not-stack: a second hit resets the clock to dotTime, never more
-    const s2 = hitWith('venom');
+  it('venom re-hits REFRESH the clock and STACK the tick damage', () => {
+    const state = hitWith('venom');
+    const b = state.players.p1;
+    expect(b.poisonT).toBeGreaterThan(4.5);
+    expect(b.poisonTick).toBe(ELEMENTS.venom.fx.tickDmg[0]);
+    run(state, 2.2); // burn 2.2 s off the clock (past the lv1 fireball cd too)
+    expect(b.poisonT).toBeLessThan(3);
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.hp = b.maxHp;
+    state.players.p0.x = 0; state.players.p0.y = 0;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(b.poisonT).toBeGreaterThan(4.5); // refreshed to the full 5 s
+    expect(b.poisonT).toBeLessThanOrEqual(ELEMENTS.venom.fx.dotTime);
+    expect(b.poisonTick).toBeCloseTo(       // and STRONGER: base + one stack
+      ELEMENTS.venom.fx.tickDmg[0] + ELEMENTS.venom.fx.stackAdd[0], 5);
+  });
+
+  it('a lethal poison tick gives the poisoner the kill — without stamping lastHitBy', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    b.x = 10; b.y = 0; b.vx = 0; b.moveTarget = null;
+    state.players.p2.y = -40;
+    b.hp = 0.5;
+    b.lastHitBy = null;
+    b.poisonT = 5; b.poisonTick = 1; b._poisonNext = 0.1; b.poisonBy = 'p0';
+    const kills0 = a.kills;
+    run(state, 0.3);
+    expect(b.alive).toBe(false);
+    expect(a.kills).toBe(kills0 + 1);       // the tick itself was the killing blow
+    // the round ended (2 fighters left standing 1) — check the stamp rule on a
+    // fresh victim that SURVIVES the tick: ticks never claim the last-hitter slot
+    const s2 = elementalBattle(3);
     const b2 = s2.players.p1;
-    run(s2, 2.2); // burn 2.2 s off the first application (past the lv1 cd too)
-    expect(b2.poisonT).toBeLessThan(2.5);
-    b2.x = 8; b2.y = 0; b2.vx = 0; b2.vy = 0;
-    s2.players.p0.x = 0; s2.players.p0.y = 0;
-    castSpell(s2, 'p0', 'fireball', 20, 0); // lv1 cooldown (2.1 s) has passed
-    run(s2, 0.4);
-    expect(b2.poisonT).toBeGreaterThan(3.5);
-    expect(b2.poisonT).toBeLessThanOrEqual(ELEMENTS.venom.fx.dotTime);
+    b2.lastHitBy = null;
+    b2.poisonT = 5; b2.poisonTick = 1; b2._poisonNext = 0.1; b2.poisonBy = 'p0';
+    run(s2, 0.3);
+    expect(b2.hp).toBeLessThan(b2.maxHp);
+    expect(b2.lastHitBy).toBe(null);        // round-9 rule: DoT never stamps
   });
 
   it('venom fireballs drip a trail that burns whoever stands in it', () => {
@@ -938,7 +975,7 @@ describe('elemental mode', () => {
     expect(state.hazards.length).toBeGreaterThan(0); // trail was dropped
     const b = state.players.p1, c = state.players.p2;
     // scrub b's hit poison and park it off-trail as the regen control
-    b.poisonT = 0; b.poisonDps = 0;
+    b.poisonT = 0; b.poisonTick = 0;
     b.x = 0; b.y = -20; b.vx = 0; b.vy = 0; b.hp = 80;
     // park the third player right on a trail puddle
     const h = state.hazards[0];

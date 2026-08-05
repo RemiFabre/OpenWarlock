@@ -84,7 +84,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     slowT: 0,              // frost: seconds of slow remaining
     slowMultHit: 1,        // frost: strength of the slow that hit us
     poisonT: 0,            // venom: seconds of DoT remaining
-    poisonDps: 0,          // venom: dps of the poison that hit us
+    poisonTick: 0,         // venom: damage per 1 s tick (re-hits stack it)
     poisonBy: null,        // venom: who poisoned us (kill credit)
     growT: 0,              // terra: seconds of forced growth remaining
     growMultHit: 1,        // terra: strength of the grow that hit us
@@ -541,7 +541,7 @@ function startRound(state) {
     pl.cooldowns = {};
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.slowT = 0; pl.slowMultHit = 1;
-    pl.poisonT = 0; pl.poisonDps = 0; pl.poisonBy = null; pl._poisonAcc = 0;
+    pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0;
     pl.lastHitBy = null;
     pl.roundKills = 0;
@@ -737,17 +737,21 @@ function stepBattle(state, dt) {
     if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
     if (pl.growT > 0) pl.growT = Math.max(0, pl.growT - dt);
     if (pl.poisonT > 0) {
-      pl.poisonT = Math.max(0, pl.poisonT - dt);
-      const dps = pl.poisonDps || 0; // per-hit strength (venom level)
-      if (dps > 0) {
-        pl._poisonAcc = (pl._poisonAcc || 0) + dps * dt;
-        applyDamage(state, pl, dps * dt, pl.poisonBy, { silent: true, stamp: false });
-        // surface the DoT as a green tick roughly once a second (cheap fx)
-        if (pl.alive && pl._poisonAcc >= dps) {
-          state.events.push({ t: 'hit', id: pl.id, amount: pl._poisonAcc, x: pl.x, y: pl.y, poison: true });
-          pl._poisonAcc = 0;
+      // discrete ticks (2026-08-05 rework): one bite of poisonTick damage per
+      // tickEvery seconds. The tick runs BEFORE the clock decrement so the
+      // final tick can't be lost to float residue on the last frame. A lethal
+      // tick passes the poisoner as the direct source (they get the kill,
+      // even mid-lava) but never stamps lastHitBy — the round-9 credit rule.
+      if (pl.poisonTick > 0) {
+        pl._poisonNext = (pl._poisonNext ?? ELEMENTS.venom.fx.tickEvery) - dt;
+        if (pl._poisonNext <= 0) {
+          pl._poisonNext += ELEMENTS.venom.fx.tickEvery;
+          applyDamage(state, pl, pl.poisonTick, pl.poisonBy, { silent: true, stamp: false });
+          state.events.push({ t: 'hit', id: pl.id, amount: pl.poisonTick, x: pl.x, y: pl.y, poison: true });
         }
       }
+      pl.poisonT = Math.max(0, pl.poisonT - dt);
+      if (pl.poisonT === 0) { pl.poisonTick = 0; pl.poisonBy = null; }
     }
 
     // repulse charge: 2 s of visible wind-up, then a radial burst
@@ -1068,10 +1072,17 @@ function applyElementsHit(state, pr, target) {
       target.slowT = efxV(f.slowT, el);
       target.slowMultHit = efxV(f.slowMult, el);
     }
-    if (f.dotDamage) {
-      // re-hits REFRESH the duration; the dps never stacks
+    if (f.tickDmg) {
+      // re-hits REFRESH the clock and STACK the tick damage (capped);
+      // a fresh victim starts a new clock with the base tick
+      if (target.poisonT > 0) {
+        target.poisonTick = Math.min(efxV(f.stackCap, el),
+          (target.poisonTick || 0) + efxV(f.stackAdd, el));
+      } else {
+        target.poisonTick = efxV(f.tickDmg, el);
+        target._poisonNext = f.tickEvery;
+      }
       target.poisonT = f.dotTime;
-      target.poisonDps = efxV(f.dotDamage, el) / f.dotTime;
       target.poisonBy = pr.owner;
     }
     if (f.goldOnHit && pr.owner != null) {
