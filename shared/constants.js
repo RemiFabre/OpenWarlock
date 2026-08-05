@@ -38,15 +38,17 @@ export const PLAYER = {
   // counts): impulse *= 1 + KB_HP_FACTOR*(1 - hp/maxHp). Full HP = baseline,
   // near-death ≈ 1.55x. Body size plays NO role in knockback (audited
   // 2026-08-04: being big is only ever a disadvantage — easier to hit).
-  KB_HP_FACTOR: 0.55, // was 0.8: near-death launches felt excessive
+  KB_HP_FACTOR: 0.385, // was 0.8, then 0.55; −30% again 2026-08-05 (low-HP launches still too wild)
   REGEN: 1.2,             // baseline hp/s for everyone (ring stacks on top)
 };
 
 export const LAVA = {
   DPS: 14,          // hp/s while swimming (was 20; -30% 2026-08 playtest round)
   // you move FASTER in lava, not slower: dipping through the lava is a real
-  // play (dodge route, flank), the DPS is the price of admission
-  SPEED_MULT: 1.3,
+  // play (dodge route, flank), the DPS is the price of admission.
+  // 2026-08-05: 1.3 → 2.0 — at 1.3 a swimmer was still a sitting duck;
+  // at 2x you can genuinely dodge while burning
+  SPEED_MULT: 2.0,
 };
 
 export const ROUND = {
