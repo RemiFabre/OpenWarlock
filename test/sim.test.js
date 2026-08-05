@@ -1642,6 +1642,65 @@ describe('v5 mechanics', () => {
   }, 15000);
 });
 
+describe('bot reaction time', () => {
+  it("berserker aims with LAST tick's observation — direction changes inside its reaction window are invisible", () => {
+    const state = createGame({ seed: 9 });
+    addPlayer(state, 'h', 'Human');
+    addPlayer(state, 'b', 'Bot', { bot: true, kind: 'berserker' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const bot = state.players.b, h = state.players.h;
+    state.pillars = [];
+    // decision tick 1: the bot observes the human EAST of it (can't shoot yet)
+    bot.x = 0; bot.y = 0; bot.vx = 0; bot.vy = 0;
+    h.x = 12; h.y = 0; h.vx = 0; h.vy = 0; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 99;
+    stepBot(state, 'b', DT);
+    expect(bot._obs).toBeTruthy();
+    expect(bot._obs.x).toBeCloseTo(12, 0);
+    // the human blinks NORTH between decision ticks; the bot's next shot
+    // still flies at the OLD spot — that lag is the emulated reaction time
+    h.x = 0; h.y = 12; h.vx = 0; h.vy = 0; h.moveTarget = null;
+    bot.x = 0; bot.y = 0; bot.vx = 0; bot.vy = 0;
+    bot._botT = 0; bot.cooldowns.fireball = 0;
+    state.events.length = 0;
+    stepBot(state, 'b', DT);
+    const cast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball' && e.id === 'b');
+    expect(cast).toBeTruthy();
+    expect(cast.dx).toBeGreaterThan(0.7);      // mostly east: the stale obs
+    expect(Math.abs(cast.dy)).toBeLessThan(0.7);
+  });
+
+  it('berserker aim error no longer vanishes at point-blank range', () => {
+    // fixed-seed statistical check: at 3 u the old error term (dist * 0.12)
+    // was ±0.18 u — pixel-perfect. The floor makes point-blank shots spread.
+    const spreads = [];
+    for (let seed = 1; seed <= 8; seed++) {
+      const state = createGame({ seed });
+      addPlayer(state, 'h', 'Human');
+      addPlayer(state, 'b', 'Bot', { bot: true, kind: 'berserker' });
+      startGame(state);
+      run(state, ROUND.COUNTDOWN + DT);
+      const bot = state.players.b, h = state.players.h;
+      state.pillars = [];
+      bot.x = 0; bot.y = 0; h.x = 3; h.y = 0; h.vx = 0; h.moveTarget = null;
+      bot._botT = 0; bot.cooldowns.fireball = 99;
+      stepBot(state, 'b', DT);                  // observe
+      bot.x = 0; bot.y = 0; bot.vx = 0; bot.vy = 0;
+      h.x = 3; h.y = 0; h.vx = 0; h.vy = 0; h.moveTarget = null;
+      bot._botT = 0; bot.cooldowns.fireball = 0;
+      state.events.length = 0;
+      stepBot(state, 'b', DT);                  // shoot
+      const cast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball' && e.id === 'b');
+      if (cast) spreads.push(Math.abs(cast.dy)); // perpendicular miss component
+    }
+    expect(spreads.length).toBeGreaterThan(4);
+    // old code: max |dy| ≈ 0.18/3 = 0.06. With the 1.8u floor some shots
+    // must scatter well beyond that.
+    expect(Math.max(...spreads)).toBeGreaterThan(0.12);
+  });
+});
+
 describe('lifesteal (Blood Sword)', () => {
   // p0 owns a sword and sits at 50 hp; p2, parked far away and also at 50 hp,
   // is the regen control — any hp gap between them is lifesteal healing.

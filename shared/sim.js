@@ -1483,12 +1483,20 @@ function pickPrey(state, pl) {
 // Hunts the nearest (slightly preferring wounded) enemy, rushes to close,
 // fireballs point-blank with intercept aim, and herds rim-standers into the
 // lava by aiming past them. Only ever retreats from the lava edge itself.
+// 2026-08-05 reaction-time pass: the ★★ used to decide every 0.14 s and its
+// aim error was proportional to distance — i.e. PERFECT at point-blank, which
+// made end-game duels feel unwinnable. Now it (a) decides every ~0.21 s,
+// (b) aims from the PREVIOUS tick's observation of its mark (a human-ish
+// reaction lag: direction changes inside the window are invisible to it),
+// and (c) carries an absolute aim-error floor so point-blank stays human.
+// Tuned on 600-game arenas: 0.28 s + 1.8u floor sank the ★★ to grunt Elo;
+// 0.21 s + 0.9u keeps it ~85 Elo above the best grunt, well below stalker.
 
 function stepBerserker(state, pl, dt) {
   const id = pl.id;
   pl._botT = (pl._botT || 0) - dt;
   if (pl._botT > 0) return;
-  pl._botT = 0.14 + rng(state) * 0.1;
+  pl._botT = 0.16 + rng(state) * 0.1;
 
   const arena = state.arenaRadius;
   const dCenter = Math.hypot(pl.x, pl.y);
@@ -1563,10 +1571,21 @@ function stepBerserker(state, pl, dt) {
     if (!mark || o.hp < mark.hp) mark = o;
   }
   if (!mark) mark = nearestEnemy(state, pl);
+  // reaction lag: refresh the observation of the mark every decision tick,
+  // but AIM with the previous one (≈ one tick stale)
+  let seen = null;
+  if (mark) {
+    seen = pl._obs && pl._obs.id === mark.id ? pl._obs : null;
+    const mv = estVel(mark);
+    pl._obs = { id: mark.id, x: mark.x, y: mark.y, vx: mv.vx, vy: mv.vy };
+  }
   if (mark && (pl.cooldowns.fireball || 0) <= 0) {
     const mdx = mark.x - pl.x, mdy = mark.y - pl.y;
     const mDist = Math.hypot(mdx, mdy) || 1;
-    const aim = interceptPoint(pl, mark, SPELLS.fireball.speed);
+    const ghost = seen
+      ? { x: seen.x, y: seen.y, vx: seen.vx, vy: seen.vy, moveTarget: null, dash: null }
+      : { x: mark.x, y: mark.y, vx: pl._obs.vx, vy: pl._obs.vy, moveTarget: null, dash: null };
+    const aim = interceptPoint(pl, ghost, SPELLS.fireball.speed);
     let ax = aim.x, ay = aim.y;
     const mCenter = Math.hypot(mark.x, mark.y);
     // only bend the shot outward when we're already shooting outward-ish,
@@ -1576,7 +1595,8 @@ function stepBerserker(state, pl, dt) {
       ax += (mark.x / mCenter) * 2.5;
       ay += (mark.y / mCenter) * 2.5;
     }
-    const err = (rng(state) - 0.5) * mDist * 0.12;
+    // error floor: the old term (dist * 0.12) vanished at point-blank
+    const err = (rng(state) - 0.5) * (0.9 + mDist * 0.10);
     castSpell(state, id, 'fireball', ax - (mdy / mDist) * err, ay + (mdx / mDist) * err);
   }
 }
