@@ -1,6 +1,9 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, ELEMENTS, BOTS, BUILDS, SNAPSHOT_RATE, ARENA, ROUND, GOLD, itemCost } from '../shared/constants.js';
+import {
+  SPELLS, ITEMS, ITEM_FX, ITEM_COST_STEP, ELEMENTS, BOTS, BUILDS,
+  SNAPSHOT_RATE, ARENA, ROUND, GOLD, itemCost,
+} from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -182,6 +185,19 @@ function onEvent(e) {
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
     case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;
+    case 'multikill': {
+      // yours takes over the middle of the screen; someone else's is a smaller
+      // shout above their body, so you still read who is on a tear
+      const mine = !!(myId && e.id === myId);
+      fx.push({ ...e, type: 'multikill', mine, at: now, dur: mine ? 1.9 : 1.2 });
+      if (mine) playSfx('multikill', e.n);
+      break;
+    }
+    case 'frost': fx.push({ ...e, type: 'frost', at: now, dur: 0.7 }); break;
+    case 'frostBreak':
+      fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
+      playSfx('freeze');
+      break;
   }
   while (fx.length > 200) fx.shift();
 }
