@@ -42,10 +42,13 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel → public URL (verified end-to-end incl. websockets) |
 | `client/` | canvas client: main.js (net/input/HUD/shop), render.js (full-res art + 1/3-res blob layer), music.js, sfx.js (synthesized) |
 | `test/sim.test.js` | 107 vitest tests — `npx vitest run` must stay green |
-| `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`) |
+| `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`, and `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
 | `tools/h2h.js` | **difficulty-ladder check** (2 seats vs 2 seats, 50% = parity) — the mixed Elo table hides tier gaps; this one doesn't |
+| `shared/campaign.js` | **co-op campaign**: the 10 levels as pure data (unit templates + waves + the party-scaling rule). Levels are data, never code |
+| `tools/coop.js` | co-op lab: `--levels` (isolated per-level clear rates, the tuning view), no flag (full campaign runs), `--roster` |
+| `client/coop.js` | co-op client: level card, battle status strip, the 3-way rules toggle. Self-contained on purpose |
 | `tools/reconnect-test.js` | e2e reconnect-persistence test (spawns a real server + ws clients) |
 | `BALANCE.md` | **report #4 (round 10, ~58k games) — current**; #3/#2 in git history at `ab48932` / `9a96b47` |
 | `STRATEGIES.md` | bot difficulty × build chart + how to read arena reports |
@@ -112,6 +115,38 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 - UI: own player wears a permanent red ring; kill banner + jingle on your
   kills; income breakdown on the round banner; gold rules printed in lobby
   and shop.
+
+## Co-op campaign 🛡️ (mode `coop`, lobby toggle cycles classic → elemental → co-op)
+
+- **The whole lobby is one team** (`pl.team`) against AI waves. `team: null`
+  means free-for-all, which is why classic/elemental are bit-for-bit
+  unchanged. Friend-or-foe is gated at the COLLISION and TARGET-SELECTION
+  sites, never in `applyDamage` — knockback lands before damage everywhere and
+  shoving an ally into the lava would still kill them.
+- **10 levels, all data** in `shared/campaign.js` (unit templates × counts ×
+  arrival times). Every enemy is an existing bot kind × existing build with
+  tuned `maxHp`/`spells`/`items`/`sizeMult`. **No new AI was written.**
+- **Level != round.** Clearing advances the level; a wipe costs a round and
+  you retry the same level one shop richer. `ROUND.COOP_MAX_ROUNDS` (13) is
+  the budget for the whole run. Art/music/title come from the LEVEL, and the
+  finale plays the intro theme over level 10's art.
+- **What the lab found** (`tools/coop.js`, measured, not guessed):
+  - **★★★ enemies are the difficulty cliff.** The h2h ladder is real: a lone
+    ★★ cannot beat a ★★★ at any HP. ★★★ units must be *cheap to kill*
+    (Shade: 40 hp) or they are unloseable walls, not enemies.
+  - **HP is a weak lever for berserkers, the whole fight for stalkers.** A
+    berserker dies to the lava, so a Brute at 210 and at 546 clear the same;
+    a stalker never swims, so it has to be burned down.
+  - **Enemy lightning is a solo-killer** — hitscan, undodgeable. Removing it
+    from one unit moved the solo clear rate 4% → 70%.
+  - **Party scaling has to be superlinear** (`COUNT_PER_PLAYER` 1.2): a party
+    only wipes when EVERYONE is down, so 3 players are far more than 3× as
+    durable. Chaff scales at the default rate; real threats need
+    `perPlayer ~0.5` or the level explodes.
+  - The boss is a ★★ **berserker** with every upgrade, not a ★★★: a ★★★ with
+    boots kites forever (measured 0% clear at every party size).
+- Difficulty axis is verified, not assumed: ★ grunt party fails from level 3,
+  ★★ berserker rides the intended curve, ★★★ stalker clears 98-100%.
 
 ## Hosting & multiplayer ops
 

@@ -6,6 +6,42 @@ you asked before leaving.*
 
 ---
 
+## MODE CO-OP 🛡️ — une campagne de 10 niveaux, humains contre l'IA (2026-08-06)
+
+Nouveau bouton dans le lobby : **Règles → 🛡️ Campagne co-op**. Tout le monde
+est dans **la même équipe** contre des vagues pilotées par l'IA. Le tir allié
+ne fait plus rien du tout (ni dégâts, ni poussée — donc plus personne ne
+balance son copain dans la lave par accident).
+
+- **10 niveaux = les 10 musiques et les 10 tableaux**, dans l'ordre. Le
+  niveau 10 (« Liberation. ») joue le thème de l'intro, comme tu voulais.
+- **Avant chaque niveau, une carte t'annonce ce qui arrive** : le nom du
+  niveau, une phrase qui décrit le piège, et la composition exacte de la vague.
+- **Ça marche en solo, à 2 et à 3** : le nombre d'ennemis (et la vie des gros)
+  monte avec la taille du groupe. À 3 il y a franchement plus de monde.
+- **Rater un niveau ne casse pas la partie** : l'équipe recommence le même
+  niveau au tour suivant, avec une boutique de plus dans les poches. Mais la
+  run entière a un budget de **13 tours** pour les 10 niveaux, donc trop
+  d'échecs coûtent la campagne.
+- **Le bestiaire réutilise les bots existants** (aucune nouvelle IA écrite) —
+  seulement leurs stats changent : Imp 👺 (6 pv, meurt d'une boule), Hound 🐺,
+  Cultist 🧟, Shade 👻 (le ★★★ qui esquive), Brute 👹 (210 pv, tu ne le tues
+  pas au dégât : tu le pousses dans la lave), et **Sargeras 😈** au niveau 10,
+  deux fois ta taille avec **tous les upgrades du jeu**.
+- **Difficulté réglée à la mesure, pas au feeling** : ~10 000 parties sans
+  interface. Une équipe de bots ★★ passe la campagne 81 % / 95 % / 100 % du
+  temps à 1 / 2 / 3 joueurs, avec des niveaux de fin qui se jouent entre 26 %
+  et 90 % de réussite par tentative. Une équipe de ★ échoue dès le niveau 3,
+  une équipe de ★★★ passe partout : l'axe de difficulté discrimine vraiment.
+  **Attention** : les bots ne combottent pas et n'utilisent aucun sort de la
+  tier power (météore, grappin, repulse, miroir). Pour des humains qui
+  coordonnent, ce sera plus facile que ces chiffres — dis-moi après le test et
+  je remonte la courbe, c'est une table de données, pas du code.
+- Le classique et l'élémentaire sont **strictement inchangés** (vérifié :
+  sortie du labo d'équilibrage identique au bit près).
+
+---
+
 ## ROUND 11 — round 1 réparé, Critical réparé, Glace/Midas/Boomerang refaits, Moustique 🦟 (2026-08-06)
 
 ### Les deux VRAIS bugs que tes retours ont fait tomber

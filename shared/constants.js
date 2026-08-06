@@ -70,7 +70,7 @@ export const ROUND = {
   // one more shop's worth of gold — so this is the retry budget (3 spare
   // rounds). Measured 2026-08-06 with tools/coop.js: a ★★ berserker party
   // spends 10.4 (3 players) to 12.2 (solo) rounds on a full run, and finishes
-  // the campaign 100% / 97% / 87% of the time at 3 / 2 / 1 players. 14 rounds
+  // the campaign 100% / 95% / 81% of the time at 3 / 2 / 1 players. 14 rounds
   // is a formality, 12 locks a solo player out a third of the time.
   COOP_MAX_ROUNDS: 13,
   KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
