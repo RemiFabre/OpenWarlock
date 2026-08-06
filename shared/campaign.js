@@ -26,24 +26,44 @@
 //   scale: 'none'           — fixed, whatever the party size
 //   minParty: n             — the wave only exists at party size >= n
 //   perPlayer: f            — override COUNT_PER_PLAYER for this wave only
-// CHAFF scales at the default rate; a wave of real threats must scale SLOWER
-// (perPlayer ~0.5) or the level explodes: measured 2026-08-06, seven hounds
-// beat every party size while three are a fair fight for one player.
 // Their spells, items and AI tier never scale: those are the level's signature
 // and stay identical at 1, 2 or 3 players.
-//
-// What HP actually does (measured 2026-08-06 with tools/coop.js, and it is not
-// obvious): for a BERSERKER-kind enemy, HP is nearly a no-op — it dies to the
-// lava, not to damage, so a Brute at 210 and a Brute at 546 clear at the same
-// rate and the fight just lasts longer. For a STALKER-kind enemy, HP is the
-// whole fight: it never walks into the lava, so it has to be burned down, and
-// the same Warden went from a 70% clear at 55 hp to 2% at 90 hp. Rule of
-// thumb: scale tanks by HP for pacing, keep skirmishers cheap to kill.
 //
 // Why the scaling is superlinear (COUNT_PER_PLAYER > 1): a party only wipes
 // when EVERY member is down, so three players are far more than three times as
 // durable as one. Flat clear rates across party sizes need >1x bodies per
 // extra player.
+//
+// ---- what the retune of 2026-08-07 learned (friendly fire is ON) ------------
+// Allies — including monsters — now damage and shove each other. That rewrote
+// every rule of thumb this file used to carry, so the whole table was remeasured
+// with `node tools/coop.js --levels` (200 attempts per level per party size):
+//
+// * MORE BODIES IS OFTEN EASIER. A pack that only grows in numbers shreds
+//   itself: eighteen imps clear 100% at every size, and nine 45 hp hounds are a
+//   softer level 6 than five 64 hp ones. Chaff waves that used to be the party-
+//   scaling default now make a level LESS threatening as the party grows, which
+//   is exactly the flattening this retune had to undo. Grow packs with
+//   scale:'both' (count AND hp) so the survivors are worth the crossfire.
+// * CHAFF EXPIRES. Imps and Cultists are level-1-to-5 units and nothing more:
+//   at level-8 gear, six imps, thirteen imps and five cultists all clear 100%
+//   at every party size. The back half is denominated in Shades and tanks.
+// * STAGGERING ARRIVALS IS A DIFFICULTY *REDUCTION*, not an increase — a wave
+//   that trickles in fights the party one at a time and never crosses fire with
+//   itself, but also never surrounds anyone. Late `at` times are a softening
+//   lever now (level 9's hounds), not a pressure lever.
+// * A PARTY IS WORTH FAR MORE THAN ITS BODY COUNT. One Shade is a 71% clear
+//   solo and two are 10%; two Shades against a DUO are 95%. Threat counts have
+//   to roughly triple from 1p to 2p, which is more than any perPlayer value
+//   lands cleanly — hence the minParty/scale:'none' waves that count the real
+//   threats out by hand for each party size.
+//
+// What HP does (still true, refined): for a BERSERKER-kind enemy at LOW gear,
+// HP is nearly a no-op — it dies to the lava, not to damage. Against a
+// late-campaign party it stops being free: they out-damage the lava, so the
+// Golem's 380 (and lava treads, which is the same lever from the other side) is
+// what makes level 8 a siege. For a STALKER-kind enemy HP is the whole fight at
+// any gear: it never walks into the lava, so it has to be burned down.
 
 export const TEAM = { PARTY: 'party', AI: 'ai' };
 
@@ -76,7 +96,11 @@ const SHADE = {         // ★★★ skirmisher: dodges and blinks — but made 
   // Measured 2026-08-06: two ★★★ Shades at 90 hp WITH a shield wiped every
   // ★★ party at every size (the ★★★ > ★★ ladder is 100% in h2h — see
   // AGENTS.md). A ★★★ enemy's job here is to be hard to HIT, not hard to kill.
-  name: 'Shade', avatar: '👻', kind: 'stalker', maxHp: 40, sizeMult: 0.85,
+  // 2026-08-07: 40 -> 34. Shades are the ONLY unit the late campaign can price
+  // in — imps, cultists and 45 hp hounds all read as 100% clears by level 8 —
+  // so the whole back half is denominated in Shades, and one Shade has to be a
+  // finer-grained unit of difficulty than it used to be.
+  name: 'Shade', avatar: '👻', kind: 'stalker', maxHp: 34, sizeMult: 0.85,
   spells: { fireball: 1, teleport: 1 },
 };
 const BRUTE = {         // a wall you shove into the lava, not one you burn down
@@ -88,6 +112,14 @@ const BRUTE = {         // a wall you shove into the lava, not one you burn down
 // player cannot dodge it and cannot out-trade it — it took the solo clear rate
 // from 70% to 4% on its own. If you want a nastier skirmisher, add bodies, not
 // hitscan.)
+const GOLEM = {         // the Brute's big brother: a siege engine, not a skirmisher
+  // A second tank template exists because level 5's Brute and level 8's tank
+  // need different weight classes, and a wave can only scale a template's HP,
+  // never override it. Measured 2026-08-07: at level-8 gear a 210 hp Brute is a
+  // 97% clear — the tank has to start where the Brute's party-scaled HP ends.
+  name: 'Golem', avatar: '🗿', kind: 'berserker', maxHp: 380, sizeMult: 1.6,
+  spells: { fireball: 2, rush: 1 }, items: ['cape', 'treads'],
+};
 const CHAMPION = {
   // The finale, and the answer to Remi's "3 against one very strong player who
   // has every upgrade". A ★★ BERSERKER on purpose, not a ★★★ stalker: a ★★★
@@ -96,7 +128,10 @@ const CHAMPION = {
   // No boomerang either: bots over-perform with it for reasons that have
   // nothing to do with the fight being good (AGENTS.md, "nothing dodges or
   // catches a boomerang").
-  name: 'Sargeras', avatar: '😈', kind: 'berserker', maxHp: 110, sizeMult: 1.8,
+  // 110 -> 130 (2026-08-07): with the hound bodyguard replaced by Shades the
+  // boss himself had to carry more of the fight; his HP is the finest lever
+  // level 10 has (every 7 hp is worth ~4 clear points at every party size).
+  name: 'Sargeras', avatar: '😈', kind: 'berserker', maxHp: 130, sizeMult: 1.8,
   spells: { fireball: 3, lightning: 3, teleport: 2, shield: 2, rush: 2, pillar: 2 },
   items: ['boots', 'cape', 'ring', 'sword', 'treads'],
 };
@@ -255,4 +290,4 @@ export function levelRoster(level, partySize) {
   ).join(' · ');
 }
 
-export { IMP, HOUND, CULTIST, SHADE, BRUTE, CHAMPION };
+export { IMP, HOUND, CULTIST, SHADE, BRUTE, GOLEM, CHAMPION };
