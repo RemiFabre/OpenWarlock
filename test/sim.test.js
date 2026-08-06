@@ -4,7 +4,8 @@ import {
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
   setMode, BOT_ELEMENTS, playerStats,
 } from '../shared/sim.js';
-import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, itemCost } from '../shared/constants.js';
+import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, itemCost } from '../shared/constants.js';
+import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
 const DT = 1 / 30;
 
@@ -1974,5 +1975,213 @@ describe('lifesteal (Blood Sword)', () => {
     run(state, 0.4);
     expect(b.alive).toBe(false);
     expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+  });
+});
+
+// ---- co-op campaign ---------------------------------------------------------
+// The whole mode rests on one rule — same team = not hostile — and that rule
+// has to be enforced at the COLLISION sites, not in applyDamage: knockback is
+// applied before damage everywhere, and shoving an ally into the lava would
+// still kill them.
+
+describe('co-op: teams', () => {
+  // Two allies facing each other in a co-op battle, plus one enemy far away
+  // (a co-op round needs a live monster or it ends instantly).
+  function coopBattle({ allies = 2 } = {}) {
+    const state = createGame({ seed: 5, mode: 'coop' });
+    for (let i = 0; i < allies; i++) addPlayer(state, `p${i}`, `Ally${i}`);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    return state;
+  }
+  const party = (state) => Object.values(state.players).filter(p => p.team === 'party');
+  const wave = (state) => Object.values(state.players).filter(p => p.team === 'ai');
+
+  it('createGame and setMode accept coop (they used to silently downgrade it)', () => {
+    expect(createGame({ mode: 'coop' }).mode).toBe('coop');
+    const s = createGame({ seed: 1 });
+    expect(setMode(s, 'coop')).toBe(true);
+    expect(s.mode).toBe('coop');
+    expect(setMode(s, 'nonsense')).toBe(false);
+  });
+
+  it('seats the party on one team and the level 1 wave on the other', () => {
+    const state = coopBattle();
+    expect(party(state)).toHaveLength(2);
+    expect(wave(state).length).toBeGreaterThan(0);
+    expect(state.coop.level).toBe(1);
+    // monsters are bots with the campaign's stats, never lobby bots
+    for (const m of wave(state)) expect(m.bot && m.wave).toBe(true);
+  });
+
+  it('an ally fireball does not damage or knock back an ally', () => {
+    const state = coopBattle();
+    const [a, b] = party(state);
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    const hp0 = b.hp;
+    castSpell(state, a.id, 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(b.hp).toBeGreaterThanOrEqual(hp0); // no damage (regen may add)
+    expect(Math.abs(b.vx) + Math.abs(b.vy)).toBe(0); // and NO knockback at all
+  });
+
+  it('the same fireball does hit a wave monster', () => {
+    const state = coopBattle();
+    const [a] = party(state);
+    const m = wave(state)[0];
+    a.x = 0; a.y = 0; a.moveTarget = null;
+    m.x = 8; m.y = 0; m.vx = 0; m.vy = 0; m.moveTarget = null; m.maxHp = 200; m.hp = 200;
+    castSpell(state, a.id, 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(m.hp).toBeLessThan(200);
+  });
+
+  it('allies do not knock each other back with rush, repulse or meteor', () => {
+    for (const spell of ['rush', 'repulse', 'meteor']) {
+      const state = coopBattle();
+      const [a, b] = party(state);
+      a.x = 0; a.y = 0; a.moveTarget = null;
+      b.x = 3; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+      a.spells[spell] = 1;
+      const hp0 = b.hp;
+      castSpell(state, a.id, spell, b.x, b.y);
+      run(state, 2.5); // long enough for the repulse charge and the meteor delay
+      expect(Math.abs(b.vx) + Math.abs(b.vy), spell).toBe(0);
+      expect(b.hp, spell).toBeGreaterThanOrEqual(hp0);
+    }
+  });
+
+  it('classic mode is untouched: no teams, everyone still hits everyone', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    expect(a.team).toBe(null);
+    a.x = 0; a.y = 0; a.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(b.hp).toBeLessThan(PLAYER.MAX_HP);
+    expect(Math.abs(b.vx)).toBeGreaterThan(0);
+  });
+
+  it('clearing the wave ends the round even with the whole party alive', () => {
+    const state = coopBattle({ allies: 3 });
+    for (const m of wave(state)) { m.hp = 0; m.alive = false; }
+    run(state, 2 * DT);
+    expect(state.phase).toBe('roundEnd');
+    expect(state.roundSummary.coop.cleared).toBe(true);
+    expect(state.roundSummary.coop.survivors).toBe(3);
+    // three survivors, and the banner must not read "nobody survived"
+    expect(state.roundSummary.winner).toBe(null);
+    // every survivor is paid the round-win bonus, not just one
+    for (const p of party(state)) expect(state.roundSummary.detail[p.id].win).toBe(GOLD.ROUND_WIN);
+  });
+
+  it('a party wipe ends the round and does NOT advance the campaign', () => {
+    const state = coopBattle();
+    for (const p of party(state)) { p.hp = 0; p.alive = false; }
+    run(state, 2 * DT);
+    expect(state.phase).toBe('roundEnd');
+    expect(state.roundSummary.coop.wiped).toBe(true);
+    expect(state.coopLevel).toBe(1);          // retry the same level
+    expect(state.roundSummary.final).toBe(false);
+  });
+
+  it('a clear advances the campaign level; the finale ends the run', () => {
+    const state = coopBattle();
+    for (const m of wave(state)) { m.hp = 0; m.alive = false; }
+    run(state, 2 * DT);
+    expect(state.coopLevel).toBe(2);
+    expect(state.roundSummary.final).toBe(false);
+
+    state.coopLevel = MAX_LEVEL;              // jump to the finale
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.coop.level).toBe(MAX_LEVEL);
+    state.coop.pending = []; // the finale's timed reinforcements, skipped
+    for (const m of wave(state)) { m.hp = 0; m.alive = false; }
+    run(state, 2 * DT);
+    expect(state.roundSummary.final).toBe(true);
+    expect(state.roundSummary.coop.victory).toBe(true);
+  });
+
+  it('wave monsters never distort the party body-size average', () => {
+    // eight zero-kill monsters used to collapse the mean and inflate the whole
+    // party toward the 2.0x size cap — giant targets as a reward for clearing
+    const state = coopBattle();
+    const [a, b] = party(state);
+    a.kills = 8; b.kills = 8;
+    run(state, DT);
+    expect(a.radius).toBeCloseTo(PLAYER.RADIUS, 5); // equal kills -> baseline size
+    for (const m of wave(state)) expect(m.radius).toBeCloseTo(PLAYER.RADIUS * m.sizeMult, 5);
+  });
+
+  it('the campaign never ends on the classic 15-kill race', () => {
+    const state = coopBattle();
+    party(state)[0].kills = ROUND.KILLS_TO_WIN + 5;
+    for (const m of wave(state)) { m.hp = 0; m.alive = false; }
+    run(state, 2 * DT);
+    expect(state.roundSummary.final).toBe(false);
+  });
+
+  it('coop wire fields appear only in coop', () => {
+    const coop = snapshot(coopBattle());
+    expect(coop.coop.level).toBe(1);
+    expect(coop.coop.brief).toEqual(expect.any(String));
+    expect(Object.values(coop.players).some(p => p.team === 'ai')).toBe(true);
+    const classic = snapshot(freshBattle(2));
+    expect(classic.coop).toBeUndefined();
+    expect(Object.values(classic.players)[0].team).toBeUndefined();
+  });
+});
+
+describe('co-op: campaign scaling rule', () => {
+  it('count waves grow with the party, hp waves get tougher instead', () => {
+    const lv = { n: 1, name: 'x', brief: 'x', waves: [
+      { count: 2, unit: { name: 'A', kind: 'grunt', maxHp: 50, spells: {} } },
+      { count: 1, unit: { name: 'B', kind: 'grunt', maxHp: 100, spells: {} }, scale: 'hp' },
+    ] };
+    const at = (p) => waveUnits(lv, p);
+    expect(at(1).filter(u => u.name === 'A')).toHaveLength(2);
+    expect(at(3).filter(u => u.name === 'A')).toHaveLength(
+      Math.round(2 * (1 + SCALE.COUNT_PER_PLAYER * 2)));
+    // the 'hp' wave never clones itself...
+    expect(at(1).filter(u => u.name === 'B')).toHaveLength(1);
+    expect(at(3).filter(u => u.name === 'B')).toHaveLength(1);
+    // ...it scales its health instead
+    expect(at(1).find(u => u.name === 'B').maxHp).toBe(100);
+    expect(at(3).find(u => u.name === 'B').maxHp)
+      .toBe(Math.round(100 * (1 + SCALE.HP_PER_PLAYER * 2)));
+  });
+
+  it('minParty gates a wave and perPlayer overrides the growth rate', () => {
+    const lv = { n: 1, name: 'x', brief: 'x', waves: [
+      { count: 1, unit: { name: 'Elite', kind: 'stalker', maxHp: 50, spells: {} },
+        minParty: 3, perPlayer: 0 },
+    ] };
+    expect(waveUnits(lv, 2)).toHaveLength(0);
+    expect(waveUnits(lv, 3)).toHaveLength(1); // perPlayer 0 => exactly one
+  });
+
+  it('every level is playable data: 10 levels, art-backed, all units real bots', () => {
+    expect(CAMPAIGN).toHaveLength(MAX_LEVEL);
+    CAMPAIGN.forEach((lv, i) => {
+      expect(lv.n).toBe(i + 1);
+      expect(lv.brief.length).toBeGreaterThan(20); // the "what is about to happen"
+      for (const p of [1, 2, 3]) {
+        const units = waveUnits(lv, p);
+        expect(units.length).toBeGreaterThan(0);
+        for (const u of units) {
+          expect(Object.keys(BOTS)).toContain(u.kind); // an EXISTING bot kind
+          expect(u.maxHp).toBeGreaterThan(0);
+          for (const it of u.items) expect(ITEMS[it]).toBeTruthy();
+        }
+      }
+      // a bigger party never gets an EASIER level (the scaling rule's promise;
+      // the actual clear rates live in tools/coop.js, not in a unit test)
+      const [u1, u2, u3] = [1, 2, 3].map(p => waveUnits(lv, p));
+      expect(u2.length).toBeGreaterThanOrEqual(u1.length);
+      expect(u3.length).toBeGreaterThanOrEqual(u2.length);
+    });
   });
 });
