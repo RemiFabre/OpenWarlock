@@ -165,70 +165,95 @@ export const CAMPAIGN = [
   },
   {
     n: 4, name: 'Too much?',
-    brief: 'A tide in chains: imps and a cultist now, hounds at 14 s, more imps at 26 s. Do not chase — hold the centre.',
+    brief: 'A tide in chains: imps and a cultist now, hounds at 14 s, a second pack at 24 s. Do not chase — hold the centre.',
     waves: [
       { count: 2, unit: IMP },
       { count: 1, unit: CULTIST, scale: 'hp' },
       { count: 1, unit: HOUND, at: 14, perPlayer: 1.0 },
+      { count: 1, unit: HOUND, at: 24, perPlayer: 0.5 },
       { count: 2, unit: IMP, at: 26 },
     ],
   },
   {
     n: 5, name: 'Too late.',
-    brief: 'A Brute. 210 HP of muscle you will not out-damage — shove it into the lava while the imps swarm you.',
+    brief: 'A Brute. 210 HP of muscle you will not out-damage — shove it into the lava while the imps swarm you. Alone you get it to yourself; a duo also gets two hounds, a trio three.',
     waves: [
       { count: 1, unit: BRUTE, scale: 'hp' },
       { count: 2, unit: IMP },
       { count: 2, unit: IMP, at: 20 },
+      // The escort is party-size-gated, not count-scaled: measured 2026-08-07,
+      // a single extra hound takes the SOLO clear from 78% to 24% while two of
+      // them barely dent a duo. Bodies are worth wildly less per player.
+      { count: 2, unit: HOUND, minParty: 2, scale: 'none' },
+      { count: 1, unit: HOUND, minParty: 3, scale: 'none' },
     ],
   },
   {
     n: 6, name: 'The price.',
-    brief: 'A hound pack, a cultist calling the shots, and imps behind them. No single target to blame — pick one and commit.',
+    brief: 'A full hound pack, a cultist calling the shots, imps behind them. The pack grows AND toughens with the party — a bigger pack no longer trips over itself.',
     waves: [
-      { count: 2, unit: HOUND, perPlayer: 1.0 },
+      // 'both' on purpose: a pack that only grows in NUMBERS gets weaker per
+      // extra player now that friendly fire is on — measured 2026-08-07, nine
+      // 45 hp hounds cleared 98% at 3p because they shredded each other.
+      // Splitting the scaling into count+hp keeps the pack lethal at size.
+      { count: 3, unit: HOUND, scale: 'both', perPlayer: 1.2 },
       { count: 1, unit: CULTIST, scale: 'hp' },
       { count: 2, unit: IMP, at: 16 },
     ],
   },
   {
     n: 7, name: 'Still standing.',
-    brief: 'A Shade. It dodges, it blinks, it will not stand still for you — bait the dodge for your partner, and mind the imps.',
+    brief: 'Shades — one, then two more for every warlock who came, and a hound to herd a trio. They dodge, they blink, they will not stand still for you. Almost no chaff to hide behind: this one is pure aim.',
+    // Deliberately near escort-free. Measured 2026-08-07: chaff around the
+    // Shades makes the level swingy without making it harder (imps die to the
+    // Shades' own fire now); the clean version reads 69/67/70 across party
+    // sizes where the imp-and-hound-escorted one read 59/80/91.
     waves: [
-      { count: 1, unit: SHADE, perPlayer: 1.0 },
-      { count: 1, unit: HOUND, minParty: 2, perPlayer: 1.0 },
-      { count: 2, unit: IMP, at: 18, minParty: 2 },
+      { count: 1, unit: SHADE, scale: 'none' },
+      { count: 2, unit: SHADE, minParty: 2, scale: 'none' },
+      { count: 2, unit: SHADE, minParty: 3, scale: 'none' },
+      // A sixth Shade at 3p overshot (57% vs the 70% a hound lands on), and a
+      // Shade is the coarsest unit in the game — one hound is the fine tuning.
+      { count: 1, unit: HOUND, minParty: 3, scale: 'none' },
     ],
   },
   {
     n: 8, name: 'Of course.',
-    brief: 'A Brute AND a hound pack, with imps rolling in on a timer. The arena will be small by then.',
+    brief: 'A Golem — 380 HP in lava treads, so the lava will not do your work for you — behind a hound pack that grows and toughens with the party. Imps at 16 s. The arena will be small by then.',
     waves: [
-      { count: 1, unit: BRUTE, scale: 'hp' },
-      { count: 1, unit: HOUND, perPlayer: 1.0 },
-      { count: 1, unit: HOUND, minParty: 2, perPlayer: 1.0 },
+      { count: 1, unit: GOLEM, scale: 'hp' },
+      { count: 2, unit: HOUND, scale: 'both', perPlayer: 1.8 },
       { count: 3, unit: IMP, at: 16 },
-      { count: 2, unit: IMP, at: 30 },
+      { count: 2, unit: HOUND, minParty: 3, scale: 'none' },
     ],
   },
   {
     n: 9, name: 'Endure.',
-    brief: 'A Shade and a Brute together, escorted, reinforced. Nothing here dies quickly. Combo, or be surrounded.',
+    brief: 'A Brute you cannot ignore and a Shade coven you cannot pin down, with hounds arriving past 22 s to close the net. The coven doubles and doubles again with the party. Nothing here dies quickly. Combo, or be surrounded.',
     waves: [
-      { count: 1, unit: SHADE, perPlayer: 0.5 },
-      { count: 1, unit: HOUND, perPlayer: 0.5 },
-      { count: 2, unit: IMP, perPlayer: 0 },
-      { count: 1, unit: BRUTE, scale: 'hp', minParty: 2 },
-      { count: 1, unit: HOUND, minParty: 3, scale: 'none' },
-      { count: 2, unit: IMP, at: 20, minParty: 3 },
+      // Shades are counted out by hand per party size instead of scaled: the
+      // step from three to four of them is worth ~30 clear points at 2p
+      // (measured 2026-08-07), which no perPlayer value can land between.
+      { count: 1, unit: SHADE, scale: 'none' },
+      { count: 2, unit: SHADE, minParty: 2, scale: 'none' },
+      { count: 4, unit: SHADE, minParty: 3, scale: 'none' },
+      { count: 1, unit: BRUTE, scale: 'hp' },
+      { count: 1, unit: HOUND, at: 26, scale: 'both', perPlayer: 0.6 },
+      { count: 1, unit: HOUND, at: 22, minParty: 2, scale: 'none' },
     ],
   },
   {
     n: 10, name: 'Liberation.',
-    brief: 'Sargeras: one enemy carrying every upgrade a warlock can pilot, twice your size, with a bodyguard and imps without end. Everything you have learned, at once.',
+    brief: 'Sargeras: one enemy carrying every upgrade a warlock can pilot, twice your size, and imps without end. He faces a lone warlock alone; bring friends and Shades answer at his shoulder, with a hound loosed at 20 s. Everything you have learned, at once.',
     waves: [
       { count: 1, unit: CHAMPION, scale: 'hp' },
-      { count: 1, unit: HOUND, minParty: 2, perPlayer: 1.8 },
+      // A hound PACK was the old bodyguard and it now dies to his own blasts
+      // before it matters (measured 2026-08-07: five of them left the 3p clear
+      // at 81%). Shades survive standing next to him, so the honour guard is
+      // ghosts, and exactly one hound rides along as the fine adjustment.
+      { count: 1, unit: SHADE, minParty: 2, scale: 'none' },
+      { count: 2, unit: SHADE, minParty: 3, scale: 'none' },
+      { count: 1, unit: HOUND, at: 20, minParty: 2, scale: 'none' },
       { count: 2, unit: IMP, at: 15 },
       { count: 2, unit: IMP, at: 30 },
     ],
