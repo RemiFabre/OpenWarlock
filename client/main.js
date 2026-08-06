@@ -7,6 +7,9 @@ import {
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
+import {
+  nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
+} from './coop.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -233,8 +236,10 @@ let musicPhase = null;
 function phaseMusic(s) {
   if (s.phase === musicPhase) return;
   musicPhase = s.phase;
-  if (s.phase === 'countdown') setLevel(fin(+s.round) ? +s.round : 1);
-  else if (s.phase === 'lobby' || s.phase === 'gameover') setLevel('intro');
+  // co-op keys the level off the CAMPAIGN level, not the round (a wipe costs
+  // a round but not a level) — see client/coop.js
+  if (s.phase === 'countdown' || s.phase === 'lobby' || s.phase === 'gameover')
+    applyLevelMusic(s);
 }
 
 // ---- interpolation -----------------------------------------------------------
@@ -456,7 +461,7 @@ $('spectateBtn').addEventListener('click', () => {
 });
 $('modeBtn').addEventListener('click', () => {
   const s = latest();
-  send({ t: 'mode', mode: s && s.mode === 'elemental' ? 'classic' : 'elemental' });
+  send({ t: 'mode', mode: nextMode(s ? s.mode : 'classic') }); // classic → elemental → co-op
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
@@ -1102,6 +1107,7 @@ function updateUi(s) {
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
   phaseSounds(s);
   phaseMusic(s);
+  updateCoopHud(s); // co-op campaign level card + status strip (no-op elsewhere)
 
   if (s.phase === 'lobby') {
     const list = $('playerList');
@@ -1135,9 +1141,10 @@ function updateUi(s) {
     // ruleset toggle — server-authoritative, everyone sees the same value
     const modeBtn = $('modeBtn');
     const elemental = s.mode === 'elemental';
-    modeBtn.textContent = elemental ? 'Rules: ⚗️ Elemental (experimental)' : 'Rules: Classic';
+    modeBtn.textContent = modeLabel(s.mode);
+    modeBtn.title = modeTitle(s.mode);
     modeBtn.classList.toggle('elemental', elemental);
-    modeBtn.setAttribute('aria-pressed', elemental ? 'true' : 'false');
+    modeBtn.setAttribute('aria-pressed', s.mode !== 'classic' ? 'true' : 'false');
   }
 
   if (s.phase === 'shop') {
@@ -1181,7 +1188,9 @@ function updateUi(s) {
   }
 
   if (s.phase === 'battle') {
-    $('phasebar').textContent = `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
+    $('phasebar').textContent = s.coop
+      ? `round ${s.round} · co-op campaign` // the kill race does not apply
+      : `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
   } else if (s.phase === 'roundEnd') {
     $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {

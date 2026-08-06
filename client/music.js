@@ -15,6 +15,7 @@ let active = 0;
 let fadeTimer = null;
 let currentKey = null;  // track key currently playing ('lv3' | 'intro' | null)
 let wantedN = 'intro';  // last setLevel() argument; menus start on the intro track
+let trackN = null;      // optional audio-only override (see setLevel)
 let inited = false;
 
 let musicMuted = false;
@@ -62,8 +63,12 @@ export function initMusic() {
   } catch { players = null; }
 }
 
-export function setLevel(n) {
+// setLevel(n) picks BOTH the track and the art. `track` overrides the audio
+// only: the co-op finale shows level 10's art over the intro theme
+// (setLevel(10, 'intro')) — Remi's ask for the 10th level.
+export function setLevel(n, track = null) {
   wantedN = n;
+  trackN = track;
   apply();
 }
 
@@ -72,10 +77,11 @@ function targetVolume() { return musicMuted ? 0 : VOLUME; }
 function apply() {
   try {
     if (!inited || !players || !levels.length) return;
+    const wantAudio = trackN != null ? trackN : wantedN;
     let key, src;
-    if (wantedN === 'intro' && intro) { key = 'intro'; src = intro.music; }
+    if (wantAudio === 'intro' && intro) { key = 'intro'; src = intro.music; }
     else {
-      const idx = resolveIndex(wantedN === 'intro' ? 1 : wantedN);
+      const idx = resolveIndex(wantAudio === 'intro' ? 1 : wantAudio);
       if (idx < 0) return;
       key = 'lv' + idx; src = levels[idx].music;
     }

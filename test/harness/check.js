@@ -18,6 +18,7 @@ export function checkJournal(lines) {
   }
 
   let phase = 'lobby';
+  let mode = 'classic';
   let alive = new Set();
   let playersSeen = new Set();
   let spectators = new Set();
@@ -52,7 +53,10 @@ export function checkJournal(lines) {
           for (const k of Object.keys(lastCast)) delete lastCast[k];
         }
         if (e.from === 'battle' && e.to === 'roundEnd') {
-          if (totalAtRoundStart >= 2 && alive.size > 1)
+          // In the co-op campaign a round ends when the WAVE is dead, so the
+          // whole party can (and should) be standing. The free-for-all law
+          // "one survivor" simply does not apply there.
+          if (mode !== 'coop' && totalAtRoundStart >= 2 && alive.size > 1)
             v(`round ended with ${alive.size} players still alive`, e);
         }
         phase = e.to;
@@ -61,6 +65,7 @@ export function checkJournal(lines) {
 
       case 'reset':
         phase = 'lobby';
+        mode = 'classic';
         playersSeen = new Set();
         alive = new Set();
         spectators = new Set();
@@ -68,6 +73,7 @@ export function checkJournal(lines) {
 
       case 'msg':
         if (e.m && e.m.t === 'join') playersSeen.add(e.id);
+        if (e.m && e.m.t === 'mode' && typeof e.m.mode === 'string') mode = e.m.mode;
         if (e.m && e.m.t === 'spectate') {
           if (e.m.on) spectators.add(e.id); else spectators.delete(e.id);
         }
@@ -106,8 +112,12 @@ export function checkJournal(lines) {
         // liveness: server digests every second; a big gap = stalled tick loop
         if (lastDigestEntry && e.ms - lastDigestEntry.ms > 3000)
           v(`tick stall: ${e.ms - lastDigestEntry.ms} ms between digests`, e);
+        if (e.mode) mode = e.mode;
         // player sanity
         for (const [id, p] of Object.entries(e.players || {})) {
+          // co-op campaign monsters are spawned by the simulation, not seated
+          // by anyone: they are never fighters for the round-end law above
+          if (p.wave) continue;
           if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) v(`non-finite position for ${id}`, e);
           if (Math.abs(p.x) > 500 || Math.abs(p.y) > 500) v(`position blowup for ${id}: (${p.x}, ${p.y})`, e);
           if (!Number.isFinite(p.hp) || p.hp < 0 || p.hp > PLAYER.MAX_HP + 100) v(`hp out of bounds for ${id}: ${p.hp}`, e);

@@ -418,8 +418,11 @@ setInterval(() => {
           x: +p.x.toFixed(2), y: +p.y.toFixed(2), hp: +p.hp.toFixed(1),
           gold: p.gold, score: p.score, alive: p.alive, bot: p.bot,
           spells: p.spells, items: p.items,
+          // co-op: campaign monsters are not seats — the invariant checker
+          // must not count them as fighters (see test/harness/check.js)
+          ...(p.wave ? { wave: true } : {}),
         };
-      journal('digest', { phase: game.phase, round: game.round, arenaR: +game.arenaRadius.toFixed(1), players, proj: game.projectiles.length });
+      journal('digest', { phase: game.phase, round: game.round, mode: game.mode, arenaR: +game.arenaRadius.toFixed(1), players, proj: game.projectiles.length });
     }
   }
 }, 1000 / TICK_RATE);

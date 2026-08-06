@@ -15,6 +15,7 @@
 //   spam <n>                  send n random/malformed messages (fuzzing)
 //   disconnect                close the socket
 //   reconnect                 open a new socket and re-join (new identity)
+//   mode <classic|elemental|coop>   flip the ruleset (lobby only)
 //   addbot / removebot
 //   again                     back to lobby after gameover
 //   auto <seconds>            full autopilot: ready/fight/shop/again as needed
@@ -81,6 +82,9 @@ export class ScriptedPlayer {
     let best = null, bd = Infinity;
     for (const p of Object.values(this.snap.players)) {
       if (p.id === this.id || !p.alive) continue;
+      // co-op: allies are not targets (the snapshot carries `team` in that
+      // mode only; in classic every field is undefined and this is a no-op)
+      if (me.team && p.team && me.team === p.team) continue;
       const d = Math.hypot(p.x - me.x, p.y - me.y);
       if (d < bd) { bd = d; best = p; }
     }
@@ -123,6 +127,7 @@ export class ScriptedPlayer {
     this.log(`${this.name}: ${step}`);
     switch (cmd) {
       case 'ready': this.send({ t: 'ready', ready: true }); break;
+      case 'mode': this.send({ t: 'mode', mode: args[0] }); break;
       case 'wait': this._current = { cmd: 'idle', until: now + Number(args[0]) * 1000 }; break;
       case 'move': this.send({ t: 'move', x: Number(args[0]), y: Number(args[1]) }); break;
       case 'center': this.send({ t: 'move', x: 0, y: 0 }); break;
