@@ -1532,6 +1532,7 @@ export function snapshot(state) {
       healLifesteal: Math.round(p.healLifesteal), healRegen: Math.round(p.healRegen),
       multiKillBest: p.multiKillBest,
       spectator: p.spectator, radius: round2(p.radius),
+      againReady: !!p.againReady,
       spells: p.spells, items: p.items,
       cooldowns: mapRound(p.cooldowns),
       // effective stats after every item copy — the shop/stats panel shows

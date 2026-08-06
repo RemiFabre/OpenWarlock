@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-05, after round 10 (see REMI_NOTES.md for the
+*Last updated 2026-08-06, after round 11 + the co-op campaign (see REMI_NOTES.md for the
 player-facing changelog of each round). Read this first; it replaces digging
 through history.*
 
@@ -36,12 +36,12 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 
 | Path | What |
 |---|---|
-| `shared/constants.js` | ALL game numbers (spells incl. power tier, items, 7 elements, arena, gold economy, bots, BUILDS) |
+| `shared/constants.js` | ALL game numbers (spells incl. power tier, **stackable** items, **9 elements**, arena, gold economy, bots, BUILDS) |
 | `shared/sim.js` | pure simulation + bot AIs (grunt/berserker/stalker + generic pilotOwnedSpells layer) + elements, hazards, meteors, walls |
 | `server/index.js` | authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=`), crash dumps, `/health`, static serving, ws heartbeat reaper, lobby kick/ban |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel → public URL (verified end-to-end incl. websockets) |
 | `client/` | canvas client: main.js (net/input/HUD/shop), render.js (full-res art + 1/3-res blob layer), music.js, sfx.js (synthesized) |
-| `test/sim.test.js` | 107 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 134 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`, and `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
@@ -50,11 +50,11 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `tools/coop.js` | co-op lab: `--levels` (isolated per-level clear rates, the tuning view), no flag (full campaign runs), `--roster` |
 | `client/coop.js` | co-op client: level card, battle status strip, the 3-way rules toggle. Self-contained on purpose |
 | `tools/reconnect-test.js` | e2e reconnect-persistence test (spawns a real server + ws clients) |
-| `BALANCE.md` | **report #4 (round 10, ~58k games) — current**; #3/#2 in git history at `ab48932` / `9a96b47` |
+| `BALANCE.md` | **round-11 addendum on top of report #4 (round 10, ~58k games) — current**; #3/#2 in git history at `ab48932` / `9a96b47` |
 | `STRATEGIES.md` | bot difficulty × build chart + how to read arena reports |
 | `REMI_NOTES.md` | per-round changelog Remi actually reads (newest on top) |
 
-## Game rules snapshot (v8, post-round-10)
+## Game rules snapshot (v9, post-round-11)
 
 - First to **15 kills**, 25-round cap. countdown → battle → roundEnd (banner,
   art reveal, itemized income) → shop (full roster w/ kits; Ready skips).
@@ -72,11 +72,22 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   spread at 2× (test-enforced). Gap bounty max 3 g; the leader never
   collects one. `goldEarned` + `dmgDealt` tracked (DoT/lava credit rules
   below); standings show earnings, not wallet.
-- **Spells**: fireball 41 u/s r0.8 dmg 5/9/13 cd 2.1→1.6; lightning range 38
-  NO push (finisher); boomerang out 28 returns to LAUNCH POINT, catch =
+- **Spells**: fireball 41 u/s r0.8 dmg **7**/10/14 cd 2.1→1.6 (lv1 raised in
+  round 11 — see the regen note below); lightning range 38 NO push (finisher);
+  boomerang **out 52 (fireball-grade reach) and recallable — tapping the key
+  mid-flight turns it round early**, returns to the LAUNCH POINT, catch =
   half cd, uncaught flies off forever, one hit per enemy per throw;
   teleport F, rush E, boomerang R (both presets); **pillar S** (placeable
   blocker, one each, 10–16 s).
+- **Regen lock (round 11)**: taking damage throttles regen to 25% for 2.5 s.
+  This exists because a lv1 fireball (2.38 dps if EVERY shot lands) lost to
+  1.2 hp/s of passive regen, so round 1 was unkillable — median first death
+  51.9 s vs ~20 s in round 3, now 31.3 s. Don't remove it without re-measuring
+  that number.
+- **Items STACK** (round 11): buy any item repeatedly, effects pile up, each
+  copy costs 20% more (`itemCost(key, owned)`); `unique: true` opts out
+  (echo/crown). This deleted the long-standing gold-saturation artifact — see
+  the BALANCE.md round-11 addendum, Finding A.
 - **Power tier, unlocked after round 5** (buy() enforces `minRound`),
   expensive by design: meteor T (1.25 s telegraph, AoE hits caster too),
   hook G (yanks victim a full body behind caster; **visible chain + 🪝 head**
@@ -97,12 +108,17 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   (10+8+8 g), **stackable** (frost+ember works); arcane 🔮 = global CDR, no
   fireball needed; venom drips ground trails (`state.hazards`) *and* poisons
   in **discrete 1/s ticks for 5 s that refresh+stack on re-hit**; terra
-  size/level; **critical 💢 (new round 10)** ramps dmg+push per fireball you
-  LAND, capped at 20 hits, resets each round. Measured spread 7–44% per tier
-  with clear affinities (terra→stalker, ember→grunt/berserker,
-  critical→grunt). **Midas 0.5–1.8% is a bot artifact** — those seats end on
-  215–260 gold vs 53–80 for everyone else: they can't spend it. Judge by
-  humans. Classic wire format untouched by elemental fields.
+  size/level; **critical 💢** starts at 65% power and ramps dmg+push per
+  fireball you LAND (15-stack cap, resets each round — the round-10 version
+  ramped so slowly it read as broken); **frost ❄️ is stack-based** (3rd stack
+  detonates: slow / deeper slow / 2 s stun, and stacks are shared by ALL
+  attackers); **mosquito 🦟 (new round 11)** turns your fireball into a
+  1-damage double-rate sting that leaves a bite on a third of the victim's
+  body — any OTHER spell landing on that arc hits double. Measured spread
+  10.9–41.6% (berserker/stalker tiers). **The midas artifact is GONE**: with
+  stackable items bots finally spend their gold, and midas jumped 1% → 43–64%
+  before being renerfed to 11–37%. The ★ grunt tier is now a chaos control,
+  not a balance signal. Classic wire format untouched by elemental fields.
 - Bots: ★/★★/★★★ × build strategy (lobby dropdown, 🎲 random); pilot layer
   casts whatever the build buys (except power spells); best bot picks:
   **boomer at every tier** (54–62% — bot artifact, nothing dodges or catches
@@ -170,7 +186,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 107 green
+npx vitest run                                   # 134 green
 node test/harness/run.js test/harness/scenarios/bots.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/reconnect-test.js                     # progress survives a drop

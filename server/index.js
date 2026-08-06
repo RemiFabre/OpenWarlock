@@ -133,8 +133,14 @@ function maybeAutoStart() {
   }
 }
 
+// How long the final standings stay up for the stragglers once somebody has
+// clicked Continue.
+const AGAIN_GRACE_MS = Number(process.env.AGAIN_GRACE_MS || 45000);
+let againTimer = null;
+
 function resetToLobby() {
   journal('reset', {});
+  clearTimeout(againTimer); againTimer = null;
   ghosts.clear(); // progress stashes never outlive the game they came from
   const old = game.players;
   // the ruleset (like avatars) survives "play again"
@@ -352,7 +358,23 @@ wss.on('connection', (ws, req) => {
         break;
       }
       case 'again':
-        if (game.phase === 'gameover') resetToLobby();
+        // Everyone reads the final standings at their own pace, so one player
+        // hitting Continue must NOT yank the table off everybody else's
+        // screen (that was the "the scores vanish before I can look" report).
+        // The lobby comes back when every connected human has acknowledged.
+        if (game.phase !== 'gameover') break;
+        pl.againReady = true;
+        journal('again', { id });
+        if (Object.values(game.players).every(p => p.bot || !sockets.has(p.id) || p.againReady)) {
+          clearTimeout(againTimer); againTimer = null;
+          resetToLobby();
+        } else if (!againTimer) {
+          // ...but one AFK player must not hold the lobby hostage forever
+          againTimer = setTimeout(() => {
+            againTimer = null;
+            if (game.phase === 'gameover') resetToLobby();
+          }, AGAIN_GRACE_MS);
+        }
         break;
     }
   });
