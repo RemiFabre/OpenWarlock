@@ -89,6 +89,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
     slowT: 0,              // frost: seconds of slow remaining
     slowMultHit: 1,        // frost: strength of the slow that hit us
+    bites: [],             // mosquito: [{a: angle on our body, by, lv}], round-long
     frostStacks: 0,        // frost: stacks on us (ALL attackers share the count)
     stunT: 0,              // frost lv3: seconds frozen solid (no move, no cast)
     poisonT: 0,            // venom: seconds of DoT remaining
@@ -182,6 +183,12 @@ function efxV(v, level) {
   return Array.isArray(v) ? v[Math.min(level, v.length) - 1] : v;
 }
 
+// Mosquito level a player is flying with, or 0 (elemental mode only).
+function mosquitoLevel(state, pl) {
+  if (state.mode !== 'elemental') return 0;
+  return (pl.elements && pl.elements.mosquito) || 0;
+}
+
 // Arcane (elemental): global cooldown multiplier for everything you cast.
 function cdrOf(state, pl) {
   if (state.mode !== 'elemental') return 1;
@@ -206,6 +213,14 @@ export function castSpell(state, id, key, tx, ty) {
   if (pl.stunT > 0) return false; // frost lv3 stun: no casting either
   const level = pl.spells[key] || 0;
   if (level < 1) return false;
+  // boomerang recall: while yours is still flying OUT, the key turns it round
+  // early instead of being a dead press (the cooldown is running, so this has
+  // to be checked before the cooldown gate). You pick the turn point.
+  if (key === 'boomerang') {
+    const mine = state.projectiles.find(
+      p => p.type === 'boomerang' && p.owner === id && !p.returning);
+    if (mine) { turnBoomerangHome(state, mine); return true; }
+  }
   if ((pl.cooldowns[key] || 0) > 0) return false;
   // power combos (2026-08-05): a charging repulse may still reposition —
   // teleport/rush into the pack and let the burst land there. Everything
@@ -216,7 +231,11 @@ export function castSpell(state, id, key, tx, ty) {
   let dx = tx - pl.x, dy = ty - pl.y;
   const d = Math.hypot(dx, dy) || 1;
   dx /= d; dy /= d;
-  pl.cooldowns[key] = lvl(spec, 'cooldown', level) * cdrOf(state, pl);
+  let cd = lvl(spec, 'cooldown', level) * cdrOf(state, pl);
+  // the mosquito is a pest, not a cannon: it stings for 1 at double the rate
+  if (key === 'fireball' && mosquitoLevel(state, pl))
+    cd *= efxV(ELEMENTS.mosquito.fx.cdMult, mosquitoLevel(state, pl));
+  pl.cooldowns[key] = cd;
 
   switch (key) {
     case 'fireball': {
@@ -334,7 +353,13 @@ export function castSpell(state, id, key, tx, ty) {
 function spawnFireball(state, pl, level, dx, dy) {
   const spec = SPELLS.fireball;
   let elements = null;
-  if (state.mode === 'elemental' && pl.elements) {
+  const mosq = mosquitoLevel(state, pl);
+  if (mosq) {
+    // the mosquito REPLACES the fireball and carries nothing else: a 1-damage
+    // pellet on half the cooldown would otherwise farm midas gold, venom
+    // stacks and crit ramp for free
+    elements = { mosquito: mosq };
+  } else if (state.mode === 'elemental' && pl.elements) {
     for (const [k, v] of Object.entries(pl.elements)) {
       if (k === 'arcane' || !(v > 0)) continue;
       (elements = elements || {})[k] = v;
@@ -350,7 +375,7 @@ function spawnFireball(state, pl, level, dx, dy) {
     traveled: 0,
     returning: false,
     hit: {},
-    elements, radius,
+    elements, radius, mosquito: mosq || 0,
   });
 }
 
@@ -386,9 +411,12 @@ function fireLightning(state, pl, level, dx, dy) {
   });
   if (best) {
     if (best.shieldT > 0) return; // shield blocks (no reflect for hitscan)
+    // the bolt lands on the side facing the caster; the ray's closest point is
+    // the victim's own centre, which has no meaningful bearing
+    const m = biteHit(state, best, pl.id, pl.x, pl.y);
     const kb = lvl(spec, 'knockback', level);
-    if (kb) applyKnockback(state, best, dx, dy, kb); // lightning has no push
-    applyDamage(state, best, lvl(spec, 'damage', level), pl.id);
+    if (kb) applyKnockback(state, best, dx, dy, kb * m); // lightning has no push
+    applyDamage(state, best, lvl(spec, 'damage', level) * m, pl.id);
   }
 }
 
@@ -595,6 +623,7 @@ function startRound(state) {
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.frostStacks = 0; pl.regenLockT = 0; pl.roundGold = 0;
+    pl.bites = [];
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0; pl.critHits = 0;
     pl._mkStreak = 0; pl._mkAt = -Infinity;
@@ -750,8 +779,9 @@ function stepBattle(state, dt) {
         const dd = Math.hypot(ddx, ddy);
         if (dd > spec.radius + pl.radius) continue;
         const nx = dd > 1e-6 ? ddx / dd : 1, ny = dd > 1e-6 ? ddy / dd : 0;
-        applyKnockback(state, pl, nx, ny, lvl(spec, 'knockback', m.level));
-        applyDamage(state, pl, lvl(spec, 'damage', m.level),
+        const bm = pl.id === m.owner ? 1 : biteHit(state, pl, m.owner, m.x, m.y);
+        applyKnockback(state, pl, nx, ny, lvl(spec, 'knockback', m.level) * bm);
+        applyDamage(state, pl, lvl(spec, 'damage', m.level) * bm,
           pl.id === m.owner ? null : m.owner);
       }
     }
@@ -827,8 +857,9 @@ function stepBattle(state, dt) {
           if (dd > lvl(spec, 'radius', level) + other.radius) continue;
           const nx = dd > 1e-6 ? ddx / dd : 1, ny = dd > 1e-6 ? ddy / dd : 0;
           if (other.shieldT > 0) continue; // shield holds the blast
-          applyKnockback(state, other, nx, ny, lvl(spec, 'knockback', level));
-          applyDamage(state, other, lvl(spec, 'damage', level), pl.id);
+          const bm = biteHit(state, other, pl.id, pl.x, pl.y);
+          applyKnockback(state, other, nx, ny, lvl(spec, 'knockback', level) * bm);
+          applyDamage(state, other, lvl(spec, 'damage', level) * bm, pl.id);
         }
       }
     }
@@ -853,8 +884,9 @@ function stepBattle(state, dt) {
           const kx = -pl.dash.dy * side * 0.8 + pl.dash.dx * 0.4;
           const ky = pl.dash.dx * side * 0.8 + pl.dash.dy * 0.4;
           const n = Math.hypot(kx, ky) || 1;
-          applyKnockback(state, other, kx / n, ky / n, lvl(spec, 'knockback', pl.dash.level));
-          applyDamage(state, other, lvl(spec, 'damage', pl.dash.level), pl.id);
+          const m = biteHit(state, other, pl.id, pl.x, pl.y);
+          applyKnockback(state, other, kx / n, ky / n, lvl(spec, 'knockback', pl.dash.level) * m);
+          applyDamage(state, other, lvl(spec, 'damage', pl.dash.level) * m, pl.id);
         }
       }
       if (pl.dash.left <= 0) pl.dash = null;
@@ -989,7 +1021,10 @@ function stepProjectiles(state, dt) {
         state.events.push({ t: 'catch', id: owner.id, x: pr.x, y: pr.y });
         continue; // caught
       }
-      if (pr.traveled >= spec.outDistance * 2 + 1) pr.lost = true; // grace past origin
+      // lost once it has flown its own out-leg again, i.e. past the launch
+      // point — measured from where it actually turned, since a recall can
+      // turn it anywhere
+      if (pr.traveled >= (pr.turnAt ?? spec.outDistance) * 2 + 1) pr.lost = true;
     }
 
     const px0 = pr.x, py0 = pr.y; // for swept collision below
@@ -1012,17 +1047,8 @@ function stepProjectiles(state, dt) {
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
     if (pr.type === 'hook' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
     if (Math.hypot(pr.x, pr.y) > ARENA.START_RADIUS * 2) continue;
-    if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance) {
-      // turn: fly back toward the launch point (NOT the player). pr.hit is
-      // deliberately KEPT: the out-leg knockback shoves victims along the
-      // throw lane and the straight return would re-hit them for free — one
-      // hit per enemy per throw; the return leg only threatens fresh targets
-      pr.returning = true;
-      const bx = (pr.ox ?? pr.x) - pr.x, by = (pr.oy ?? pr.y) - pr.y;
-      const bd = Math.hypot(bx, by);
-      if (bd > 1e-6) { pr.vx = (bx / bd) * spec.speed; pr.vy = (by / bd) * spec.speed; }
-      else { pr.vx = -pr.vx; pr.vy = -pr.vy; }
-    }
+    if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance)
+      turnBoomerangHome(state, pr); // hit the ceiling without being recalled
 
     // pillars eat projectiles (swept against this tick's segment)
     let blocked = false;
@@ -1087,7 +1113,24 @@ function stepProjectiles(state, dt) {
       const v = Math.hypot(pr.vx, pr.vy) || 1;
       let dmg = lvl(spec, 'damage', pr.level);
       let kb = lvl(spec, 'knockback', pr.level);
-      if (pr.elements) { // every rider element bends the numbers, stacking
+      if (pr.mosquito) {
+        // sting an existing bite and the pest lands as your PLAIN fireball,
+        // doubled; otherwise it's 1 damage, no push, and it leaves a mark
+        const f = ELEMENTS.mosquito.fx;
+        const m = biteHit(state, other, pr.owner, pr.x, pr.y);
+        if (m > 1) {
+          dmg *= m; kb *= m;
+          // the payoff sting drops you back to a full fireball cooldown
+          const own = state.players[pr.owner];
+          if (own && f.selfCashFullCd) {
+            const full = lvl(spec, 'cooldown', pr.level) * cdrOf(state, own);
+            own.cooldowns.fireball = Math.max(own.cooldowns.fireball || 0, full);
+          }
+        } else {
+          dmg = ELEMENTS.mosquito.fx.stingDmg; kb = 0;
+          plantBite(state, other, pr.owner, pr.x, pr.y, pr.mosquito);
+        }
+      } else if (pr.elements) { // every rider element bends the numbers, stacking
         for (const [ek, el] of Object.entries(pr.elements)) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
@@ -1103,6 +1146,11 @@ function stepProjectiles(state, dt) {
           if (f.dmgMult) dmg *= efxV(f.dmgMult, el);
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
+      }
+      if (!pr.mosquito) {
+        // any NON-mosquito hit that lands on one of your bites cashes it in
+        const m = biteHit(state, other, pr.owner, pr.x, pr.y);
+        dmg *= m; kb *= m;
       }
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg, pr.owner);
@@ -1132,6 +1180,76 @@ function stepProjectiles(state, dt) {
     if (!dead) keep.push(pr);
   }
   state.projectiles = keep;
+}
+
+// ---- mosquito bites (elemental) -------------------------------------------
+// A bite sits on an ARC of the victim's body (a third of the circumference by
+// default) and belongs to the mosquito player who left it. Landing anything
+// on that arc cashes it in. Bites survive the whole round — they are setup.
+
+function angDiff(a, b) {
+  let d = (a - b) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+// Half-width of a bite arc, in radians (biteArc is a fraction of the circle).
+function biteHalfArc() {
+  return Math.PI * ELEMENTS.mosquito.fx.biteArc;
+}
+
+// Did a hit from `ownerId` landing at (hx, hy) connect with one of that
+// owner's bites on `target`? Consumes it and returns its multiplier, else 1.
+function biteHit(state, target, ownerId, hx, hy) {
+  const bites = target.bites;
+  if (ownerId == null || !bites || !bites.length) return 1;
+  const ang = Math.atan2(hy - target.y, hx - target.x);
+  const half = biteHalfArc();
+  for (let i = 0; i < bites.length; i++) {
+    const b = bites[i];
+    if (b.by !== ownerId || Math.abs(angDiff(ang, b.a)) > half) continue;
+    if (state.time - b.at < ELEMENTS.mosquito.fx.biteArm) continue; // still swelling
+    bites.splice(i, 1);
+    state.events.push({ t: 'biteHit', id: target.id, x: hx, y: hy });
+    return efxV(ELEMENTS.mosquito.fx.biteMult, b.lv);
+  }
+  return 1;
+}
+
+function plantBite(state, target, ownerId, hx, hy, lv) {
+  if (ownerId == null) return;
+  const f = ELEMENTS.mosquito.fx;
+  const a = Math.atan2(hy - target.y, hx - target.x);
+  const bites = target.bites || (target.bites = []);
+  // maxBites is counted PER ATTACKER: your newest sting replaces your oldest,
+  // so you always have exactly one mark to come back to — and two mosquito
+  // players each keep their own
+  const mine = bites.filter(b => b.by === ownerId);
+  if (mine.some(b => Math.abs(angDiff(a, b.a)) <= biteHalfArc())) return;
+  while (mine.length >= f.maxBites) {
+    bites.splice(bites.indexOf(mine.shift()), 1);
+  }
+  bites.push({ a, by: ownerId, lv, at: state.time });
+  state.events.push({ t: 'bite', id: target.id, x: hx, y: hy });
+}
+
+// Turn a boomerang around toward its LAUNCH POINT (not the thrower — standing
+// in its path to catch it is the skill). Used by the recall key and by the
+// automatic turn at max range; `turnAt` remembers the out-leg length so the
+// "flew past the origin, gone forever" rule works for early recalls too.
+function turnBoomerangHome(state, pr) {
+  const spec = SPELLS.boomerang;
+  pr.returning = true;
+  pr.turnAt = pr.traveled;
+  // pr.hit is deliberately KEPT: the out-leg knockback shoves victims along
+  // the throw lane and a straight return would re-hit them for free — one hit
+  // per enemy per throw; the return leg only threatens fresh targets.
+  const bx = (pr.ox ?? pr.x) - pr.x, by = (pr.oy ?? pr.y) - pr.y;
+  const bd = Math.hypot(bx, by);
+  if (bd > 1e-6) { pr.vx = (bx / bd) * spec.speed; pr.vy = (by / bd) * spec.speed; }
+  else { pr.vx = -pr.vx; pr.vy = -pr.vy; }
+  state.events.push({ t: 'recall', id: pr.owner, x: pr.x, y: pr.y });
 }
 
 // Elemental on-hit riders (frost / venom / midas / terra), each at its own
@@ -1248,6 +1366,9 @@ export function snapshot(state) {
         slow: p.slowT > 0, poison: p.poisonT > 0, grow: p.growT > 0,
         stun: p.stunT > 0, frostStacks: p.frostStacks || 0,
         critHits: p.critHits || 0,   // so the HUD can show the ramp building
+        // mosquito bites, as angles on this body — the client draws them as
+        // arcs so you can aim the payoff shot at the right side
+        bites: (p.bites || []).map(b => ({ a: round2(b.a), by: b.by })),
       } : {}),
     };
   }

@@ -8,6 +8,14 @@ import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, itemCost 
 
 const DT = 1 / 30;
 
+// Smallest signed angle between two bearings — bites live on arcs.
+function angDist(a, b) {
+  let d = (a - b) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
 function run(state, seconds) {
   const n = Math.round(seconds / DT);
   for (let i = 0; i < n; i++) step(state, DT);
@@ -363,19 +371,39 @@ describe('spells', () => {
     expect(a.hp).toBeLessThan(a.maxHp - SPELLS.fireball.damage[0] + 1.5);     // (minus a little regen)
   });
 
+  it('tapping the key again recalls the boomerang early', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.spells.boomerang = 1;
+    a.x = 0; a.y = 0;
+    state.players.p1.x = 0; state.players.p1.y = 40;
+    state.players.p2.x = 0; state.players.p2.y = -40;
+    castSpell(state, 'p0', 'boomerang', 20, 0);
+    run(state, 0.6);
+    const pr = state.projectiles[0];
+    expect(pr.returning).toBe(false);
+    const out = pr.traveled;
+    expect(out).toBeLessThan(SPELLS.boomerang.outDistance); // nowhere near the ceiling
+    expect(castSpell(state, 'p0', 'boomerang', 0, 0)).toBe(true); // the recall
+    expect(pr.returning).toBe(true);
+    expect(pr.vx).toBeLessThan(0);          // heading home along -x
+    expect(pr.turnAt).toBeCloseTo(out, 5);  // turn point remembered
+  });
+
   it('boomerang returns and can hit on the way back', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.boomerang = 1;
     a.x = 0; a.y = 0;
-    b.x = 34; b.y = 0;                    // beyond outDistance 28: missed going out
+    b.x = 20; b.y = 12;                    // off the throw lane: the out-leg misses
     state.players.p2.y = 40;
     castSpell(state, 'p0', 'boomerang', 20, 0);
-    run(state, 1.0);                       // flew out ~28u, turning back
-    b.x = 10; b.y = 0;                     // step into the return path
-    run(state, 1.5);
+    run(state, 0.6);
+    castSpell(state, 'p0', 'boomerang', 0, 0); // recall it
+    b.x = 10; b.y = 0; b.vx = 0; b.vy = 0;     // step into the return path
+    run(state, 1.0);
     expect(b.hp).toBeLessThan(b.maxHp);
-    expect(state.projectiles.length).toBe(0); // caught by the waiting owner
+    expect(state.projectiles.length).toBe(0);  // caught by the waiting owner
   });
 
   it('boomerang catch halves the remaining cooldown', () => {
@@ -386,11 +414,14 @@ describe('spells', () => {
     state.players.p1.x = 0; state.players.p1.y = 40;
     state.players.p2.x = 0; state.players.p2.y = -40;
     castSpell(state, 'p0', 'boomerang', 20, 0); // owner stays at the launch point
-    run(state, 2.2); // out 28u + back ≈ 1.9 s: caught by now
-    expect(state.projectiles.length).toBe(0);
-    // cd started at 4.5; ~2.2 s elapsed leaves ~2.3, halved on catch ≈ 1.15
+    run(state, 0.6);
+    castSpell(state, 'p0', 'boomerang', 0, 0);  // recall: home in ~0.6 s more
+    run(state, 1.0);
+    expect(state.projectiles.length).toBe(0);   // caught
+    const elapsed = 1.6;
+    const served = SPELLS.boomerang.cooldown - elapsed;
     expect(a.cooldowns.boomerang).toBeGreaterThan(0.5);
-    expect(a.cooldowns.boomerang).toBeLessThan(SPELLS.boomerang.cooldown - 2.2);
+    expect(a.cooldowns.boomerang).toBeLessThan(served * 0.6); // roughly halved
   });
 
   it('an uncaught boomerang flies past its launch point and is gone forever', () => {
@@ -401,14 +432,14 @@ describe('spells', () => {
     state.players.p1.x = 0; state.players.p1.y = 40;
     state.players.p2.x = 0; state.players.p2.y = -40;
     castSpell(state, 'p0', 'boomerang', 20, 0);
-    run(state, 0.2);
+    run(state, 0.6);
+    castSpell(state, 'p0', 'boomerang', 0, 0); // recall so the test stays short
     a.x = 0; a.y = 12; // side-step: refuse the catch
     const cdBefore = () => a.cooldowns.boomerang;
-    run(state, 2.2); // it passed the launch point without being caught
-    expect(state.projectiles.length).toBe(1); // still flying, straight out
-    const pr = state.projectiles[0];
-    expect(pr.lost).toBe(true);
-    run(state, 4);   // 31 u/s: exits the world (cull at 2x START_RADIUS)
+    run(state, 1.6); // it passed the launch point without being caught
+    expect(state.projectiles.length).toBe(1); // still flying, straight on
+    expect(state.projectiles[0].lost).toBe(true);
+    run(state, 5);   // 31 u/s: exits the world (cull at 2x START_RADIUS)
     expect(state.projectiles.length).toBe(0);
     expect(cdBefore()).toBe(0); // full cooldown was served, no refund
   });
@@ -1107,6 +1138,82 @@ describe('elemental mode', () => {
     run(s3, 0.4);
     const capped = (base + f.rampCap * f.rampDmg[0]) * f.dmgMult;
     expect(b3.maxHp - b3.hp).toBeLessThan(capped + 0.5);
+  });
+
+  it('mosquito 🦟: stings for 1, no push, at double the fire rate', () => {
+    const state = hitWith('mosquito');
+    const a = state.players.p0, b = state.players.p1;
+    expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
+    expect(Math.abs(b.vx)).toBeLessThan(0.5);   // no knockback at all
+    // the cooldown it set is the mosquito's, not the fireball's
+    const full = SPELLS.fireball.cooldown[0];
+    expect(a.cooldowns.fireball).toBeLessThan(full * 0.6);
+  });
+
+  it('mosquito leaves a bite where it stung, and it lasts the round', () => {
+    const state = hitWith('mosquito');
+    const b = state.players.p1;
+    expect(b.bites.length).toBe(1);
+    expect(b.bites[0].by).toBe('p0');
+    // the sting came from the west, so the bite sits on the west side
+    expect(Math.abs(angDist(b.bites[0].a, Math.PI))).toBeLessThan(0.6);
+    run(state, 8);
+    expect(b.bites.length).toBe(1); // no expiry
+    expect(state.events.some(e => e.t === 'bite')).toBe(true);
+  });
+
+  it('mosquito carries NO other element riders (no midas/venom farming)', () => {
+    const state = hitWith({ mosquito: 1, midas: 3, venom: 3, critical: 3 });
+    const a = state.players.p0, b = state.players.p1;
+    expect(a.gold).toBe(GOLD.START);       // midas paid nothing
+    expect(b.poisonT).toBe(0);             // venom applied nothing
+    expect(a.critHits).toBe(0);            // critical counted nothing
+    expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
+  });
+
+  it('another spell landing ON a bite hits double and consumes it', () => {
+    const state = hitWith('mosquito');
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.lightning = 1;
+    expect(b.bites.length).toBe(1);
+    b.hp = b.maxHp;
+    run(state, ELEMENTS.mosquito.fx.biteArm); // let the bite swell
+    b.hp = b.maxHp;
+    // lightning down the same lane strikes the same (west) side of the body
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    run(state, 0.2);
+    const doubled = SPELLS.lightning.damage[0] * ELEMENTS.mosquito.fx.biteMult[0];
+    expect(b.maxHp - b.hp).toBeGreaterThan(doubled - 1);
+    expect(b.bites.length).toBe(0);        // cashed in
+    expect(state.events.some(e => e.t === 'biteHit')).toBe(true);
+  });
+
+  it('stinging your own bite lands the PLAIN fireball, doubled', () => {
+    const state = hitWith('mosquito');
+    const a = state.players.p0, b = state.players.p1;
+    expect(b.bites.length).toBe(1);
+    run(state, ELEMENTS.mosquito.fx.biteArm); // let the bite swell
+    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0); // same lane: onto the bite
+    run(state, 0.4);
+    const doubled = SPELLS.fireball.damage[0] * ELEMENTS.mosquito.fx.biteMult[0];
+    expect(b.maxHp - b.hp).toBeGreaterThan(doubled - 1.5);
+    expect(Math.abs(b.vx)).toBeGreaterThan(50); // and it PUSHES, unlike a sting
+    expect(b.bites.length).toBe(0);
+  });
+
+  it('a hit on the wrong side of the body misses the bite', () => {
+    const state = hitWith('mosquito');
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.lightning = 1;
+    expect(b.bites.length).toBe(1);        // bite is on b's west side
+    b.hp = b.maxHp;
+    a.x = 20; a.y = 0;                     // shoot from the EAST instead
+    castSpell(state, 'p0', 'lightning', b.x - 10, 0);
+    run(state, 0.2);
+    expect(b.maxHp - b.hp).toBeLessThan(SPELLS.lightning.damage[0] + 1); // plain hit
+    expect(b.bites.length).toBe(1);        // bite untouched, still waiting
   });
 
   it('critical ramp resets at round start', () => {

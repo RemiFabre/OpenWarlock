@@ -120,13 +120,15 @@ export const SPELLS = {
     desc: 'Instant mid-range bolt. No push — a pure finisher.',
   },
   boomerang: {
-    // 2026-08-03 rework: +40% reach, and it returns to the LAUNCH POINT, not
-    // to the player. Catch it there (touch it on the return leg) to halve the
-    // cooldown; let it pass and it flies on in a straight line, gone forever.
+    // 2026-08-06 rework (Remi: "nobody ever plays it, make it exciting"):
+    // fireball-grade reach, and YOU choose the turn point — tapping the key
+    // again while it flies recalls it early. It still returns to the LAUNCH
+    // POINT, so catching it (halving the cooldown) is a real read.
+    // outDistance is now a ceiling, not a plan.
     name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 5.5, speed: 31, radius: 1.4, outDistance: 28,
+    cooldown: 5.5, speed: 31, radius: 1.4, outDistance: 52,
     damage: [4, 6, 8], knockback: [50, 59, 68],
-    desc: 'Out and back to where you threw it. Catch it: cooldown halved. Miss it: gone.',
+    desc: 'Long throw, out and back to where you threw it. Tap again to recall it early. Catch it: cooldown halved. Miss it: gone.',
   },
   teleport: {
     name: 'Teleport', hotkey: 'F', maxLevel: 2, costs: [12, 8],
@@ -258,8 +260,8 @@ export const ELEMENTS = {
   // so the payout is capped there forever and the levels buy back a real
   // drawback instead of raising income. Level 1 is half a fireball.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −30% at lv2, −15% at lv3.',
-           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.7, 0.85], kbMult: [0.5, 0.7, 0.85] } },
+           desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −35% at lv2, −22% at lv3.',
+           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.65, 0.78], kbMult: [0.5, 0.65, 0.78] } },
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Bigger fireball each level; hits briefly grow the target.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
@@ -273,6 +275,28 @@ export const ELEMENTS = {
            desc: 'Starts at 65% power. EVERY fireball you LAND this round makes the next one hit harder and push further, up to 15 stacks. Survive and snowball: late-round hits are monstrous. Resets each round.',
            fx: { dmgMult: 0.65, kbMult: 0.65, rampDmg: [1.2, 1.7, 2.2],
                  rampKb: [6, 9, 12], rampCap: 15 } },
+  // 2026-08-06 (Remi's design): your fireball becomes a mosquito — a fast,
+  // harmless pest that leaves a BITE on the spot it stung. Bites sit on an arc
+  // of the victim's body and last the whole round. Hit a bite with any other
+  // spell and that spell lands DOUBLE; sting a bite with the mosquito itself
+  // and it lands as your plain fireball, twice. Setup, then payoff.
+  // The mosquito carries NO other element riders on purpose: otherwise a
+  // half-cooldown 1-damage pellet would be a midas/venom farming machine.
+  mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Your fireball becomes a mosquito: 1 damage, no push, but DOUBLE fire rate. Where it stings it leaves a bite (a third of the body, lasts the round). Land any other spell on a bite and it hits twice as hard; sting a bite again and the mosquito lands as your plain fireball, twice.',
+           // maxBites is per ATTACKER and deliberately 1: at 3 the bites tile
+           // the whole body, every shot cashes in and the pest becomes a
+           // 4x-dps cannon (measured 93% win rate). One bite means you have to
+           // come back at the side you stung.
+           // Two guards against the pest becoming a self-sufficient cannon
+           // (it measured 93% then 56% without them). biteArm: a fresh bite
+           // must swell briefly before it can be cashed. selfCashFullCd:
+           // cashing your OWN bite costs you the double fire rate for that
+           // one cycle — the big hit is paid for in tempo. Combos with your
+           // other spells are untouched, which is the point of the element.
+           fx: { mosquito: true, cdMult: [0.55, 0.5, 0.45], stingDmg: 1,
+                 biteArc: 1 / 3, biteMult: [2, 2.3, 2.6], maxBites: 1,
+                 biteArm: 0.5, selfCashFullCd: true } },
   // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
   // badges every spell slot with 🔮 so the owner SEES it working.
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
