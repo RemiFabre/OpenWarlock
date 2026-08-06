@@ -334,6 +334,24 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
     }
+    if (pl.stun) {
+      // frozen solid: a thick ice shell, unmistakable — you cannot act
+      ctx.strokeStyle = 'rgba(200, 240, 255, 0.95)';
+      ctx.fillStyle = 'rgba(150, 215, 255, 0.22)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    // frost stacks riding on this body — you can see the detonation coming
+    if (pl.frostStacks > 0) {
+      const of = ELEMENTS.frost.fx.stacksToTrigger;
+      for (let i = 0; i < Math.min(pl.frostStacks, of); i++) {
+        const ang = -Math.PI / 2 + (i - (of - 1) / 2) * 0.42;
+        ctx.fillStyle = 'rgba(168, 216, 255, 0.95)';
+        ctx.beginPath();
+        ctx.arc(x + Math.cos(ang) * r * 1.6, y + Math.sin(ang) * r * 1.6, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     if (pl.charging) {
       // repulse wind-up: hard-blinking double ring — VERY visible on purpose
       const on = Math.sin(now / 70) > 0;
@@ -596,13 +614,97 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'kill': {
-        // you scored a kill: golden banner rising above the arena center
-        ctx.font = 'small-caps 700 34px Georgia, serif';
+        // you scored a kill: golden banner rising above the arena center, with
+        // a shockwave off the corpse so the hit reads as an event, not a number
+        const pop = Math.min(1, k * 7); // snaps to full size in ~0.2 s, then drifts
+        ctx.save();
         ctx.textAlign = 'center';
+        ctx.font = `small-caps 700 ${Math.round(26 + 14 * pop)}px Georgia, serif`;
         ctx.fillStyle = `rgba(240, 182, 74, ${a})`;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 12;
+        ctx.shadowColor = 'rgba(255, 140, 40, 0.75)'; ctx.shadowBlur = 22;
         ctx.fillText('⚔ kill', view.cx, view.cy - 110 - 30 * k);
         ctx.shadowBlur = 0;
+        ctx.strokeStyle = `rgba(240, 182, 74, ${a * 0.8})`;
+        ctx.lineWidth = 4 * a + 1;
+        ctx.beginPath();
+        ctx.arc(view.sx(f.x), view.sy(f.y), (1 + 5 * k) * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'multikill': {
+        // MASSACRE has to feel like one: yours owns the middle of the screen
+        // with a red flash behind it, someone else's is a shout over their body
+        const pop = Math.min(1, k * 8);
+        ctx.save();
+        ctx.textAlign = 'center';
+        const label = String(f.name || 'Multi Kill');
+        if (f.mine) {
+          const flash = Math.max(0, 1 - k * 3);
+          if (flash > 0) {
+            const g = ctx.createRadialGradient(view.cx, view.cy, 0, view.cx, view.cy,
+              Math.hypot(view.w, view.h) / 2);
+            g.addColorStop(0, 'rgba(192, 57, 43, 0)');
+            g.addColorStop(1, `rgba(192, 57, 43, ${0.42 * flash})`);
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, view.w, view.h);
+          }
+          const size = Math.round((34 + 5 * Math.min(+f.n || 2, 6)) * (0.5 + 0.5 * pop));
+          ctx.font = `small-caps 700 ${size}px Georgia, serif`;
+          ctx.fillStyle = `rgba(255, 236, 200, ${a})`;
+          ctx.shadowColor = 'rgba(220, 60, 30, 0.9)'; ctx.shadowBlur = 26;
+          ctx.fillText(label, view.cx, view.cy - 150 - 24 * k);
+          ctx.shadowBlur = 0;
+          ctx.font = '13px ui-monospace, Menlo, monospace';
+          ctx.fillStyle = `rgba(240, 182, 74, ${a})`;
+          ctx.fillText(`${+f.n || 2} kills in a row`, view.cx, view.cy - 118 - 24 * k);
+        } else {
+          ctx.font = 'small-caps 700 20px Georgia, serif';
+          ctx.fillStyle = `rgba(255, 150, 110, ${a})`;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'; ctx.shadowBlur = 10;
+          ctx.fillText(label, view.sx(f.x), view.sy(f.y) - 46 - 22 * k);
+          ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+        break;
+      }
+      case 'frost': {
+        // one more stack landed: a thin icy ring plus the count toward the pop
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(160, 216, 255, ${a})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, (2.4 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        if (fin(+f.stacks) && fin(+f.of)) {
+          ctx.textAlign = 'center';
+          ctx.font = '700 12px ui-monospace, Menlo, monospace';
+          ctx.fillStyle = `rgba(168, 216, 255, ${a})`;
+          ctx.fillText(`❄ ${+f.stacks}/${+f.of}`, x, y - 30 - 14 * k);
+        }
+        ctx.restore();
+        break;
+      }
+      case 'frostBreak': {
+        // the 3rd stack detonating — shards, and the verdict in words
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(200, 240, 255, ${a})`;
+        ctx.lineWidth = 3 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, (1 + 5 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        for (let i = 0; i < 8; i++) {
+          const ang = (i / 8) * Math.PI * 2 + f.at;
+          const r0 = (1 + 3.4 * k) * scale, r1 = r0 + 0.9 * scale;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(ang) * r0, y + Math.sin(ang) * r0);
+          ctx.lineTo(x + Math.cos(ang) * r1, y + Math.sin(ang) * r1);
+          ctx.stroke();
+        }
+        ctx.textAlign = 'center';
+        ctx.font = 'small-caps 700 20px Georgia, serif';
+        ctx.fillStyle = `rgba(200, 240, 255, ${a})`;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 10;
+        ctx.fillText(f.stun ? 'frozen solid' : 'chilled', x, y - 40 - 16 * k);
+        ctx.restore();
         break;
       }
       case 'teleport': {

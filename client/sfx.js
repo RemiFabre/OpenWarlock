@@ -128,6 +128,23 @@ const FX = {
       tone({ type: 'triangle', f0: f, dur: 0.12, vol: 0.32, t0: i * 0.06 }));
   },
 
+  // multi-kill announcer: the streak length picks how far the arpeggio climbs,
+  // so a Penta sounds unmistakably bigger than a Double without new samples
+  multikill(n = 2) {
+    const steps = Math.max(2, Math.min(6, Math.round(+n) || 2));
+    for (let i = 0; i < steps; i++) {
+      tone({ type: 'square', f0: 523.25 * 2 ** (i / 4), dur: 0.13, vol: 0.26, t0: i * 0.075 });
+      tone({ type: 'triangle', f0: 1046.5 * 2 ** (i / 4), dur: 0.1, vol: 0.14, t0: i * 0.075 });
+    }
+    tone({ type: 'sine', f0: 120, f1: 48, dur: 0.5, vol: 0.55 });
+  },
+
+  // frost detonation: glassy shatter over a dropping chime
+  freeze() {
+    tone({ type: 'triangle', f0: 2300, f1: 640, dur: 0.24, vol: 0.22 });
+    noise({ dur: 0.3, vol: 0.24, filter: 'highpass', f0: 3200, q: 0.7 });
+  },
+
   // round end: short major arpeggio if I won / soft low note if I died
   victory() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
@@ -154,7 +171,7 @@ const FX = {
 // one snapshot) doesn't stack into a blast.
 const lastAt = {};
 
-export function playSfx(name) {
+export function playSfx(name, ...args) {
   try {
     if (!ctx || !master || muted) return;
     const fn = FX[name];
@@ -163,6 +180,6 @@ export function playSfx(name) {
     if (now - (lastAt[name] || 0) < 45) return;
     lastAt[name] = now;
     if (ctx.state === 'suspended') ctx.resume().catch(() => { });
-    fn();
+    fn(...args);
   } catch { /* audio must never break the game */ }
 }
