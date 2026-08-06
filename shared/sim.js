@@ -44,6 +44,8 @@ export function createGame({ seed = 1, mode = 'classic' } = {}) {
     events: [],            // transient, drained by the server each snapshot
     nextId: 1,
     nextWaveId: 1,         // co-op: id counter for spawned campaign enemies
+    coopLevel: 1,          // co-op: campaign progress (advances only on a clear)
+    coopAttempt: 0,        // co-op: tries spent on the current level
     coop: null,            // co-op: {level, name, brief, roster, pending, ...}
     winner: null,
     seed,
@@ -714,9 +716,15 @@ function coopPrepareRound(state) {
     if (pl.team !== TEAM.AI) pl.team = TEAM.PARTY;
   }
   const party = partyOf(state).filter(p => !p.spectator);
-  const level = levelFor(state.round);
+  // the campaign level is NOT the round number: clearing advances you, wiping
+  // costs you a round and you try the same level again (with a shop, and the
+  // round income, in between). ROUND.MAX_ROUNDS is the retry budget — 10
+  // levels in 25 rounds.
+  const level = levelFor(state.coopLevel);
+  state.coopAttempt = (state.coopAttempt || 0) + 1;
   state.coop = {
     level: level.n, name: level.name, brief: level.brief,
+    attempt: state.coopAttempt,
     partySize: Math.max(1, party.length),
     roster: levelRoster(level, Math.max(1, party.length)),
     pending: waveUnits(level, Math.max(1, party.length)),
@@ -787,7 +795,7 @@ function endRound(state) {
     // kill + bounty gold shown here, already granted at kill time
     let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
     pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE; pl.roundGold += GOLD.ROUND_BASE;
-    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; pl.roundGold += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
+    if (won.has(pl.id)) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; pl.roundGold += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
     if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; pl.roundGold += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
     income[pl.id] = g;
     // itemized for the round-end banner: where did each gold piece come from
@@ -795,7 +803,7 @@ function endRound(state) {
       base: GOLD.ROUND_BASE,
       kills: pl.roundKills * GOLD.PER_KILL,
       bounty: pl.roundBounty || 0,
-      win: pl === winner ? GOLD.ROUND_WIN : 0,
+      win: won.has(pl.id) ? GOLD.ROUND_WIN : 0,
       first: pl.diedFirstRound === state.round ? GOLD.FIRST_DEATH : 0,
     };
     pl.dash = null; pl.moveTarget = null;
@@ -805,16 +813,41 @@ function endRound(state) {
   const topKills = Math.max(0, ...fighters(state).map(p => p.kills));
   state.roundSummary = {
     n: state.round, winner: winner ? winner.id : null, income, detail,
-    final: topKills >= ROUND.KILLS_TO_WIN || state.round >= ROUND.MAX_ROUNDS,
+    // a campaign run ends when the last level falls or the retry budget does —
+    // never on the classic kill race (one player farming 15 wave kills would
+    // otherwise silently end the run mid-campaign)
+    final: coop
+      ? ((state.coop.cleared && state.coop.level >= MAX_LEVEL) ||
+         state.round >= ROUND.COOP_MAX_ROUNDS)
+      : (topKills >= ROUND.KILLS_TO_WIN || state.round >= ROUND.MAX_ROUNDS),
+    ...(coop ? {
+      coop: {
+        level: state.coop.level, name: state.coop.name,
+        attempt: state.coop.attempt,
+        cleared: !!state.coop.cleared, wiped: !!state.coop.wiped,
+        survivors: partyOf(state).filter(p => p.alive).length,
+        partySize: state.coop.partySize,
+        victory: !!state.coop.cleared && state.coop.level >= MAX_LEVEL,
+      },
+    } : {}),
   };
   state.events.push({ t: 'roundEnd', winner: winner ? winner.id : null });
+  if (coop) {
+    // the level's monsters leave with the level: no corpses in the shop
+    // standings, no monsters in the "everyone ready?" check
+    for (const pl of waveOf(state)) removePlayer(state, pl.id);
+    // clearing is the only thing that advances the campaign
+    if (state.coop.cleared) { state.coopLevel = state.coop.level + 1; state.coopAttempt = 0; }
+  }
   state.phase = 'roundEnd';
   state.phaseT = ROUND.SUMMARY_TIME;
 }
 
 function afterSummary(state) {
   if (state.roundSummary && state.roundSummary.final) {
-    const ranked = fighters(state)
+    // co-op: the campaign is over (wiped, or level 10 cleared) — rank the
+    // party, never the monsters
+    const ranked = (state.mode === 'coop' ? partyOf(state) : fighters(state))
       .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || b.gold - a.gold);
     state.winner = ranked[0] ? ranked[0].id : null;
     state.phase = 'gameover';
@@ -1482,11 +1515,14 @@ function applyElementsHit(state, pr, target) {
 // Strip internals for the wire. Events are drained separately by the server.
 export function snapshot(state) {
   const elemental = state.mode === 'elemental';
+  const coop = state.mode === 'coop';
   const players = {};
   for (const [id, p] of Object.entries(state.players)) {
     players[id] = {
       id: p.id, name: p.name, color: p.color, bot: p.bot, avatar: p.avatar,
       kind: p.kind, build: p.build || null, shopReady: p.shopReady,
+      // co-op-only wire fields — classic snapshots stay byte-identical
+      ...(coop ? { team: p.team || null, wave: !!p.wave } : {}),
       x: round2(p.x), y: round2(p.y),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
@@ -1544,6 +1580,19 @@ export function snapshot(state) {
       vx: round2(p.vx), vy: round2(p.vy), owner: p.owner,
       ...(p.elements ? { elements: p.elements } : {}),
     })),
+    // campaign HUD state, co-op only
+    ...(coop && state.coop ? {
+      coop: {
+        level: state.coop.level, name: state.coop.name, brief: state.coop.brief,
+        roster: state.coop.roster, maxLevel: MAX_LEVEL,
+        attempt: state.coop.attempt, roundsLeft: ROUND.COOP_MAX_ROUNDS - state.round,
+        partyAlive: partyOf(state).filter(p => p.alive).length,
+        partySize: state.coop.partySize,
+        waveAlive: waveOf(state).filter(p => p.alive).length,
+        pending: state.coop.pending.length,
+        cleared: !!state.coop.cleared, wiped: !!state.coop.wiped,
+      },
+    } : {}),
     // venom ground trails, elemental only (a = remaining-life fade 0..1)
     ...(elemental ? {
       hazards: (state.hazards || []).map(h => ({
@@ -2107,6 +2156,7 @@ export const BOT_ELEMENTS = { berserker: 'gale', stalker: 'frost', grunt: 'ember
 export function botShop(state, id) {
   const pl = state.players[id];
   if (!pl) return;
+  if (pl.wave) return; // campaign monsters are their descriptor, they never shop
   if (state.mode === 'elemental')
     buy(state, id, BOT_ELEMENTS[pl.kind] || 'ember'); // one level per shop; maxes out quietly
   // an explicit build strategy (lobby pick) beats the kind's default list

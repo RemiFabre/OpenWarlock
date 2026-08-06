@@ -116,14 +116,19 @@ function broadcast(obj) {
   for (const ws of sockets.values()) if (ws.readyState === 1) ws.send(msg);
 }
 
+// Seats that count against MAX_PLAYERS: co-op campaign monsters are spawned by
+// the simulation and must never keep a human out of their own game.
 function playerCount() {
-  return Object.keys(game.players).length;
+  return Object.values(game.players).filter(p => !p.wave).length;
 }
 
 function maybeAutoStart() {
   if (game.phase !== 'lobby') return;
   const humans = Object.values(game.players).filter(p => !p.bot);
-  if (humans.length >= 1 && humans.every(p => p.ready) && fighters(game).length >= 2) {
+  // co-op is playable solo (the campaign scales to the party); the free-for-all
+  // rulesets still need somebody to fight
+  const need = game.mode === 'coop' ? 1 : 2;
+  if (humans.length >= 1 && humans.every(p => p.ready) && fighters(game).length >= need) {
     startGame(game);
   }
 }
@@ -138,6 +143,7 @@ function resetToLobby() {
   // make the journal skip the first events of the new game
   journaledEvents = 0;
   for (const [id, p] of Object.entries(old)) {
+    if (p.wave) continue; // campaign monsters belong to the level, not the lobby
     if (p.bot || sockets.has(id)) {
       const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind, build: p.build });
       np.ready = false;
