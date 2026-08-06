@@ -6,6 +6,97 @@ you asked before leaving.*
 
 ---
 
+## ROUND 11 — round 1 réparé, Critical réparé, Glace/Midas/Boomerang refaits, Moustique 🦟 (2026-08-06)
+
+### Les deux VRAIS bugs que tes retours ont fait tomber
+
+- **Critical n'était pas cassé, il était ridicule.** Le mécanisme faisait bien
+  ce que tu demandais (ça monte DANS la manche, pas au tour d'après), mais
+  +0,45 dégât par touche : après 8 boules touchées tu passais de 4,25 à 6,9
+  dégâts. Invisible, donc « ça marche pas ». Refait en vrai : tu démarres à
+  **65 %** d'une boule normale et **chaque touche** ajoute gros, jusqu'à 15
+  stacks. Mesuré : 4,6 → **10,0** de dégâts en 8 touches (et la poussée suit,
+  42 → 70). Une manche où tu domines finit avec des boules monstrueuses.
+  L'interface affiche maintenant le compteur (tu VOIS la rampe monter).
+- **Le round 1 était mathématiquement mort, tu avais raison.** Chiffres :
+  première mort du round 1 à **51,9 s** en médiane, contre ~20 s au round 3.
+  La cause n'est pas « la boule niveau 1 est faible » — c'est que la boule
+  lv1 fait 5 dégâts toutes les 2,1 s = **2,38 dps si TOUT touche**, contre
+  **1,2 hp/s de régénération passive**. Deux joueurs qui s'échangent des
+  boules lv1 ne peuvent littéralement pas se tuer ; seule la lave tuait.
+  Deux corrections : boule lv1 **5 → 7 dégâts**, et surtout la régén est
+  **coupée à 25 % pendant 2,5 s quand tu prends un coup**. Résultat mesuré :
+  première mort du round 1 à **31,3 s**. Les coups « collent » enfin.
+
+### Refontes que tu as demandées
+
+- **Glace ❄️ — à stacks.** Chaque touche pose un stack qui ne fond jamais ;
+  **au 3e stack ça pète** : lv1 −30 % de vitesse 3 s · lv2 −50 % 3 s · lv3
+  **gelé sur place 2 s** (ni déplacement ni sort). Les stacks sont sur la
+  VICTIME et **partagés entre tous les attaquants** — deux joueurs glace
+  montent le même compteur, exactement comme tu le décrivais.
+- **Midas 🪙 — plafonné.** +1 g par touche à **tous** les niveaux, jamais
+  plus. Le prix est lourd et c'est les niveaux qui le rachètent : lv1 =
+  **moitié dégâts ET moitié poussée**, lv2 −35 %, lv3 −22 %.
+- **Boomerang 🪃 — enfin excitant.** Portée de base 28 → **52** (une vraie
+  portée de boule de feu) et surtout **retape la touche en vol pour le
+  rappeler quand tu veux**. C'est toi qui choisis le point de demi-tour ; il
+  revient toujours au point de lancer, donc l'attraper (cooldown ÷2) reste
+  un vrai skill.
+- **Nouvel élément Moustique 🦟** (ton design). Ta boule devient un moustique :
+  **1 dégât, 0 poussée, cadence ×2**. Là où il pique il laisse un **bouton**
+  sur un tiers du corps de la victime, pour toute la manche. **N'importe
+  quel autre de tes sorts qui touche le bouton frappe double** (dégâts +
+  poussée, le bouton disparaît) ; si c'est ton moustique qui repique le
+  bouton, il frappe comme ta boule **normale, deux fois**. Le moustique ne
+  porte **aucun autre bonus d'élément** — pas de farm Midas/Venom, comme tu
+  l'avais anticipé.
+- **Hook 🪝** : portée **+30 %** et projectile **−20 % de vitesse** (tu le
+  vois venir et tu peux le mener).
+- **Bot ★ = chaos total** : il ne vise plus personne, il se balade au hasard
+  et tire dans des directions aléatoires. Seul réflexe conservé : ne pas se
+  noyer (sinon il n'est même plus un punching-ball).
+- **Objets empilables** : tu peux racheter le même objet autant de fois que
+  tu veux, les effets se cumulent normalement, et **chaque copie coûte 20 %
+  de plus** que la précédente (arrondi au supérieur).
+- **Multi-kills** : Double Kill / Triple Kill / Quadra / Penta / MASSACRE
+  si les kills s'enchaînent en moins de 6 s.
+- **Stats séparées** : dégâts directs / dégâts lave / soins vol-de-vie /
+  soins régén / or gagné ce round — tout dans le grand tableau.
+
+### Ce que l'équilibrage a révélé (important)
+
+**Les objets empilables ont supprimé l'artefact Midas.** Depuis des mois
+Midas mesurait ~1 % au labo et je te disais « c'est un artefact, les bots
+saturés d'or n'ont rien à acheter ». Avec l'empilement, les bots dépensent
+enfin tout (or moyen en fin de partie : **70 → 15**) — et Midas est passé
+d'un coup à **43-64 % de victoires**, le meilleur élément du jeu. Donc :
+l'artefact était réel, il a disparu, et Midas a dû être renerfé pour de
+vrai cette fois. Ton intuition « Midas est trop fort » était juste, le labo
+ne pouvait simplement pas la voir avant.
+
+Moustique a demandé 3 itérations : **93 %** de victoires en v1 (avec 6
+boutons il couvrait tout le corps → chaque tir frappait double = un canon à
+4× dps), puis 56 % (1 seul bouton), puis **28,8 %** en ajoutant deux gardes
+— un bouton doit « gonfler » 0,5 s avant d'être encaissable, et repiquer
+ton propre bouton te coûte le bonus de cadence pour ce cycle. Les combos
+avec tes AUTRES sorts, eux, ne sont pas touchés : c'est ça le sel de
+l'élément.
+
+### Interprétations que j'ai prises (dis-moi si faux)
+
+- « le niveau 1 » = le **round 1** d'une partie (pas la boule niveau 1).
+- Glace : lv1 = 30 % / 3 s (tu as dit toi-même que 50 %/2 s c'était trop
+  fort pour le lv1), lv2 = 50 % / 3 s, lv3 = stun 2 s.
+- Boomerang « portée d'une boule de feu » = 52 u ≈ toute l'arène (la boule a
+  une portée infinie, donc j'ai pris « traverse l'arène »).
+- Moustique : un bouton = 120° du corps ; un seul bouton vivant par
+  attaquant à la fois (sinon le corps entier est couvert et c'est cassé).
+- Objets empilables : Echo et Couronne restent uniques (une 2e couronne n'a
+  pas de sens).
+
+---
+
 ## ROUND 10 — reconnexion, combos, poison v2, Critical, bots humains, ~40 000 games (2026-08-05)
 
 Tes 11 retours sont tous implémentés, mesurés au lab et poussés (107 tests

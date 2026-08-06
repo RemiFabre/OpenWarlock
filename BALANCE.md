@@ -1,3 +1,122 @@
+# Balance addendum — round 11 (2026-08-06)
+
+*~25,000 games on top of report #4 (which follows below and is still the
+reference for everything this addendum doesn't touch). Round 11 changed the
+economy, two elements, one spell and the ★ bot, so the report-#4 tables for
+those are superseded by the ones here.*
+
+## Finding A — stackable items deleted a two-month-old measurement artifact
+
+Report #4 (and #3, and #2) all carried the same caveat: **Midas measured ~1%
+and I kept saying it was a bot artifact** — gold-saturated bots finish their
+shopping list by round 6 and then sit on 250+ unspendable gold, so an
+economic element measures as pure downside.
+
+Round 11 made items repeatable (each copy +20%, per Remi). That gave gold
+somewhere to go, and the artifact evaporated in one run:
+
+| | before stacking | after stacking |
+|---|---|---|
+| average end-of-game gold | 60–80 | **14–15** |
+| Midas win rate (3 tiers) | 0.5% / 1.3% / 1.8% | **43% / 59% / 64%** |
+
+Same element, same numbers, opposite verdict. Remi's human read ("Midas felt
+very strong, especially with Earth") was right all along and the lab simply
+could not see it. **Lesson for the next campaign: before believing a
+"bot artifact" explanation, check whether the artifact can be removed.**
+
+Midas then needed two real nerfs (it is now capped at +1 g per hit forever,
+with a damage/push penalty the levels only partly buy back): 43/59/64% →
+13/24/52% → **13/11/37%**.
+
+## Finding B — round 1 was mathematically unkillable
+
+Remi: *"round 1 is completely different from the rest — whatever we do our
+fireballs are useless, kills only happen at the very end when the ring is
+tiny. After round 1 the game is interesting."*
+
+Measured across 60 games, median time to the first death of the round:
+
+| round | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| before | **51.9 s** | 31.4 s | 19.8 s | 20.5 s | 22.0 s |
+| after | **31.3 s** | 25.4 s | 18.5 s | 18.0 s | 18.4 s |
+
+The cause was not "lv1 fireball is weak" in isolation — it is the ratio
+against passive regen. A lv1 fireball was 5 damage on a 2.1 s cooldown =
+**2.38 dps if every single shot lands**, against **1.2 hp/s of regen**. Two
+players trading lv1 fireballs could not kill each other at all; only the
+closing lava could. Every later round hides this because someone has bought
+fireball lv2 (4.86 dps), which is exactly why Remi felt it in round 1 and
+nowhere else, even when he personally skipped the upgrade.
+
+Fixed in two places: lv1 damage 5 → 7, and **regen is throttled to 25% for
+2.5 s after taking damage** so landed hits stick. The second one also answers
+report #4's open question 2 (ring/regen being un-nerfable by price).
+
+## Finding C — Critical was implemented correctly and still felt broken
+
+Remi thought the element was bugged or misimplemented. It wasn't: it ramped
+within the round exactly as specified. It was just far too shallow to
+perceive — +0.45 damage per landed hit, so eight consecutive hits took a
+fireball from 4.25 to 6.9 damage, i.e. still worse than a plain fireball for
+the first two hits.
+
+Rebuilt to the intent ("if you've survived a long time your fireballs are
+truly destructive"): start at 65% power, big step per landed hit, 15-stack
+cap. Measured point-blank ramp is now 4.6 → 10.0 damage over 8 hits (push
+42 → 70). **A correct mechanic with imperceptible numbers is a bug in
+practice** — the fix was numbers plus a HUD readout of the stack count.
+
+## Finding D — Mosquito needed three passes to stop being a cannon
+
+The new element (sting for 1 at double fire rate, leave a bite on a third of
+the victim's body, cash the bite in with any other spell for double damage):
+
+| version | berserker-tier win rate | why |
+|---|---|---|
+| v1: up to 6 bites | **93.1%** | 3 non-overlapping bites tile the whole body, so *every* shot cashed in → ~4× fireball dps with no setup at all |
+| v2: 1 bite per attacker | 56.2% | still a self-feeding sting→cash→sting loop on a half cooldown |
+| v3: + bite must swell 0.5 s, + self-cash costs the fire-rate bonus | **28.8%** | the payoff now has to come from a *setup*, which is the design |
+
+Both guards are deliberately aimed at the self-loop only; comboing a bite
+with your **other** spells — the actual point of the element — is untouched.
+
+## Finding E — the ★ grunt is now a chaos control, not a difficulty tier
+
+Per Remi, the easiest bot is now genuinely random: it walks to random points
+and fires at random bearings, with one instinct (don't drown). That makes the
+head-to-head ladder absolute — **★★ beats ★ 100%/0%, ★★★ beats ★★ 100%/0%** —
+and it means **the grunt-tier tables are no longer a balance signal**. Read
+the berserker and stalker tiers for element balance; the grunt tier now only
+answers "what still works when nobody aims".
+
+## Round-11 element table (900 games per tier, 9 elements, 25% baseline)
+
+| Element | ★★ berserker | ★★★ stalker |
+|---|---|---|
+| venom 🐍 | **37.1%** | 33.8% |
+| terra 🪨 | 25.8% | **41.6%** |
+| midas 🪙 | 11.3% | 37.3% |
+| mosquito 🦟 | 24.0% | 34.6% |
+| arcane 🔮 | 30.8% | 16.9% |
+| ember 🔥 | 28.5% | 10.9% |
+| frost ❄️ | 23.2% | 16.1% |
+| gale 🌪️ | 22.9% | 13.1% |
+| critical 💢 | 21.2% | 20.6% |
+
+Spread 10.9–41.6% with legible affinities. Two caveats before anyone tunes
+further: **mosquito's number is a floor** (bots never deliberately aim at a
+bite arc, which is the whole skill of the element), and **critical's is too**
+(bots don't preserve a ramp they can't perceive). Both should be judged by
+human play.
+
+Health metrics after all of the above: lava kill share **37.5%** (down again
+from 47.3% — see report #4 open question 1, still unanswered and now more
+pressing), comeback rate 11.9%, zero unfinished games.
+
+---
+
 # Balance report #4 — the round-10 campaign
 
 *2026-08-05. ~58,000 headless games via `tools/arena.js` and the new
