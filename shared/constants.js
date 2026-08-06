@@ -40,6 +40,14 @@ export const PLAYER = {
   // 2026-08-04: being big is only ever a disadvantage — easier to hit).
   KB_HP_FACTOR: 0.385, // was 0.8, then 0.55; −30% again 2026-08-05 (low-HP launches still too wild)
   REGEN: 1.2,             // baseline hp/s for everyone (ring stacks on top)
+  // Regen lock (2026-08-06): taking damage throttles regen for a moment.
+  // Diagnosis behind it — a lv1 fireball is 5 dmg / 2.1 s = 2.38 dps if EVERY
+  // shot lands, against 1.2 hp/s of passive regen, so two players trading lv1
+  // fireballs literally could not kill each other. Round 1 (nobody has
+  // upgrades yet) measured a median 51.9 s to the first death vs ~20 s in
+  // round 3 — the lava did all the work. This makes landed hits stick.
+  REGEN_LOCK: 2.5,        // seconds of throttled regen after taking damage
+  REGEN_LOCK_MULT: 0.25,  // regen multiplier while the lock is up
 };
 
 export const LAVA = {
@@ -58,7 +66,14 @@ export const ROUND = {
   KILLS_TO_WIN: 15,       // first to this many kills wins (checked at round end)
   MAX_ROUNDS: 25,         // safety cap: most kills wins if nobody gets there
   KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
+  // kill this fast after your last one and it's a DOUBLE KILL (then triple…)
+  MULTIKILL_WINDOW: 6,
 };
+
+// Multi-kill names, indexed by streak-2 (streak 2 = 'Double Kill').
+export const MULTIKILL_NAMES = [
+  'Double Kill', 'Triple Kill', 'Quadra Kill', 'Penta Kill', 'MASSACRE',
+];
 
 // Anti-snowball economy (2026-08-03 playtest): passive income dominates.
 // HARD CAP: in a 4-player game the max per-round income is
@@ -90,8 +105,10 @@ export const SPELLS = {
     name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8, 8],
     // lv1 spam was too strong (2026-08-03): ~30% slower at lv1, upgrades
     // buy the old cadence back
+    // lv1 damage 5 → 7 (2026-08-06): at 5 a lv1 fireball could not out-damage
+    // passive regen, which is what made round 1 a 52-second stalemate
     cooldown: [2.1, 1.85, 1.6, 1.5], speed: 41, radius: 0.8, range: Infinity,
-    damage: [5, 9, 13, 17], knockback: [65, 70, 76, 83],
+    damage: [7, 10, 14, 18], knockback: [65, 70, 76, 83],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
@@ -142,8 +159,10 @@ export const SPELLS = {
     desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast. From round 6.',
   },
   hook: {
+    // 2026-08-06 (Remi: "very hard to hit"): range +30% and the projectile
+    // is 20% slower, so you can actually read and lead it
     name: 'Hook', hotkey: 'G', tier: 'power', minRound: 5, maxLevel: 2, costs: [20, 8],
-    cooldown: [13, 10], speed: 48, radius: 0.9, range: [26, 34],
+    cooldown: [13, 10], speed: 38, radius: 0.9, range: [34, 44],
     damage: [4, 6],
     desc: '🪝 Skewer the first enemy hit and yank them BEHIND you. From round 6.',
   },
@@ -163,18 +182,29 @@ export const SPELLS = {
 // ---- Items (passive, max 1 each) ---------------------------------------
 // mode: 'elemental' marks experimental wares that only exist (shop + buy)
 // when the game runs the elemental ruleset; classic never sees them.
+// Items STACK (2026-08-06, Remi): buy the same one as many times as you like
+// and the effects pile up normally — but every extra copy costs 20% more than
+// the last (rounded up), so the 5th pair of boots is a real investment.
+// `unique: true` opts out (echo/crown don't have a sensible 2nd copy).
+export const ITEM_COST_STEP = 1.2;
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed' },
-  treads: { name: 'Lava Treads',          cost: 10, desc: '-20% lava damage' },
-  amulet: { name: 'Amulet of Health',     cost: 12, desc: '+25 max HP' },
-  ring:   { name: 'Ring of Regeneration', cost: 12, desc: '+0.7 HP/s' },
-  cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-10% knockback taken' },
-  sword:  { name: 'Blood Sword',          cost: 15, desc: 'Heal 18% of the damage you deal (poison too — lava excluded)' },
-  echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental',
+  boots:  { name: 'Boots of Speed',       cost: 10, desc: '+20% move speed (stacks multiplicatively)' },
+  treads: { name: 'Lava Treads',          cost: 10, desc: '-20% lava damage (stacks multiplicatively)' },
+  amulet: { name: 'Amulet of Health',     cost: 12, desc: '+25 max HP per copy' },
+  ring:   { name: 'Ring of Regeneration', cost: 12, desc: '+0.7 HP/s per copy' },
+  cape:   { name: 'Cape of the Magi',     cost: 12, desc: '-10% knockback taken (stacks multiplicatively)' },
+  sword:  { name: 'Blood Sword',          cost: 15, desc: 'Heal 18% of the damage you deal, per copy (poison too — lava excluded)' },
+  echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', unique: true,
             desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
-  crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental',
+  crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental', unique: true,
             desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +4 dmg, +7 push)' },
 };
+
+// Price of the next copy of `key` when you already own `owned` of them.
+export function itemCost(key, owned = 0) {
+  const base = ITEMS[key] ? ITEMS[key].cost : 0;
+  return Math.ceil(base * ITEM_COST_STEP ** owned);
+}
 
 // 2026-08-03 1k-game study: sustain items dominated every mirror table
 // (turtle 48-50%, bruiser 42-65% win rates vs the 25% baseline) after the
@@ -203,9 +233,14 @@ export const ELEMENTS = {
   ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Pure fire: more damage and push each level.',
            fx: { dmgAdd: [2, 4, 6], kbAdd: [2, 4, 6] } },
+  // 2026-08-06 rework (Remi: the old always-on chill "wasn't impactful").
+  // Now it BUILDS: every frost hit leaves a stack that never melts, and the
+  // 3rd one detonates. Stacks are on the VICTIM and shared by all attackers,
+  // so two frost players combo into each other's setups.
   frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits chill the target — deeper and longer each level.',
-           fx: { slowMult: [0.65, 0.55, 0.45], slowT: [1.5, 1.8, 2.1] } },
+           desc: 'Hits leave a frost stack that never melts. The 3rd stack detonates: lv1 −30% speed 3 s · lv2 −50% speed 3 s · lv3 FROZEN SOLID 2 s. Everyone\'s stacks count toward the same 3.',
+           fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
+                 stunT: [0, 0, 2] } },
   // 2026-08-05 rework: the DoT is now DISCRETE ticks (1/s for 5 s) and
   // re-hits refresh the clock AND stack the tick damage (capped). A lethal
   // tick gives the poisoner the kill — even in lava — but ticks still never
@@ -218,22 +253,26 @@ export const ELEMENTS = {
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'A gust in a ball: more push each level.',
            fx: { kbMult: [1.22, 1.38, 1.55] } },
-  // 2026-08-05 nerf (Remi: "2 g per hit is a kill's worth"): every hit pays
-  // a flat 1 g; lv3's edge is a +1 bonus on the FIRST hit on each enemy each
-  // round — farming one victim pays no better than spreading it around.
-  // Damage penalty deepened 10% → 15%.
+  // 2026-08-06 rework (Remi, from human play — the lab's 1% win rate is a
+  // gold-saturation artifact, see BALANCE.md): +1 g per hit is ALREADY strong,
+  // so the payout is capped there forever and the levels buy back a real
+  // drawback instead of raising income. Level 1 is half a fireball.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits pay +1 g. At lv3 your first hit on each enemy each round pays +2 g. −15% damage.',
-           fx: { goldOnHit: [1, 1, 1], firstHitBonus: [0, 0, 1], dmgMult: 0.85 } },
+           desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −30% at lv2, −15% at lv3.',
+           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.7, 0.85], kbMult: [0.5, 0.7, 0.85] } },
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Bigger fireball each level; hits briefly grow the target.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
-  // 2026-08-05 (Remi): snowball-within-the-round element — every fireball you
-  // LAND this round makes the next ones hit harder and push further (capped,
-  // resets at round start). Starts weak by design: −20% base damage.
+  // 2026-08-06: the ramp was RIGHT but far too shallow to feel — +0.45 dmg a
+  // hit meant 8 landed fireballs took you from 4.25 to 6.9 damage and Remi
+  // never saw it working. The mechanic was never broken, the numbers were
+  // timid. Now: you start at 65% of a normal fireball and each landed hit is
+  // worth a big step, so a round you dominate ends with monstrous fireballs
+  // (fireball lv1 goes 3.3 → 15 damage at 15 stacks; lv3 + crit lv3 → ~30).
   critical: { name: 'Critical', icon: '💢', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every fireball you LAND this round rams the next ones: more damage and push per hit. Starts weak: −15% damage.',
-           fx: { dmgMult: 0.85, rampDmg: [0.45, 0.6, 0.8], rampKb: [1.8, 2.6, 3.5], rampCap: 20 } },
+           desc: 'Starts at 65% power. EVERY fireball you LAND this round makes the next one hit harder and push further, up to 15 stacks. Survive and snowball: late-round hits are monstrous. Resets each round.',
+           fx: { dmgMult: 0.65, kbMult: 0.65, rampDmg: [1.2, 1.7, 2.2],
+                 rampKb: [6, 9, 12], rampCap: 15 } },
   // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
   // badges every spell slot with 🔮 so the owner SEES it working.
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],

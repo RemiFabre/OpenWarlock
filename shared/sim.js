@@ -3,7 +3,7 @@
 
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
-  BUILDS,
+  BUILDS, MULTIKILL_NAMES, itemCost,
 } from './constants.js';
 
 // Tiny deterministic RNG (mulberry32) so tests are reproducible.
@@ -72,7 +72,13 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     alive: false,          // becomes true at round start
     ready: false,
     gold: GOLD.START, goldEarned: GOLD.START, kills: 0, deaths: 0,
-    dmgDealt: 0,           // damage dealt to enemies (incl. credited lava burn)
+    roundGold: 0,          // gold earned THIS round (scoreboard column)
+    dmgDealt: 0,           // damage you landed yourself (spells, DoT, trails)
+    dmgLava: 0,            // lava burn credited to you (you shoved them in)
+    healLifesteal: 0,      // hp clawed back by the Blood Sword
+    healRegen: 0,          // hp regenerated (baseline + rings)
+    regenLockT: 0,         // seconds of suppressed regen after taking a hit
+    multiKillBest: 0,      // best multi-kill streak this game (2 = double…)
     spectator: false,
     radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
@@ -83,6 +89,8 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
     slowT: 0,              // frost: seconds of slow remaining
     slowMultHit: 1,        // frost: strength of the slow that hit us
+    frostStacks: 0,        // frost: stacks on us (ALL attackers share the count)
+    stunT: 0,              // frost lv3: seconds frozen solid (no move, no cast)
     poisonT: 0,            // venom: seconds of DoT remaining
     poisonTick: 0,         // venom: damage per 1 s tick (re-hits stack it)
     poisonBy: null,        // venom: who poisoned us (kill credit)
@@ -150,7 +158,17 @@ function stats(pl) {
   }
   if (pl.inLava) speed *= LAVA.SPEED_MULT; // lava is fast — and it burns
   if (pl.slowT > 0) speed *= (pl.slowMultHit || 0.6); // frost chill (elemental)
+  if (pl.stunT > 0) speed = 0;                        // frost stun (elemental)
+  // recently hurt? regen is throttled. Without this a lv1 fireball (2.38 dps
+  // if EVERY shot lands) loses to the 1.2 hp/s baseline and nobody can die.
+  if (pl.regenLockT > 0) regen *= PLAYER.REGEN_LOCK_MULT;
   return { speed, lavaMult, kbMult, regen, lifesteal, maxHp };
+}
+
+// Effective stats after items/elements, for the shop panel, the stats table
+// and tests. `stats()` itself stays private (it runs 30×/s in the hot loop).
+export function playerStats(pl) {
+  return stats(pl);
 }
 
 // Per-level value helper: spec fields may be scalar or per-level arrays.
@@ -185,6 +203,7 @@ export function castSpell(state, id, key, tx, ty) {
   // hasOwn: never resolve names like 'constructor' through the prototype chain
   const spec = Object.hasOwn(SPELLS, key) ? SPELLS[key] : null;
   if (!pl || !spec || !pl.alive || state.phase !== 'battle') return false;
+  if (pl.stunT > 0) return false; // frost lv3 stun: no casting either
   const level = pl.spells[key] || 0;
   if (level < 1) return false;
   if ((pl.cooldowns[key] || 0) > 0) return false;
@@ -414,8 +433,11 @@ export function buy(state, id, thing) {
   if (Object.hasOwn(ITEMS, thing)) {
     if (ITEMS[thing].mode === 'elemental' && state.mode !== 'elemental')
       return { ok: false, err: 'elemental mode only' };
-    if (pl.items.includes(thing)) return { ok: false, err: 'already owned' };
-    const cost = ITEMS[thing].cost;
+    // items stack; each extra copy costs 20% more than the last (itemCost).
+    // A couple of special items stay one-per-customer.
+    const owned = pl.items.filter(i => i === thing).length;
+    if (owned > 0 && ITEMS[thing].unique) return { ok: false, err: 'already owned' };
+    const cost = itemCost(thing, owned);
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
     pl.gold -= cost;
     pl.items.push(thing);
@@ -458,8 +480,18 @@ function applyDamage(state, target, amount, sourceId, { silent = false, stamp = 
   }
   if (creditId != null) {
     const cr = state.players[creditId];
-    if (cr) cr.dmgDealt += effective;
+    // the scoreboard splits these: dmgDealt is damage YOU landed (spells,
+    // DoT, trails), dmgLava is burn credited to you because you shoved them
+    // in. Very different bragging rights, so they get their own columns.
+    if (cr) {
+      if (sourceId == null) cr.dmgLava += effective;
+      else cr.dmgDealt += effective;
+    }
   }
+  // taking damage suppresses regen for a moment (see stats/REGEN_LOCK): a
+  // lv1 fireball duel used to be fully cancelled by passive regen, which is
+  // what made round 1 feel dead
+  if (effective > 0) target.regenLockT = PLAYER.REGEN_LOCK;
   if (sourceId != null && sourceId !== target.id) {
     if (stamp) target.lastHitBy = { id: sourceId, t: state.time };
     const src = state.players[sourceId];
@@ -467,7 +499,11 @@ function applyDamage(state, target, amount, sourceId, { silent = false, stamp = 
       // heal on EFFECTIVE damage (overkill doesn't feed the sword); works on
       // everything with a source — spells, DoT ticks, trails — never lava
       const { lifesteal } = stats(src);
-      if (lifesteal > 0) src.hp = Math.min(src.maxHp, src.hp + effective * lifesteal);
+      if (lifesteal > 0) {
+        const before = src.hp;
+        src.hp = Math.min(src.maxHp, src.hp + effective * lifesteal);
+        src.healLifesteal += src.hp - before; // scoreboard column
+      }
     }
   }
   if (!silent)
@@ -500,6 +536,20 @@ function kill(state, target, directSourceId) {
     killer.roundKills++;
     killer.gold += GOLD.PER_KILL + bounty;
     killer.goldEarned += GOLD.PER_KILL + bounty;
+    killer.roundGold += GOLD.PER_KILL + bounty;
+    // multi-kill: chain kills inside MULTIKILL_WINDOW and the announcer wakes
+    // up (double → triple → quadra → penta → MASSACRE)
+    killer._mkStreak = (state.time - (killer._mkAt ?? -Infinity) <= ROUND.MULTIKILL_WINDOW)
+      ? (killer._mkStreak || 1) + 1 : 1;
+    killer._mkAt = state.time;
+    if (killer._mkStreak >= 2) {
+      const name = MULTIKILL_NAMES[Math.min(killer._mkStreak - 2, MULTIKILL_NAMES.length - 1)];
+      killer.multiKillBest = Math.max(killer.multiKillBest, killer._mkStreak);
+      state.events.push({
+        t: 'multikill', id: killer.id, n: killer._mkStreak, name,
+        x: killer.x, y: killer.y,
+      });
+    }
     if (bounty > 0) {
       killer.roundBounty = (killer.roundBounty || 0) + bounty;
       state.events.push({ t: 'gold', id: killer.id, amount: bounty, x: target.x, y: target.y });
@@ -544,9 +594,10 @@ function startRound(state) {
     pl.cooldowns = {};
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.slowT = 0; pl.slowMultHit = 1;
+    pl.stunT = 0; pl.frostStacks = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0; pl.critHits = 0;
-    pl._midasHit = {};
+    pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
     pl.roundKills = 0;
     pl.roundBounty = 0;
@@ -580,9 +631,9 @@ function endRound(state) {
   for (const pl of fighters(state)) {
     // kill + bounty gold shown here, already granted at kill time
     let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
-    pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE;
-    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
-    if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
+    pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE; pl.roundGold += GOLD.ROUND_BASE;
+    if (pl === winner) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; pl.roundGold += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
+    if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; pl.roundGold += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
     income[pl.id] = g;
     // itemized for the round-end banner: where did each gold piece come from
     detail[pl.id] = {
@@ -737,8 +788,11 @@ function stepBattle(state, dt) {
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
 
+    if (pl.regenLockT > 0) pl.regenLockT = Math.max(0, pl.regenLockT - dt);
+
     // elemental timed effects (all timers stay 0 in classic mode)
     if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
+    if (pl.stunT > 0) pl.stunT = Math.max(0, pl.stunT - dt);
     if (pl.growT > 0) pl.growT = Math.max(0, pl.growT - dt);
     if (pl.poisonT > 0) {
       // discrete ticks (2026-08-05 rework): one bite of poisonTick damage per
@@ -832,8 +886,12 @@ function stepBattle(state, dt) {
     if (inLava) applyDamage(state, pl, LAVA.DPS * st.lavaMult * dt, null, { silent: true });
     if (pl.alive) pl.inLava = inLava;
 
-    // regen
-    if (pl.alive && st.regen > 0) pl.hp = Math.min(pl.maxHp, pl.hp + st.regen * dt);
+    // regen (throttled for REGEN_LOCK seconds after taking damage)
+    if (pl.alive && st.regen > 0) {
+      const before = pl.hp;
+      pl.hp = Math.min(pl.maxHp, pl.hp + st.regen * dt);
+      pl.healRegen += pl.hp - before; // scoreboard column
+    }
   }
 
   // Echo Stone delayed fireballs (elemental; the list is empty in classic)
@@ -1082,9 +1140,35 @@ function stepProjectiles(state, dt) {
 function applyElementsHit(state, pr, target) {
   for (const [ek, el] of Object.entries(pr.elements)) {
     const f = ELEMENTS[ek].fx;
-    if (f.slowMult) {
-      target.slowT = efxV(f.slowT, el);
-      target.slowMultHit = efxV(f.slowMult, el);
+    // frost (2026-08-06): stacks build on the VICTIM and are shared by every
+    // attacker — two frost players feed the same counter. The 3rd stack
+    // detonates (slow, or a hard freeze at lv3) and clears the counter; the
+    // level of whoever landed the 3rd stack decides how bad it is.
+    if (f.stacksToTrigger) {
+      target.frostStacks = (target.frostStacks || 0) + 1;
+      state.events.push({
+        t: 'frost', id: target.id, stacks: target.frostStacks,
+        of: f.stacksToTrigger, x: target.x, y: target.y,
+      });
+      if (target.frostStacks >= f.stacksToTrigger) {
+        target.frostStacks = 0;
+        const stun = efxV(f.stunT, el);
+        const slowT = efxV(f.slowT, el);
+        if (stun > 0) {
+          target.stunT = Math.max(target.stunT || 0, stun);
+          target.moveTarget = null;
+          target.dash = null;
+          target.charging = null;
+        }
+        if (slowT > 0) {
+          target.slowT = slowT;
+          target.slowMultHit = efxV(f.slowMult, el);
+        }
+        state.events.push({
+          t: 'frostBreak', id: target.id, stun: stun > 0,
+          x: target.x, y: target.y,
+        });
+      }
     }
     if (f.tickDmg) {
       // re-hits REFRESH the clock and STACK the tick damage (capped);
@@ -1102,19 +1186,12 @@ function applyElementsHit(state, pr, target) {
     if (f.goldOnHit && pr.owner != null) {
       const owner = state.players[pr.owner];
       if (owner) {
-        let pay = efxV(f.goldOnHit, el);
-        // first-hit bonus (midas lv3): once per victim per round — spreading
-        // hits around pays better than farming one target
-        const bonus = f.firstHitBonus ? efxV(f.firstHitBonus, el) : 0;
-        if (bonus > 0) {
-          owner._midasHit = owner._midasHit || {};
-          if (!owner._midasHit[target.id]) {
-            owner._midasHit[target.id] = true;
-            pay += bonus;
-          }
-        }
+        // capped at +1 g per hit at every level, forever (2026-08-06): the
+        // levels buy back the damage/push penalty instead of raising income
+        const pay = efxV(f.goldOnHit, el);
         owner.gold += pay;
         owner.goldEarned += pay;
+        owner.roundGold += pay;
         state.events.push({ t: 'gold', id: pr.owner, amount: pay, x: pr.x, y: pr.y });
       }
     }
@@ -1144,10 +1221,23 @@ export function snapshot(state) {
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
       gold: p.gold, goldEarned: p.goldEarned, kills: p.kills, deaths: p.deaths,
-      dmgDealt: Math.round(p.dmgDealt),
+      roundGold: p.roundGold,
+      dmgDealt: Math.round(p.dmgDealt), dmgLava: Math.round(p.dmgLava),
+      healLifesteal: Math.round(p.healLifesteal), healRegen: Math.round(p.healRegen),
+      multiKillBest: p.multiKillBest,
       spectator: p.spectator, radius: round2(p.radius),
       spells: p.spells, items: p.items,
       cooldowns: mapRound(p.cooldowns),
+      // effective stats after every item copy — the shop/stats panel shows
+      // these so "what did stacking 3 rings actually buy me" is answerable
+      stats: (() => {
+        const s = stats(p);
+        return {
+          speed: round2(s.speed), regen: round2(s.regen),
+          lifesteal: round2(s.lifesteal), kbMult: round2(s.kbMult),
+          lavaMult: round2(s.lavaMult),
+        };
+      })(),
       shieldT: round2(p.shieldT),
       inLava: !!p.inLava,
       dashing: !!p.dash,
@@ -1156,6 +1246,8 @@ export function snapshot(state) {
       ...(elemental ? {
         elements: p.elements,
         slow: p.slowT > 0, poison: p.poisonT > 0, grow: p.growT > 0,
+        stun: p.stunT > 0, frostStacks: p.frostStacks || 0,
+        critHits: p.critHits || 0,   // so the HUD can show the ramp building
       } : {}),
     };
   }
@@ -1269,6 +1361,20 @@ function pilotOwnedSpells(state, pl, dt) {
         castSpell(state, pl.id, 'teleport', 0, 0)) return;
     if (pl.kind !== 'berserker' && owns('rush') && !pl.dash &&
         castSpell(state, pl.id, 'rush', 0, 0)) return; // dash is 5x walk speed
+  }
+
+  // the ★ grunt is pure chaos by design (2026-08-06): it doesn't aim ANY of
+  // its spells, it just lets them off in random directions. Shield is the one
+  // exception — a randomly-timed shield is indistinguishable from no shield.
+  if (pl.kind === 'grunt') {
+    for (const k of ['boomerang', 'lightning', 'rush', 'pillar']) {
+      if (!owns(k)) continue;
+      if (k === 'rush' && pl.dash) continue;
+      const a = rng(state) * Math.PI * 2;
+      if (castSpell(state, pl.id, k, pl.x + Math.cos(a) * 20, pl.y + Math.sin(a) * 20)) return;
+    }
+    if (owns('shield') && rng(state) < 0.05) castSpell(state, pl.id, 'shield', pl.x, pl.y);
+    return;
   }
 
   const target = nearestEnemy(state, pl);
@@ -1427,7 +1533,11 @@ function scanThreats(state, pl, horizon, margin) {
   return worst;
 }
 
-// -- grunt ★: wanders, spams fireballs with sloppy aim ----------------------
+// -- grunt ★: pure chaos ----------------------------------------------------
+// 2026-08-06 (Remi: "make the easiest one completely random"). It no longer
+// aims at anybody: it wanders to random spots and fires in random directions.
+// The ONE instinct it keeps is not drowning — a grunt that walks into the
+// lava on round 1 stops being even a punching bag. Everything else is dice.
 
 function stepGrunt(state, pl, dt) {
   const id = pl.id;
@@ -1435,7 +1545,7 @@ function stepGrunt(state, pl, dt) {
   if (pl._botT > 0) return;
   pl._botT = 0.25 + rng(state) * 0.3;
 
-  // stay away from lava: head toward a safe ring
+  // the single instinct: if we're swimming (or about to), head back inside
   const d = Math.hypot(pl.x, pl.y);
   const safe = Math.max(2, state.arenaRadius - 6);
   if (d > safe) {
@@ -1446,15 +1556,10 @@ function stepGrunt(state, pl, dt) {
     setMoveTarget(state, id, Math.cos(a) * r, Math.sin(a) * r);
   }
 
-  // shoot nearest enemy with a bit of aim error
-  const best = nearestEnemy(state, pl);
-  if (best && (pl.cooldowns.fireball || 0) <= 0) {
-    const bestD = Math.hypot(best.x - pl.x, best.y - pl.y);
-    const err = (rng(state) - 0.5) * bestD * 0.25;
-    // lead the target a little using its knockback velocity
-    const tx = best.x + best.vx * 0.15 - (best.y - pl.y) / (bestD || 1) * err;
-    const ty = best.y + best.vy * 0.15 + (best.x - pl.x) / (bestD || 1) * err;
-    castSpell(state, id, 'fireball', tx, ty);
+  // fire into the void: a uniformly random bearing, no target, no lead
+  if ((pl.cooldowns.fireball || 0) <= 0) {
+    const a = rng(state) * Math.PI * 2;
+    castSpell(state, id, 'fireball', pl.x + Math.cos(a) * 20, pl.y + Math.sin(a) * 20);
   }
 }
 

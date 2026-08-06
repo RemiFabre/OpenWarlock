@@ -1,6 +1,6 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
-import { SPELLS, ITEMS, ELEMENTS, BOTS, BUILDS, SNAPSHOT_RATE, ARENA, ROUND, GOLD } from '../shared/constants.js';
+import { SPELLS, ITEMS, ELEMENTS, BOTS, BUILDS, SNAPSHOT_RATE, ARENA, ROUND, GOLD, itemCost } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -652,11 +652,16 @@ function buildShop(container, mode = 'classic') {
             (w.key !== 'arcane' && (spells.fireball || 0) < 1);
         }
       } else {
-        if (items.includes(w.key)) {
+        // items stack: show how many you own and what the NEXT copy costs
+        // (every extra copy is 20% dearer). Unique items still cap at one.
+        const owned = items.filter(i => i === w.key).length;
+        if (owned > 0 && w.spec.unique) {
           cost.textContent = 'owned'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
-          cost.textContent = `${w.spec.cost} g`; cost.className = 'cost';
-          w.el.disabled = gold < w.spec.cost;
+          const c = itemCost(w.key, owned);
+          cost.textContent = owned > 0 ? `${c} g · ×${owned}` : `${c} g`;
+          cost.className = owned > 0 ? 'cost stacked' : 'cost';
+          w.el.disabled = gold < c;
         }
       }
     }

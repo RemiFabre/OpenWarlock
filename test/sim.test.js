@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
-  setMode, BOT_ELEMENTS,
+  setMode, BOT_ELEMENTS, playerStats,
 } from '../shared/sim.js';
-import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND } from '../shared/constants.js';
+import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, itemCost } from '../shared/constants.js';
 
 const DT = 1 / 30;
 
@@ -450,14 +450,51 @@ describe('shop & economy', () => {
     expect(buy(state, 'a', 'lightning').ok).toBe(false);
   });
 
-  it('rejects over-max spell levels and duplicate items', () => {
+  it('rejects over-max spell levels', () => {
     const state = shopState();
     state.players.a.gold = 999;
     for (let i = 0; i < 3; i++) buy(state, 'a', 'fireball');
     expect(state.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
     expect(buy(state, 'a', 'fireball').ok).toBe(false);
-    expect(buy(state, 'a', 'boots').ok).toBe(true);
-    expect(buy(state, 'a', 'boots').ok).toBe(false);
+  });
+
+  it('items stack, and each extra copy costs 20% more (rounded up)', () => {
+    const state = shopState();
+    const a = state.players.a;
+    a.gold = 999;
+    const base = ITEMS.boots.cost;                       // 10
+    expect(itemCost('boots', 0)).toBe(base);             // 10
+    expect(itemCost('boots', 1)).toBe(Math.ceil(base * 1.2));      // 12
+    expect(itemCost('boots', 2)).toBe(Math.ceil(base * 1.2 ** 2)); // 15
+    let spent = 0;
+    for (let i = 0; i < 3; i++) {
+      const before = a.gold;
+      expect(buy(state, 'a', 'boots').ok).toBe(true);
+      spent += before - a.gold;
+    }
+    expect(a.items.filter(i => i === 'boots').length).toBe(3);
+    expect(spent).toBe(itemCost('boots', 0) + itemCost('boots', 1) + itemCost('boots', 2));
+    // the effects really do pile up: 1.2^3 speed
+    expect(playerStats(a).speed).toBeCloseTo(PLAYER.SPEED * ITEM_FX.boots.speedMult ** 3, 4);
+    // ...and a poor player can't afford the escalated price
+    a.gold = itemCost('boots', 3) - 1;
+    expect(buy(state, 'a', 'boots').err).toBe('not enough gold');
+  });
+
+  it('stacked amulets each add max hp; unique items still reject a 2nd copy', () => {
+    const state = shopState();
+    const a = state.players.a;
+    a.gold = 999;
+    buy(state, 'a', 'amulet');
+    buy(state, 'a', 'amulet');
+    expect(a.maxHp).toBe(PLAYER.MAX_HP + 2 * ITEM_FX.amulet.maxHp);
+    // echo/crown are one-per-customer (elemental mode only)
+    const el = createGame({ seed: 3, mode: 'elemental' });
+    addPlayer(el, 'a', 'A');
+    el.phase = 'shop';
+    el.players.a.gold = 999;
+    expect(buy(el, 'a', 'echo').ok).toBe(true);
+    expect(buy(el, 'a', 'echo').err).toBe('already owned');
   });
 
   it('amulet raises max hp immediately', () => {
@@ -864,13 +901,13 @@ describe('elemental mode', () => {
     expect(ELEMENTS.frost.costs.reduce((s, c) => s + c, 0)).toBe(26);
   });
 
-  it('elements stack on one fireball: frost+ember chills AND hits harder', () => {
+  it('elements stack on one fireball: frost stacks AND ember hits harder', () => {
     const state = hitWith({ frost: 1, ember: 1 });
     const b = state.players.p1;
-    expect(b.slowT).toBeGreaterThan(0);                 // frost rider applied
-    // ember lv1 +2 dmg on the same hit: 5+2 = 7, minus a hair of regen
-    expect(b.maxHp - b.hp).toBeGreaterThan(6.0);
-    expect(b.maxHp - b.hp).toBeLessThan(7.5);
+    expect(b.frostStacks).toBe(1);                      // frost rider applied
+    // ember lv1 +2 dmg on the same hit: 7+2 = 9, minus a hair of regen
+    expect(b.maxHp - b.hp).toBeGreaterThan(8.0);
+    expect(b.maxHp - b.hp).toBeLessThan(9.5);
   });
 
   it('arcane shortens every cooldown', () => {
@@ -884,26 +921,74 @@ describe('elemental mode', () => {
     expect(cdArc).toBeCloseTo(SPELLS.fireball.cooldown[0] * ELEMENTS.arcane.fx.cdrMult[2], 3);
   });
 
-  it('frost hits slow the target for the slow window', () => {
-    const walked = (element) => {
-      const state = element ? hitWith(element) : hitWith('ember');
-      const b = state.players.p1;
-      if (!element) b.slowT = 0; // control: same hit, slow scrubbed
-      b.vx = 0; b.vy = 0; // strip knockback so we measure walking only
-      const x0 = b.x;
-      setMoveTarget(state, 'p1', b.x + 30, b.y);
-      run(state, 1);
-      return b.x - x0;
-    };
-    const slow3 = walked({ frost: 3 });
-    const slow1 = walked({ frost: 1 });
-    const normal = walked(null);
-    expect(normal).toBeGreaterThan(PLAYER.SPEED * 0.85); // sanity: ~11u in 1 s
-    // lv1 slowMult 0.75 (1.2 s window covers the measured second)
-    expect(slow1).toBeLessThan(normal * 0.85);
-    expect(slow1).toBeGreaterThan(normal * 0.62);
-    // lv3 slowMult 0.55: clearly deeper than lv1
-    expect(slow3).toBeLessThan(slow1 * 0.85);
+  // Land `n` frost fireballs of level `el` on p1 and return the state.
+  // Repeated point-blank shots, cooldown scrubbed between them.
+  function frostHits(el, n) {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { frost: el };
+    for (let i = 0; i < n; i++) {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.4);
+    }
+    return state;
+  }
+
+  it('frost: the first two hits only stack — the THIRD detonates', () => {
+    const two = frostHits(1, 2);
+    expect(two.players.p1.frostStacks).toBe(2);
+    expect(two.players.p1.slowT).toBe(0);   // nothing yet: it just builds
+    const three = frostHits(1, 3);
+    const b = three.players.p1;
+    expect(b.frostStacks).toBe(0);          // detonated and reset
+    expect(b.slowT).toBeGreaterThan(2.5);   // lv1: 3 s of slow
+    expect(b.slowMultHit).toBeCloseTo(ELEMENTS.frost.fx.slowMult[0], 5);
+    expect(three.events.some(e => e.t === 'frostBreak')).toBe(true);
+  });
+
+  it('frost lv3 detonates into a real stun: no walking, no casting', () => {
+    const state = frostHits(3, 3);
+    const b = state.players.p1;
+    expect(b.stunT).toBeGreaterThan(1.5);
+    b.vx = 0; b.vy = 0;
+    const x0 = b.x;
+    setMoveTarget(state, 'p1', b.x + 30, b.y);
+    expect(castSpell(state, 'p1', 'fireball', 100, 0)).toBe(false); // frozen
+    run(state, 1);
+    expect(Math.abs(b.x - x0)).toBeLessThan(0.5);                   // rooted
+    // ...and it wears off
+    run(state, 1.5);
+    expect(b.stunT).toBe(0);
+    setMoveTarget(state, 'p1', b.x + 30, b.y);
+    run(state, 1);
+    expect(b.x - x0).toBeGreaterThan(5);
+  });
+
+  it('frost stacks are shared: two attackers feed the same counter', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { frost: 1 };
+    c.elements = { frost: 1 };              // a second frost player
+    b.x = 8; b.y = 0; b.moveTarget = null;
+    // two hits from a, one from c — the third stack (c's) detonates.
+    // Whoever isn't shooting is parked far off the lane, or the shot would
+    // pop on them instead of reaching the victim.
+    for (const shooter of ['p0', 'p0', 'p2']) {
+      const s = state.players[shooter];
+      const idle = state.players[shooter === 'p0' ? 'p2' : 'p0'];
+      idle.x = 0; idle.y = -40; idle.vx = idle.vy = 0; idle.moveTarget = null;
+      s.x = 0; s.y = 0; s.vx = s.vy = 0; s.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      castSpell(state, shooter, 'fireball', 20, 0);
+      run(state, 0.4);
+    }
+    expect(b.frostStacks).toBe(0);
+    expect(b.slowT).toBeGreaterThan(2.5);
   });
 
   it('venom lv1: discrete 1-per-second ticks, ~5 dmg over 5 s, then it stops', () => {
@@ -919,15 +1004,20 @@ describe('elemental mode', () => {
     b.poisonTick = ELEMENTS.venom.fx.tickDmg[0];
     b._poisonNext = ELEMENTS.venom.fx.tickEvery;
     b.poisonBy = 'p0';
+    // count the ticks themselves — hp deltas now also carry the regen lock,
+    // which is a separate mechanic with its own tests
+    const ticks = () => state.events.filter(e => e.t === 'hit' && e.poison && e.id === 'p1');
     run(state, 0.9);
-    expect(c.hp - b.hp).toBeLessThan(0.3);  // discrete: nothing before the 1 s mark
+    expect(ticks().length).toBe(0);         // discrete: nothing before the 1 s mark
     run(state, 0.2);
-    expect(c.hp - b.hp).toBeCloseTo(1, 1);  // first tick landed
+    expect(ticks().length).toBe(1);         // first tick landed
     run(state, 4.3);                        // t ≈ 5.4: all 5 ticks in
-    expect(c.hp - b.hp).toBeCloseTo(5, 1);
+    expect(ticks().length).toBe(5);
+    expect(ticks().reduce((s, e) => s + e.amount, 0)).toBeCloseTo(5, 5);
     expect(b.poisonTick).toBe(0);           // expired poison leaves no residue
     run(state, 2);
-    expect(c.hp - b.hp).toBeCloseTo(5, 1);  // and it STOPPED
+    expect(ticks().length).toBe(5);         // and it STOPPED
+    expect(c.hp).toBeGreaterThan(b.hp);     // the victim really is down on hp
   });
 
   it('venom re-hits REFRESH the clock and STACK the tick damage', () => {
@@ -972,14 +1062,16 @@ describe('elemental mode', () => {
 
   it('critical 💢: starts weak, every landed hit ramps damage and push', () => {
     const f = ELEMENTS.critical.fx;
-    // hit 1: no ramp yet — 5 * 0.8 = 4 dmg (minus a hair of regen)
+    const base = SPELLS.fireball.damage[0];
+    // hit 1: no ramp yet — a fraction of a normal fireball
     const s1 = hitWith('critical');
     const b1 = s1.players.p1;
-    expect(b1.maxHp - b1.hp).toBeGreaterThan(3.2);
-    expect(b1.maxHp - b1.hp).toBeLessThan(4.2);
+    const first = b1.maxHp - b1.hp;
+    expect(first).toBeGreaterThan(base * f.dmgMult - 0.8);
+    expect(first).toBeLessThan(base * f.dmgMult + 0.5);
+    expect(first).toBeLessThan(base);          // strictly weaker to start
     expect(s1.players.p0.critHits).toBe(1);
-    // after 10 landed hits, the next one carries the ramp:
-    // (5 + 10*0.35) * 0.8 = 6.8 dmg
+    // after 10 landed hits the ramp is doing real work
     const s2 = hitWith('critical');
     const a2 = s2.players.p0, b2 = s2.players.p1;
     a2.critHits = 10;
@@ -988,9 +1080,10 @@ describe('elemental mode', () => {
     castSpell(s2, 'p0', 'fireball', 20, 0);
     run(s2, 0.4);
     const dealt = b2.maxHp - b2.hp;
-    const expected = (SPELLS.fireball.damage[0] + 10 * f.rampDmg[0]) * f.dmgMult;
+    const expected = (base + 10 * f.rampDmg[0]) * f.dmgMult;
     expect(dealt).toBeGreaterThan(expected - 0.8); // regen nibbles a little
     expect(dealt).toBeLessThan(expected + 0.5);
+    expect(dealt).toBeGreaterThan(base * 1.5);     // and it's now MONSTROUS
     expect(a2.critHits).toBe(11);
     // knockback ramps too: same hit, compare fresh vs ramped launch speed
     const peak = (hits) => {
@@ -1012,7 +1105,7 @@ describe('elemental mode', () => {
     s3.players.p0.cooldowns = {};
     castSpell(s3, 'p0', 'fireball', 20, 0);
     run(s3, 0.4);
-    const capped = (SPELLS.fireball.damage[0] + f.rampCap * f.rampDmg[0]) * f.dmgMult;
+    const capped = (base + f.rampCap * f.rampDmg[0]) * f.dmgMult;
     expect(b3.maxHp - b3.hp).toBeLessThan(capped + 0.5);
   });
 
@@ -1079,32 +1172,42 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
   });
 
-  it('midas lv3: first hit on each enemy each round pays the bonus, repeats pay 1', () => {
+  it('midas pays a flat +1 g per hit at EVERY level — never more', () => {
+    for (const level of [1, 2, 3]) {
+      const state = hitWith({ midas: level });
+      const a = state.players.p0, b = state.players.p1;
+      expect(a.gold).toBe(GOLD.START + 1);
+      expect(a.roundGold).toBe(1);
+      // a second hit on the same victim pays the same flat 1 g
+      b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
+      a.cooldowns = {};
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.4);
+      expect(a.gold).toBe(GOLD.START + 2);
+      expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
+    }
+  });
+
+  it('midas lv1 is half a fireball, and levels buy the penalty back', () => {
     const f = ELEMENTS.midas.fx;
-    const state = hitWith({ midas: 3 });
-    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
-    const base = f.goldOnHit[2], bonus = f.firstHitBonus[2];
-    expect(a.gold).toBe(GOLD.START + base + bonus); // fresh victim: 1 + 1 = 2 g
-    // second hit on the SAME victim: flat 1 g
-    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(a.gold).toBe(GOLD.START + base + bonus + base);
-    // a DIFFERENT victim is fresh: bonus pays again
-    c.x = 8; c.y = 0; c.vx = 0; c.vy = 0;
-    b.x = 0; b.y = -40; // park the first victim out of the lane
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(a.gold).toBe(GOLD.START + 3 * base + 2 * bonus);
-    // the first-hit ledger resets every round
-    expect(a._midasHit && Object.keys(a._midasHit).length).toBe(2);
-    state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
-    state.players.p2.hp = 0.01; state.players.p2.x = ARENA.START_RADIUS + 5;
-    run(state, 1 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
-    expect(state.phase).toBe('battle');
-    expect(Object.keys(a._midasHit || {}).length).toBe(0);
+    const dealtAt = (level) => {
+      const state = hitWith({ midas: level });
+      const b = state.players.p1;
+      return b.maxHp - b.hp;
+    };
+    const base = SPELLS.fireball.damage[0];
+    const lv1 = dealtAt(1), lv3 = dealtAt(3);
+    expect(lv1).toBeGreaterThan(base * f.dmgMult[0] - 0.8); // ~half damage
+    expect(lv1).toBeLessThan(base * f.dmgMult[0] + 0.5);
+    expect(lv3).toBeGreaterThan(lv1 * 1.4);                 // lv3 much closer to normal
+    expect(lv3).toBeLessThan(base);                         // but never free
+    // push is halved at lv1 too
+    const peak = (level) => {
+      const state = hitWith({ midas: level });
+      const b = state.players.p1;
+      return Math.abs(b.vx);
+    };
+    expect(peak(1)).toBeLessThan(peak(3) * 0.8);
   });
 
   it('terra grows the target and respects the total 2.2x size cap', () => {
@@ -1747,10 +1850,11 @@ describe('lifesteal (Blood Sword)', () => {
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     b.x = ARENA.START_RADIUS + 3; b.y = 0; b.moveTarget = null; // swimming
     b.lastHitBy = { id: 'p0', t: state.time };   // p0 shoved them in
-    const dmg0 = a.dmgDealt;
+    const direct0 = a.dmgDealt, lava0 = a.dmgLava;
     run(state, 1);
-    expect(a.dmgDealt).toBeGreaterThan(dmg0);    // the burn IS credited...
-    expect(Math.abs(a.hp - c.hp)).toBeLessThan(0.15); // ...but heals nothing
+    expect(a.dmgLava).toBeGreaterThan(lava0);    // credited to the LAVA column...
+    expect(a.dmgDealt).toBe(direct0);            // ...never to direct damage...
+    expect(Math.abs(a.hp - c.hp)).toBeLessThan(0.15); // ...and it heals nothing
   });
 
   it('healing is capped by the damage actually dealt (no overkill farming)', () => {
