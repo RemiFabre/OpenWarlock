@@ -2,7 +2,7 @@
 
 import {
   SPELLS, ITEMS, ITEM_FX, ITEM_COST_STEP, ELEMENTS, BOTS, BUILDS,
-  SNAPSHOT_RATE, ARENA, ROUND, GOLD, itemCost,
+  SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, itemCost,
 } from '../shared/constants.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
@@ -60,9 +60,11 @@ if (!AVATARS.includes(myAvatar)) myAvatar = AVATARS[0];
 let ws = null, myId = null;
 const snaps = [];          // {at, s} ring buffer
 const fx = [];             // visual effects
+window.__fx = fx;          // test/debug hook: lets a test inject one to look at
 let moveMark = null;
 const mouse = { x: 0, y: 0 };
 let lastUiUpdate = 0;
+let goPinned = false;      // final standings stay up until you dismiss them
 
 function me(s) { return (s && myId && s.players && s.players[myId]) || null; }
 function latest() { return snaps.length ? snaps[snaps.length - 1].s : null; }
@@ -370,6 +372,9 @@ const goldRules =
 $('lobbyFormat').textContent =
   `First to ${ROUND.KILLS_TO_WIN} kills wins. ${goldRules}`;
 $('shopIncome').textContent = goldRules;
+$('lobbyHint').textContent =
+  `You start with ${GOLD.START} gold — the shop opens after round 1. ` +
+  'Hover anything in the shop for its full per-level numbers.';
 
 // ---- key bindings panel -------------------------------------------------------
 
@@ -456,7 +461,11 @@ $('modeBtn').addEventListener('click', () => {
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('unbanBtn').addEventListener('click', () => { send({ t: 'unbanAll' }); toast('bans cleared'); });
-$('againBtn').addEventListener('click', () => send({ t: 'again' }));
+$('againBtn').addEventListener('click', () => {
+  goPinned = false;
+  $('gameover').classList.add('hidden'); // don't wait for the next snapshot
+  send({ t: 'again' });
+});
 
 // bot picker: per difficulty, an add button + a build-strategy select
 // (🎲 random = the server rolls one of the six builds when the bot is seated)
@@ -534,6 +543,267 @@ function toast(msg) {
   el._t = setTimeout(() => { el.style.opacity = 0; }, 1800);
 }
 
+// ---- shop numbers -------------------------------------------------------------
+// EVERY number the shop shows is read out of shared/constants.js at runtime.
+// The balance pass that changes SPELLS/ELEMENTS/ITEMS/ITEM_FX changes the UI in
+// the same commit — a hardcoded tooltip would be a lie within a week.
+
+function fmtNum(v) {
+  if (v === Infinity) return '∞';
+  if (typeof v === 'boolean') return v ? 'yes' : 'no';
+  if (!fin(+v)) return String(v);
+  return String(Math.round(+v * 100) / 100);
+}
+const fmtSec = (v) => (+v ? `${fmtNum(v)} s` : '—');
+// Multipliers read as the change they make: 0.85 is "−15%", 1 is "no effect".
+function fmtMult(v) {
+  const n = +v;
+  if (!fin(n)) return String(v);
+  if (Math.abs(n - 1) < 1e-9) return '—';
+  const d = Math.round((n - 1) * 1000) / 10;
+  return `${d > 0 ? '+' : '−'}${fmtNum(Math.abs(d))}%`;
+}
+const fmtGold = (v) => (+v > 0 ? `${fmtNum(v)} g` : 'free');
+
+// label + formatter per known field; anything unknown still prints (raw key,
+// raw value) so a newly added constant shows up instead of vanishing.
+const SPELL_FIELDS = {
+  damage: ['damage', fmtNum],
+  knockback: ['knockback', fmtNum],
+  cooldown: ['cooldown', fmtSec],
+  range: ['range', fmtNum],
+  speed: ['projectile speed', (v) => `${fmtNum(v)} u/s`],
+  radius: ['hit radius', fmtNum],
+  width: ['beam width', fmtNum],
+  duration: ['duration', fmtSec],
+  distance: ['dash distance', fmtNum],
+  hitRadius: ['dash hit radius', fmtNum],
+  outDistance: ['throw distance', fmtNum],
+  charge: ['charge time', fmtSec],
+  delay: ['impact delay', fmtSec],
+  length: ['wall length', fmtNum],
+};
+const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'tier', 'minRound']);
+
+const FX_FIELDS = {
+  dmgAdd: ['fireball damage', (v) => `+${fmtNum(v)}`],
+  kbAdd: ['fireball push', (v) => `+${fmtNum(v)}`],
+  dmgMult: ['fireball damage', fmtMult],
+  kbMult: ['fireball push', fmtMult],
+  cdrMult: ['every cooldown', fmtMult],
+  cdMult: ['fireball cooldown', fmtMult],
+  projRadiusMult: ['fireball size', fmtMult],
+  stacksToTrigger: ['stacks to detonate', fmtNum],
+  slowMult: ['victim speed', fmtMult],
+  slowT: ['slow lasts', fmtSec],
+  stunT: ['stun lasts', fmtSec],
+  tickDmg: ['poison per tick', fmtNum],
+  stackAdd: ['re-hit adds', (v) => `+${fmtNum(v)}/tick`],
+  stackCap: ['tick damage cap', fmtNum],
+  dotTime: ['poison lasts', fmtSec],
+  tickEvery: ['ticks every', fmtSec],
+  trailT: ['trail lasts', fmtSec],
+  trailDps: ['trail damage', (v) => `${fmtNum(v)}/s`],
+  trailStep: ['trail spacing', fmtNum],
+  trailR: ['trail radius', fmtNum],
+  goldOnHit: ['gold per hit', (v) => `+${fmtNum(v)} g`],
+  growMult: ['target grows', fmtMult],
+  growT: ['growth lasts', fmtSec],
+  growCap: ['growth cap', (v) => `×${fmtNum(v)}`],
+  rampDmg: ['damage per stack', (v) => `+${fmtNum(v)}`],
+  rampKb: ['push per stack', (v) => `+${fmtNum(v)}`],
+  rampCap: ['ramp caps at', (v) => `${fmtNum(v)} hits`],
+  mosquito: ['fireball becomes a mosquito', fmtNum],
+  stingDmg: ['sting damage', fmtNum],
+  biteArc: ['bite covers', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of the body`],
+  biteMult: ['spell landed on a bite', (v) => `×${fmtNum(v)}`],
+  maxBites: ['your bites at once', fmtNum],
+  biteArm: ['bite arms after', fmtSec],
+  selfCashFullCd: ['stinging your own bite', (v) => (v ? 'costs the fire-rate bonus' : '—')],
+};
+
+// how a second, third… copy of an item compounds: 'mult' multiplies, 'add'
+// sums, 'flat' does neither (a unique item's one-off effect).
+const ITEM_FIELDS = {
+  speedMult: ['move speed', 'mult', fmtMult],
+  lavaMult: ['lava damage taken', 'mult', fmtMult],
+  kbMult: ['knockback taken', 'mult', fmtMult],
+  maxHp: ['max HP', 'add', (v) => `+${fmtNum(v)}`],
+  regen: ['regeneration', 'add', (v) => `+${fmtNum(v)} hp/s`],
+  lifesteal: ['lifesteal', 'add', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
+  every: ['echo cadence', 'flat', (v) => `every ${fmtNum(v)}th fireball`],
+  delay: ['echo delay', 'flat', fmtSec],
+  fireballMax: ['fireball level cap', 'flat', (v) => `+${fmtNum(v)}`],
+};
+
+// What the copies you own actually bought, as a plain sentence. Deliberately
+// recomputed from ITEM_FX instead of read off the snapshot's effective stats:
+// those also carry the transient modifiers (the shop opens while you are still
+// standing in lava at double speed, with regen still locked), which would read
+// as a lie on a shop button.
+const ITEM_LIVE = {
+  boots: (n) => `you move at ${fmtNum(PLAYER.SPEED * ITEM_FX.boots.speedMult ** n)} u/s (base ${fmtNum(PLAYER.SPEED)})`,
+  treads: (n) => `lava burns you for ${fmtNum(LAVA.DPS * ITEM_FX.treads.lavaMult ** n)} hp/s (base ${fmtNum(LAVA.DPS)})`,
+  amulet: (n) => `you have ${fmtNum(PLAYER.MAX_HP + ITEM_FX.amulet.maxHp * n)} max HP (base ${fmtNum(PLAYER.MAX_HP)})`,
+  ring: (n) => `you regenerate ${fmtNum(PLAYER.REGEN + ITEM_FX.ring.regen * n)} hp/s (base ${fmtNum(PLAYER.REGEN)})`,
+  cape: (n) => `you take ×${fmtNum(ITEM_FX.cape.kbMult ** n)} knockback`,
+  sword: (n) => `you heal ${fmtNum(Math.round(ITEM_FX.sword.lifesteal * n * 1000) / 10)}% of the damage you deal`,
+};
+
+// One row of the per-level table. A scalar spans every column — that IS what
+// "same at every level" looks like; an array gets one cell per level.
+function tipRow(label, value, cols, fmt, cur, cls = '') {
+  if (!Array.isArray(value))
+    return `<tr class="${cls}"><th>${esc(label)}</th><td colspan="${cols}">${esc(fmt(value))}</td></tr>`;
+  let cells = '';
+  for (let i = 0; i < cols; i++) {
+    const v = value[Math.min(i, value.length - 1)];
+    cells += `<td class="${i + 1 === cur ? 'cur' : ''}">${esc(fmt(v))}</td>`;
+  }
+  return `<tr class="${cls}"><th>${esc(label)}</th>${cells}</tr>`;
+}
+
+// Known fields first, in the order the dictionary declares them (damage before
+// hit radius); anything the dictionary hasn't heard of trails behind, unlabelled
+// but visible — a new constant must never silently vanish from the tooltip.
+function orderedFields(obj, dict, skip) {
+  const keys = Object.keys(obj).filter(k => !(skip && skip.has(k)));
+  const known = Object.keys(dict).filter(k => keys.includes(k));
+  return known.concat(keys.filter(k => !dict[k]));
+}
+
+function tipHead(cols, cur, label = 'lv') {
+  let th = '<th></th>';
+  for (let i = 1; i <= cols; i++) th += `<th class="${i === cur ? 'cur' : ''}">${label} ${i}</th>`;
+  return `<thead><tr>${th}</tr></thead>`;
+}
+
+function tipShell(icon, name, desc, body, foot) {
+  return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}</div>
+    <div class="tdesc">${esc(desc)}</div>${body}
+    ${foot ? `<div class="tfoot">${foot}</div>` : ''}`;
+}
+
+function spellTip(key, spec, level, maxLevel) {
+  let rows = '';
+  for (const field of orderedFields(spec, SPELL_FIELDS, SPELL_SKIP)) {
+    const [label, fmt] = SPELL_FIELDS[field] || [field, fmtNum];
+    rows += tipRow(label, spec[field], maxLevel, fmt, level);
+  }
+  rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
+  const total = spec.costs.slice(0, maxLevel).reduce((a, b) => a + b, 0);
+  const foot = [
+    level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
+    `Full path costs <b>${total} g</b>.`,
+    spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
+  ].filter(Boolean).join(' ');
+  return tipShell(ICONS[key], spec.name, spec.desc,
+    `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot);
+}
+
+function elementTip(key, spec, level) {
+  const cols = spec.maxLevel;
+  let rows = '';
+  const fxSpec = spec.fx || {};
+  for (const field of orderedFields(fxSpec, FX_FIELDS)) {
+    const [label, fmt] = FX_FIELDS[field] || [field, fmtNum];
+    rows += tipRow(label, fxSpec[field], cols, fmt, level);
+  }
+  rows += tipRow('cost', spec.costs.slice(0, cols), cols, fmtGold, level + 1, 'cost');
+  const total = spec.costs.slice(0, cols).reduce((a, b) => a + b, 0);
+  const foot = [
+    level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
+    `Full path costs <b>${total} g</b>.`,
+    key === 'arcane' ? 'No fireball needed.' : 'Needs <b>Fireball lv 1</b>. Elements stack with each other.',
+  ].filter(Boolean).join(' ');
+  return tipShell(spec.icon, spec.name, spec.desc,
+    `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
+}
+
+// Items stack, so the columns are COPIES, not levels: what 1/2/3 of them do and
+// what each next one costs (every copy is ITEM_COST_STEP dearer than the last).
+function itemTip(key, spec, owned) {
+  const cols = spec.unique ? 1 : 3;
+  const fxSpec = ITEM_FX[key] || {};
+  let rows = '';
+  for (const field of orderedFields(fxSpec, ITEM_FIELDS)) {
+    const base = fxSpec[field];
+    const [label, mode, fmt] = ITEM_FIELDS[field] || [field, 'flat', fmtNum];
+    const vals = [];
+    for (let n = 1; n <= cols; n++)
+      vals.push(mode === 'mult' ? base ** n : mode === 'add' ? base * n : base);
+    rows += tipRow(label, mode === 'flat' ? base : vals, cols, fmt, Math.min(owned, cols));
+  }
+  const prices = [];
+  for (let n = 0; n < cols; n++) prices.push(itemCost(key, n));
+  rows += tipRow('cost of that copy', prices, cols, fmtGold, Math.min(owned + 1, cols), 'cost');
+  const live = owned > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](owned);
+  const foot = [
+    owned > 0 ? `You own <b>×${owned}</b>.` : '',
+    live ? `With those, ${live}.` : '',
+    spec.unique ? 'Unique — one copy only.'
+      : `Each extra copy costs <b>+${Math.round((ITEM_COST_STEP - 1) * 100)}%</b>, rounded up.`,
+  ].filter(Boolean).join(' ');
+  return tipShell(ICONS[key], spec.name, spec.desc,
+    `<table>${tipHead(cols, Math.min(owned, cols), '×')}<tbody>${rows}</tbody></table>`, foot);
+}
+
+// ---- hover tooltip -------------------------------------------------------------
+// A short line on the button, the whole truth on hover. tipOwner is kept so the
+// panel refreshes in place after a purchase (the mouse never left the button).
+
+const tipEl = $('tip');
+let tipOwner = null;
+
+function placeTip(anchor) {
+  const r = anchor.getBoundingClientRect();
+  const t = tipEl.getBoundingClientRect();
+  const pad = 10;
+  let left = r.right + pad;
+  if (left + t.width > window.innerWidth - pad) left = r.left - t.width - pad;
+  if (left < pad) left = Math.max(pad, (window.innerWidth - t.width) / 2);
+  let top = r.top + r.height / 2 - t.height / 2;
+  top = Math.min(Math.max(pad, top), Math.max(pad, window.innerHeight - t.height - pad));
+  tipEl.style.left = `${Math.round(left)}px`;
+  tipEl.style.top = `${Math.round(top)}px`;
+}
+
+function showTip(el, build) {
+  const html = build();
+  if (!html) return;
+  tipOwner = { el, build };
+  tipEl.innerHTML = html;
+  tipEl.classList.remove('hidden');
+  placeTip(el);
+}
+
+function hideTip() {
+  tipOwner = null;
+  tipEl.classList.add('hidden');
+}
+
+// Repaint the open tooltip from fresh state (a purchase just changed a level).
+function refreshTip() {
+  if (!tipOwner || !tipOwner.el.isConnected) { hideTip(); return; }
+  try {
+    const html = tipOwner.build();
+    if (html) { tipEl.innerHTML = html; placeTip(tipOwner.el); }
+  } catch { hideTip(); }
+}
+
+function attachTip(el, build) {
+  const show = () => showTip(el, build);
+  el.addEventListener('mouseenter', show);
+  el.addEventListener('focus', show);
+  el.addEventListener('mouseleave', hideTip);
+  el.addEventListener('blur', hideTip);
+}
+
+// The panel is anchored to a button, so it has to follow when the wares scroll
+// under it; a resize is rare enough to just dismiss.
+$('shop').addEventListener('scroll', () => { if (tipOwner) placeTip(tipOwner.el); }, true);
+window.addEventListener('resize', hideTip);
+
 // ---- shop stat lines ----------------------------------------------------------
 // SPELLS fields are scalars or per-level arrays; statAt reads the value at a
 // 1-based level either way.
@@ -553,7 +823,7 @@ function spellStatLine(spec, level) {
   const parts = [];
   for (const [field, label, unit] of SPELL_STAT_FIELDS) {
     if (spec[field] == null) continue;
-    parts.push(`${label} ${statAt(spec[field], level)}${unit}`);
+    parts.push(`${label} ${fmtNum(statAt(spec[field], level))}${unit}`);
   }
   return parts.join(' · ');
 }
@@ -564,7 +834,20 @@ function spellUpgradeLine(spec, level) {
   for (const [field, label, unit] of SPELL_STAT_FIELDS) {
     if (spec[field] == null) continue;
     const cur = statAt(spec[field], level), next = statAt(spec[field], level + 1);
-    if (cur !== next) parts.push(`${label} ${cur}${unit}→${next}${unit}`);
+    if (cur !== next) parts.push(`${label} ${fmtNum(cur)}${unit}→${fmtNum(next)}${unit}`);
+  }
+  return parts.join(' · ');
+}
+
+// The one-line version of a per-level array, for the button itself:
+// "damage 2 / 4 / 6". Scalars stay in the tooltip — they don't evolve.
+function perLevelLine(fxSpec, dict) {
+  const parts = [];
+  for (const field of orderedFields(fxSpec || {}, dict)) {
+    const v = fxSpec[field];
+    if (!Array.isArray(v)) continue;
+    const [label, fmt] = dict[field] || [field, fmtNum];
+    parts.push(`${label} ${v.map(fmt).join(' / ')}`);
   }
   return parts.join(' · ');
 }
@@ -588,9 +871,12 @@ function buildShop(container, mode = 'classic') {
       <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
       <span class="desc">${spec.desc}</span>
       <span class="stats">${spellStatLine(spec, 1)}</span></span><span class="cost num"></span>`;
+    b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
-    wares.push({ key, spec, el: b, kind: 'spell' });
+    const w = { key, spec, el: b, kind: 'spell' };
+    attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
+    wares.push(w);
   };
   mkLabel('Spells');
   for (const [key, spec] of Object.entries(SPELLS))
@@ -605,23 +891,32 @@ function buildShop(container, mode = 'classic') {
       b.className = 'ware';
       b.innerHTML = `<span class="icon">${spec.icon}</span>
         <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
-        <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
+        <span class="desc">${spec.desc}</span>
+        <span class="stats">${esc(perLevelLine(spec.fx, FX_FIELDS))}</span></span>
+        <span class="cost num"></span>`;
+      b.dataset.key = key;   // stable hook for the UI tests
       b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
       container.appendChild(b);
-      wares.push({ key, spec, el: b, kind: 'element' });
+      const w = { key, spec, el: b, kind: 'element' };
+      attachTip(b, () => elementTip(key, spec, w.level || 0));
+      wares.push(w);
     }
   }
-  mkLabel('Items');
+  mkLabel('Items (buy as many copies as you like — each one costs more)');
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="info"><span class="name">${spec.name}</span>
-      <span class="desc">${spec.desc}</span></span><span class="cost num"></span>`;
+      <span class="info"><span class="name">${spec.name} <span class="stack"></span></span>
+      <span class="desc">${spec.desc}</span>
+      <span class="stats"></span></span><span class="cost num"></span>`;
+    b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
-    wares.push({ key, spec, el: b, kind: 'item' });
+    const w = { key, spec, el: b, kind: 'item' };
+    attachTip(b, () => itemTip(key, spec, w.owned || 0));
+    wares.push(w);
   }
   return function refresh(m, round = 0) {
     if (!m) return;
@@ -641,6 +936,7 @@ function buildShop(container, mode = 'classic') {
         // the Cinder Crown raises the fireball cap by one (elemental only)
         const maxLevel = w.spec.maxLevel +
           (elemental && w.key === 'fireball' && items.includes('crown') ? 1 : 0);
+        w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
         const lv = w.el.querySelector('.lv');
         lv.textContent = level ? `lv ${level}` : '';
         const stats = w.el.querySelector('.stats');
@@ -656,6 +952,7 @@ function buildShop(container, mode = 'classic') {
         }
       } else if (w.kind === 'element') {
         const elevel = (m.elements && m.elements[w.key]) || 0;
+        w.level = elevel;
         w.el.classList.toggle('sel', elevel > 0);
         const lv = w.el.querySelector('.lv');
         lv.textContent = elevel ? `lv ${elevel}` : '';
@@ -668,19 +965,26 @@ function buildShop(container, mode = 'classic') {
             (w.key !== 'arcane' && (spells.fireball || 0) < 1);
         }
       } else {
-        // items stack: show how many you own and what the NEXT copy costs
-        // (every extra copy is 20% dearer). Unique items still cap at one.
+        // items stack: the count you own goes next to the name, the price tag
+        // is always the NEXT copy (every extra one is dearer by ITEM_COST_STEP).
+        // Unique items still cap at one.
         const owned = items.filter(i => i === w.key).length;
+        w.owned = owned;
+        w.el.querySelector('.stack').textContent = owned > 0 ? `×${owned}` : '';
+        w.el.classList.toggle('sel', owned > 0);
+        w.el.querySelector('.stats').textContent =
+          owned > 0 && ITEM_LIVE[w.key] ? ITEM_LIVE[w.key](owned) : '';
         if (owned > 0 && w.spec.unique) {
-          cost.textContent = 'owned'; cost.className = 'cost owned'; w.el.disabled = true;
+          cost.innerHTML = 'owned'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
           const c = itemCost(w.key, owned);
-          cost.textContent = owned > 0 ? `${c} g · ×${owned}` : `${c} g`;
-          cost.className = owned > 0 ? 'cost stacked' : 'cost';
+          cost.innerHTML = `${c} g${owned > 0 ? `<span class="nth">copy #${owned + 1}</span>` : ''}`;
+          cost.className = 'cost';
           w.el.disabled = gold < c;
         }
       }
     }
+    refreshTip(); // a purchase just changed what the open tooltip should say
   };
 }
 let shopModeBuilt = 'classic';
@@ -722,17 +1026,79 @@ function kitIcons(p) {
   return parts.join(' ');
 }
 
+// One scoreboard for both the shop and the end-of-game screen: same columns in
+// the same order, so it only has to be learned once. A field the snapshot
+// doesn't carry (classic mode, an older snapshot still in the ring buffer)
+// prints as a dash rather than a zero — zero would be a claim.
+function statsTable(fighters, specs, opts = {}) {
+  const { winnerId = null, showRound = false } = opts;
+  const cell = (v, cls = '') =>
+    `<td class="n ${cls}">${fin(+v) ? Math.round(+v) : '<span class="dim">–</span>'}</td>`;
+  const goldCols = showRound ? 3 : 2;
+  const th = (label, tip) => `<th class="n" title="${esc(tip)}">${label}</th>`;
+  const head = `<thead>
+    <tr class="grp"><th colspan="5"></th>
+      <th class="g" colspan="3">Damage dealt</th>
+      <th class="g" colspan="2">HP healed</th>
+      <th class="g" colspan="${goldCols}">Gold</th>
+      <th class="c-kit"></th></tr>
+    <tr><th></th><th>Warlock</th>
+      ${th('⚔️ Kills', 'enemies you killed')}
+      ${th('💀 Deaths', 'times you died')}
+      ${th('Streak', 'best multi-kill this game (×2 = double kill)')}
+      ${th('Direct', 'damage you landed yourself: spells, poison ticks, trails')}
+      ${th('Lava', 'lava burn credited to you for shoving someone in')}
+      ${th('Total', 'direct + lava')}
+      ${th('Lifesteal', 'HP the Blood Sword clawed back')}
+      ${th('Regen', 'HP regenerated (baseline + rings)')}
+      ${showRound ? th('This round', 'gold earned since the last shop') : ''}
+      ${th('Wallet', 'gold you can spend right now')}
+      ${th('Earned', 'gold earned all game, spent or not')}
+      <th class="c-kit">Kit</th></tr></thead>`;
+  const who = (p) =>
+    `<td class="who"><span class="dot" style="display:inline-block;background:${p.color}"></span>
+      ${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}</td>`;
+  const rows = fighters.map((p, i) => {
+    const direct = fin(+p.dmgDealt) ? +p.dmgDealt : null;
+    const lava = fin(+p.dmgLava) ? +p.dmgLava : null;
+    const mk = +p.multiKillBest || 0;
+    const cls = [p.id === myId ? 'me' : '', winnerId && p.id === winnerId ? 'winner' : '']
+      .filter(Boolean).join(' ');
+    return `<tr class="${cls}"><td class="rank">${i + 1}</td>${who(p)}
+      ${cell(p.kills)}${cell(p.deaths)}
+      <td class="n">${mk >= 2 ? `<span class="mk">×${mk}</span>` : '<span class="dim">–</span>'}</td>
+      ${cell(direct)}${cell(lava, 'g-lava')}${cell(direct != null && lava != null ? direct + lava : null)}
+      ${cell(p.healLifesteal, 'g-heal')}${cell(p.healRegen, 'g-heal')}
+      ${showRound ? cell(p.roundGold, 'g-gold') : ''}
+      ${cell(p.gold, 'g-gold')}${cell(p.goldEarned ?? p.gold, 'g-gold')}
+      <td class="kit c-kit">${kitIcons(p)}</td></tr>`;
+  }).concat(specs.map((p) =>
+    `<tr class="spec"><td class="rank">👁</td>${who(p)}
+      <td colspan="${8 + goldCols}"></td><td class="c-kit"></td></tr>`)).join('');
+  return `${head}<tbody>${rows}</tbody>`;
+}
+
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
   const m = me(s);
   const playerList = Object.values(s.players || {}).filter(p => p && typeof p === 'object');
   const phaseT = fin(+s.phaseT) ? +s.phaseT : 0;
   const inGame = s.phase === 'countdown' || s.phase === 'battle';
-  setVisible('lobby', !!myId && s.phase === 'lobby');
+  // The final standings never vanish on their own. Anyone clicking Continue
+  // resets the server back to the lobby, so the phase alone can yank the screen
+  // away mid-read; the pin keeps it up until YOU click, and only a round
+  // actually starting overrides you.
+  if (s.phase === 'gameover') goPinned = true;
+  else if (s.phase !== 'lobby') goPinned = false;
+  setVisible('lobby', !!myId && s.phase === 'lobby' && !goPinned);
   setVisible('shop', !!myId && s.phase === 'shop');
-  setVisible('gameover', !!myId && s.phase === 'gameover');
+  setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
+  if (s.phase !== 'shop') hideTip();
   setVisible('spellbar', !!myId && inGame && !(m && m.spectator));
-  setVisible('topbar', !!myId && s.phase !== 'lobby');
+  // the shop and the final standings carry the same numbers in full, so the
+  // corner scoreboard would only peek out from behind them
+  setVisible('topbar', !!myId && s.phase !== 'lobby' && s.phase !== 'shop' &&
+    s.phase !== 'gameover' && !goPinned);
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
   phaseSounds(s);
   phaseMusic(s);
@@ -783,17 +1149,10 @@ function updateUi(s) {
     }
     const watching = !!(m && m.spectator);
     $('shopGold').textContent = !watching && m ? `${m.gold} g` : '';
-    // roster: everyone's kills, deaths, gold (now + total earned) and full kit
-    $('shopRoster').innerHTML = playerList.filter(p => !p.spectator).sort(byRank).map(p => `
-      <div class="pl${p.id === myId ? ' me' : ''}">
-        <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}</span>
-        <span class="num" title="kills">⚔ ${p.kills || 0}</span>
-        <span class="num" title="deaths">💀 ${p.deaths || 0}</span>
-        <span class="num" title="damage dealt (incl. lava burns you caused)">🗡 ${p.dmgDealt || 0}</span>
-        <span class="num gd" title="gold to spend (total earned)">${p.gold || 0}g <span class="dim">(${p.goldEarned ?? p.gold ?? 0} earned)</span></span>
-        <span class="kit" title="spells & items owned">${kitIcons(p)}</span>
-      </div>`).join('');
+    $('shopStats').innerHTML = statsTable(
+      playerList.filter(p => !p.spectator).sort(byRank),
+      playerList.filter(p => p.spectator),
+      { showRound: true });
     const timer = $('shopTimer');
     timer.textContent = `${Math.ceil(phaseT)} s`;
     timer.classList.toggle('low', phaseT <= 5);
@@ -831,22 +1190,10 @@ function updateUi(s) {
 
   if (s.phase === 'gameover') {
     const fightersL = playerList.filter(p => !p.spectator).sort(byRank);
-    const specs = playerList.filter(p => p.spectator);
     const w = fightersL.find(p => p.id === s.winner) || fightersL[0];
     $('goWinner').textContent = w ? `${w.name} rules the ashes with ${w.kills || 0} kills.` : '';
-    const who = (p) =>
-      `<td><span class="dot" style="display:inline-block;background:${p.color}"></span> ${esc(p.avatar || '🧙')} ${esc(p.name)}</td>`;
-    const rows = fightersL.map((p, i) =>
-      `<tr class="${w && p.id === w.id ? 'winner' : ''}"><td>${i + 1}</td>${who(p)}
-       <td class="num">${p.kills || 0}</td><td class="num">${p.deaths || 0}</td>
-       <td class="num" title="damage dealt, incl. lava burns you caused">${p.dmgDealt || 0}</td>
-       <td class="num" title="total earned (unspent: ${p.gold || 0})">${p.goldEarned ?? p.gold ?? 0}</td>
-       <td class="kit">${kitIcons(p)}</td></tr>`)
-      .concat(specs.map((p) =>
-        `<tr class="spec"><td>👁</td>${who(p)}<td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>`))
-      .join('');
-    $('standings').innerHTML =
-      `<tr><th></th><th>Warlock</th><th class="num">Kills</th><th class="num">Deaths</th><th class="num">Damage</th><th class="num">Gold earned</th><th>Upgrades</th></tr>${rows}`;
+    $('standings').innerHTML = statsTable(fightersL, playerList.filter(p => p.spectator),
+      { winnerId: w ? w.id : null });
   }
 
   // topbar scoreboard — fighters ranked by kills, spectators last and dimmed
@@ -855,17 +1202,26 @@ function updateUi(s) {
     const specs = playerList.filter(p => p.spectator);
     // the current kill leader wears the crown (only once someone has a kill)
     const leadId = fightersL.length && (fightersL[0].kills || 0) > 0 ? fightersL[0].id : null;
-    $('topbar').innerHTML = fightersL.map(p =>
-      `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
+    const hdr = `<div class="hdr"><span class="dot" style="visibility:hidden"></span>
+      <span class="who">warlock</span><span class="score">kills</span>
+      <span class="gold">purse</span><span class="rgold">round</span></div>`;
+    $('topbar').innerHTML = hdr + fightersL.map(p => {
+      // "purse" is what's left to spend, "round" is what this round has paid
+      // so far — the second is the one that tells you who is pulling ahead
+      const rg = fin(+p.roundGold) ? +p.roundGold : null;
+      return `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
         <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
         <span class="score num">${p.kills || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
-      </div>`).concat(specs.map(p =>
+        <span class="rgold num ${rg ? '' : 'zero'}">${rg == null ? '' : `+${rg}`}</span>
+      </div>`;
+    }).concat(specs.map(p =>
       `<div class="r spec ${p.id === myId ? 'me' : ''}">
         <span class="dot" style="background:${p.color}"></span>
         <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
         <span class="score num">👁</span>
+        <span class="gold num"></span><span class="rgold num"></span>
       </div>`)).join('');
   }
 
@@ -892,6 +1248,27 @@ function updateUi(s) {
       if (cd > 0) cdEl.textContent = cd.toFixed(1);
     }
   }
+
+  // live element readouts. A crit ramp you can't see is a mechanic you don't
+  // play around, and the frost stacks riding on you are a countdown to a stun.
+  const buffs = [];
+  if (inGame && m && !m.spectator) {
+    const critLv = (m.elements && m.elements.critical) || 0;
+    if (critLv > 0) {
+      const f = ELEMENTS.critical.fx;
+      const hits = Math.min(+m.critHits || 0, f.rampCap);
+      buffs.push(`<span class="buff crit">${ELEMENTS.critical.icon} ${hits}/${f.rampCap}` +
+        ` · +${fmtNum(statAt(f.rampDmg, critLv) * hits)} dmg</span>`);
+    }
+    if (+m.frostStacks > 0)
+      buffs.push(`<span class="buff frost">${ELEMENTS.frost.icon} ` +
+        `${m.frostStacks}/${ELEMENTS.frost.fx.stacksToTrigger}</span>`);
+    if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');
+    else if (m.slow) buffs.push('<span class="buff frost">🐌 slowed</span>');
+    if (m.poison) buffs.push(`<span class="buff venom">${ELEMENTS.venom.icon} poisoned</span>`);
+  }
+  setVisible('buffbar', buffs.length > 0);
+  if (buffs.length) $('buffbar').innerHTML = buffs.join('');
 }
 
 function esc(s) {

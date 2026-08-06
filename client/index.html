@@ -59,6 +59,10 @@
     display: flex; flex-direction: column;
     overflow: hidden;
   }
+  /* a panel whose only content is a table hugs it instead of stretching it:
+     a full-width table over a short one opens a canyon between the name and
+     the first number */
+  .slab.fit { width: fit-content; max-width: 100%; }
   /* the part that scrolls when a panel outgrows the window; headers and the
      confirm button stay pinned so they never scroll out of reach */
   .scroller { overflow-y: auto; overflow-x: auto; flex: 1; min-height: 0; }
@@ -234,7 +238,6 @@
   table.stats tbody tr.me td.who { color: #fff; font-weight: 600; }
   table.stats tbody tr.winner td { color: var(--gold); }
   table.stats tbody tr.spec td { color: var(--ash); opacity: .65; }
-  table.stats tbody tr.dead td.who { opacity: .55; }
   table.stats .dim { color: #6f6357; }
   table.stats .g-gold { color: var(--gold); }
   table.stats .g-heal { color: var(--heal); }
@@ -242,6 +245,13 @@
   table.stats .kit { letter-spacing: .05em; white-space: nowrap; }
   table.stats .kit .klv { color: var(--gold); font-size: 10px; }
   table.stats .mk { color: var(--blood); font-weight: 600; }
+  /* narrow windows: tighten the cells first, then drop the kit column — the
+     numbers are the whole point of this table, the icon strip is a bonus */
+  @media (max-width: 1200px) {
+    table.stats { font-size: 11.5px; }
+    table.stats th, table.stats td { padding: 5px 6px; }
+  }
+  @media (max-width: 1020px) { table.stats .c-kit { display: none; } }
 
   /* ---- rich hover tooltip: full per-level numbers, generated from the
          constants so it can never disagree with the simulation ---- */
@@ -309,7 +319,7 @@
   }
   #buffbar .buff.crit { border-color: #a3392f; color: #ff9b8c; }
   #buffbar .buff.frost { border-color: #3f6a8c; color: #a8d8ff; }
-  #buffbar .buff.hot { border-color: var(--ember); color: #ffd9a0; }
+  #buffbar .buff.venom { border-color: #3f7a3f; color: #9fe08f; }
 
   #topbar {
     position: fixed; top: 10px; right: 12px;
@@ -326,9 +336,11 @@
   #topbar .r.me .who { color: #fff; font-weight: 600; }
   #topbar .r.dead { opacity: .45; }
   #topbar .r.spec { opacity: .5; }
-  #topbar .score { color: var(--parchment); width: 2.2em; text-align: right; }
-  #topbar .gold { color: var(--gold); width: 3.2em; text-align: right; }
-  #topbar .rgold { color: var(--ok); width: 3.2em; text-align: right; }
+  /* px, not em: the header sits at a smaller font size and em widths there
+     would be narrower than the rows' — the columns must line up */
+  #topbar .score { color: var(--parchment); width: 30px; text-align: right; }
+  #topbar .gold { color: var(--gold); width: 46px; text-align: right; }
+  #topbar .rgold { color: var(--ok); width: 38px; text-align: right; }
   #topbar .rgold.zero { color: #5c5248; }
 
   #phasebar {
@@ -459,7 +471,7 @@
         </div>
       </div>
     </div>
-    <p class="hint">You start with 12 gold — the shop opens after round 1. Hover anything in the shop for its full numbers.</p>
+    <p class="hint" id="lobbyHint"></p>
   </div>
 </div>
 
@@ -497,7 +509,7 @@
 </div>
 
 <div id="gameover" class="overlay hidden">
-  <div class="slab" style="--w:1400px">
+  <div class="slab fit">
     <h1 class="display" style="font-size:28px">The Ashes Settle</h1>
     <p class="sub" id="goWinner"></p>
     <div class="scroller"><table id="standings" class="stats"></table></div>
