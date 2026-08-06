@@ -5,6 +5,9 @@ import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BUILDS, MULTIKILL_NAMES, itemCost,
 } from './constants.js';
+import {
+  TEAM, ENEMY_COLOR, CAMPAIGN, MAX_LEVEL, levelFor, waveUnits, levelRoster,
+} from './campaign.js';
 
 // Tiny deterministic RNG (mulberry32) so tests are reproducible.
 export function makeRng(seed) {
@@ -17,11 +20,15 @@ export function makeRng(seed) {
   };
 }
 
+// The rulesets a game can run. 'coop' is the campaign (see shared/campaign.js):
+// a party (team 'party') against AI waves (team 'ai') instead of a free-for-all.
+export const MODES = ['classic', 'elemental', 'coop'];
+
 export function createGame({ seed = 1, mode = 'classic' } = {}) {
   return {
     phase: 'lobby',        // lobby | countdown | battle | shop | gameover
     phaseT: 0,             // time remaining in countdown/shop
-    mode: mode === 'elemental' ? 'elemental' : 'classic',
+    mode: MODES.includes(mode) ? mode : 'classic',
     round: 0,
     time: 0,               // elapsed battle time this round
     arenaRadius: ARENA.START_RADIUS,
@@ -36,6 +43,8 @@ export function createGame({ seed = 1, mode = 'classic' } = {}) {
     walls: [],             // mirror walls: {x1,y1,x2,y2,nx,ny,owner,until}
     events: [],            // transient, drained by the server each snapshot
     nextId: 1,
+    nextWaveId: 1,         // co-op: id counter for spawned campaign enemies
+    coop: null,            // co-op: {level, name, brief, roster, pending, ...}
     winner: null,
     seed,
   };
@@ -44,7 +53,7 @@ export function createGame({ seed = 1, mode = 'classic' } = {}) {
 // Ruleset toggle — lobby only, so a running game can never change rules.
 export function setMode(state, mode) {
   if (state.phase !== 'lobby') return false;
-  if (mode !== 'classic' && mode !== 'elemental') return false;
+  if (!MODES.includes(mode)) return false;
   state.mode = mode;
   return true;
 }
@@ -56,12 +65,18 @@ function rng(state) {
 
 // ---- players ------------------------------------------------------------
 
-export function addPlayer(state, id, name, { bot = false, color, avatar, kind, build } = {}) {
+export function addPlayer(state, id, name, { bot = false, color, avatar, kind, build, team = null } = {}) {
   const n = Object.keys(state.players).length;
   state.players[id] = {
     id, name: String(name).slice(0, 16) || 'warlock', bot,
     color: color || COLORS[n % COLORS.length],
     avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 8) : '🧙',
+    // team: null = free-for-all (classic/elemental — everyone is everyone's
+    // enemy, which is what keeps those rulesets byte-identical). In co-op the
+    // party shares TEAM.PARTY and the campaign waves share TEAM.AI.
+    team: team || null,
+    sizeMult: 1,           // co-op: bosses are visibly bigger (see updateRadii)
+    wave: false,           // co-op: true for a spawned campaign enemy
     kind: bot ? (kind || 'grunt') : null,
     // bots only: shop build strategy (BUILDS key); null = the kind's default
     build: bot && build && Object.hasOwn(BUILDS, build) ? build : null,
@@ -111,6 +126,38 @@ export function fighters(state) {
   return Object.values(state.players).filter(p => !p.spectator);
 }
 
+// ---- friend or foe --------------------------------------------------------
+// The universal rule used to be "any other alive player". It still is whenever
+// either side has no team (team null = free-for-all), so classic/elemental
+// behaviour is bit-for-bit unchanged. In co-op, same team = allies: their
+// shots pass through each other, their AoE skips each other and their bots
+// never target each other.
+//
+// IMPORTANT: this must be checked at the COLLISION / TARGET-SELECTION sites,
+// never only in applyDamage — knockback is applied before damage everywhere,
+// and shoving a teammate into the lava would still kill them.
+
+function hostile(a, b) {
+  if (!a || !b) return true;   // unknown owner (left the game): hostile to all
+  if (a === b) return false;
+  return a.team == null || b.team == null || a.team !== b.team;
+}
+
+// Same test from an owner id (projectiles, hazards, walls carry ids, not refs).
+function hostileId(state, ownerId, other) {
+  if (ownerId == null) return true;
+  if (ownerId === other.id) return false;
+  return hostile(state.players[ownerId], other);
+}
+
+// The co-op party (everyone not on the AI team) and the live campaign enemies.
+export function partyOf(state) {
+  return fighters(state).filter(p => p.team !== TEAM.AI);
+}
+function waveOf(state) {
+  return Object.values(state.players).filter(p => p.team === TEAM.AI);
+}
+
 export function setSpectator(state, id, on) {
   const pl = state.players[id];
   if (!pl || state.phase !== 'lobby') return;
@@ -123,9 +170,16 @@ export function setSpectator(state, id, on) {
 function updateRadii(state) {
   const fs = fighters(state);
   if (!fs.length) return;
-  const avg = fs.reduce((sum, p) => sum + p.kills, 0) / fs.length;
+  // co-op: campaign enemies are sized by their descriptor, not by the kill
+  // lead, and they are EXCLUDED from the average. (Eight zero-kill wave bots
+  // would otherwise collapse the mean and inflate the whole party toward the
+  // 2.0x cap — the party would grow into giant targets for clearing waves.)
+  const pool = state.mode === 'coop' ? fs.filter(p => p.team !== TEAM.AI) : fs;
+  const avg = pool.length
+    ? pool.reduce((sum, p) => sum + p.kills, 0) / pool.length : 0;
   const { PER_KILL, MIN, MAX } = PLAYER.SIZE_LEAD;
   for (const pl of fs) {
+    if (pl.team === TEAM.AI) { pl.radius = PLAYER.RADIUS * (pl.sizeMult || 1); continue; }
     let mult = clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
     // terra hits force the target bigger for a moment; stacks multiplicatively
     // with size-by-lead but the TOTAL multiplier is capped (elemental only —
@@ -388,16 +442,16 @@ function fireLightning(state, pl, level, dx, dy) {
     const t = rayCircleT(pl.x, pl.y, dx, dy, pil.x, pil.y, pil.r);
     if (t != null && t < rayMax) rayMax = t;
   }
-  // enemy mirror walls block the bolt too (your own walls let it through)
+  // enemy mirror walls block the bolt too (your own — and an ally's — let it through)
   for (const w of state.walls) {
-    if (w.owner === pl.id) continue;
+    if (!hostileId(state, w.owner, pl)) continue;
     const t = raySegT(pl.x, pl.y, dx, dy, w.x1, w.y1, w.x2, w.y2);
     if (t != null && t < rayMax) rayMax = t;
   }
   // hitscan: first live enemy within `width` of the ray, up to the block point
   let best = null, bestT = Infinity;
   for (const other of Object.values(state.players)) {
-    if (other === pl || !other.alive) continue;
+    if (other === pl || !other.alive || !hostile(pl, other)) continue;
     const ox = other.x - pl.x, oy = other.y - pl.y;
     const t = ox * dx + oy * dy;                 // projection along ray
     if (t < 0 || t > rayMax) continue;
@@ -609,11 +663,18 @@ function startRound(state) {
   state.hazards = [];
   state.meteors = [];
   state.walls = [];
+  const coop = state.mode === 'coop';
+  if (coop) coopPrepareRound(state);   // clears last level's monsters, sets teams
   const fs = fighters(state);
-  state.roundFighters = fs.length;
+  // co-op: the lava's adaptive shrink must count the PARTY only, or clearing a
+  // wave would rush the lava in as a punishment for winning
+  state.roundFighters = coop ? partyOf(state).length : fs.length;
   const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
   fs.forEach((pl, i) => {
-    const a = (i / fs.length) * Math.PI * 2 - Math.PI / 2;
+    // co-op parties spawn together on one side (the waves come from the other)
+    const a = coop
+      ? -Math.PI / 2 + (fs.length > 1 ? (i / (fs.length - 1) - 0.5) * (Math.PI / 3) : 0)
+      : (i / fs.length) * Math.PI * 2 - Math.PI / 2;
     pl.x = Math.cos(a) * r; pl.y = Math.sin(a) * r;
     pl.vx = 0; pl.vy = 0;
     pl.moveTarget = null;
@@ -635,8 +696,67 @@ function startRound(state) {
   for (const pl of Object.values(state.players)) {
     if (pl.spectator) { pl.alive = false; pl.shopReady = false; }
   }
+  if (coop) coopSpawnWave(state, 0);   // everything with at <= 0 is on the field
   updateRadii(state);
   state.events.push({ t: 'round', n: state.round });
+}
+
+// ---- co-op campaign -------------------------------------------------------
+// Round N is campaign level N (which is what buys the level art, music and
+// title card for free — the client already maps round -> level). Everything
+// here is bookkeeping around shared/campaign.js; no new AI, no new combat.
+
+function coopPrepareRound(state) {
+  // last level's monsters are gone for good
+  for (const pl of waveOf(state)) removePlayer(state, pl.id);
+  // everyone still seated is the party (humans and their bot stand-ins)
+  for (const pl of Object.values(state.players)) {
+    if (pl.team !== TEAM.AI) pl.team = TEAM.PARTY;
+  }
+  const party = partyOf(state).filter(p => !p.spectator);
+  const level = levelFor(state.round);
+  state.coop = {
+    level: level.n, name: level.name, brief: level.brief,
+    partySize: Math.max(1, party.length),
+    roster: levelRoster(level, Math.max(1, party.length)),
+    pending: waveUnits(level, Math.max(1, party.length)),
+    cleared: false, wiped: false, spawned: 0,
+  };
+}
+
+// Seat every pending unit whose arrival time has come. Mid-round spawns have
+// to do by hand what startRound does for seated players: alive, hp, position.
+function coopSpawnWave(state, time) {
+  const c = state.coop;
+  if (!c) return;
+  const due = c.pending.filter(u => (u.at || 0) <= time);
+  if (!due.length) return;
+  c.pending = c.pending.filter(u => (u.at || 0) > time);
+  const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
+  const spread = Math.min(Math.PI * 1.2, 0.35 * Math.max(1, due.length - 1));
+  due.forEach((u, i) => {
+    const a = Math.PI / 2 + (due.length > 1 ? (i / (due.length - 1) - 0.5) * spread : 0);
+    const id = `w${state.nextWaveId++}`;
+    const pl = addPlayer(state, id, u.name, {
+      bot: true, kind: u.kind, build: u.build, avatar: u.avatar,
+      color: ENEMY_COLOR, team: TEAM.AI,
+    });
+    pl.wave = true;
+    pl.sizeMult = u.sizeMult;
+    pl.maxHp = u.maxHp;
+    pl.hp = u.maxHp;
+    pl.spells = { ...u.spells };
+    pl.items = [...u.items];
+    pl.gold = 0; pl.goldEarned = 0;   // monsters never shop (see botShop)
+    pl.ready = true;
+    pl.alive = true;
+    // spawn just inside the current rim, on the far side from the party
+    const rr = Math.min(r, Math.max(4, state.arenaRadius - 4));
+    pl.x = Math.cos(a) * rr; pl.y = Math.sin(a) * rr;
+    pl.radius = PLAYER.RADIUS * (u.sizeMult || 1);
+    c.spawned++;
+    state.events.push({ t: 'waveSpawn', id, name: u.name, x: pl.x, y: pl.y });
+  });
 }
 
 // Obsidian pillars: a fixed ring near the rim, slight per-pillar angle jitter
@@ -653,11 +773,17 @@ function makePillars(state) {
 }
 
 function endRound(state) {
+  const coop = state.mode === 'coop' && !!state.coop;
   const alive = fighters(state).filter(p => p.alive);
-  const winner = alive.length === 1 ? alive[0] : null;
+  // co-op has no single survivor: the whole surviving party "wins" the round
+  // (and a 3-survivor clear must not render as "nobody survives round n")
+  const winner = coop ? null : (alive.length === 1 ? alive[0] : null);
+  const won = coop
+    ? new Set(state.coop.cleared ? partyOf(state).map(p => p.id) : [])
+    : new Set(winner ? [winner.id] : []);
   const income = {};
   const detail = {};
-  for (const pl of fighters(state)) {
+  for (const pl of coop ? partyOf(state) : fighters(state)) {
     // kill + bounty gold shown here, already granted at kill time
     let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
     pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE; pl.roundGold += GOLD.ROUND_BASE;
@@ -742,7 +868,9 @@ function stepBattle(state, dt) {
   // deaths: the fewer fighters standing, the faster the lava closes. After
   // the radius reaches MIN it holds for an overtime grace, then shrinks to
   // nothing (sudden death), so a round can never stall forever.
-  const fsNow = fighters(state);
+  // co-op: measure the shrink over the PARTY only — monsters dying must not
+  // accelerate the lava (clearing a wave would punish the party)
+  const fsNow = state.mode === 'coop' ? partyOf(state) : fighters(state);
   const totalF = Math.max(1, state.roundFighters || fsNow.length);
   const aliveF = fsNow.filter(p => p.alive).length;
   if (state.arenaRadius > ARENA.MIN_RADIUS) {
@@ -774,7 +902,9 @@ function stepBattle(state, dt) {
       const spec = SPELLS.meteor;
       state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius });
       for (const pl of Object.values(state.players)) {
-        if (!pl.alive) continue;
+        // the caster still eats their own rock (that's the meteor's price),
+        // but allies are spared
+        if (!pl.alive || (pl.id !== m.owner && !hostileId(state, m.owner, pl))) continue;
         const ddx = pl.x - m.x, ddy = pl.y - m.y;
         const dd = Math.hypot(ddx, ddy);
         if (dd > spec.radius + pl.radius) continue;
@@ -799,7 +929,7 @@ function stepBattle(state, dt) {
     for (const pl of players) {
       if (!pl.alive) continue;
       for (const h of state.hazards) {
-        if (h.owner === pl.id) continue;
+        if (!hostileId(state, h.owner, pl)) continue;
         if (Math.hypot(pl.x - h.x, pl.y - h.y) <= h.r + pl.radius * 0.5) {
           applyDamage(state, pl, h.dps * dt, h.owner, { silent: true, stamp: false });
           if (pl.alive) pl.poisonT = Math.max(pl.poisonT, 0.3); // green tint
@@ -851,7 +981,7 @@ function stepBattle(state, dt) {
         pl.charging = null;
         state.events.push({ t: 'repulse', id: pl.id, x: pl.x, y: pl.y, r: lvl(spec, 'radius', level) });
         for (const other of players) {
-          if (other === pl || !other.alive) continue;
+          if (other === pl || !other.alive || !hostile(pl, other)) continue;
           const ddx = other.x - pl.x, ddy = other.y - pl.y;
           const dd = Math.hypot(ddx, ddy);
           if (dd > lvl(spec, 'radius', level) + other.radius) continue;
@@ -876,7 +1006,8 @@ function stepBattle(state, dt) {
     if (pl.dash) {
       const spec = SPELLS.rush;
       for (const other of players) {
-        if (other === pl || !other.alive || pl.dash.hit[other.id]) continue;
+        if (other === pl || !other.alive || pl.dash.hit[other.id] ||
+            !hostile(pl, other)) continue;
         if (Math.hypot(other.x - pl.x, other.y - pl.y) <= spec.hitRadius + other.radius) {
           pl.dash.hit[other.id] = true;
           // push outward: perpendicular to dash direction, away from the path
@@ -942,6 +1073,21 @@ function stepBattle(state, dt) {
   }
 
   stepProjectiles(state, dt);
+
+  // co-op: reinforcements arrive on the clock, and the round ends on
+  // "wave cleared" / "party wiped" instead of "one fighter left standing"
+  // (three survivors would never end a round under the classic predicate).
+  if (state.mode === 'coop' && state.coop) {
+    coopSpawnWave(state, state.time);
+    const party = partyOf(state);
+    const partyAlive = party.filter(p => p.alive).length;
+    const waveAlive = waveOf(state).filter(p => p.alive).length;
+    if (party.length && partyAlive === 0) { state.coop.wiped = true; endRound(state); }
+    else if (!waveAlive && !state.coop.pending.length && state.coop.spawned) {
+      state.coop.cleared = true; endRound(state);
+    }
+    return;
+  }
 
   // round end: needs ≥2 fighters to ever start ending (solo practice runs forever)
   const fs = fighters(state);
@@ -1068,6 +1214,9 @@ function stepProjectiles(state, dt) {
     let mirrored = false;
     for (const w of state.walls) {
       if (w.owner === pr.owner) continue;
+      // an ally's wall lets your shots through too (co-op)
+      const wo = state.players[w.owner];
+      if (wo && !hostile(wo, state.players[pr.owner])) continue;
       const side = (pr.x - w.x1) * w.nx + (pr.y - w.y1) * w.ny;
       const vn = pr.vx * w.nx + pr.vy * w.ny;
       if (side * vn >= 0) continue; // moving away from the plane: no hit
@@ -1090,7 +1239,10 @@ function stepProjectiles(state, dt) {
     // collide with players (swept: closest approach on this tick's segment)
     let dead = false;
     for (const other of players) {
-      if (!other.alive || other.id === pr.owner || pr.hit[other.id]) continue;
+      // THE friend-or-foe gate that matters most: an ally's shot passes
+      // straight through you (no damage, no knockback, no shield reflect)
+      if (!other.alive || other.id === pr.owner || pr.hit[other.id] ||
+          !hostileId(state, pr.owner, other)) continue;
       const dist = segmentPointDist(px0, py0, pr.x, pr.y, other.x, other.y);
       if (dist > prRadius + other.radius) continue;
 
@@ -1591,7 +1743,7 @@ function nearestEnemy(state, pl, hpWeight = 0) {
   // small weight = prefer wounded targets among comparably close ones
   let best = null, bestScore = Infinity;
   for (const other of Object.values(state.players)) {
-    if (other === pl || !other.alive) continue;
+    if (other === pl || !other.alive || !hostile(pl, other)) continue;
     const d = Math.hypot(other.x - pl.x, other.y - pl.y);
     const score = d + other.hp * hpWeight;
     if (score < bestScore) { best = other; bestScore = score; }
@@ -1641,7 +1793,8 @@ function interceptPoint(pl, target, s) {
 function scanThreats(state, pl, horizon, margin) {
   let worst = null;
   for (const pr of state.projectiles) {
-    if (pr.owner === pl.id) continue;
+    // an ally's fireball is not a threat: don't dodge it, don't burn a shield
+    if (!hostileId(state, pr.owner, pl)) continue;
     const px = pl.x - pr.x, py = pl.y - pr.y;
     const v2 = pr.vx * pr.vx + pr.vy * pr.vy;
     if (v2 < 1e-6) continue;
@@ -1689,7 +1842,7 @@ function stepGrunt(state, pl, dt) {
 function pickPrey(state, pl) {
   const arena = Math.max(state.arenaRadius, 1);
   const enemies = Object.values(state.players)
-    .filter((o) => o !== pl && o.alive);
+    .filter((o) => o !== pl && o.alive && hostile(pl, o));
   let best = null, bestScore = Infinity;
   for (const e of enemies) {
     const d = Math.hypot(e.x - pl.x, e.y - pl.y);
@@ -1795,7 +1948,7 @@ function stepBerserker(state, pl, dt) {
   // except when someone in range is one fireball from death — secure that.
   let mark = null;
   for (const o of Object.values(state.players)) {
-    if (o === pl || !o.alive || o.hp > 16) continue;
+    if (o === pl || !o.alive || o.hp > 16 || !hostile(pl, o)) continue;
     if (Math.hypot(o.x - pl.x, o.y - pl.y) > 24) continue;
     if (!mark || o.hp < mark.hp) mark = o;
   }

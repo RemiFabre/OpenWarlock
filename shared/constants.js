@@ -254,17 +254,17 @@ export const ELEMENTS = {
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'A gust in a ball: more push each level.',
-           fx: { kbMult: [1.22, 1.38, 1.55] } },
+           fx: { kbMult: [1.28, 1.46, 1.65] } },
   // 2026-08-06 rework (Remi, from human play — the lab's 1% win rate is a
   // gold-saturation artifact, see BALANCE.md): +1 g per hit is ALREADY strong,
   // so the payout is capped there forever and the levels buy back a real
   // drawback instead of raising income. Level 1 is half a fireball.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −35% at lv2, −22% at lv3.',
-           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.65, 0.78], kbMult: [0.5, 0.65, 0.78] } },
+           desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −38% at lv2, −28% at lv3.',
+           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.62, 0.72], kbMult: [0.5, 0.62, 0.72] } },
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Bigger fireball each level; hits briefly grow the target.',
-           fx: { projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
+           desc: 'Bigger, heavier fireball each level; hits briefly grow the target (a bigger target is easier to hit).',
+           fx: { dmgAdd: [1, 2, 3], projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
   // 2026-08-06: the ramp was RIGHT but far too shallow to feel — +0.45 dmg a
   // hit meant 8 landed fireballs took you from 4.25 to 6.9 damage and Remi
   // never saw it working. The mechanic was never broken, the numbers were

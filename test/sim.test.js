@@ -1264,10 +1264,12 @@ describe('elemental mode', () => {
     const gale1 = peakVx({ gale: 1 });
     const plain = peakVx(null);
     expect(plain).toBeGreaterThan(0);
-    // lv3 65*1.32 = 85.8 vs plain 65 -> 1.32x; lv1 1.12x sits between
-    expect(gale3).toBeGreaterThan(plain * 1.2);
+    // read the ladder out of the spec so retunes can't make this test lie:
+    // every level pushes harder than plain, and lv3 clearly beats lv1
+    const kb = ELEMENTS.gale.fx.kbMult;
+    expect(gale1 / plain).toBeCloseTo(kb[0], 1);
+    expect(gale3 / plain).toBeCloseTo(kb[2], 1);
     expect(gale3).toBeGreaterThan(gale1 * 1.1);
-    expect(gale1).toBeLessThan(plain * 1.25); // nerfed: no more 1.45x at entry
   });
 
   it('midas pays gold per fireball hit (and hits much softer now)', () => {
