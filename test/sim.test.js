@@ -1129,16 +1129,17 @@ describe('elemental mode', () => {
       return b.vx;
     };
     expect(peak(15)).toBeGreaterThan(peak(0) * 1.25);
-    // the ramp is capped
+    // the ramp has NO ceiling: a monster round makes a monster fireball
     const s3 = hitWith('critical');
-    s3.players.p0.critHits = 500;
+    s3.players.p0.critHits = 40;
     const b3 = s3.players.p1;
-    b3.hp = b3.maxHp; b3.x = 8; b3.y = 0; b3.vx = 0; b3.vy = 0;
+    b3.maxHp = 999; b3.hp = b3.maxHp; b3.x = 8; b3.y = 0; b3.vx = 0; b3.vy = 0;
     s3.players.p0.cooldowns = {};
     castSpell(s3, 'p0', 'fireball', 20, 0);
     run(s3, 0.4);
-    const capped = (base + f.rampCap * f.rampDmg[0]) * f.dmgMult;
-    expect(b3.maxHp - b3.hp).toBeLessThan(capped + 0.5);
+    const at40 = (base + 40 * f.rampDmg[0]) * f.dmgMult;
+    expect(b3.maxHp - b3.hp).toBeGreaterThan(at40 - 1);
+    expect(b3.maxHp - b3.hp).toBeLessThan(at40 + 1);
   });
 
   it('mosquito 🦟: stings for 1, no push, at double the fire rate', () => {
@@ -2015,7 +2016,7 @@ describe('co-op: teams', () => {
     for (const m of wave(state)) expect(m.bot && m.wave).toBe(true);
   });
 
-  it('an ally fireball does not damage or knock back an ally', () => {
+  it('FRIENDLY FIRE: an ally fireball damages and shoves an ally', () => {
     const state = coopBattle();
     const [a, b] = party(state);
     a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
@@ -2023,8 +2024,8 @@ describe('co-op: teams', () => {
     const hp0 = b.hp;
     castSpell(state, a.id, 'fireball', 40, 0);
     run(state, 0.5);
-    expect(b.hp).toBeGreaterThanOrEqual(hp0); // no damage (regen may add)
-    expect(Math.abs(b.vx) + Math.abs(b.vy)).toBe(0); // and NO knockback at all
+    expect(b.hp).toBeLessThan(hp0);          // it hurts...
+    expect(b.vx).toBeGreaterThan(10);        // ...and it can shove you into lava
   });
 
   it('the same fireball does hit a wave monster', () => {
@@ -2038,7 +2039,7 @@ describe('co-op: teams', () => {
     expect(m.hp).toBeLessThan(200);
   });
 
-  it('allies do not knock each other back with rush, repulse or meteor', () => {
+  it('FRIENDLY FIRE: rush, repulse and meteor all catch allies too', () => {
     for (const spell of ['rush', 'repulse', 'meteor']) {
       const state = coopBattle();
       const [a, b] = party(state);
@@ -2048,9 +2049,26 @@ describe('co-op: teams', () => {
       const hp0 = b.hp;
       castSpell(state, a.id, spell, b.x, b.y);
       run(state, 2.5); // long enough for the repulse charge and the meteor delay
-      expect(Math.abs(b.vx) + Math.abs(b.vy), spell).toBe(0);
-      expect(b.hp, spell).toBeGreaterThanOrEqual(hp0);
+      expect(Math.abs(b.vx) + Math.abs(b.vy), spell).toBeGreaterThan(0);
+      expect(b.hp, spell).toBeLessThan(hp0);
     }
+  });
+
+  it('a team kill costs the victim but pays the killer nothing', () => {
+    const state = coopBattle();
+    const [a, b] = party(state);
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    b.hp = 1;
+    const kills0 = a.kills, gold0 = a.gold, deaths0 = b.deaths;
+    castSpell(state, a.id, 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(b.alive).toBe(false);       // friendly fire really killed them
+    expect(b.deaths).toBe(deaths0 + 1);
+    expect(a.kills).toBe(kills0);      // ...and the killer got nothing for it
+    expect(a.gold).toBe(gold0);
+    expect(state.events.some(e => e.t === 'teamkill')).toBe(true);
+    expect(state.events.some(e => e.t === 'multikill')).toBe(false);
   });
 
   it('classic mode is untouched: no teams, everyone still hits everyone', () => {

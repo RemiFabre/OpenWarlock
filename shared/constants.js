@@ -277,12 +277,13 @@ export const ELEMENTS = {
   // hit meant 8 landed fireballs took you from 4.25 to 6.9 damage and Remi
   // never saw it working. The mechanic was never broken, the numbers were
   // timid. Now: you start at 65% of a normal fireball and each landed hit is
-  // worth a big step, so a round you dominate ends with monstrous fireballs
-  // (fireball lv1 goes 3.3 → 15 damage at 15 stacks; lv3 + crit lv3 → ~30).
+  // worth a big step. UNCAPPED since 2026-08-06 (Remi): the whole fantasy is
+  // that a round you never stop hitting in ends with a cannon, so there is no
+  // ceiling — the round reset is the only limit.
   critical: { name: 'Critical', icon: '💢', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Starts at 65% power. EVERY fireball you LAND this round makes the next one hit harder and push further, up to 15 stacks. Survive and snowball: late-round hits are monstrous. Resets each round.',
+           desc: 'Starts at 65% power. EVERY fireball you LAND this round makes the next one hit harder and push further — with NO ceiling. Survive a long round and your fireballs are monstrous. Resets each round.',
            fx: { dmgMult: 0.65, kbMult: 0.65, rampDmg: [1.2, 1.7, 2.2],
-                 rampKb: [6, 9, 12], rampCap: 15 } },
+                 rampKb: [6, 9, 12] } },
   // 2026-08-06 (Remi's design): your fireball becomes a mosquito — a fast,
   // harmless pest that leaves a BITE on the spot it stung. Bites sit on an arc
   // of the victim's body and last the whole round. Hit a bite with any other

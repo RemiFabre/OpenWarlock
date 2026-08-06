@@ -135,9 +135,10 @@ export function fighters(state) {
 // shots pass through each other, their AoE skips each other and their bots
 // never target each other.
 //
-// IMPORTANT: this must be checked at the COLLISION / TARGET-SELECTION sites,
-// never only in applyDamage — knockback is applied before damage everywhere,
-// and shoving a teammate into the lava would still kill them.
+// FRIENDLY FIRE IS ON (2026-08-06, Remi): in co-op your spells hit your
+// teammates for full damage and full knockback, lava included. So this is a
+// TARGETING helper only — bots use it to pick who to hunt and what to dodge.
+// It must NOT gate collision or damage, or friendly fire stops existing.
 
 function hostile(a, b) {
   if (!a || !b) return true;   // unknown owner (left the game): hostile to all
@@ -145,12 +146,6 @@ function hostile(a, b) {
   return a.team == null || b.team == null || a.team !== b.team;
 }
 
-// Same test from an owner id (projectiles, hazards, walls carry ids, not refs).
-function hostileId(state, ownerId, other) {
-  if (ownerId == null) return true;
-  if (ownerId === other.id) return false;
-  return hostile(state.players[ownerId], other);
-}
 
 // The co-op party (everyone not on the AI team) and the live campaign enemies.
 export function partyOf(state) {
@@ -446,14 +441,14 @@ function fireLightning(state, pl, level, dx, dy) {
   }
   // enemy mirror walls block the bolt too (your own — and an ally's — let it through)
   for (const w of state.walls) {
-    if (!hostileId(state, w.owner, pl)) continue;
+    if (w.owner === pl.id) continue; // only your OWN wall lets your bolt out
     const t = raySegT(pl.x, pl.y, dx, dy, w.x1, w.y1, w.x2, w.y2);
     if (t != null && t < rayMax) rayMax = t;
   }
   // hitscan: first live enemy within `width` of the ray, up to the block point
   let best = null, bestT = Infinity;
   for (const other of Object.values(state.players)) {
-    if (other === pl || !other.alive || !hostile(pl, other)) continue;
+    if (other === pl || !other.alive) continue; // friendly fire: allies too
     const ox = other.x - pl.x, oy = other.y - pl.y;
     const t = ox * dx + oy * dy;                 // projection along ray
     if (t < 0 || t > rayMax) continue;
@@ -609,7 +604,15 @@ function kill(state, target, directSourceId) {
     killerId = target.lastHitBy.id;
   }
   const killer = killerId != null ? state.players[killerId] : null;
-  if (killer && killer !== target) {
+  // Friendly fire kills your teammate for real, but it must never PAY. No
+  // kill count, no gold, no "Double Kill" for dropping your own party into
+  // the lava — the death (and the hole in your team) is the whole penalty.
+  const teamKill = killer && killer !== target && !hostile(killer, target);
+  if (teamKill) {
+    killer._mkStreak = 0;
+    state.events.push({ t: 'teamkill', id: killer.id, victim: target.id, x: target.x, y: target.y });
+  }
+  if (killer && killer !== target && !teamKill) {
     // bounty: pays only when the victim was AHEAD of the killer on kills
     // (gap taken before this kill counts). The leader can never collect one,
     // which is what keeps the 2x income hard cap in constants.js intact.
@@ -935,9 +938,8 @@ function stepBattle(state, dt) {
       const spec = SPELLS.meteor;
       state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius });
       for (const pl of Object.values(state.players)) {
-        // the caster still eats their own rock (that's the meteor's price),
-        // but allies are spared
-        if (!pl.alive || (pl.id !== m.owner && !hostileId(state, m.owner, pl))) continue;
+        // everyone under the rock eats it, the caster included
+        if (!pl.alive) continue;
         const ddx = pl.x - m.x, ddy = pl.y - m.y;
         const dd = Math.hypot(ddx, ddy);
         if (dd > spec.radius + pl.radius) continue;
@@ -962,7 +964,7 @@ function stepBattle(state, dt) {
     for (const pl of players) {
       if (!pl.alive) continue;
       for (const h of state.hazards) {
-        if (!hostileId(state, h.owner, pl)) continue;
+        if (h.owner === pl.id) continue; // your own puddle spares only you
         if (Math.hypot(pl.x - h.x, pl.y - h.y) <= h.r + pl.radius * 0.5) {
           applyDamage(state, pl, h.dps * dt, h.owner, { silent: true, stamp: false });
           if (pl.alive) pl.poisonT = Math.max(pl.poisonT, 0.3); // green tint
@@ -1014,7 +1016,7 @@ function stepBattle(state, dt) {
         pl.charging = null;
         state.events.push({ t: 'repulse', id: pl.id, x: pl.x, y: pl.y, r: lvl(spec, 'radius', level) });
         for (const other of players) {
-          if (other === pl || !other.alive || !hostile(pl, other)) continue;
+          if (other === pl || !other.alive) continue; // friendly fire: allies too
           const ddx = other.x - pl.x, ddy = other.y - pl.y;
           const dd = Math.hypot(ddx, ddy);
           if (dd > lvl(spec, 'radius', level) + other.radius) continue;
@@ -1039,8 +1041,7 @@ function stepBattle(state, dt) {
     if (pl.dash) {
       const spec = SPELLS.rush;
       for (const other of players) {
-        if (other === pl || !other.alive || pl.dash.hit[other.id] ||
-            !hostile(pl, other)) continue;
+        if (other === pl || !other.alive || pl.dash.hit[other.id]) continue;
         if (Math.hypot(other.x - pl.x, other.y - pl.y) <= spec.hitRadius + other.radius) {
           pl.dash.hit[other.id] = true;
           // push outward: perpendicular to dash direction, away from the path
@@ -1247,9 +1248,6 @@ function stepProjectiles(state, dt) {
     let mirrored = false;
     for (const w of state.walls) {
       if (w.owner === pr.owner) continue;
-      // an ally's wall lets your shots through too (co-op)
-      const wo = state.players[w.owner];
-      if (wo && !hostile(wo, state.players[pr.owner])) continue;
       const side = (pr.x - w.x1) * w.nx + (pr.y - w.y1) * w.ny;
       const vn = pr.vx * w.nx + pr.vy * w.ny;
       if (side * vn >= 0) continue; // moving away from the plane: no hit
@@ -1272,10 +1270,8 @@ function stepProjectiles(state, dt) {
     // collide with players (swept: closest approach on this tick's segment)
     let dead = false;
     for (const other of players) {
-      // THE friend-or-foe gate that matters most: an ally's shot passes
-      // straight through you (no damage, no knockback, no shield reflect)
-      if (!other.alive || other.id === pr.owner || pr.hit[other.id] ||
-          !hostileId(state, pr.owner, other)) continue;
+      // friendly fire is on: the only body a projectile ignores is its owner's
+      if (!other.alive || other.id === pr.owner || pr.hit[other.id]) continue;
       const dist = segmentPointDist(px0, py0, pr.x, pr.y, other.x, other.y);
       if (dist > prRadius + other.radius) continue;
 
@@ -1322,9 +1318,10 @@ function stepProjectiles(state, dt) {
           if (f.kbAdd) kb += efxV(f.kbAdd, el);
           if (f.rampDmg) {
             // critical: the ramp counts hits landed so far this round, read
-            // at hit time from the owner (an add, so dmgMult applies on top)
+            // at hit time from the owner (an add, so dmgMult applies on top).
+            // Deliberately uncapped — the round reset is the only ceiling.
             const own = state.players[pr.owner];
-            const hits = Math.min((own && own.critHits) || 0, f.rampCap);
+            const hits = (own && own.critHits) || 0;
             dmg += hits * efxV(f.rampDmg, el);
             kb += hits * efxV(f.rampKb, el);
           }
@@ -1844,7 +1841,7 @@ function scanThreats(state, pl, horizon, margin) {
   let worst = null;
   for (const pr of state.projectiles) {
     // an ally's fireball is not a threat: don't dodge it, don't burn a shield
-    if (!hostileId(state, pr.owner, pl)) continue;
+    if (pr.owner === pl.id) continue; // friendly fire: an ally's shot hurts too
     const px = pl.x - pr.x, py = pl.y - pr.y;
     const v2 = pr.vx * pr.vx + pr.vy * pr.vy;
     if (v2 < 1e-6) continue;
