@@ -9,9 +9,17 @@ you asked before leaving.*
 ## MODE CO-OP 🛡️ — une campagne de 10 niveaux, humains contre l'IA (2026-08-06)
 
 Nouveau bouton dans le lobby : **Règles → 🛡️ Campagne co-op**. Tout le monde
-est dans **la même équipe** contre des vagues pilotées par l'IA. Le tir allié
-ne fait plus rien du tout (ni dégâts, ni poussée — donc plus personne ne
-balance son copain dans la lave par accident).
+est dans **la même équipe** contre des vagues pilotées par l'IA.
+
+> **CORRECTION (2026-08-07).** The paragraph that used to sit here said friendly
+> fire did nothing at all — no damage, no knockback. **That has been false since
+> 2026-08-06: friendly fire is ON.** Allies take full damage and full knockback
+> from each other, lava included. A team kill still kills but pays nothing (no
+> kill count, no gold, no multi-kill). Measured consequence, which is the
+> opposite of the intuition: turning it on made the campaign *easier*, because
+> monsters are numerous and clustered so they shred each other and shove each
+> other into the lava far more than a 1-3 player party does (level 8 went
+> 57% → 93% clear). Levels 4-10 were retuned for it.
 
 - **10 niveaux = les 10 musiques et les 10 tableaux**, dans l'ordre. Le
   niveau 10 (« Liberation. ») joue le thème de l'intro, comme tu voulais.

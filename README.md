@@ -28,28 +28,48 @@ server — it decides every hit, so nobody needs to trust anyone else's client.
 ## How to play
 
 - **Right-click** — move (WC3 style)
-- **Q W E R D F** — cast the matching spell at your cursor
+- Letter keys cast the matching spell at your cursor. Every binding is
+  rebindable in the Keys panel (QWERTY and AZERTY presets ship).
 - Spell hits **knock enemies back**. The real killer is the lava ring, which
-  closes in over 75 seconds.
+  closes in over 65 seconds.
 - Last warlock standing wins the round. Kills are everything: the first
   warlock to **15 kills** wins the game. Your body grows with your kill lead
   (easier to hit) and shrinks when you trail — the arena self-balances.
-- Between rounds, spend gold in the shop (kills +4 g, round win +3 g).
+- Between rounds, spend gold in the shop (8 g per round, +2 g per kill,
+  +2 g for winning the round). The economy is deliberately anti-snowball:
+  the player with every kill can never out-earn the player with none by more
+  than 2×.
 - In the lobby: **Add bot** to fill seats (they fight, and they go shopping).
 
 ### Spells
 
+Default QWERTY bindings — the source of truth is `KEY_PRESETS` in
+`client/main.js`, not this table.
+
 | Key | Spell | What it does |
 |---|---|---|
 | Q | Fireball | Medium projectile, strong knockback. You start with it. |
-| W | Lightning | Instant long-range bolt, low knockback — a finisher. |
-| E | Boomerang | Flies out and returns; hits on both legs. |
-| R | Teleport | Blink to cursor, cancels momentum — the lava save. |
-| D | Shield | Reflects projectiles back at their owner for 1.5 s. |
-| F | Rush | Dash through enemies, blasting them aside. |
+| W | Lightning | Instant mid-range bolt, no push — a pure finisher. |
+| R | Boomerang | Long throw, out and back to where you threw it. Tap again to recall early; catching it halves the cooldown. |
+| F | Teleport | Blink to cursor, cancels momentum — the lava save. |
+| D | Shield | Reflects projectiles back at their owner for 1.25 s. |
+| E | Rush | Dash through enemies, blasting them aside. |
+| S | Stone Pillar | Raise a blocker: cover, and it stops knockback. |
+| V | Vanish | Go completely invisible for a moment. You can still cast and be hit. |
+| T | Meteor | ☄️ Mark a spot; a rock falls for heavy damage and a radial blast. |
+| G | Hook | 🪝 Skewer the first enemy hit and yank them behind you. |
+| X | Repulse | 💥 Charge visibly, then blast everyone around you away. |
+| C | Mirror Wall | 🪞 Reflects enemy projectiles and blocks their lightning; yours pass. |
 
-Items: Boots of Speed, Lava Treads, Amulet of Health, Ring of Regeneration,
-Cape of the Magi, Blood Sword. See the in-game shop for numbers.
+The last four are the **power tier** — expensive enough that buying one is a
+real trade-off against a full item.
+
+**Items** have three levels each, at a flat cost per level, with each level
+worth less than the last: Boots of Speed, Lava Treads, Amulet of Health, Ring of
+Regeneration, Cape of the Magi, Blood Sword. See the in-game shop for numbers.
+
+**Elemental mode** (lobby toggle) adds twelve elements that reshape your
+fireball and stack with each other. See the shop.
 
 ## Architecture
 

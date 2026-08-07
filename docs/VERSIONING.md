@@ -1,182 +1,153 @@
-# Community-driven versions: analysis before we build it
+# Community versions: the decided architecture
 
-*Analysis of Remi's vision, 2026-08-07. Read [NAMING.md](NAMING.md) first for
-the LICENSE prerequisite. No code written yet — this is the design argument.*
+*2026-08-07. **Revision 2** — Remi overruled revision 1's central
+recommendation, and his argument beat it. Both the recommendation and why it
+lost are recorded below, because the reasoning is the most important thing on
+this page.*
 
-## The vision, restated
+## The decision
 
-Software evolves at the speed of one expert team listening late to its
-community. Replace that: the community itself proposes changes in natural
-language, agents implement them, **every request becomes its own playable
-version**, players pick a version at launch and rate it, and the data — not a
-designer's taste — decides what the default becomes. Two intake paths:
+**A version is an arbitrary change to the codebase. Anything can change:
+numbers, mechanics, the engine, collisions, rendering. There is no restricted
+contribution format and no easy tier.** The project accepts hundreds of
+divergent versions as the normal state of affairs, and **maintenance is
+distributed** along with authorship.
 
-- **Path A (technical):** GitHub PR, reviewed by you or an agent.
-- **Path B (everyone else):** a chat box in the game. An agent on your PC reads
-  requests and implements them.
+## Why the "just patch a config file" idea was wrong
 
-You identified the merge problem yourself and answered it with "don't merge —
-fork". That instinct is right. The question is *what a fork is made of*, and
-that single choice decides whether this works or collapses.
+Revision 1 recommended that a version be a JSON patch over `shared/constants.js`
+— no merge conflicts possible, one engine for everyone, the harvest computable.
+Technically all of that is true. Remi's objection is that it is *the wrong thing
+to optimise*, and it is worth quoting in full because it generalises far beyond
+this project:
 
-## The pivotal decision: what is a "version"?
+> Thinking of contributions as restricted to tuning values in a file is a
+> thought that is technical and convenience-driven first. When you talk to
+> people who have ideas, they don't think like engineers. We're biased by what
+> is easily changeable. If I define these changeable values, then my imagination
+> becomes changes within those values, because that's easier — and I want out of
+> that straitjacket. If I create different difficulty levels of contributing,
+> people will do whatever is easiest and limit themselves.
 
-### Option A — a version is a git branch (fork the codebase)
+That is a real and unanswerable point. **The shape of the contribution surface
+shapes what contributors imagine.** Offer a slider and you get slider ideas.
+Every proposal arriving as a config patch would have looked like validation of
+the design, when it was actually the design censoring the input.
 
-Unlimited power: engine changes, collisions, rendering, anything.
+And the follow-on observation is the whole reason the project exists: when
+non-technical friends describe ideas, the engineer's reflex is *"that's a nasty
+change, hard to implement, side effects everywhere."* **That reflex is precisely
+the filter to remove.** Maybe the idea is bad. The point is to find out by
+playing it, not by estimating it.
 
-But: **hundreds of live branches is hundreds of maintenance liabilities.** Every
-crash fix, every security fix, must be backported N times or the old versions
-rot. Nothing is cross-compatible. Your "Warlock 2 harvests the best ideas" step
-becomes a manual merge of hundreds of divergent trees — the exact work you were
-trying to avoid, just deferred six months and multiplied. And auto-merging a PR
-that adds a branch means **auto-accepting code you will then run on your own
-machine and serve to every player.**
+So revision 1 optimised for the maintainer's comfort and would have quietly
+capped the project's ceiling at what its data model already anticipated. Wrong
+trade.
 
-### Option B — a version is a data patch (a *ruleset*) ✅ recommended
+## What his model dissolves
 
-A version is a small declarative diff over the game's numbers and content lists:
+Two of revision 1's three big worries were artefacts of assumptions he doesn't
+share.
 
-```json
-{
-  "name": "Glass Cannons",
-  "author": "someguy",
-  "parent": "default",
-  "schema": 1,
-  "notes": "everyone dies fast, fireball hits like a truck",
-  "patch": {
-    "SPELLS.fireball.dmg": [14, 20, 28],
-    "PLAYER.MAX_HP": 60,
-    "ELEMENTS.frost.cost": [6, 5, 5]
-  }
-}
-```
+**Fragmentation of the playerbase — dissolved, not mitigated.** I ranked this as
+the thing most likely to kill the project: 500 versions × 4-player lobbies =
+nobody finds a game. That only bites if players are supposed to find each other
+*through the project*. They aren't. Games are private: you host one, you send the
+link to people you know, and **the host picks the version**. There is no
+matchmaking and no server browser, by design. Coordination happens on Discord and
+Reddit, where people agree on what to try. An empty lobby is impossible when
+every lobby starts from an invitation. This also kills the corollary worries —
+no need to privilege a default version in the UI, no need to auto-archive quiet
+versions, no minimum-sample gate before a version is listed.
 
-Why this fits *this* repo unusually well — from AGENTS.md:
+**Merge hell and the maintenance burden — distributed, not solved.** Revision 1
+assumed the maintainer absorbs every fix across every branch. Remi's model
+doesn't: a group that wants the game to go a certain direction works on their own
+versions, merges among themselves, pulls from whatever states they like, and
+**obsoletes or deletes past versions themselves**. Software maintenance becomes
+as distributed as authorship. With agents doing the labour, the cost of keeping a
+fork alive is no longer the reason forks die.
 
-- `shared/constants.js` holds **ALL game numbers** (spells, items, 9 elements,
-  arena, economy, bots, builds).
-- `shared/campaign.js` — "**levels are data, never code**".
+This is the genuinely novel claim, and it's stronger than "community versions"
+(twenty years old) or even "an agent implements your request" (new but narrow):
+**distributed maintenance**. Not just anyone can propose a change — anyone can
+own a lineage.
 
-You already built the substrate. Now re-read the request types you listed:
-*rebalancing, fireball cooldown shorter, item costs, a co-op level with a boss
-at the end* — **the large majority are already pure data.**
+## What survives, and is now more important
 
-The properties this buys are worth more than the expressive power it gives up:
+Removing the restricted format removes the property that made auto-merge safe.
+That doesn't go away by deciding differently; it becomes **the** engineering
+problem.
 
-- **Merge conflicts cannot exist.** Not "are rare" — cannot exist. A ruleset
-  never touches another ruleset.
-- **One engine.** Fix a crash once, all 500 versions get it. This is the
-  property Option A can never have, and it's the one that decides whether
-  month 6 is alive or a graveyard.
-- **A version is human-readable.** 20 lines a player can inspect before
-  playing, and a reviewer can eyeball in five seconds.
-- **No arbitrary code execution.** A JSON patch cannot own your machine.
-- **The harvest becomes computable.** Diff the top-20-rated rulesets against
-  default and *see which constants the crowd consistently moves, and which way*.
-  That is a genuinely new kind of design data, and it's the actual payoff of
-  your whole idea. Option A makes it impossible; Option B makes it a script.
+**Auto-accepting arbitrary code means executing untrusted code on Remi's own
+machine and serving it to every player who picks that version.** With a JSON
+patch this was impossible by construction. With arbitrary code it is the default
+outcome, so containment has to be built rather than assumed. This is the price of
+the freedom, and it is payable — but it is not optional and it is not a taste
+question. Concretely it means the untrusted build never runs with access to the
+rest of the machine, the agent that writes it has no shell and no credentials,
+and a human stays in the loop for anything touching the host process rather than
+the game rules. The detail belongs in [HOSTING.md](HOSTING.md), which is where
+the "one Mac serves N arbitrary versions" problem actually lives.
 
-## Recommendation: three tiers, build tier 1 first
+**A crashing version is still a bad experience**, and it reflects on the project
+even though nobody promised it would work. Cheap answer that keeps maximum
+freedom: run the existing suite — `npx vitest run` plus the harness scenarios —
+against every version, and **publish the result as a label rather than a gate**.
+A version that fails is marked experimental, not blocked. Freedom to ship
+anything, honesty about what it is.
 
-| Tier | What a version is | Review | Volume | Build cost |
-|---|---|---|---|---|
-| **1. Ruleset** | JSON patch over constants + campaign data | **auto-accept** (schema-validated) | hundreds | **small** |
-| **2. Content** | new element / spell / item via engine extension points | agent-reviewed | dozens | medium — a real refactor |
-| **3. Engine fork** | git branch, own deployment | you, manually | a handful | ~free (just say no) |
+**Ratings are still worth having, just not as a promotion mechanism.** Since
+there's no default-version competition to feed, their job is narrower: helping
+people on Discord decide what to try next. Keep them cheap — a rating after a
+finished game, one per player per version, always shown with N.
 
-**Tier 1 is where 90% of requests land, and it costs the least. Build it end to
-end and nothing else, first.** Prove that people actually create and play
-versions before paying for tier 2.
+**Moderation and abuse remain**: version names and descriptions are
+user-generated content, and the suggestion box is an internet-facing text input
+feeding an agent. Rate limits, a name filter, and a kill switch per version. See
+[HOSTING.md](HOSTING.md) section D.
 
-**Tier 2 is the strategic one, and here's the happy accident:** making the
-engine accept a community-authored element is *the same refactor* as making it
-cheap for you to add one. Adding an element today means editing many scattered
-sites; a registry where an element declares its on-hit hooks fixes both problems
-in one pass. We're about to add four new elements — that refactor pays for
-itself immediately whether or not tier 2 ever ships. See
-[ROUND12.md](ROUND12.md).
+## One distinction worth keeping straight
 
-**Tier 3: don't build infrastructure for it.** "Here's a branch, host it
-yourself." Someone rewriting collisions is doing their own project, and that's
-fine and healthy.
+Remi's decision rules out **tiers of contribution difficulty** — anything that
+tells a contributor "this kind of idea is the cheap kind." It does *not* rule out
+**internally clean code**. Those are different things that are easy to conflate.
 
-## Failure modes you should hear about before we start
+A registry where an element declares its own hooks doesn't limit what anyone can
+propose; it just means the common case costs an agent less context and fewer
+scattered edits. Contributors never see it. That refactor is happening anyway as
+part of round 12 (four new elements pay for it immediately) and it makes arbitrary
+changes cheaper too, because an agent that can hold the relevant code in context
+makes better changes. Clean seams lower the cost of the easy path without
+raising the cost of the hard one.
 
-Ranked by how likely they are to actually kill this.
+## Where the harvest goes
 
-**1. Playerbase fragmentation — the real killer, and it isn't technical.**
-500 versions × 4-player lobbies = nobody can find a game. Merge conflicts were
-never the threat; an empty lobby is. Mitigations, all cheap:
-privilege the default version heavily in the UI; show **live player count** per
-version (the only number that matters for choosing); auto-archive versions with
-zero games in 7 days out of the main list; make it one click to return to
-default.
+Revision 1's best argument for config patches was that the harvest becomes
+computable: diff the top-rated rulesets, see which constants the crowd moves.
+That is genuinely lost, and it's the real cost of this decision — worth stating
+plainly rather than pretending otherwise.
 
-**2. Ratings will be low-signal.** Stars come from the author and two friends.
-Fixes: rating unlocked only after finishing a game; one rating per player per
-version; always display N alongside the average; hide versions below a minimum
-sample from the leaderboard. Better still, log two things that can't be
-astroturfed: **did they play a second game** (retention) and **did they finish
-the first** (rage-quit rate). Show stars to players; trust retention when
-deciding the default.
+What replaces it is worse as data and better as evidence: **versions people
+actually chose to play, repeatedly, against versions they abandoned.** Extracting
+"a Warlock 2 that takes the best ideas" from hundreds of divergent trees is a
+manual, case-by-case reading job. Remi's answer is that this is fine, and that it
+isn't necessarily *his* job — a group that wants to consolidate a direction can
+do that consolidation themselves. The project doesn't promise that popular
+versions get merged. It promises they get played.
 
-**3. Auto-merge is only safe for data.** "Auto-accept any PR that just adds a
-version" is safe in tier 1 and dangerous everywhere else. The gate must be
-machine-checkable, not judgement-based: *every changed path matches
-`rulesets/*.json`, the schema validates, and nothing else is touched* → merge.
-Anything else → human. One rule, no exceptions.
+## Prerequisites already done
 
-**4. The in-game chat box is a prompt-injection surface into an agent with
-write access to your repo.** Anyone on the internet can type into it. Treat
-every request as hostile input: the agent gets no shell, its only output is a
-ruleset file, and anything outside `rulesets/` requires you. Rate-limit per
-author, queue the work — and remember the agent runs on *your* PC, *your*
-electricity, *your* API budget.
+- `LICENSE` (MIT) exists — see [CONTRIBUTING-LEGAL.md](CONTRIBUTING-LEGAL.md)
+  for inbound=outbound, the revenue question, and why MIT is the reversible
+  choice.
 
-**5. Version names and notes are user-generated content shown to every
-player.** You need a name filter and a one-command kill switch for a version.
-Boring, unavoidable.
+## Next, in order
 
-**6. Schema drift will silently kill old versions.** When we rename a constant,
-every ruleset referencing it breaks. Non-negotiable: a schema version field, a
-validator that runs over **every** ruleset in CI, and rulesets that fail
-validation get flagged loudly rather than quietly serving a broken game. This is
-the single thing that decides whether six months of community versions are still
-playable in month seven.
-
-## Is the vision sound?
-
-Yes, and it's less speculative than it sounds. Steam Workshop, the Factorio mod
-portal, Slay the Spire and Balatro mods all do "accept community content, rate
-it, promote the winners". WC3 custom maps — where Warlock itself came from — are
-the same loop run by hand. Those are your existence proofs.
-
-**The genuinely new part is the agent closing the loop**: natural language →
-playable version in minutes, with no GitHub account, no toolchain, no
-gatekeeper. Nobody has that yet, and it is a much better claim than "community
-versions", which is 20 years old. It's also why tier 1 matters most: the loop
-only feels magic if it's *fast*, and a JSON patch is fast.
-
-Two honest caveats. Most versions will be bad or duplicates — that's fine, it's
-the cost of a wide funnel, and it's exactly why ranking and the privileged
-default exist. And your "Warlock 2 in six months" is the right frame: don't
-promise the community that popular versions get merged, promise that popular
-versions get *read*.
-
-## Proposed first slice (small, ~a day, ships something real)
-
-1. `LICENSE` file (see [NAMING.md](NAMING.md)) — prerequisite, not optional.
-2. `rulesets/` + a schema + a validator wired into `npx vitest run`.
-3. `applyRuleset(constants, patch)` in `shared/` — one pure function, unit
-   tested, with `default.json` as an empty patch so the default path is the
-   *same* code path as every other version.
-4. Lobby: version dropdown (name, author, ★ + N, live players), sortable.
-   Server loads the chosen ruleset at lobby start; wire format untouched.
-5. Post-game: rate 1–5. Store to a JSONL file, same style as the existing
-   journal.
-6. **Then** decide about the chat box and the always-on agent — with real data
-   on whether anyone makes versions at all.
-
-Steps 1–5 are boring, safe, and testable. That is the point: this is the layer
-everything else stands on, so it should be the least clever code in the repo.
+1. Finish round 12 ([ROUND12.md](ROUND12.md)) — the game itself first.
+2. [HOSTING.md](HOSTING.md) — a non-technical player must be able to host a game
+   from a link. Nothing about community versions matters until people can play at
+   all.
+3. The suggestion box and the always-on agent that depiles it, including the
+   refusal policy and the sandbox. Remi's explicit sequencing: **after everything
+   else.**

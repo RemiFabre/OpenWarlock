@@ -134,8 +134,13 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   detonates: slow / deeper slow / 2 s stun, and stacks are shared by ALL
   attackers); **mosquito 🦟 (new round 11)** turns your fireball into a
   1-damage double-rate sting that leaves a bite on a third of the victim's
-  body — any OTHER spell landing on that arc hits double. Measured spread
-  10.9–41.6% (berserker/stalker tiers). **The midas artifact is GONE**: with
+  body — any OTHER spell landing on that arc hits double. **REWORKED in round
+  12** (docs/ROUND12.md S3): mosquito measured 24.0%/34.6% (BALANCE.md:101) and
+  was reported broken because the client **never drew the bites at all** — they
+  were on the wire and rendered nowhere, so this was a rendering gap, not a
+  numbers problem. (The 10.9–41.6% figure earlier handoffs attached to mosquito
+  is the spread across ALL NINE elements, BALANCE.md:113.)
+  **The midas artifact is GONE**: with
   stackable items bots finally spend their gold, and midas jumped 1% → 43–64%
   before being renerfed to 11–37%. The ★ grunt tier is now a chaos control,
   not a balance signal. Classic wire format untouched by elemental fields.

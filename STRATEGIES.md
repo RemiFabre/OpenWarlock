@@ -38,17 +38,10 @@ reading its priorities: what it wants first is what the strategy is about.
 (The arena additionally runs a **greedless** control that never buys anything
 — it exists only to calibrate the tables and is not offered in the lobby.)
 
-**Which strategy fits which difficulty** (report #4, 1500 mirror games per
-tier — full tables in `BALANCE.md`):
-
-| Build | ★ grunt | ★★ berserker | ★★★ stalker |
-|---|---|---|---|
-| **boomer** | **61.7%** | **62.3%** | **54.0%** |
-| bruiser | 37.4% | 54.8% | 36.3% |
-| turtle | 36.9% | 22.8% | 45.6% |
-| sniper | 27.6% | 6.4% | 20.2% |
-| rusher | 8.7% | 25.5% | 11.9% |
-| escape | 1.4% | 0.6% | 5.1% |
+**Which strategy fits which difficulty**: see the build × tier table in
+`BALANCE.md` (report #4, 1500 mirror games per tier). It used to be restated
+here, which meant every retune had to be typed into two files and the copies
+drifted — read it there.
 
 **Boomer is the strongest pick at every tier**, and that is partly a bot
 artifact: nothing in the bot code dodges a boomerang (the ★★★ dodge routine

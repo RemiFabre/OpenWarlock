@@ -1,4 +1,14 @@
-# OpenWarlock — Design Document
+> ⚠️ **ARCHIVED 2026-08-07 — DO NOT TRUST ANY NUMBER IN THIS FILE.**
+> This is the original v1 design sketch. It has been overtaken so thoroughly
+> that an audit found **twelve contradictions with the code in fifty lines**:
+> lava DPS, afterburn (removed entirely), shrink time, "no obstacles in v1"
+> (there are 6 pillars), roster size, every fireball stat, lightning knockback,
+> boomerang damage, item stacking, and four item values. It is kept only as a
+> record of where the project started.
+> **The live sources of truth are `shared/constants.js` for numbers, `AGENTS.md`
+> for the rules snapshot, and `docs/ROUND12.md` for current work.**
+
+# OpenWarlock — Design Document (v1, historical)
 
 A web-native remake of the Warcraft III minigame **Warlock** (a.k.a. Warlock Brawl):
 top-down arena, physics-driven knockback spells, shrinking lava ring, gold and a shop
