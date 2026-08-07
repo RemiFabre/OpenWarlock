@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
-  setSpectator, setMode, BOT_ELEMENTS, playerStats,
+  setSpectator, setMode, BOT_ELEMENTS, playerStats, setShopPause,
   setDraft, draftPick, draftDue, MODES, pickPrey, killLead,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
@@ -771,6 +771,34 @@ describe('round-3 mechanics', () => {
     setShopReady(state, 'p1');
     step(state, DT);
     expect(state.phase).toBe('countdown');
+  });
+
+  // 2026-08-07 (Remi: "sometimes I don't have time to read the shop")
+  it('pausing the shop freezes the clock but not the shopping', () => {
+    const state = freshBattle(2);
+    toShop(state);
+    const before = state.phaseT;
+    expect(setShopPause(state, 'p0', true).ok).toBe(true);
+    for (let i = 0; i < 200; i++) step(state, DT);
+    expect(state.phase).toBe('shop');            // never times out
+    expect(state.phaseT).toBeCloseTo(before, 5); // clock genuinely frozen
+    state.players.p0.gold = 99;
+    expect(buy(state, 'p0', 'lightning').ok).toBe(true); // still shopping
+
+    setShopPause(state, 'p0', false);
+    for (let i = 0; i < 200; i++) step(state, DT);
+    expect(state.phaseT).toBeLessThan(before);
+  });
+
+  it('a pause can never hold the lobby hostage, and never leaks into the next shop', () => {
+    const state = freshBattle(2);
+    toShop(state);
+    setShopPause(state, 'p0', true);
+    setShopReady(state, 'p0');
+    setShopReady(state, 'p1');
+    step(state, DT);
+    expect(state.phase).toBe('countdown');  // everyone ready still starts it
+    expect(state.shopPaused).toBe(null);    // and the pause is cleared
   });
 
   it('shop-ready flags reset every round', () => {

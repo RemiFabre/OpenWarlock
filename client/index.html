@@ -156,6 +156,9 @@
   #shopGold { color: var(--gold); font-size: 20px; }
   #shopTimer { color: var(--parchment); font-size: 20px; }
   #shopTimer.low { color: var(--ember); }
+  #shopTimer.paused { color: var(--gold, #e8c65a); }
+  #shopPauseBtn { padding: 6px 12px; font-size: 14px; margin-left: 10px; }
+  #shopPauseBtn.on { color: var(--gold, #e8c65a); border-color: var(--gold, #e8c65a); }
   #shopReadyBtn { padding: 12px 16px; font-size: 16px; }
   #shopReadyBtn:disabled { opacity: .8; color: var(--ash); }
   .botadd { padding: 6px 12px; font-size: 13px; }
@@ -540,6 +543,7 @@
       <h1 class="display">The Shop</h1>
       <span id="shopGold" class="num">0 g</span>
       <span id="shopTimer" class="num"></span>
+      <button id="shopPauseBtn" title="Freeze the shop clock — you can still buy, and everyone readying up still starts the round">⏸ Pause</button>
     </div>
     <p class="sub" id="shopSub">Spend it while you're alive to.</p>
     <div class="scroller">

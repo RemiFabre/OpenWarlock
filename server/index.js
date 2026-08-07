@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
+  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
   setSpectator, fighters, setMode, setDraft, draftPick,
 } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE, BOTS, BUILDS } from '../shared/constants.js';
@@ -289,6 +289,9 @@ wss.on('connection', (ws, req) => {
         if (game.phase === 'shop') { setShopReady(game, id, !!m.ready); break; }
         pl.ready = !!m.ready;
         maybeAutoStart();
+        break;
+      case 'shopPause':
+        setShopPause(game, id, !!m.on);
         break;
       case 'spectate':
         setSpectator(game, id, !!m.on);

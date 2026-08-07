@@ -87,6 +87,7 @@ function latest() { return snaps.length ? snaps[snaps.length - 1].s : null; }
 // game; the rAF loop below also survives per-frame exceptions.
 
 let lastErrMsg = '', lastErrAt = 0;
+let shopPausedBy = null;   // name of whoever froze the shop clock, else null
 function reportError(where, err) {
   const msg = `[${where}] ${(err && (err.stack || err.message)) || err}`;
   console.error('warlock error', where, err);
@@ -544,6 +545,12 @@ $('draftBtn').addEventListener('click', () => {
   send({ t: 'draft', on: !(s && s.draft) });
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
+// Shop pause: anyone may freeze or unfreeze the clock (friends-lobby trust, same
+// as the kick/ban buttons). Reads the current state off the last snapshot so the
+// one button toggles.
+$('shopPauseBtn').addEventListener('click', () => {
+  send({ t: 'shopPause', on: !shopPausedBy });
+});
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('unbanBtn').addEventListener('click', () => { send({ t: 'unbanAll' }); toast('bans cleared'); });
 $('againBtn').addEventListener('click', () => {
@@ -1276,6 +1283,7 @@ function statsTable(fighters, specs, opts = {}) {
 
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
+  shopPausedBy = typeof s.shopPaused === 'string' ? s.shopPaused : null;
   const m = me(s);
   const playerList = Object.values(s.players || {}).filter(p => p && typeof p === 'object');
   const phaseT = fin(+s.phaseT) ? +s.phaseT : 0;
@@ -1366,10 +1374,17 @@ function updateUi(s) {
       playerList.filter(p => p.spectator),
       { showRound: true });
     const timer = $('shopTimer');
-    timer.textContent = `${Math.ceil(phaseT)} s`;
-    timer.classList.toggle('low', phaseT <= 5);
-    $('shopSub').textContent = watching
-      ? "You're spectating — no shopping" : "Spend it while you're alive to.";
+    const pausedBy = shopPausedBy;
+    timer.textContent = pausedBy ? '⏸ paused' : `${Math.ceil(phaseT)} s`;
+    timer.classList.toggle('low', !pausedBy && phaseT <= 5);
+    timer.classList.toggle('paused', !!pausedBy);
+    const pauseBtn = $('shopPauseBtn');
+    pauseBtn.textContent = pausedBy ? '▶ Resume' : '⏸ Pause';
+    pauseBtn.classList.toggle('on', !!pausedBy);
+    $('shopSub').textContent = pausedBy
+      ? `⏸ Clock frozen by ${pausedBy} — take your time. Everyone hitting Ready still starts the round.`
+      : watching
+        ? "You're spectating — no shopping" : "Spend it while you're alive to.";
     setVisible('shopGrid', !watching);
     setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
     if (!watching) {
@@ -1399,7 +1414,9 @@ function updateUi(s) {
   } else if (s.phase === 'roundEnd') {
     $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {
-    $('phasebar').textContent = `next round in ${Math.ceil(phaseT)} s`;
+    $('phasebar').textContent = shopPausedBy
+      ? `⏸ shop paused by ${shopPausedBy}`
+      : `next round in ${Math.ceil(phaseT)} s`;
   }
 
   // Live standings for the dead. Deliberately the SAME statsTable() the shop and

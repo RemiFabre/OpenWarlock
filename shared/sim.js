@@ -30,6 +30,12 @@ export function createGame({ seed = 1, mode = 'classic' } = {}) {
   return {
     phase: 'lobby',        // lobby | countdown | battle | shop | gameover
     phaseT: 0,             // time remaining in countdown/shop
+    // Shop pause (2026-08-07, Remi: "sometimes I don't have time to read").
+    // Freezes the shop COUNTDOWN only — buying, readying and everything else
+    // keep working, and everyone being ready still starts the round. Holds the
+    // name of whoever paused so the banner can say who, since anyone in the
+    // lobby may pause or resume (same friends-lobby trust model as the bans).
+    shopPaused: null,      // null = running, else the pauser's display name
     mode: MODES.includes(mode) ? mode : 'classic',
     // Draft mode (docs/ROUND12.md S7) — an INDEPENDENT flag, not a fourth mode:
     // it composes with classic, elemental and co-op alike. OFF means every field
@@ -1031,6 +1037,7 @@ function startRound(state) {
   // the shop is closing: an untouched offer still pays out its first option
   resolveDraftOffers(state);
   state.round++;
+  state.shopPaused = null;   // never let a pause leak into the next shop
   state.phase = 'countdown';
   state.phaseT = ROUND.COUNTDOWN;
   state.time = 0;
@@ -1260,6 +1267,17 @@ export function setShopReady(state, id, ready = true) {
   pl.shopReady = !!ready;
 }
 
+// Pause/resume the shop countdown. Anyone in the lobby may do either — this is
+// a friends lobby, the same trust model as the kick/ban buttons — and the
+// banner names who did it. Bots never pause. Cleared on every round start, so a
+// forgotten pause cannot survive into the next shop.
+export function setShopPause(state, id, on) {
+  const pl = state.players[id];
+  if (!pl || pl.bot || state.phase !== 'shop') return { ok: false, err: 'not in a shop' };
+  state.shopPaused = on ? (pl.name || 'someone') : null;
+  return { ok: true };
+}
+
 // ---- main step ----------------------------------------------------------
 
 export function step(state, dt) {
@@ -1276,10 +1294,12 @@ export function step(state, dt) {
       if (state.phaseT <= 0) afterSummary(state);
       return;
     case 'shop': {
-      state.phaseT -= dt;
+      // paused freezes the clock ONLY — everyone readying up still starts the
+      // round, so a pause can never hold the lobby hostage
+      if (!state.shopPaused) state.phaseT -= dt;
       const everyoneReady = Object.values(state.players).length > 0 &&
         Object.values(state.players).every(p => p.bot || p.spectator || p.shopReady);
-      if (state.phaseT <= 0 || everyoneReady) startRound(state);
+      if ((state.phaseT <= 0 && !state.shopPaused) || everyoneReady) startRound(state);
       return;
     }
     case 'battle':
@@ -2139,6 +2159,8 @@ export function snapshot(state, viewerId = null) {
   return {
     phase: state.phase, phaseT: round2(state.phaseT),
     mode: state.mode,
+    // absent while running, so a classic snapshot is unchanged
+    ...(state.shopPaused ? { shopPaused: state.shopPaused } : {}),
     // draft mode: the flag (so the lobby toggle reads back) and the pool, which
     // is public by design — it is the same for everyone, and the shop has to know
     // which shelves are empty this game. Both absent while the toggle is off, so
