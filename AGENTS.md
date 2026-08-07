@@ -68,6 +68,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `BALANCE.md` | **round-11 addendum on top of report #4 (round 10, ~58k games) — current**; #3/#2 in git history at `ab48932` / `9a96b47` |
 | `STRATEGIES.md` | bot difficulty × build chart + how to read arena reports |
 | `REMI_NOTES.md` | per-round changelog Remi actually reads (newest on top) |
+| `docs/` | **design + decision docs, all current**: `ROUND12.md` (the live work order — the round-12 batch as dictated, with the traps), `VERSIONING.md` (community-versions architecture: a version is a data patch, not a branch), `NAMING.md` + `CONTRIBUTING-LEGAL.md` (name/licence/contributor answers) |
 
 ## Game rules snapshot (v9, post-round-11)
 
