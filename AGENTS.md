@@ -6,13 +6,18 @@ through history.*
 
 ## ⚠ State of the repo right now (read before your first command)
 
-- **Three commits are on local `main` and NOT pushed**: `ce79110` (critical
-  uncapped + co-op friendly fire ON), `832389f` and `3d55aa4` (the co-op
-  retune that friendly fire forced). All are verified — 135 vitest, both
-  harness scenarios, and `tools/arena.js` output byte-identical to before, so
-  classic/elemental are provably untouched. They were held back only because
-  Remi was **mid-playtest** and pushing mid-session invites a confusing
-  pull+restart. Confirm with him, then `git push origin main`.
+- **ELEVEN commits are on local `main` and NOT pushed** (`origin/main` is at
+  `41c4b7d`, local HEAD at `f28ce9d`): the whole of round 12 — item levels,
+  private stacks, momentum, the mosquito rework, constant knockback, four named
+  difficulty tiers, Vanish, draft mode, vampire/chronos/ghost. All verified
+  (196 vitest, both harness scenarios). They were held back because Remi was
+  **mid-playtest** and pushing mid-session invites a confusing pull+restart.
+  Confirm with him, then `git push origin main`.
+- **Uncommitted on top of that (2026-08-07 balance pass, NOT committed on
+  purpose)**: the co-op item-cap repair (`shared/campaign.js`), momentum's
+  `rampDmg` re-sweep + the frost/midas/ghost investigation notes
+  (`shared/constants.js`), one de-pinned momentum test (`test/sim.test.js`) and
+  this file. 196 vitest green, both harness scenarios pass, h2h ladder monotone.
 - **Remi may still be playing.** Do not `pkill` anything matching
   `server/index.js` and do not run `test/client-robustness.js` or
   `tools/reconnect-test.js` without checking first — they spawn and kill
@@ -56,7 +61,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=`), crash dumps, `/health`, static serving, ws heartbeat reaper, lobby kick/ban |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel → public URL (verified end-to-end incl. websockets) |
 | `client/` | canvas client: main.js (net/input/HUD/shop), render.js (full-res art + 1/3-res blob layer), music.js, sfx.js (synthesized) |
-| `test/sim.test.js` | 135 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 196 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`, and `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
@@ -77,11 +82,14 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 - **Lava**: 14 DPS, **×2 move speed** while in it (swimming is a real escape
   route now, round 10), no afterburn. Ring shrinks faster as fighters die;
   sudden death after overtime. 6 pillars sink as it shrinks. **Lava kill
-  share now ~37-39%** (86% at launch → 68% after round 9 → 47% after round
+  share now ~30%** (86% at launch → 68% after round 9 → 47% after round
   10's softer knockback + faster swimming → ~38% after round 11's regen lock
-  and stacking sustain). This is BALANCE.md open question #1 and it keeps
-  drifting DOWN every round — Remi still hasn't ruled on it. The levers are
-  one-line reverts: `KB_HP_FACTOR`, `LAVA.SPEED_MULT`.
+  and stacking sustain → **30.0% / 30.2%** measured 2026-08-07 at 60 and 1000
+  games, after round 12's constant knockback and item levels). This is
+  BALANCE.md open question #1 and it keeps drifting DOWN every round — Remi
+  still hasn't ruled on it. The levers are one-line reverts: `KB_HP_FACTOR`,
+  `PLAYER.KB_CONSTANT_MISSING`, `LAVA.SPEED_MULT`. Comeback rate over the same
+  runs: 11.7% / 12.4%.
 - **Knockback**: HP-scaled by % missing (`KB_HP_FACTOR 0.385`, −30% in round
   10), no size term (audited, regression-tested — big is only ever a
   disadvantage).
@@ -102,11 +110,16 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   1.2 hp/s of passive regen, so round 1 was unkillable — median first death
   51.9 s vs ~20 s in round 3, now 31.3 s. Don't remove it without re-measuring
   that number.
-- **Items STACK** (round 11): buy any item repeatedly, effects pile up, each
-  copy costs 20% more (`itemCost(key, owned)`); `unique: true` opts out
-  (echo/crown). This deleted the long-standing gold-saturation artifact — see
-  the BALANCE.md round-11 addendum, Finding A.
-- **Power tier, unlocked after round 5** (buy() enforces `minRound`),
+- **Items have 3 LEVELS** (round 12, S4 — this line said "items STACK freely"
+  until 2026-08-07 and that is now WRONG): hard cap 3, the same flat gold cost
+  at every level, each level worth less than the last (`ITEM_FX` arrays are
+  cumulative totals). Round 11's free stacking produced a 4-5-boots meta Remi
+  didn't want. ⚠ Two measured consequences to carry forward: it **partly
+  resurrected the gold-saturation artifact** (midas back to 0.0% on ~49 g of
+  unspent gold — see the scars below) and it **broke the co-op campaign**
+  (see the co-op section: the party is bots that shop 13 times).
+- **Power tier, buyable from round 1** (round 12 dropped `minRound`; the gate is
+  now that no bot build list contains one, enforced in `botShop`),
   expensive by design: meteor T (1.25 s telegraph, AoE hits caster too),
   hook G (yanks victim a full body behind caster; **visible chain + 🪝 head**
   since round 10 — it used to render as nothing at all), repulse X (2 s
@@ -140,10 +153,16 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   were on the wire and rendered nowhere, so this was a rendering gap, not a
   numbers problem. (The 10.9–41.6% figure earlier handoffs attached to mosquito
   is the spread across ALL NINE elements, BALANCE.md:113.)
-  **The midas artifact is GONE**: with
-  stackable items bots finally spend their gold, and midas jumped 1% → 43–64%
-  before being renerfed to 11–37%. The ★ grunt tier is now a chaos control,
-  not a balance signal. Classic wire format untouched by elemental fields.
+  ~~**The midas artifact is GONE**~~ — it came BACK with round 12's item cap
+  (0.0% on ~49 g of unspent gold; see the scars). The ★ grunt tier is now a
+  chaos control, not a balance signal. Classic wire format untouched by
+  elemental fields.
+- **Current 12-element standings** (`tools/arena.js --mode=elemental
+  --games=1000`, ★★ berserker/bruiser, baseline 25%, 2026-08-07):
+  venom 38.8 · vampire 38.7 · ember 35.8 · arcane 32.4 · terra 29.3 ·
+  mosquito 28.9 · momentum 24.2 · gale 23.5 · chronos 21.0 · frost 19.4 ·
+  ghost 8.3 · midas 0.0. **Read this as a ranking, not a strength meter** — the
+  absolute-lab note in the scars explains why 25% is not the floor.
 - Bots: ★/★★/★★★ × build strategy (lobby dropdown, 🎲 random); pilot layer
   casts whatever the build buys (except power spells); best bot picks:
   **boomer at every tier** (54–62% — bot artifact, nothing dodges or catches
@@ -208,10 +227,29 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
     of it threatens a geared party. It stays as flavour and gold income.
 - Difficulty axis is verified, not assumed: ★ grunt party fails from level 4
   on (0-6%), ★★ berserker rides the intended curve, ★★★ stalker clears 99-100%.
-- **Current curve** (★★ berserker, 200 attempts/cell, `tools/coop.js --levels`):
-  L1-3 100% at every size, then 1p/2p/3p — L4 94/88/97, L5 78/86/88,
-  L6 74/83/84, L7 69/67/70, L8 58/61/60, L9 44/53/42, L10 38/36/38.
-  Full campaign with retries inside the 13-round budget: **55/79/55%**.
+  - **A LEVEL CAP ON ITEMS IS A CAMPAIGN NERF** (2026-08-07, the scar of this
+    round). The party is bots that shop up to 13 times, so under the old
+    uncapped stacking they reached level 9 carrying 8-13 copies of every item;
+    every enemy is a fixed template owning ONE copy. Capping items at 3 levels
+    took the party's late power and left the monsters untouched: L9 44→22%,
+    L10 38→23%, full campaign 55/79/55 → **11/10/4%**. Nobody re-measured co-op
+    when round 12 shipped the cap. **Any global change to items, gold or
+    knockback re-prices the whole back half of the campaign — re-run
+    `tools/coop.js --levels` in the same commit.**
+  - **Hounds are the fine grain, Shades are the coarse one.** One Shade is worth
+    ~30-45 clear points; one hound ~10. If a level is 15 points off, add hounds.
+- **Current curve** (★★ Hard berserker/bruiser, 200 attempts/cell, seed 7,
+  `tools/coop.js --levels`): L1-3 100% at every size, then 1p/2p/3p —
+  L4 94/94/97, L5 98/96/91, L6 91/97/97, L7 69/75/73, L8 68/66/57,
+  L9 39/46/44, L10 30/42/32. Non-increasing at every party size.
+  Full campaign with retries inside the 13-round budget (200 runs/size):
+  **37.0 / 55.5 / 41.0%**, 12.5-12.8 rounds/run.
+  ⚠ Two open pacing notes, both measured, neither acted on: **the 13-round
+  budget is now the binding constraint** (runs average 12.7 rounds and only
+  ~72% of runs ever reach level 10), and **L4-L6 sit at 91-98%**, a few points
+  above where they were before round 12's constant knockback. `COOP_MAX_ROUNDS`
+  is the one-line lever for the first; the second wants L5/L6 retuned, not a
+  global revert.
 
 ## Hosting & multiplayer ops
 
@@ -240,7 +278,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 135 green
+npx vitest run                                   # 196 green
 node test/harness/run.js test/harness/scenarios/bots.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/reconnect-test.js                     # progress survives a drop
@@ -261,8 +299,9 @@ takes his session down with it.
    frost's 3-stack detonation, and whether co-op friendly fire is fun or
    infuriating. **His feel report outranks every table in BALANCE.md.**
 1. **Human playtest verdicts pending** (BALANCE.md's open questions):
-   **lava kill share is now ~37-39% and still falling** — is that the game
-   Remi wants? (one-line reverts: `KB_HP_FACTOR`, `LAVA.SPEED_MULT`); regen —
+   **lava kill share is now ~30% and still falling** — is that the game
+   Remi wants? (one-line reverts: `KB_HP_FACTOR`, `KB_CONSTANT_MISSING`,
+   `LAVA.SPEED_MULT`); regen —
    the round-11 regen lock partly answered this, is it enough?; boomer at
    54–62%; the whole power tier incl. repulse combos + visible hook; critical,
    mosquito and midas in human hands.
@@ -313,7 +352,27 @@ takes his session down with it.
   called it a measurement artifact (gold-saturated bots can't spend). Making
   items stackable gave gold somewhere to go and it instantly measured 43-64% —
   the artifact was real, the excuse was hiding a genuinely strong element, and
-  Remi's human read had been right the whole time.
+  Remi's human read had been right the whole time. (Round 12's item cap brought
+  the artifact back: midas is 0.0% again on 49 g of unspent gold. It was
+  attacked from three sides in 2026-08-07 — longer bot build orders, scarcer
+  gold, both — and climbs monotonically to 17-19% as gold starts to matter, so
+  the 0.0% is still a floor and midas's numbers were again left alone. The
+  sweep is in `shared/constants.js` next to `midas`.)
+- **The mixed elemental table is a RANKING, not a strength meter, and its
+  25% baseline is not the floor.** The absolute lab (1 element seat vs 3 seats
+  with NO element, `runElementalStudy`'s cousin) says an element whose fx is
+  literally `{}` — but which still pays its 26 g — scores **2.7%**, not 25%.
+  Frost at 17% in the mixed table wins 37-40% in that lab against 20% for the
+  no-element seats; ghost at 8% wins 18-20% against a 2.7% floor. Before
+  buffing anything for being "below baseline", check what it scores against
+  nothing. The whole ladder is in `constants.js` next to `frost` and `ghost`.
+- **A study cannot see a variable its design cannot express.** Round 12's
+  private-frost-stacks change is invisible to the standard elemental study,
+  because that study deals every seat a different element and one attacker's
+  private counter IS the shared counter — verified 2026-08-07 by running the
+  shipped sim and a shared-stacks patched copy side by side: byte-identical at
+  1 frost seat, 2.4-3.9 points apart at 2 seats. Build the lab that can express
+  the variable; a "no change" from the wrong lab is not evidence.
 - **A correct mechanic with imperceptible numbers is a bug in practice.**
   Critical ramped exactly as designed and Remi still reported it broken,
   because +0.45 dmg/hit is invisible. If a player says a feature doesn't work,

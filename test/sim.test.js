@@ -1243,8 +1243,16 @@ describe('elemental mode', () => {
     expect(b3.maxHp - b3.hp).toBeGreaterThan(lateGame - 1);
     expect(b3.maxHp - b3.hp).toBeLessThan(lateGame + 1);
     // ...and by then it must genuinely beat a plain fireball, or the whole
-    // element is pointless (it starts at dmgMult, so it has to climb back out)
-    expect(lateGame).toBeGreaterThan(base * 1.4);
+    // element is pointless (it starts at dmgMult, so it has to climb back out).
+    // The threshold is DERIVED from the spec, not pinned: break-even is the hit
+    // count at which the ramp has paid off dmgMult, and a whole game has to be
+    // comfortably past it. (2026-08-07: this used to assert a hardcoded 1.4x and
+    // failed the moment rampDmg was re-swept 0.08 -> 0.06 — exactly the pinned-
+    // constant trap AGENTS.md warns about. The PROPERTY is "it climbs back out
+    // well inside one game"; break-even moved 22 -> 29 landed hits.)
+    const breakEven = (base * (1 - f.dmgMult)) / (f.rampDmg[0] * f.dmgMult);
+    expect(breakEven).toBeLessThan(GAME_HITS / 2);
+    expect(lateGame).toBeGreaterThan(base);
     // no ceiling: twice the hits keeps climbing, it never plateaus
     const twice = (base + 2 * GAME_HITS * f.rampDmg[0]) * f.dmgMult;
     expect(twice).toBeGreaterThan(lateGame * 1.3);

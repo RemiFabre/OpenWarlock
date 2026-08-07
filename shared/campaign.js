@@ -58,6 +58,44 @@
 //   lands cleanly — hence the minParty/scale:'none' waves that count the real
 //   threats out by hand for each party size.
 //
+// ---- what the ITEM-CAP repair of 2026-08-07 (later) learned ------------------
+// Round 12 turned items from freely-stackable copies into 3 levels with a hard
+// cap. Nobody re-measured the campaign, and it broke: the party is BOTS THAT
+// SHOP UP TO 13 TIMES, so under uncapped stacking they used to reach the back
+// half carrying 8-13 copies of every item, while every enemy here is a fixed
+// template that owned exactly ONE copy and therefore lost almost nothing. The
+// levels the party had banked the most shops for are the ones that collapsed:
+//   L7 69/67/70 -> 69/75/73   L8 58/61/60 -> 68/85/57
+//   L9 44/53/42 -> 22/29/8    L10 38/36/38 -> 23/12/12
+//   full campaign, 200 runs/party size: 55/79/55% -> 11/10/4% (that last pair of
+//   figures is quoted from the work order, not re-measured here; the isolated
+//   level table above WAS reproduced at HEAD before anything was changed).
+// After this retune: L8 68/66/57 · L9 39/46/44 · L10 30/42/32, monotone at every
+// party size, full campaign 37.0/55.5/41.0%.
+// Levels 8, 9 and 10 were retuned; 1-7 were left alone. L7 still reads on target
+// (69/75/73). ⚠ L4-L6 have drifted UP a few points (94/94/97, 98/96/91,
+// 91/97/97) and that is NOT the item cap — the party has barely shopped by then.
+// The untested hypothesis is round 12's constant knockback (S1): everyone is now
+// shoved as if permanently at 70% HP, which helps a full-HP party shove a fresh
+// Brute and stops a dying player from being launched. Left alone deliberately:
+// the curve is still non-increasing there, and the brief was levels 9-10.
+// Three rules were re-confirmed the hard way, all at 200 attempts/cell:
+// * THE ★★★ IS THE WHOLE FIGHT, AND IT IS THE COARSEST UNIT IN THE GAME. Delete
+//   level 9's single solo Shade and the level clears 100%; delete its Brute and
+//   it still clears 87%. At level 10, one Shade at 2p was worth ~45 clear points
+//   at every boss HP tried. Price a party in Shades and you cannot land between
+//   two numbers — hounds (~10 points each) are the fine grain.
+// * HP IS STILL A NO-OP FOR BERSERKER-KIND. Brute 210 -> 170 -> 140 moved level
+//   9 solo by 1 point per step and level 5 by 1-2. The boss is the exception and
+//   only because he carries shield + treads (his HP is level 10's main lever).
+// * STAGGERING REALLY DOES SOFTEN. Level 9's first Shade at 0/12/15/25 s reads
+//   35/39/53/72% solo. `at` is now doing real tuning work, not flavour.
+// Also tried and rejected: making the BRUTE a `brawler` (Normal tier) — it does
+// fix level 9 solo (35 -> 49%) but it takes level 5 to 99/99/99 and breaks the
+// L4->L5 step, so the arrival time did the job instead. The `brawler` tier
+// remains available and is the right tool the day a level needs a tank that is
+// *dumber* rather than weaker.
+//
 // What HP does (still true, refined): for a BERSERKER-kind enemy at LOW gear,
 // HP is nearly a no-op — it dies to the lava, not to damage. Against a
 // late-campaign party it stops being free: they out-damage the lava, so the
@@ -131,12 +169,25 @@ const CHAMPION = {
   // 110 -> 130 (2026-08-07): with the hound bodyguard replaced by Shades the
   // boss himself had to carry more of the fight; his HP is the finest lever
   // level 10 has (every 7 hp is worth ~4 clear points at every party size).
-  name: 'Sargeras', avatar: '😈', kind: 'berserker', maxHp: 130, sizeMult: 1.8,
+  // 130 -> 115 (2026-08-07, item-cap repair): capping items at 3 levels took
+  // most of the party's late-game power (they used to arrive here with 8-13
+  // copies of everything) while Sargeras, a fixed template, lost almost nothing
+  // — level 10 fell to 23/12/12 (1p/2p/3p, 200 attempts/cell, seed 7). His HP is
+  // still the finest lever the level has. Swept at 200 attempts/cell WITH the
+  // wave fix below already in place (so 130's 23/12/12 is the only cell measured
+  // on the old waves):
+  //   120 -> 28/34/29 · **115 -> 30/42/32** · 110 -> 30/47/35 · 105 -> 37/51/34
+  // and confirmed at a second seed (115 -> 31/39/31). 115 keeps him the hardest
+  // single fight in the campaign while leaving level 10 monotonically under
+  // level 9 at every party size.
+  name: 'Sargeras', avatar: '😈', kind: 'berserker', maxHp: 115, sizeMult: 1.8,
   spells: { fireball: 3, lightning: 3, teleport: 2, shield: 2, rush: 2, pillar: 2 },
   // One LEVEL of each, which is the faithful translation of the old "one copy
-  // of each" — deliberately NOT lv 3. Level 10 is tuned to 38/36/38% clear and
-  // the boss's gear is a live lever there; raising these is a balance decision
-  // for a measured commit, not a side effect of the levelling refactor.
+  // of each" — deliberately NOT lv 3. Raising the boss's GEAR was considered and
+  // rejected in the 2026-08-07 repair: level 10 needed to get EASIER, not harder,
+  // so the measured lever was his HP (above) and the size of his honour guard.
+  // These stay at level 1; if a future pass needs him stronger, raise them and
+  // re-measure — the sweep above is the template.
   items: { boots: 1, cape: 1, ring: 1, sword: 1, treads: 1 },
 };
 
@@ -228,36 +279,81 @@ export const CAMPAIGN = [
       { count: 1, unit: GOLEM, scale: 'hp' },
       { count: 2, unit: HOUND, scale: 'both', perPlayer: 1.8 },
       { count: 3, unit: IMP, at: 16 },
-      { count: 2, unit: HOUND, minParty: 3, scale: 'none' },
+      // minParty 3 -> 2 (2026-08-07, item-cap repair). This pair of hounds was
+      // the only thing separating the 2p fight from the 3p one, and with items
+      // capped at 3 levels level 8 read 68/66*/57 with a star-shaped 2p outlier:
+      // 85% at 2p against 75% at level 7, the one real non-monotonicity in the
+      // curve. Handing the same pair to a duo lands 68/66/58 (seed 7), 64/65/57
+      // (seed 23), 68/68/58 (seed 41) — flat, and back under level 7.
+      // (GOLEM.maxHp was the obvious alternative and it is the wrong lever here:
+      // it scales with 'hp', so 380 -> 440 fixed 2p but took 3p to 46% — below
+      // level 9. Measured, 200 attempts/cell.)
+      { count: 2, unit: HOUND, minParty: 2, scale: 'none' },
     ],
   },
   {
     n: 9, name: 'Endure.',
-    brief: 'A Brute you cannot ignore and a Shade coven you cannot pin down, with hounds arriving past 22 s to close the net. The coven doubles and doubles again with the party. Nothing here dies quickly. Combo, or be surrounded.',
+    brief: 'A Brute you cannot ignore and a Shade coven you cannot pin down — one of them holds back twelve seconds, and hounds arrive past 22 s to close the net. The coven grows with the party. Nothing here dies quickly. Combo, or be surrounded.',
+    // ---- retuned 2026-08-07 (item-cap repair) --------------------------------
+    // Items went from freely-stackable copies to a hard cap of 3 levels, so a
+    // party that used to reach this level carrying 8-13 copies of every item now
+    // carries 3 levels of each, while every enemy here is a fixed template that
+    // owned exactly one copy and lost almost nothing. Level 9 collapsed from
+    // 44/53/42 to 22/29/8 (1p/2p/3p, 200 attempts/cell, seed 7).
+    // Diagnostics that decided the fix, all 200 attempts/cell at 1p:
+    //   * DELETE the Shade and the level is a 100% clear. Delete the BRUTE and it
+    //     is 87%. The ★★★ is the entire fight, exactly as AGENTS.md says.
+    //   * BRUTE.maxHp is a NO-OP: 210 -> 170 -> 140 moved the solo clear 22 ->
+    //     23 -> 24%, and level 5 by 1-2 points. It dies to the lava either way.
+    //     Stripping its cape moved nothing (34% vs 35%).
+    //   * The Shade's ARRIVAL TIME is the strong solo lever, because staggering
+    //     softens: at 0 s -> 35%, at 12 s -> 39%, at 15 s -> 53%, at 25 s -> 72%.
+    // Final shape at 200 attempts/cell: 39/46/44 (seed 7), 43/48/38 (seed 23),
+    // 42/46/44 (seed 41) — mean 41/47/42 against the 44/53/42 it used to be.
     waves: [
       // Shades are counted out by hand per party size instead of scaled: the
       // step from three to four of them is worth ~30 clear points at 2p
       // (measured 2026-08-07), which no perPlayer value can land between.
-      { count: 1, unit: SHADE, scale: 'none' },
-      { count: 2, unit: SHADE, minParty: 2, scale: 'none' },
-      { count: 4, unit: SHADE, minParty: 3, scale: 'none' },
+      // The counts were 1/3/7 and are now 1/2/4: at 3p, seven Shades was an 8%
+      // clear, five is 38%, four is 54% (before the extra hounds below).
+      // `at: 12` on the first one is the fine lever the coven does not have —
+      // one Shade held back is worth ~4 points to a party of any size, and ~17
+      // to a solo player who otherwise fights it and the Brute simultaneously.
+      { count: 1, unit: SHADE, at: 12, scale: 'none' },
+      { count: 1, unit: SHADE, minParty: 2, scale: 'none' },
+      { count: 2, unit: SHADE, minParty: 3, scale: 'none' },
       { count: 1, unit: BRUTE, scale: 'hp' },
-      { count: 1, unit: HOUND, at: 26, scale: 'both', perPlayer: 0.6 },
-      { count: 1, unit: HOUND, at: 22, minParty: 2, scale: 'none' },
+      // minParty 2 (2026-08-07): a solo player fighting the Shade, the Brute AND
+      // this hound cleared 22%; without the hound, 35%. It is the level's whole
+      // solo budget, so it now belongs to parties only.
+      { count: 1, unit: HOUND, at: 26, minParty: 2, scale: 'both', perPlayer: 0.6 },
+      // 1 -> 2 (2026-08-07): the re-counted coven alone left 2p/3p at 58/57%,
+      // and hounds are the fine grain a Shade cannot provide. With everything
+      // else final, 2 -> 3 -> 4 hounds here reads 46/44 -> 41/40 -> 30/34 (2p/3p).
+      { count: 2, unit: HOUND, at: 22, minParty: 2, scale: 'none' },
     ],
   },
   {
     n: 10, name: 'Liberation.',
-    brief: 'Sargeras: one enemy carrying every upgrade a warlock can pilot, twice your size, and imps without end. He faces a lone warlock alone; bring friends and Shades answer at his shoulder, with a hound loosed at 20 s. Everything you have learned, at once.',
+    brief: 'Sargeras: one enemy carrying every upgrade a warlock can pilot, twice your size, and imps without end. He faces a lone warlock alone; bring friends and a pair of hounds is loosed at 20 s, with Shades at his shoulder for a full trio. Everything you have learned, at once.',
+    // ---- retuned 2026-08-07 (item-cap repair) --------------------------------
+    // 23/12/12 after the item cap (was 38/36/38). Two changes: CHAMPION.maxHp
+    // 130 -> 115 (see the template, where the sweep lives) and the honour guard
+    // re-counted below. Final: 30/42/32 (seed 7), 31/39/31 (seed 23).
     waves: [
       { count: 1, unit: CHAMPION, scale: 'hp' },
       // A hound PACK was the old bodyguard and it now dies to his own blasts
       // before it matters (measured 2026-08-07: five of them left the 3p clear
       // at 81%). Shades survive standing next to him, so the honour guard is
-      // ghosts, and exactly one hound rides along as the fine adjustment.
-      { count: 1, unit: SHADE, minParty: 2, scale: 'none' },
+      // ghosts, and hounds ride along as the fine adjustment.
+      // 2026-08-07: the Shades used to start at 2p (1 at 2p, 3 at 3p) and that
+      // one Shade WAS the 2p fight — with the capped-item party it read 12-18%
+      // at every boss HP down to 95 (a Shade is the coarsest unit in the game,
+      // and here it is worth ~45 clear points). The guard is a 3p-only pair now,
+      // and the duo is priced in hounds instead, which land in ~10-point steps:
+      // at 2p, 1 hound -> 63%, 2 -> 47%, 3 -> 39%.
       { count: 2, unit: SHADE, minParty: 3, scale: 'none' },
-      { count: 1, unit: HOUND, at: 20, minParty: 2, scale: 'none' },
+      { count: 2, unit: HOUND, at: 20, minParty: 2, scale: 'none' },
       { count: 2, unit: IMP, at: 15 },
       { count: 2, unit: IMP, at: 30 },
     ],

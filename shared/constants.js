@@ -282,8 +282,41 @@ export const ELEMENTS = {
            fx: { dmgAdd: [2, 4, 6], kbAdd: [2, 4, 6] } },
   // 2026-08-06 rework (Remi: the old always-on chill "wasn't impactful").
   // Now it BUILDS: every frost hit leaves a stack that never melts, and the
-  // 3rd one detonates. Stacks are on the VICTIM and shared by all attackers,
-  // so two frost players combo into each other's setups.
+  // 3rd one detonates. Stacks are on the VICTIM and, since round 12 (S2), are
+  // PRIVATE to each attacker — you see and consume only your own.
+  //
+  // ---- WHY frost reads ~17% in the 12-element table, and why it is NOT retuned
+  // (investigated 2026-08-07; three candidate causes, each tested separately)
+  //  (i) THE PRIVATE-STACKS CHANGE — RULED OUT BY MEASUREMENT. The standard
+  //      elemental study deals every seat a DIFFERENT element, so it contains
+  //      exactly ONE frost player, and with one attacker private and shared
+  //      counters are the same number. Verified rather than argued: the shipped
+  //      sim and a lab copy patched to share stacks produce BYTE-IDENTICAL
+  //      results at 1 frost seat (37.2% vs 37.2% at seed 7, 39.5% vs 39.5% at
+  //      seed 23, 600 games each). Where the change IS visible — 2 frost seats
+  //      in one game — it costs 2.4-3.9 points (private 24.9/24.7/23.3 vs shared
+  //      27.3/28.5/27.2 at seeds 7/23/41), and ~1 point at 3 seats. That is the
+  //      whole nerf, and it only exists in multi-frost lineups.
+  //  (ii) DISPLACEMENT BY THE ROUND-12 NEWCOMERS — real but small. Dropping
+  //      vampire+chronos+ghost from the pool leaves frost at 17.0% (both seeds);
+  //      also dropping the reworked mosquito lifts it to 19.8%. So ~3 points.
+  //  (iii) PRE-EXISTING, and this is most of it. Frost's berserker-mirror number
+  //      has always been low and swingy: 27.1% (round 10 report), 23.2% (round
+  //      11 report), 16.9% now — and 16.0% for the grunt tier as far back as
+  //      round 10. The "29.4%" in docs/ROUND12.md is a single unreplicated cell.
+  //      16.9% is ~1.2σ under round 11's 23.2% at this study's precision.
+  //  Also ruled out: constant knockback (S1). Restoring HP-scaled knockback
+  //  (KB_CONSTANT_MISSING=null) moves frost 16.5 -> 18.0% and 17.9 -> 18.6%.
+  //
+  // ⚠ AND THE MIXED TABLE IS THE WRONG RULER for "is this element weak". In the
+  // absolute lab (1 element seat vs 3 seats with NO element, 600 games — see the
+  // ghost block below for the 2.7% no-op calibration) frost wins 37.2/39.5%
+  // while the no-element seats win 20.2-20.9%. Frost is a MID-STRENGTH element
+  // in a very strong field, not a broken one: same lab, vampire 68-71 · mosquito
+  // 60-62 · momentum 59-62 · venom 58-60 · ember 50-53 · arcane 48.7 · terra
+  // 43.8 · chronos 42.5 · frost 37-40 · gale 34-38 · ghost 18-20 · midas 0.5-1.0.
+  // Buying frost up toward 25% in the mixed table would just inflate the field.
+  // NOTHING CHANGED HERE 2026-08-07.
   frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Hits leave a frost stack that never melts. The 3rd stack detonates: lv1 −30% speed 3 s · lv2 −50% speed 3 s · lv3 FROZEN SOLID 2 s. Everyone\'s stacks count toward the same 3.',
            fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
@@ -304,6 +337,33 @@ export const ELEMENTS = {
   // gold-saturation artifact, see BALANCE.md): +1 g per hit is ALREADY strong,
   // so the payout is capped there forever and the levels buy back a real
   // drawback instead of raising income. Level 1 is half a fireball.
+  //
+  // ---- 2026-08-07: midas measures 0.0% again. NOTHING CHANGED, and here is why.
+  // Round 12 capped items at 3 levels, which partly undid the round-11 stacking
+  // that had given bot gold somewhere to go — and midas immediately fell back to
+  // 0.0% while ending games on 54.3 average gold against ~13.8 for every other
+  // seat. AGENTS.md's rule is "before believing 'bot artifact', try to DELETE the
+  // artifact", so it was attacked from three directions (800 games/cell):
+  //   · MORE TO BUY. Appending every spell a bruiser bot can actually pilot
+  //     (lightning, rush, boomerang, shield, teleport, pillar) to its build order:
+  //     midas 0.0% -> 7.0 / 10.0 / 8.9% (seeds 1/7/23) and its leftover gold
+  //     54.3 -> 27-29. Adding crown+echo on top changed nothing further.
+  //   · SCARCER GOLD. GOLD.ROUND_BASE 8 -> 5 -> 3 with the shipped build order:
+  //     0.0 -> 4.4 -> 12.5%, leftover gold 54.3 -> 30.9 -> 24.1.
+  //   · BOTH AT ONCE (ROUND_BASE 3 + the long order): 17.3 / 19.0%.
+  // Every axis that makes gold matter moves midas monotonically up, and it is
+  // still saturated (20.6 g left over) at the far end. So 0.0% is a FLOOR set by
+  // the −50% damage drawback, not a measurement of the element.
+  // The control that proves the drawback half is real and the income half is
+  // invisible: midas with goldOnHit forced to 0 measures 0.0% with 3.3 kills;
+  // shipped midas measures 0.0% with 7.9 kills. The income buys 4.6 kills' worth
+  // of tempo and zero wins, because everyone finishes their build anyway.
+  // ⚠ Calibration for whoever reads a 0.0% next: in the absolute lab (see ghost)
+  // an element that does literally nothing but still costs its 26 g scores 2.7%.
+  // Midas scores 0.5-1.0% — i.e. it is currently measured as slightly WORSE than
+  // paying 26 gold for nothing, which is exactly what "a real drawback plus an
+  // unspendable upside" looks like. Remi's human read was right the last time
+  // this number was 1%; do not act on it.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −38% at lv2, −28% at lv3.',
            fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.62, 0.72], kbMult: [0.5, 0.62, 0.72] } },
@@ -325,20 +385,37 @@ export const ELEMENTS = {
   // rampDmg was Remi's suggested +1/hit and it MEASURED 100% win rate (2026-08-07,
   // 1000 games): a momentum seat lands a median 78 fireballs per game (max 108
   // over ~15 rounds), so +1/hit is +78 damage on a 7-14 damage fireball against
-  // 100 max HP — exactly the one-shotting the design ⚠ predicted. Sweep at 400
-  // games: 1 → 99.6% · 0.3 → 86.4% · 0.15 → 61.8% · **0.08 → 27.2%** · 0.04 → 6.6%
-  // (baseline 25%). 0.08 keeps the 1:1.5:2 level ratio and the permanence, and
-  // still ends a long game at +6 dmg (lv1) to +12.5 (lv3) — a fireball roughly
-  // DOUBLED, earned over 20 rounds.
+  // 100 max HP — exactly the one-shotting the design ⚠ predicted.
+  //
+  // ---- RE-SWEPT 2026-08-07 (later), and the old 0.08 → "27.2%" claim is WRONG.
+  // That figure came from a single 400-game run and does not reproduce: 0.08
+  // actually makes momentum the strongest element in the game. Re-measured on the
+  // standard 12-element elemental study (4 seats, baseline 25%, so an element
+  // plays ~1/3 of the games — at 800 games one cell is ~250-280 games, 2σ ≈ ±5.4
+  // points), 800 games × 3 seeds (1 / 7 / 23), which is why this table is
+  // trustworthy where the old one was not:
+  //   rampDmg lv1   seed 1   seed 7   seed 23   mean
+  //   0.08          43.1%    37.9%    38.5%     39.8%   ← what shipped as "27.2"
+  //   **0.06        23.6%    24.6%    25.0%     24.4%   ← SHIPPED**
+  //   0.05          16.1%    13.6%    15.1%     14.9%
+  //   0.04           8.6%    11.8%    10.7%     10.4%
+  //   0.03           6.0%     5.4%     7.1%      6.2%
+  // Monotone at every seed, and 0.06 is the tightest cell in the sweep (spread
+  // 1.4 points across three seeds) — it lands ON the 25% baseline and reproduces.
+  // The response curve is steep: one notch up is +15 points, one notch down is
+  // −10, so re-run 800×3 after any change to the fireball, knockback or the lava.
+  // 0.06 keeps the 1:1.5:2 level ratio and the permanence untouched, and still
+  // ends a long game at ~+4.7 dmg (lv1) to ~+9.4 (lv3) on a 7-14 damage fireball
+  // — earned over 20 rounds, which is the design.
   // The small per-hit step does NOT re-create the 2026-08-06 "I can't see it
   // working" complaint, because the feedback now comes from the accumulated
   // white number on the damage popup, not from the size of one step.
   // ⚠ Bot-measured. Bots spam fireballs; if Remi's human read says the ramp
   // feels too slow to earn, rampDmg is the one-line lever — raise it, don't
-  // touch the permanence.
+  // touch the permanence (accumulating across the whole game is Remi's design).
   momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Starts at 80% damage. EVERY fireball you LAND makes your fireball permanently stronger — for the whole game, not just the round, with no ceiling. Damage only: your push never changes.',
-           fx: { dmgMult: 0.8, rampDmg: [0.08, 0.12, 0.16], rampPermanent: true } },
+           fx: { dmgMult: 0.8, rampDmg: [0.06, 0.09, 0.12], rampPermanent: true } },
   // 2026-08-07 (Remi, round 12) — SIMPLIFIED. The 2026-08-06 version put a bite
   // on an ARC of the victim's body and let any OTHER spell double on it. Two
   // things killed it: it was too fiddly to aim and too invisible to read (the
@@ -513,6 +590,28 @@ export const ELEMENTS = {
   // anyway, the honest fix is FREQUENCY (pierce more reliably, or give the first
   // victim something), not a bigger multiplier — the sweep above shows what each
   // multiplier step actually buys.
+  //
+  // ---- RE-CONFIRMED 2026-08-07 (8.3% in the 1000-game table) — STILL UNCHANGED,
+  // and this is where the calibration for every "is this element weak" question
+  // now lives. The mixed 12-element study is a RANKING, not a strength meter, so
+  // the absolute lab was built: ONE element seat against THREE seats carrying no
+  // element at all, 600 games, same profile and build everywhere.
+  //   · the no-op control — an element whose fx is `{}`, so it does nothing but
+  //     still costs its 10+8+8 g and is still bought FIRST — scores **2.7 / 2.8%**
+  //     (seeds 7/23). THAT is the floor of this lab, not 25%: the element seat
+  //     starts 26 gold behind three seats that spent it all on their build.
+  //   · pierce with the bonus neutralised (dmg/kb mult 1.0) scores **8.5 / 8.5%**.
+  //   · ghost as shipped scores **18.0 / 20.3%**.
+  // So piercing is worth ~+6 over nothing, the bonus another ~+10, and ghost is a
+  // WORKING element that ranks last of twelve because the field is strong (same
+  // lab: vampire 68-71 · mosquito 60-62 · momentum 59-62 · venom 58-60 · ember
+  // 50-53 · arcane 48.7 · terra 43.8 · chronos 42.5 · frost 37-40 · gale 34-38 ·
+  // ghost 18-20 · midas 0.5-1.0). Its 8.3% in the mixed table is what "12th out of
+  // 12 strong things" looks like, and in BOT hands that is the correct answer: the
+  // bonus fires on 3.07% of ghost fireballs because bots do not line targets up.
+  // ⚠ The honest lever if Remi's feel report says it is weak in HUMAN hands is
+  // still FREQUENCY, not a bigger multiplier — see the multiplier sweep above,
+  // where the only values that move the table are ones that out-damage a Meteor.
   ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Your fireball passes straight through people. The first one hit takes a normal hit; anyone caught BEHIND them takes +50% damage and +30% push (+90/+55% and +130/+80% at higher levels). Line them up.',
            fx: { pierce: true, pierceDmgMult: [1.5, 1.9, 2.3],
