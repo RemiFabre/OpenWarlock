@@ -6,6 +6,222 @@ you asked before leaving.*
 
 ---
 
+## ROUND 12 — item levels, constant knockback, Mosquito reborn, Momentum ⚙️, three new elements, Vanish 👁️ and draft mode (2026-08-07)
+
+*This entry is in English — you asked that everything written in the project be
+in English from now on. The older entries below are left in French as they are.*
+
+> **Before you play: `git pull`, restart the server, and hard-refresh every
+> client (Cmd-Shift-R).** A stale browser tab and a fresh server play *different
+> games* this round — item levels, the new elements and the invisibility rules
+> are all on the wire. Mixed versions have bitten us three times.
+
+Thirteen changes. The first five are the ones you will feel inside a minute.
+
+### The first five minutes
+
+**1. Items have levels, and the 5-boots meta is gone.** Items now work like
+spells: **levels 1/2/3, hard cap 3, the same gold cost at every level, and each
+level gives less than the last.** Boots are your spec: **+15% speed, then +27%,
+then +35%** total. Same shape for the rest — treads −15/−26/−32% lava damage,
+amulet +25/+43/+56 max HP, ring +0.7/+1.2/+1.55 HP/s, cape −8/−15/−20%
+knockback taken, sword 18/30/38% lifesteal. In the shop and your inventory an
+item is now **one icon with a small level number**, not three icons side by
+side. Your diagnosis is written into the code comment, because it generalises:
+*let players chase one dimension, but make breadth the better default.*
+
+**2. Knockback no longer depends on your health.** Everyone is now shoved as if
+they were permanently at **70% HP** — the value you asked to test. A player at
+5 HP flies exactly as far as a player at full. Nothing was ripped out: it is one
+constant (`PLAYER.KB_CONSTANT_MISSING = 0.30`) and setting it to `null` restores
+the old HP-scaled behaviour in one line, so say the word either way.
+
+**3. The power tier is buyable from round 1.** Meteor ☄️ (22 g), Hook 🪝 (20 g),
+Repulse 💥 (20 g) and Mirror Wall 🪞 (24 g) have lost their round-5 gate. They
+are still expensive on purpose — an entry costs about a full item. **Bots still
+cannot cast any of them, so they are now explicitly blocked from buying them**,
+otherwise they would burn their gold on spells they never use and quietly tank
+every difficulty tier and the whole co-op campaign.
+
+**4. Bot difficulty has four named tiers in the lobby: Easy / Normal / Hard /
+Extreme.** The old ★ was never the entry level you wanted — it wanders and
+shoots at nothing, so it is honestly labelled **Easy**. The old ★★ is **Hard**,
+the old ★★★ is **Extreme**, and **Normal** is new: the Hard brain with a slower
+reaction and a looser aim, which is why it is trustworthy — it is not new AI.
+Verified rather than assumed (400 games each): Normal beats Easy 100%, Hard
+beats Normal 99.5%, Extreme beats Hard 100%. Put all four in one game and they
+finish in order every time — average place **3.9 / 2.8 / 2.3 / 1.0**, average
+kills **0.4 / 2.9 / 4.6 / 15.6**.
+
+**5. Element stacks are private to whoever applied them.** Reversing the earlier
+"shared stacks" call, as you asked: your frost stacks are *yours*, you see and
+detonate only your own, and the same rule makes the new Mosquito coherent. Your
+reasoning stands — an element's power should not depend on what everybody else
+picked.
+
+### The two reworks
+
+**Mosquito 🦟 — and the reason it "felt broken" was not a number.** The old
+version put a bite on a third of the victim's body and let any other spell
+double on it. When I went looking for why it played badly, the cause turned out
+to be embarrassing: **the client never drew the bites at all.** They were
+computed, they were on the wire, and nothing was ever rendered. You were being
+asked to aim at an invisible arc. That is a rendering gap, not a balance
+problem, and it is now a scar in AGENTS.md: *a feature that is never rendered
+reads as a broken feature.*
+
+The rework is the simple version you asked for, with the cross-spell doubling
+deleted (you were right that mosquito+lightning would have been *the* meta):
+
+- Your fireball becomes a **sting: 1 damage, no push, much faster cadence**
+  (20% faster than a plain fireball at level 1, **41% faster at level 3**).
+- A sting leaves **one mosquito stack** on whoever it hits — no geometry, no
+  aiming at a body part.
+- Land your fireball on someone already carrying **your** stack and it is spent:
+  **two of your own fireballs land at the same point, in the same frame.** So
+  every on-hit effect you own fires **twice** — two damage numbers, `+1 g`
+  twice, two frost pips. Exactly your "put the two balls at the same place and
+  let me clearly see all the indicators pop twice".
+- **The push happens only once.** That was your ruling and it is the single most
+  important number in this round: *"it hits twice in damage and twice in all the
+  on-hits, yes — but the knockback only once. I see the mosquito as drawing its
+  strength from damage rather than from knockback, otherwise I can imagine a
+  monstrous win rate."* You were right. With the doubled shove it measured
+  **82%** win rate against a 25% baseline; with a single shove it sits on the
+  baseline — and that is precisely what let me give you back the *fast* sting
+  instead of a nerfed one. Your ruling bought the element its identity.
+- The two spawned balls cannot place new stacks (that would chain forever), and
+  only *your fireball* can cash the mark — a boomerang or lightning landing on
+  it does nothing, because letting them cash it would quietly revive the
+  cross-spell doubling you killed.
+
+**Critical 💢 is now Momentum ⚙️, and it is permanent.** The name never described
+what it did, and you were unhappy with the mechanic. New version: **every
+fireball you LAND permanently raises your fireball damage — for the whole game,
+not just the round.** Damage only; your push never changes, so a huge Momentum
+stack *melts* people rather than launching them into the lava. A player who
+keeps hitting ends a 20-round match with a cannon they earned.
+
+The actual fix for "I can't see it working" is the feedback: the damage number
+now shows the base hit, with **the accumulated bonus in white just above it**.
+One honest caveat — the white number only appears once the accumulated bonus
+reaches half a point of damage, which at level 1 is about nine landed fireballs
+in. If that feels like too long a wait before the element proves itself, say so;
+it is one number.
+
+### New content
+
+- **Vampire 🧛** — every **5th** fireball is *engorged*: it heals you for **140%**
+  of the damage it deals (192% / 245% at levels 2 and 3). Above 100% at every
+  level, so the ball always heals you for more than it hit for — the fantasy you
+  described, but as a rare event rather than a trickle. The counter runs on
+  *your casts*, so unlike Mosquito it needs no setup on a particular target.
+- **Chronos ⏳** — every spell of yours that **hits** refunds **0.5 s** (1 s /
+  1.5 s at higher levels) off **every cooldown you have running**, and it counts
+  **per enemy hit**, so a Repulse into four people refunds four times. Your
+  level-1-of-everything machine-gun build is buildable. It cannot drive a
+  cooldown to zero and re-cast in the same frame — there is a floor.
+- **Ghost 👻** — your fireball passes **through** people. The first one hit takes
+  an ordinary fireball; anyone caught **behind** them takes **+50% damage and
+  +30% push** (+90/+55% and +130/+80% at higher levels). Deliberately not scaled
+  per victim, so a lucky four-player line cannot produce a nonsense number.
+  **Line them up.**
+- **Vanish 👁️ (new spell, hotkey V)** — you simply go invisible, 0.75 / 1.5 /
+  2.25 s by level. You can still cast, hit and be hit. Your position is
+  **removed from the wire**, not merely skipped by the renderer, so nobody with
+  devtools open can see through it, and bot perception is masked too: a bot
+  keeps firing at where it last saw you for 1.5 s and then loses you. So a cheap
+  Vanish makes its aim stale; a maxed one makes it blind.
+- **Draft mode 🎴 (lobby toggle, off by default)** — an independent flag that
+  rides on top of classic, elemental *and* co-op, not a fourth mode. When on,
+  **half the catalogue leaves the shop** and becomes a random pool, rolled fresh
+  each game and identical for everyone. **Every 3 rounds you are handed three
+  roughly gold-equivalent options, free**, at the top of the shop where you
+  cannot miss it, with **the first one pre-selected** — click nothing and you
+  still get something. A drafted thing arrives at level 1 and its next levels
+  are on sale normally. Four calls I made where your brief was silent: offers
+  land after rounds **1, 4, 7…** (waiting three rounds for your first pick makes
+  the opening *poorer* than classic rather than different from it); **Fireball is
+  never in the pool** (everyone owns it and half the elements ride on it); an
+  offer never contains something you already own; and bots take their first
+  option, with the power tier filtered out of bot offers entirely.
+
+### Co-op: the item cap broke the campaign, and it is repaired
+
+Worth telling you because it is the kind of thing that would have ruined an
+evening. The campaign party is bots, and bots shop up to 13 times — under the
+old free stacking they arrived at level 9 carrying **8 to 13 copies of every
+item**, while every monster is a fixed template owning exactly one. Capping
+items at 3 levels took all of the party's late power and left the monsters
+untouched: the full campaign fell from **55/79/55%** to **11/10/4%** at 1/2/3
+players. Levels 8, 9 and 10 were retuned for it. Where it sits now (200
+attempts per level per party size, 1p/2p/3p): L1-3 100% everywhere, L4 94/94/97,
+L5 98/96/91, L6 91/97/97, L7 69/75/73, L8 68/66/57, L9 39/46/44, L10 30/42/32 —
+never getting easier as you go — and the **full campaign at 37.0 / 55.5 /
+41.0%**. Remember these are *bots* playing: humans who coordinate and who use
+the power tier should find it easier.
+
+### Where I overruled your numbers, and why
+
+Two, both measured, both one-line levers if you disagree:
+
+- **Momentum at +1 damage per landed hit measured a 100% win rate.** A Momentum
+  seat lands a **median of 78 fireballs per game** (up to 108), so +1/hit is +78
+  damage on a 7-14 damage fireball against 100 HP — late-game fireballs one-shot
+  everyone. Shipped at **+0.06 / +0.09 / +0.12 per hit** by level, which is the
+  value that lands on the baseline and reproduces across three seeds. The
+  *permanence* — your design — is untouched.
+- **Vampire as specced (every 3rd fireball, 200% lifesteal) won 74.7% of games**,
+  three times the baseline and the most dominant element ever measured in this
+  project — sustain is this game's strongest axis. Shipped at every 5th × 140%,
+  which measures 26.7%. I split the nerf across both knobs on purpose: cutting
+  only the percentage would have made the engorged ball heal *less* than the
+  Blood Sword already pays passively, and stretching only the cadence would have
+  made it unreadable.
+
+### What I need your verdict on
+
+The lab cannot answer any of these. Your feel report outranks every table.
+
+1. **Mosquito in human hands.** Bots flatter it badly — a bot re-hits its nearest
+   enemy constantly and cashes the mark for free, while a human has to *hunt* a
+   marked target. Its 25-29% is therefore an **upper bound on how easy the setup
+   is**. Does the sting → cash rhythm feel good, or fiddly? Fair warning: its
+   response curve is brutally steep, so tell me *how* it feels rather than
+   suggesting a number.
+2. **Momentum's ramp speed.** Does it feel earned, or too slow to notice? Does
+   the white bonus number over the damage number actually fix the "I can't see
+   it working" complaint from last round? If it is too slow, I raise the per-hit
+   step — I do not touch the permanence.
+3. **Ghost's frequency.** In bot games the pierce bonus fires on only **3% of
+   ghost fireballs**, because bots never line two enemies up — which is this
+   element's entire skill. In a late round with the ring at radius 10 and
+   everyone clustered, you should trigger it far more often. If it still feels
+   weak, the honest fix is **frequency**, not a bigger multiplier (the multipliers
+   that move the table make a second victim hit harder than a Meteor).
+4. **Does constant knockback feel better?** This is the biggest feel change of
+   the round. Low-HP players no longer get launched across the map. It made the
+   game more forgiving at low HP and less forgiving at full. One line either way.
+5. **Is draft mode fun?** Nobody has played it. It is unmeasured on purpose — the
+   balance lab literally cannot express a random half-catalogue pool. Try a game
+   with it on; if the offers feel like real decisions it stays, if they feel like
+   noise the toggle stays off.
+6. **The lava kill share is 30% and it keeps falling.** It was 86% at launch,
+   68% after round 9, 47% after round 10, ~38% after round 11, and now **30.0%
+   at 60 games / 30.2% at 1000**. That means roughly one death in three is the
+   lava and two in three are people being shot on the platform. Knockback into
+   the lava used to be *the* win condition. **This has been an open question in
+   every report since round 10 and you have never ruled on it** — I would rather
+   have a wrong ruling than none, because every round I retune things on top of
+   a number that is drifting. The levers are one-line reverts
+   (`KB_HP_FACTOR`, `KB_CONSTANT_MISSING`, `LAVA.SPEED_MULT`).
+
+Health of the build: **196 automated tests green**, comeback rate 11.7-12.4%
+(the eventual winner was 4+ kills behind at some point in ~1 game in 8), zero
+unfinished games. Full numbers and how to read them: `BALANCE.md`.
+
+---
+
 ## MODE CO-OP 🛡️ — une campagne de 10 niveaux, humains contre l'IA (2026-08-06)
 
 Nouveau bouton dans le lobby : **Règles → 🛡️ Campagne co-op**. Tout le monde

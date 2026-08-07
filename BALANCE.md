@@ -1,3 +1,443 @@
+# Balance addendum — round 12 (2026-08-07)
+
+*Tens of thousands of headless games on top of the round-11 addendum (which follows below,
+and is superseded only where this one says so). Round 12 changed items,
+knockback, one element's whole design, renamed and rebuilt another, added three
+elements, a spell, four bot tiers and an optional draft ruleset — so **every
+element table below round 12 is obsolete**, and the round-11 addendum's Findings
+A-E are kept for their lessons, not their numbers.*
+
+**Read Finding 12A first even if you read nothing else.** It says that the
+baseline this report and all four before it have been read against is not the
+floor, and that several past "this is below baseline, therefore weak" readings
+were wrong.
+
+---
+
+## How to read this addendum
+
+Everything in report #4's *"How to read this report"* section (baseline,
+metrics, the four instruments) still applies and is not repeated. Three
+additions this round:
+
+| Term | Definition |
+|---|---|
+| **win rate / 25% baseline** | Games are 4-player free-for-alls, so a neutral thing wins **25%** of the games it is in. Every percentage in this report has that baseline unless it explicitly says otherwise. |
+| **the standard elemental study** | `tools/arena.js --mode=elemental`: four seats, all the **Hard (berserker) profile on the bruiser build** — max fireball, then HP and lifesteal, stands its ground and trades — and **only the element pick differs**. See `STRATEGIES.md` for what every profile × build codename means. Each of the 12 elements therefore appears in roughly a third of the games; at 1000 games that is ~330 games per element. |
+| **the absolute element lab** (new this round) | **One** element seat against **three seats carrying no element at all**, same profile and build everywhere, 600 games. Its neutral point is not 25% — see Finding 12A. This is the instrument that answers *"is this element weak"*; the standard study answers *"where does it rank"*. |
+| **trigger rate** | For a conditional effect, the share of that element's fireballs on which the condition actually fired. Used for Ghost and Mosquito, where the *setup*, not the payoff, is the thing under suspicion. |
+
+**The caveat that explains most weird numbers is unchanged and got worse this
+round:** bots extract far less value from *reactive* and *positional* play than
+humans do. Round 12 added two elements whose entire skill expression is
+something bots never do — Ghost needs you to line two enemies up, Mosquito needs
+you to hunt a marked victim — and unlocked a power tier bots still cannot pilot.
+Those cells are flagged, not nerfed.
+
+## Finding 12A — the do-nothing floor is 2.7%, not 25%, and this reframes every past report
+
+This is the most important measurement of the round and it is a methodological
+one, not a balance one.
+
+The standard elemental study deals each of the four seats a *different* element,
+so its 25% baseline is the average over the pool. It has always been used as
+though 25% were also the *neutral* point for a single element — "frost is at
+19%, therefore frost is under-powered". **That inference is invalid**, and the
+absolute element lab was built to show why.
+
+The lab runs one element seat against three seats that buy no element at all,
+and its calibration control is an element whose effect table is literally empty
+— it does nothing whatsoever, but it still costs its 10+8+8 g and is still
+bought first:
+
+| Absolute lab, 600 games, seeds 7 / 23 | win rate | (the three no-element seats share the rest) |
+|---|---|---|
+| **the no-op control** — an element with an empty effect table | **2.7% / 2.8%** | the element seat is simply 26 gold behind three seats that spent it all on their build |
+| Ghost, pierce kept but its bonus neutralised (multipliers set to 1.0) | 8.5% / 8.5% | piercing alone is worth ~+6 points |
+| Ghost as shipped | 18.0% / 20.3% | the bonus is worth another ~+10 |
+
+**So the floor of "I bought an element and got nothing for my 26 gold" is
+2.7%, not 25%.** An element at 8% in the mixed table is not broken; it is a
+working element ranked last in a strong field. Buying it up toward 25% in the
+mixed table would only inflate the field, because the mixed table is
+zero-sum — every point given to one element is taken from another.
+
+**The mixed 12-element table is therefore a RANKING of strong things, not a
+strength meter.** Same lab, same 600 games, every element measured against three
+element-less seats:
+
+| Absolute strength (1 element seat vs 3 with none; 2.7% = bought nothing, 20% = the no-element seats' own share) |
+|---|
+| vampire 68-71 · mosquito 60-62 · momentum 59-62 · venom 58-60 · ember 50-53 · arcane 48.7 · terra 43.8 · chronos 42.5 · frost 37-40 · gale 34-38 · ghost 18-20 · midas 0.5-1.0 |
+
+Read that against the mixed table in *Final state* below and the two orderings
+broadly agree — which is the point: the ranking was never wrong, the *reading of
+the distance from 25%* was. Frost sits at 19.4% mixed and 37-40% absolute
+against no-element seats at 20-21%: a mid-strength element in a strong field.
+**Nothing was retuned on the strength of a mixed-table number this round.**
+
+*Practical rule for the next agent: before buffing anything for being "below
+baseline", measure what it scores against nothing.*
+
+## Finding 12B — a study cannot see a variable its design cannot express
+
+Round 12 made element stacks **private to the attacker who applied them**
+(Remi's call, reversing the round-11 shared-stacks decision). The obvious
+prediction was that this is a significant nerf to frost, needing compensation.
+The standard elemental study showed no change at all — and that "no change" was
+**not evidence**.
+
+The study deals every seat a different element, so it contains **exactly one
+frost player**, and with a single attacker private and shared counters are the
+same number by construction. Verified rather than argued: the shipped simulation
+and a lab copy patched back to shared stacks produce **byte-identical** tables at
+one frost seat (37.2% vs 37.2% at seed 7; 39.5% vs 39.5% at seed 23, 600 games
+each).
+
+A purpose-built lab that *can* express the variable — deliberately seating two
+and three frost players in the same game — found the real answer:
+
+| frost seats in the game | shared stacks | private stacks | delta |
+|---|---|---|---|
+| 1 | 7.8% | 7.8% | none, by construction |
+| 2 | 20.8% | 17.0% | −2.4 to −3.8 points (seeds 7/23/41) |
+| 3 | 21.2% | 18.6% | ~−1 point |
+
+The nerf is real, small, and exists **only in multi-frost lineups**. No
+compensation was applied. Frost's apparent collapse in the mixed table over the
+same period is **displacement, not this change**: dropping the three new
+elements from the pool leaves frost at 17.0%, and also dropping the reworked
+Mosquito lifts it to 19.8%, so the newcomers account for ~3 points. The rest is
+pre-existing — frost's number in this study has been low and swingy for three
+rounds (27.1% in report #4, 23.2% in the round-11 addendum, 16.9-19.4% across
+the round-12 runs), and the round-11→12 step is within about 1.2σ at this
+study's precision. Constant knockback was also ruled out by measurement
+(restoring HP-scaled knockback moves frost by ~1.5 points).
+
+**Lesson, now in AGENTS.md: when a study's design cannot express the variable,
+its "no change" is not evidence. Build the lab that can.**
+
+## Finding 12C — Mosquito was never a balance problem; the client never drew it
+
+The round-11 addendum's Finding D tuned Mosquito through three passes and
+reported it at 24.0% / 34.6%, with the honest note that "bots never deliberately
+aim at a bite arc". Remi then played it and reported it broken.
+
+**He was right, and the cause was not in the numbers.** The old design put a
+*bite* on an arc of the victim's body, and **the client never rendered the
+bites at all** — they were computed server-side, they were on the wire, and
+nothing drew them. Players were being asked to aim at an invisible target. In a
+control run with the element's payoff isolated, the bite-arc Mosquito on the
+Hard/bruiser profile scored **0.0%** and averaged **1.0 kills per game**; the
+replacement scores 18.6% and 10.6 kills on the identical pool. It was not
+"strong and fiddly", it was **unable to kill anybody**.
+
+**Scar, now in AGENTS.md: a feature that is never rendered reads as a broken
+feature.** Check the renderer before the spec.
+
+**The rework, and the one ruling that decided its numbers.** The bite arc and
+cross-spell doubling are gone (Remi: cross-spell doubling would make
+mosquito+lightning the meta). The sting now leaves one stack; landing your own
+fireball on your own stack spends it and lands **two of your fireballs at the
+same point in the same frame**, so every on-hit effect procs twice.
+
+Two simultaneous impulses simply add, so the first build of that shoved a
+full-HP victim at **145.0 u/s against a plain level-1 fireball's 72.5** —
+exactly ×2 — and the element measured **82.3%**. Remi ruled that the knockback
+must happen **once**: *"it hits twice in damage and twice in all the on-hits,
+yes; but the knockback only once — the mosquito draws its strength from damage
+rather than from knockback, otherwise I can imagine a monstrous win rate."*
+
+That ruling cost the element far more than the arithmetic suggests, and the
+mechanism is worth recording: **the lava is the primary killer, so a sting that
+no longer launches anybody into it stops converting hits into kills.** Every
+value below is knockback-once, on the standard elemental study, with the band
+that decided it re-run at 800 games × 3 seeds (Mosquito plays ~1/3 of the games,
+so one cell is ~270-315 games and 2σ ≈ ±4.5 points):
+
+| sting cooldown multiplier | level-1 sting cadence | win rate (25% baseline) |
+|---|---|---|
+| `[0.98, 0.85, 0.72]` — what the ×2-knockback build shipped with | 2.06 s | **4.8 / 5.3%** |
+| `[0.90, 0.78, 0.66]` | 1.89 s | 17.7 / 16.5% |
+| `[0.86, 0.75, 0.63]` | 1.81 s | 15.2 / 16.4 / 18.9% (mean 16.8) |
+| `[0.83, 0.72, 0.61]` | 1.74 s | 15.9 / 17.5 / 18.6% (mean 17.3) |
+| **`[0.80, 0.70, 0.59]` ← shipped** | **1.68 s** | **28.3 / 23.9 / 20.4% (mean 24.2)** |
+| `[0.75, 0.65, 0.55]` | 1.58 s | 48.6 / 42.2 / 46.8% (mean 45.9) |
+| `[0.55, 0.50, 0.45]` — the original | 1.16 s | 78.2 / 78.9% |
+
+**Shipped value: the fastest sting that still sits on the baseline.** The safer
+0.83 and 0.86 were rejected deliberately, because a "double-rate sting" that
+fires 2% faster than not taking the element at all has no identity left. At 0.80
+the sting is 20% faster than a plain fireball at level 1 and 41% faster at level
+3. ⚠ **The response curve is brutally steep either side of this point** — one
+notch faster is 45%, one notch slower is 17% — so this knob must be re-swept at
+800 games × 3 seeds after any change to knockback, the lava or the fireball.
+Mosquito's own spread illustrates the precision: the three 800-game seeds mean
+24.2%, the 1000-game seed-1 table in *Final state* reads 28.9%, and an earlier
+1000-game run recorded in `docs/ROUND12.md` read 25.1%. **All three are the same
+cell** — quote the sweep, not one run.
+
+⚠ **Bots flatter this element.** A bot re-hits its nearest enemy constantly and
+therefore cashes the mark for free; a human has to *hunt* a marked victim. Its
+24-29% is an **upper bound on how easy the setup is**, and Remi's feel report
+decides it.
+
+## Finding 12D — Momentum: the design was right, the first two numbers were not
+
+Critical was renamed **Momentum ⚙️** and rebuilt: every fireball you *land*
+permanently raises your fireball damage **for the whole game**, damage only,
+push unchanged.
+
+**Remi's suggested +1 damage per landed hit measured a 100% win rate** (1000
+games). The mechanism is arithmetic, not subtlety: a Momentum seat lands a
+**median of 78 fireballs per game** (max 108 over ~15 rounds), so +1/hit is +78
+damage on a 7-14 damage fireball against 100 max HP. Every late-game fireball
+one-shots.
+
+The second wrong number is a methodology point. A per-hit step of 0.08 was
+shipped on the strength of a **single 400-game run reporting 27.2%**. It does
+not reproduce. Re-measured properly — 800 games × 3 seeds on the standard study:
+
+| damage per landed hit (level 1) | seed 1 | seed 7 | seed 23 | mean |
+|---|---|---|---|---|
+| 0.08 — what shipped as "27.2%" | 43.1% | 37.9% | 38.5% | **39.8%** |
+| **0.06 ← shipped** | 23.6% | 24.6% | 25.0% | **24.4%** |
+| 0.05 | 16.1% | 13.6% | 15.1% | 14.9% |
+| 0.04 | 8.6% | 11.8% | 10.7% | 10.4% |
+| 0.03 | 6.0% | 5.4% | 7.1% | 6.2% |
+
+Monotone at every seed, and 0.06 is the tightest cell in the sweep (1.4 points
+of spread across three seeds). At 0.06 a long game ends around **+4.7 damage**
+at level 1 and **+9.4** at level 3, on a 7-14 damage fireball, earned over 20
+rounds — which is the design. The permanence is untouched.
+
+**The small step does not re-create round 11's "I can't see it working"
+complaint, because the feedback moved**: the damage popup now shows the base
+hit with **the accumulated bonus in white above it**. Round-11 Finding C's
+lesson — *a correct mechanic with imperceptible numbers is a bug in practice* —
+was addressed by changing what the player is shown, not by inflating the step.
+One honest caveat for the feel report: the white number only appears once the
+accumulated bonus reaches 0.5 damage, i.e. after ~9 landed fireballs at level 1.
+
+## Finding 12E — capping items brought the gold-saturation artifact back
+
+Round-11 Finding A celebrated the death of a two-month-old measurement artifact:
+freely stackable items gave bot gold somewhere to go, average end-of-game gold
+fell from 60-80 to 14-15, and Midas jumped from ~1% to 43-64%.
+
+Round 12 capped items at 3 levels at flat cost (Remi's call — the 5-boots meta).
+**That partly undid it.** In the 1000-game standard study, Midas measures
+**0.0%** while finishing games on **49.1 average gold against 14.0 for every
+other seat.** The saturation is back, visible in one column of the same table.
+
+Following the round-11 rule — *before believing a "bot artifact" explanation,
+check whether you can delete the artifact* — it was attacked from three
+directions, 800 games per cell:
+
+| Intervention | Midas win rate | Midas leftover gold |
+|---|---|---|
+| shipped build orders (the control) | 0.0% | 54.3 |
+| **more to buy**: append every spell a bruiser bot can actually pilot to its shopping list | 7.0 / 10.0 / 8.9% | 27-29 |
+| **scarcer gold**: round income 8 → 5 → 3 g | 4.4% → 12.5% | 30.9 → 24.1 |
+| **both at once** (income 3 g + the long shopping list) | 17.3 / 19.0% | 20.6 |
+
+Every axis that makes gold *matter* moves Midas monotonically upward, and it is
+still saturated at the far end. **0.0% is a floor set by Midas's −50% damage
+drawback, not a measurement of the element.** The control that separates the two
+halves: Midas with its income forced to zero scores 0.0% with 3.3 kills, and
+Midas as shipped scores 0.0% with 7.9 kills — the income buys 4.6 kills' worth of
+tempo and zero wins, because every bot finishes its shopping list anyway.
+Calibrated against Finding 12A, Midas at 0.5-1.0% absolute is measured as slightly
+*worse* than paying 26 gold for nothing, which is exactly what "a real drawback
+plus an unspendable upside" looks like. **Midas's numbers were left alone.
+Remi's human read was right the last time this number was 1%.**
+
+## Finding 12F — an item cap is a co-op campaign nerf, and nobody re-measured it
+
+The co-op campaign party is **bots**, and a bot shops up to 13 times in a run.
+Under free stacking they reached level 9 carrying **8-13 copies of every item**;
+every enemy in `shared/campaign.js` is a fixed template owning exactly one.
+Capping items at 3 levels removed the party's late-game power and left the
+monsters untouched. Nothing in the item change mentioned co-op, and the campaign
+was not re-run when it shipped:
+
+| Full campaign clear rate (200 runs per party size, inside the 13-round budget) | 1p | 2p | 3p |
+|---|---|---|---|
+| before the item cap | 55% | 79% | 55% |
+| after the item cap, before repair | **11%** | **10%** | **4%** |
+| after retuning levels 8-10 | **37.0%** | **55.5%** | **41.0%** |
+
+Per-level clear rates after the repair (`tools/coop.js --levels`, 200 attempts
+per level per party size, Hard berserker/bruiser party, seed 7): L1-3 100% at
+every size, L4 94/94/97, L5 98/96/91, L6 91/97/97, L7 69/75/73, L8 68/66/57,
+L9 39/46/44, L10 30/42/32 — **non-increasing at every party size**, which is the
+property the curve is tuned for.
+
+**Rule, now in AGENTS.md: any global change to items, gold or knockback
+re-prices the whole back half of the campaign. Re-run `tools/coop.js --levels`
+in the same commit.**
+
+## Finding 12G — Ghost's problem is its trigger rate, and that is a bot artifact
+
+Ghost's fireball pierces; anyone hit *after* the first takes a damage and push
+bonus. It measures **8.3%** in the mixed table, last of twelve. The numbers on
+the bonus are not the problem — **the trigger rate is**:
+
+- Over 60 games and **11,880 ghost fireballs**, 51.1% hit somebody and only
+  **3.07% reached a second body**. That is ~6 bonus hits per whole game, about
+  21 extra damage across ~15 rounds.
+- Scaling the bonus does move the table, but only at values that break the game:
+  ×2 → 6.6%, ×3 → 11.0%, ×5 → 28.7%. At ×5 a second victim takes more than a
+  Meteor. That is not a retune, it is a different element.
+- In the absolute lab (Finding 12A) Ghost scores **18-20%** against a 2.7% no-op
+  floor: it is a *working* element, ranked last in a strong field.
+
+**Bots never line two enemies up, and "line them up" is this element's entire
+skill expression** — precisely the case the project rule says to flag rather
+than pay for. A human in a late round, ring at radius 10 with everyone
+clustered, should trigger it far more often than 3%. **Numbers left alone.** If
+Remi's feel report says it is weak in human hands, the honest lever is
+**frequency**, not a bigger multiplier.
+
+## Finding 12H — the four-tier difficulty ladder is monotone, and the old "★★ beats ★ 75%" is dead
+
+Round 12 named the tiers **Easy / Normal / Hard / Extreme** and added Normal as
+the Hard brain with a longer reaction window and a bigger aim-error floor — the
+same machinery with worse parameters, deliberately not new AI. The ladder was
+verified with `tools/h2h.js` (two seats of each tier in one game, **50% is
+parity**, bruiser build, 400 games each), because the mixed Elo table
+demonstrably hides tier gaps:
+
+| Head-to-head, 2 seats each (50% = parity) | winner | loser |
+|---|---|---|
+| Normal vs Easy | **100.0%** | 0.0% |
+| Hard vs Normal | **99.5%** | 0.5% |
+| Extreme vs Hard | **100.0%** | 0.0% |
+| Hard vs Easy | **100.0%** | 0.0% |
+
+**Report #4's "★★ beats ★ 75%" no longer holds and should not be quoted.** It
+was measured before the Easy tier was made fully random on 2026-08-06; against
+a bot that aims at nothing, every piloted tier wins 100%, so head-to-heads
+*against Easy* are no longer a difficulty signal at all.
+
+The readable measurement is all four tiers in one game (300 games, bruiser
+build, seat order rotated so spawn position cannot favour a tier):
+
+| Tier | avg place (2.5 = neutral) | avg kills | win rate |
+|---|---|---|---|
+| Easy (grunt) | 3.91 | 0.4 | 0.0% |
+| Normal (brawler) | 2.82 | 2.9 | 0.0% |
+| Hard (berserker) | 2.27 | 4.6 | 0.0% |
+| Extreme (stalker) | **1.00** | **15.6** | **100.0%** |
+
+Extreme finishing first in 300 of 300 games is the honest shape of this ladder:
+the tiers are ordered, and the top one is a different animal.
+
+## Final state — the 12-element table
+
+`node tools/arena.js --mode=elemental --games=1000` (seed 1). Four seats, all
+**Hard (berserker) on the bruiser build** — max fireball, then HP and lifesteal,
+stands its ground and trades — with only the element pick differing. Each
+element appears in ~330 of the 1000 games. **Baseline 25%**, and per Finding 12A
+this is a **ranking**, not a strength meter.
+
+| Element | win% | avg place | avg gold left | avg kills |
+|---|---|---|---|---|
+| venom 🐍 | 38.8% | 2.02 | 14.1 | 12.2 |
+| vampire 🧛 | 38.7% | 1.97 | 14.3 | 12.4 |
+| ember 🔥 | 35.8% | 2.13 | 14.0 | 11.8 |
+| arcane 🔮 | 32.4% | 2.27 | 14.3 | 11.7 |
+| terra 🪨 | 29.3% | 2.31 | 14.1 | 11.2 |
+| mosquito 🦟 | 28.9% | 2.41 | 14.1 | 10.8 |
+| momentum ⚙️ | 24.2% | 2.72 | 14.5 | 9.3 |
+| gale 🌪️ | 23.5% | 2.42 | 14.1 | 11.2 |
+| chronos ⏳ | 21.0% | 2.47 | 14.0 | 10.9 |
+| frost ❄️ | 19.4% | 2.71 | 14.0 | 10.3 |
+| ghost 👻 | 8.3% | 3.06 | 13.8 | 8.7 |
+| midas 🪙 | 0.0% | 3.52 | **49.1** | 6.3 |
+
+The spread is 0-39% across twelve elements, which looks alarming and is not:
+against Finding 12A's absolute lab the same twelve run 0.5% to 71%, with the
+bottom two explained (Ghost by a 3% trigger rate in bot hands, Midas by the
+gold column in this very table). The two brand-new elements that landed on the
+baseline did so after being retuned *down* — Vampire from 74.7% and Mosquito
+from 82.3%.
+
+⚠ **Two cells in this table are upper bounds and two are lower bounds.**
+Mosquito and Vampire are flattered by bots (bots cash a mosquito mark for free;
+a point-blank brawling bot is the ideal lifesteal engine). Ghost and Midas are
+under-measured for the reasons in Findings 12E and 12G. Nothing in this table was
+tuned against those four numbers.
+
+### Health metrics
+
+| Metric | Definition | Round 11 | **Round 12** |
+|---|---|---|---|
+| lava kill share | share of deaths in the lava rather than to direct damage | 37.5% | **30.0%** (60 games) / **30.2%** (1000 games) |
+| comeback rate | share of games where the eventual winner was ≥4 kills behind at some point | 11.9% | **11.7% / 12.4%** |
+| unfinished games | games that hit the round cap with no winner | 0 | **0** |
+| automated tests | `npx vitest run` | 135 | **196 green** |
+
+## Open questions — these need Remi, not more games
+
+1. **The lava kill share is 30% and has fallen every single round: 86% at
+   launch → 68% (round 9) → 47% (round 10) → ~38% (round 11) → 30% now.** This
+   has been open question #1 in every report since round 10 and **has never been
+   ruled on**. Two deaths in three are now people being shot on the platform;
+   knockback-into-lava used to be *the* win condition. The lab cannot answer a
+   taste question, but every round retunes on top of a drifting number. All
+   three levers are one-line reverts in `shared/constants.js`:
+   `PLAYER.KB_HP_FACTOR`, `PLAYER.KB_CONSTANT_MISSING`, `LAVA.SPEED_MULT`.
+2. **Does constant knockback feel better?** `KB_CONSTANT_MISSING = 0.30` shoves
+   everyone as if permanently at 70% HP. It makes low HP more survivable and
+   full HP less so, and it moved frost, gale and the sustain items by 1-2 points
+   each — small in the lab, possibly large in the hand.
+3. **Mosquito in human hands.** The sweep in Finding 12C says exactly what each
+   step of the cadence knob buys; the 24-29% is an upper bound on how *easy* the
+   setup is. Feel report, not a number, please — the curve is too steep to
+   eyeball.
+4. **Ghost's frequency in human hands.** 3.07% of fireballs trigger it in bot
+   games. If a human clustering fight does not lift that substantially, the fix
+   is frequency, not multipliers.
+5. **Draft mode is entirely unmeasured, on purpose.** The elemental study gives
+   each seat one element by design, which a random half-catalogue pool cannot
+   express — the same trap Finding 12B describes. A number for draft needs its own
+   lab, and a verdict on whether it is *fun* needs a game.
+6. **The whole power tier is still unmeasured, and it is now more urgent**:
+   round 12 made meteor / hook / repulse / mirror wall buyable from round 1
+   while bots still pilot none of them. The only thing keeping them out of bot
+   hands is that no bot shopping list contains one. Every number in the power
+   tier remains a design guess.
+
+## Reproduce
+
+Seeds are fixed; these reproduce exactly on the round-12 build.
+
+```bash
+# the 12-element table (Final state)
+node tools/arena.js --mode=elemental --games=1000
+
+# the difficulty ladder (Finding 12H) — 50% is parity
+node tools/h2h.js --games=400 brawler   grunt
+node tools/h2h.js --games=400 berserker brawler
+node tools/h2h.js --games=400 stalker   berserker
+
+# the co-op campaign (Finding 12F)
+node tools/coop.js --levels        # per-level clear rates, the tuning view
+node tools/coop.js                 # full campaign runs with retries
+
+# health metrics + a smoke test that games still finish
+node tools/arena.js --games=60 --players=4
+```
+
+The absolute element lab (Finding 12A), the frost-share lab (Finding 12B) and the
+Midas artifact-deletion runs (Finding 12E) were purpose-built throwaway harnesses
+around `tools/arena.js`'s exports; their full result tables are recorded in
+`shared/constants.js` next to `ghost`, `frost` and `midas` respectively, which
+is where the next agent will be standing when the question comes up again.
+
+---
+
 # Balance addendum — round 11 (2026-08-06)
 
 *~25,000 games on top of report #4 (which follows below and is still the
