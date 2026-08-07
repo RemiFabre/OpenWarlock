@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
-  setSpectator, setMode, BOT_ELEMENTS, playerStats, setShopPause,
+  setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, draftPick, draftDue, MODES, pickPrey, killLead,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
@@ -19,8 +19,12 @@ function run(state, seconds) {
   for (let i = 0; i < n; i++) step(state, DT);
 }
 
+// Pinned to CLASSIC on purpose. Elemental became the default ruleset on
+// 2026-08-08, but most tests here are about base mechanics and would silently
+// start measuring element riders instead. Elemental tests build their own state
+// with `mode: 'elemental'`.
 function freshBattle(nPlayers = 2) {
-  const state = createGame({ seed: 42 });
+  const state = createGame({ seed: 42, mode: 'classic' });
   for (let i = 0; i < nPlayers; i++) addPlayer(state, `p${i}`, `Player${i}`);
   startGame(state);
   run(state, ROUND.COUNTDOWN + DT); // through countdown
@@ -152,7 +156,10 @@ describe('movement & physics', () => {
     run(state, 10);
     expect(state.arenaRadius).toBeLessThan(r0);
     run(state, ARENA.SHRINK_TIME);
-    expect(state.arenaRadius).toBeCloseTo(ARENA.MIN_RADIUS, 1);
+    // 2026-08-08 (Remi, test): with ARENA.NEVER_STOPS the ring has no floor and
+    // no overtime hold — it runs all the way to nothing, so eventually the whole
+    // arena is lava. Flip the flag off and MIN_RADIUS is the floor again.
+    expect(state.arenaRadius).toBeCloseTo(ARENA.NEVER_STOPS ? 0 : ARENA.MIN_RADIUS, 1);
   });
 });
 
@@ -913,12 +920,12 @@ describe('serialization & misc', () => {
   });
 
   it('a full bot game reaches gameover', () => {
-    const state = createGame({ seed: 123 });
+    const state = createGame({ seed: 123, mode: 'classic' });
     for (let i = 0; i < 4; i++) addPlayer(state, `b${i}`, `Bot${i}`, { bot: true });
     startGame(state);
     let guard = 0;
     let lastPhase = state.phase;
-    while (state.phase !== 'gameover' && guard++ < 30 * 60 * 30) { // 30 min sim cap
+    while (state.phase !== 'gameover' && guard++ < 90 * 60 * 30) { // 90 min sim cap (rounds got long when the ring stopped holding at MIN)
       step(state, DT);
       for (const id of Object.keys(state.players)) stepBot(state, id, DT);
       if (state.phase === 'shop' && lastPhase !== 'shop')
@@ -966,7 +973,7 @@ describe('elemental mode', () => {
   const mosqOn = (pl, by) => stacksOf(pl, 'mosquito', by);
 
   it('setMode works only in the lobby, validates values, and ships in snapshot', () => {
-    const state = createGame({ seed: 1 });
+    const state = createGame({ seed: 1, mode: 'classic' });
     expect(state.mode).toBe('classic');
     expect(snapshot(state).mode).toBe('classic');
     expect(setMode(state, 'nonsense')).toBe(false);
@@ -982,7 +989,7 @@ describe('elemental mode', () => {
 
   it('element purchases: elemental-only, need fireball, level up, and STACK', () => {
     // classic: flatly rejected
-    const classic = createGame({ seed: 5 });
+    const classic = createGame({ seed: 5, mode: 'classic' });
     addPlayer(classic, 'a', 'Alice');
     classic.phase = 'shop';
     classic.players.a.gold = 99;
@@ -1782,7 +1789,7 @@ describe('elemental mode', () => {
   });
 
   it('combo items are elemental-only; the crown unlocks fireball lv4', () => {
-    const classic = createGame({ seed: 6 });
+    const classic = createGame({ seed: 6, mode: 'classic' });
     addPlayer(classic, 'a', 'Alice');
     classic.phase = 'shop';
     classic.players.a.gold = 99;
@@ -2385,13 +2392,30 @@ describe('elemental mode', () => {
     }
     expect(state.phase).toBe('gameover');
     expect(state.winner).toBeTruthy();
-    // each kind bought (and leveled) its signature element
-    kinds.forEach((k, i) =>
-      expect(state.players[`b${i}`].elements[BOT_ELEMENTS[k]] || 0).toBeGreaterThanOrEqual(1));
+    // every bot committed to an element and levelled it
+    kinds.forEach((k, i) => {
+      const p = state.players[`b${i}`];
+      expect(p._elemPick).toBeTruthy();
+      expect(p.elements[p._elemPick] || 0).toBeGreaterThanOrEqual(1);
+    });
   }, 30000);
 
+  // 2026-08-08 (Remi: "the bots all keep playing wind, when each type should
+  // have its own strategy"). The element is keyed on the BUILD now, not the
+  // kind, and spread by seat, so a lobby does not converge on one element.
+  it('bots on different builds pick different elements', () => {
+    const state = createGame({ seed: 5, mode: 'elemental' });
+    const builds = Object.keys(BUILDS);
+    const picks = builds.map((b, i) => botElementFor({ build: b }, i));
+    expect(new Set(picks).size).toBeGreaterThan(1);
+    // and four bots sharing ONE build still spread across that build's list
+    const same = [0, 1, 2, 3].map(i => botElementFor({ build: 'bruiser' }, i));
+    expect(new Set(same).size).toBeGreaterThan(1);
+    expect(state.mode).toBe('elemental'); // and elemental is the default now
+  });
+
   it('classic regression: a full bot game keeps every element null to gameover', () => {
-    const state = createGame({ seed: 88 }); // classic by default
+    const state = createGame({ seed: 88, mode: 'classic' });
     const kinds = ['grunt', 'berserker', 'stalker'];
     kinds.forEach((k, i) => addPlayer(state, `b${i}`, `Bot${i}`, { bot: true, kind: k }));
     startGame(state);
@@ -2703,7 +2727,7 @@ describe('bot profiles', () => {
   }, 30000);
 
   it('a berserker buys rush in its first affordable shop', () => {
-    const state = createGame({ seed: 13 });
+    const state = createGame({ seed: 13, mode: 'classic' });
     addPlayer(state, 'z', 'Zerk', { bot: true, kind: 'berserker' });
     addPlayer(state, 'e', 'Enemy', { bot: true });
     state.phase = 'shop';

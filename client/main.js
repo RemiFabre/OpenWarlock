@@ -956,7 +956,7 @@ function perLevelLine(fxSpec, dict) {
 }
 
 // Build shop buttons once per container; refresh() updates them from state.
-// mode-aware: 'elemental' adds the Elements section and the experimental
+// mode-aware: 'elemental' adds the Elements section and the elemental-only
 // combo items; 'classic' shows exactly the pre-elemental shop.
 function buildShop(container, mode = 'classic') {
   const elemental = mode === 'elemental';

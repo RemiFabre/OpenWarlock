@@ -19,7 +19,9 @@ import { setLevel } from './music.js';
 // ---- ruleset cycle ----------------------------------------------------------
 // One button, three rulesets. Kept here so main.js only needs the two calls.
 
-export const MODES = ['classic', 'elemental', 'coop'];
+// Elemental leads the cycle since 2026-08-08: it is the DEFAULT ruleset now and
+// is no longer called experimental. Classic still exists, unchanged.
+export const MODES = ['elemental', 'classic', 'coop'];
 
 export function nextMode(mode) {
   const i = MODES.indexOf(mode);
@@ -27,17 +29,17 @@ export function nextMode(mode) {
 }
 
 export function modeLabel(mode) {
-  if (mode === 'elemental') return 'Rules: ⚗️ Elemental (experimental)';
+  if (mode === 'elemental') return 'Rules: ⚗️ Elemental';
   if (mode === 'coop') return 'Rules: 🛡️ Co-op campaign';
   return 'Rules: Classic';
 }
 
 export function modeTitle(mode) {
   if (mode === 'elemental')
-    return 'Elemental (experimental): after Fireball lv1 the shop offers element upgrades that transform your fireball, plus two experimental combo items. Applies to everyone.';
+    return 'Elemental (the default): after Fireball lv1 the shop offers twelve elements that transform your fireball. They have three levels each and they stack. Applies to everyone.';
   if (mode === 'coop')
-    return 'Co-op campaign: the whole lobby is ONE team against 10 levels of AI waves. Friendly fire is off. Clear a level to advance, wipe and you retry it — the run has a limited number of rounds. Scales with party size; playable solo.';
-  return 'Classic: free-for-all, first to 15 kills.';
+    return 'Co-op campaign: the whole lobby is ONE team against 10 levels of AI waves. FRIENDLY FIRE IS ON — allies take full damage and knockback, lava included, though a team kill pays nothing. Clear a level to advance, wipe and you retry it; the run has a limited number of rounds. Scales with party size; playable solo.';
+  return 'Classic: free-for-all, no elements, first to 15 kills.';
 }
 
 // ---- level art + music ------------------------------------------------------

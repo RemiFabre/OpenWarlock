@@ -26,7 +26,10 @@ export function makeRng(seed) {
 // a party (team 'party') against AI waves (team 'ai') instead of a free-for-all.
 export const MODES = ['classic', 'elemental', 'coop'];
 
-export function createGame({ seed = 1, mode = 'classic' } = {}) {
+// 2026-08-08 (Remi): ELEMENTAL is the default ruleset now, and is no longer
+// called experimental. Classic still exists and is still bit-for-bit the old
+// game — it is just no longer what you land on.
+export function createGame({ seed = 1, mode = 'elemental' } = {}) {
   return {
     phase: 'lobby',        // lobby | countdown | battle | shop | gameover
     phaseT: 0,             // time remaining in countdown/shop
@@ -36,7 +39,7 @@ export function createGame({ seed = 1, mode = 'classic' } = {}) {
     // name of whoever paused so the banner can say who, since anyone in the
     // lobby may pause or resume (same friends-lobby trust model as the bans).
     shopPaused: null,      // null = running, else the pauser's display name
-    mode: MODES.includes(mode) ? mode : 'classic',
+    mode: MODES.includes(mode) ? mode : 'elemental',
     // Draft mode (docs/ROUND12.md S7) — an INDEPENDENT flag, not a fourth mode:
     // it composes with classic, elemental and co-op alike. OFF means every field
     // below stays exactly as it is here for the whole game, which is what keeps
@@ -1320,9 +1323,15 @@ function stepBattle(state, dt) {
   const fsNow = state.mode === 'coop' ? partyOf(state) : fighters(state);
   const totalF = Math.max(1, state.roundFighters || fsNow.length);
   const aliveF = fsNow.filter(p => p.alive).length;
-  if (state.arenaRadius > ARENA.MIN_RADIUS) {
+  const speedMult = 1 + ARENA.SHRINK_ADAPT * (1 - Math.min(aliveF, totalF) / totalF);
+  if (ARENA.NEVER_STOPS) {
+    // One continuous journey from START to nothing: no floor, no grace, no
+    // sudden-death branch. The adaptive rate still applies, so a round with
+    // three dead players still closes fast.
+    const baseRate = ARENA.START_RADIUS / ARENA.SHRINK_TIME;
+    state.arenaRadius = Math.max(0, state.arenaRadius - baseRate * speedMult * dt);
+  } else if (state.arenaRadius > ARENA.MIN_RADIUS) {
     const baseRate = (ARENA.START_RADIUS - ARENA.MIN_RADIUS) / ARENA.SHRINK_TIME;
-    const speedMult = 1 + ARENA.SHRINK_ADAPT * (1 - Math.min(aliveF, totalF) / totalF);
     state.arenaRadius = Math.max(ARENA.MIN_RADIUS, state.arenaRadius - baseRate * speedMult * dt);
   } else if (state.graceT > 0) {
     state.graceT = Math.max(0, state.graceT - dt);
@@ -2903,15 +2912,41 @@ const BOT_BUILDS = {
 // In elemental mode each bot kind commits to a fixed element (bought as soon
 // as affordable) so bots-only elemental games exercise the effect code paths.
 // Their combat logic needs no changes — elements apply passively on hit.
-export const BOT_ELEMENTS = { berserker: 'gale', stalker: 'frost', grunt: 'ember',
-  brawler: 'venom' };
+// 2026-08-08 (Remi: "the bots all keep playing wind, when each type should have
+// its own strategy"). The element used to be keyed on the bot KIND, so a lobby
+// of four bots at the same difficulty all bought the same element — and since
+// most seats are berserkers, that meant everybody played gale.
+// It is keyed on the BUILD now, which is what "strategy" means here: it is
+// per-bot, it is the lobby dropdown, and 🎲 random varies it. Each build gets a
+// small themed list, indexed by seat, so even four bots on the SAME build spread
+// across different elements instead of stacking one.
+const BUILD_ELEMENTS = {
+  bruiser: ['vampire', 'ember', 'momentum'],   // stands and trades: sustain + raw damage
+  sniper:  ['venom', 'ghost', 'momentum'],     // pokes from range: DoT and line shots
+  escape:  ['arcane', 'chronos', 'mosquito'],  // slippery: cooldowns and setup
+  turtle:  ['frost', 'terra', 'venom'],        // outlasts: control and attrition
+  rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
+  boomer:  ['chronos', 'midas', 'arcane'],     // throws a lot: refunds and income
+};
+const FALLBACK_ELEMENTS = ['ember', 'frost', 'venom', 'gale', 'terra', 'arcane'];
+
+export function botElementFor(pl, seat = 0) {
+  const list = (pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS;
+  return list[Math.abs(seat) % list.length];
+}
 
 export function botShop(state, id) {
   const pl = state.players[id];
   if (!pl) return;
   if (pl.wave) return; // campaign monsters are their descriptor, they never shop
-  if (state.mode === 'elemental')
-    buy(state, id, BOT_ELEMENTS[pl.kind] || 'ember'); // one level per shop; maxes out quietly
+  if (state.mode === 'elemental') {
+    // pinned at seat time so a bot never drifts between elements mid-game
+    if (!pl._elemPick) {
+      const seat = Object.keys(state.players).indexOf(id);
+      pl._elemPick = botElementFor(pl, seat < 0 ? 0 : seat);
+    }
+    buy(state, id, pl._elemPick); // one level per shop; maxes out quietly
+  }
   // an explicit build strategy (lobby pick) beats the kind's default list
   const order = (pl.build && BUILDS[pl.build] && BUILDS[pl.build].order) ||
     BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;

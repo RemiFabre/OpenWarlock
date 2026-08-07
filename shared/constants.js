@@ -7,7 +7,19 @@ export const SNAPSHOT_RATE = 15;      // snapshots sent to clients Hz
 export const ARENA = {
   START_RADIUS: 56,
   MIN_RADIUS: 10,
-  SHRINK_TIME: 65,        // seconds from START to MIN at the base rate
+  // 2026-08-08 (Remi, TEST — one flag to revert): the ring never stops. It
+  // shrinks continuously from START to NOTHING, so the whole arena eventually
+  // becomes lava; MIN_RADIUS, OVERTIME_GRACE and OVERTIME_SHRINK are all
+  // bypassed while this is true. Set to false and the classic hold-then-sudden-
+  // death behaviour is back, untouched.
+  NEVER_STOPS: true,
+  // "30% slower" is read as the shrink RATE, not the duration (voice-dictated,
+  // stating the interpretation per the AGENTS.md convention). Old: 46 units in
+  // 65 s = 0.708 u/s. New: 0.708 × 0.7 = 0.496 u/s, and the journey is now the
+  // full 56 units rather than 46, so 56 / 0.496 ≈ 113 s.
+  // While NEVER_STOPS is true this is the time from START to ZERO; when false it
+  // is the old "START to MIN" and you want 65 back.
+  SHRINK_TIME: 113,
   // the shrink RATE scales with deaths: rate *= 1 + ADAPT * (1 - alive/total)
   // (4 fighters, 2 dead -> 1.75x faster) so small fights don't wait on a big arena
   SHRINK_ADAPT: 1.5,
@@ -213,7 +225,7 @@ export const SPELLS = {
 };
 
 // ---- Items (passive, 3 LEVELS each) ------------------------------------
-// mode: 'elemental' marks experimental wares that only exist (shop + buy)
+// mode: 'elemental' marks wares that only exist (shop + buy)
 // when the game runs the elemental ruleset; classic never sees them.
 //
 // 2026-08-07 (Remi, round 12) — items are LEVELLED, like spells.
@@ -355,9 +367,9 @@ export const ITEMS = {
   //  choosing to fight, and nothing in this lab chooses.
   sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Heal 18% of damage dealt, then 30% and 38% (poison too — lava excluded)' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
-            desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
+            desc: '⚗️ every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
   crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental', maxLevel: 1,
-            desc: '⚗️ experimental — unlocks Fireball lv4 (buy it for the usual 8 g: +4 dmg, +7 push)' },
+            desc: '⚗️ unlocks Fireball lv4 (buy it for the usual 8 g: +4 dmg, +7 push)' },
 };
 
 // Price of the next level of `key`. Flat by design (round 12): every level of
