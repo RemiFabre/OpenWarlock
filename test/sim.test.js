@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
-  setMode, BOT_ELEMENTS, playerStats,
+  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
+  setSpectator, setMode, BOT_ELEMENTS, playerStats,
 } from '../shared/sim.js';
-import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS, itemCost } from '../shared/constants.js';
+import {
+  ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
+  BOT_MEMORY, itemCost,
+} from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
 const DT = 1 / 30;
@@ -1345,9 +1348,11 @@ describe('elemental mode', () => {
   });
 
   // Sting `b` twice from `a`: the first arms the trap, the second spends it.
-  // Stops on the exact frame the stack is spent, so the proc's fireballs are
-  // still in flight (they spawn procSpawnBack units short of the impact point).
-  function mosquitoProc(elements = { mosquito: 1 }) {
+  // Runs to the frame the stack is cashed. Since 2026-08-07 the proc's balls all
+  // leave the same muzzle with the same vector and connect immediately, so that
+  // frame is also the frame they land — `procHits()` reads them off the events.
+  // `hp` lets the victim survive the payoff when a test needs to look past it.
+  function mosquitoProc(elements = { mosquito: 1 }, { hp = null } = {}) {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
@@ -1355,7 +1360,9 @@ describe('elemental mode', () => {
     a.elements = { ...elements };
     const sting = () => {
       a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
-      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+      if (hp != null) { b.hp = hp; b.maxHp = Math.max(b.maxHp, hp); }
+      else b.hp = b.maxHp;
       state.events = [];
       castSpell(state, 'p0', 'fireball', 20, 0);
     };
@@ -1363,73 +1370,135 @@ describe('elemental mode', () => {
     run(state, 0.4);       // arms the trap
     sting();
     for (let i = 0; i < 20; i++) {
+      state.events = [];
       step(state, DT);
       if (state.events.some(e => e.t === 'biteHit')) break;
     }
     return state;
   }
+  // the payoff hits of THIS frame: real fireballs, not the 1-damage sting
+  const procHits = (state, id = 'p1') => state.events.filter(
+    e => e.t === 'hit' && e.id === id &&
+         e.amount > ELEMENTS.mosquito.fx.stingDmg + 1e-9);
 
   it('spending a mosquito stack fires exactly procBalls NORMAL fireballs', () => {
     const f = ELEMENTS.mosquito.fx;
-    const state = mosquitoProc();
+    const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
     const b = state.players.p1;
     // the stack is spent, and NOT re-armed by the hit that cashed it in
     expect(mosqOn(b, 'p0')).toBe(0);
     expect(state.events.some(e => e.t === 'biteHit')).toBe(true);
-    // procBalls of them: one out now, the rest queued procGap apart
-    expect(state.projectiles.filter(p => p.type === 'fireball').length).toBe(1);
-    expect(state.delayedShots.length).toBe(f.procBalls - 1);
-    expect(state.delayedShots[0].t).toBeCloseTo(f.procGap, 5);
-    // they are NORMAL fireballs: full damage, full knockback, not 1-dmg stings
-    const proc = state.projectiles.find(p => p.type === 'fireball');
-    expect(proc.mosquito).toBe(0);
-    expect(proc.owner).toBe('p0');
-    // ...and they land in quick succession, so all procBalls connect
-    b.hp = b.maxHp;
-    run(state, 0.6);
-    const full = SPELLS.fireball.damage[0] * f.procBalls;
-    expect(b.maxHp - b.hp).toBeGreaterThan(full - 1.5);
+    // procBalls of them, and they are NORMAL fireballs: full damage, full
+    // knockback, no sting rider, and the Echo Stone's queue is not involved
+    const hits = procHits(state);
+    expect(hits.length).toBe(f.procBalls);
+    for (const h of hits)
+      expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0], 5);
+    expect(state.delayedShots.length).toBe(0);
     expect(Math.abs(b.vx)).toBeGreaterThan(50); // and they PUSH, unlike a sting
   });
 
-  it('the temporal offset is real: the balls do NOT land on the same frame', () => {
-    const state = mosquitoProc();
-    const b = state.players.p1;
-    b.hp = b.maxHp;
-    // step until the first proc ball connects, then confirm at least one is
-    // still in flight — that gap is what a well-timed teleport dodges
-    let landed = 0, inFlightAfterFirst = null;
-    for (let i = 0; i < 30; i++) {
+  it('the proc balls are CO-LOCATED: same muzzle, same vector, same frame', () => {
+    // Remi 2026-08-07: "put the 2 balls at exactly the same place". No offset in
+    // space and none in time — the two hits are one event you see twice.
+    const f = ELEMENTS.mosquito.fx;
+    const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
+    const casts = state.events.filter(e => e.t === 'cast' && e.spell === 'fireball');
+    expect(casts.length).toBe(f.procBalls);      // the sting's own cast was earlier
+    for (const c of casts) {
+      expect(c.x).toBeCloseTo(casts[0].x, 10);
+      expect(c.y).toBeCloseTo(casts[0].y, 10);
+      expect(c.dx).toBeCloseTo(casts[0].dx, 10);
+      expect(c.dy).toBeCloseTo(casts[0].dy, 10);
+    }
+    // ...and every payoff hit landed in that one frame
+    expect(procHits(state).length).toBe(f.procBalls);
+    expect(state.projectiles.length).toBe(0);    // nothing left flying
+  });
+
+  it('the proc connects even on a GRAZING sting (contact point, not tick end)', () => {
+    // the sting can sweep past the body inside one tick; balls released from the
+    // end of that travel would fly on and miss. Offset the victim to the edge of
+    // the hitbox so the sting only just clips it.
+    const f = ELEMENTS.mosquito.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { mosquito: 1 };
+    const graze = () => {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.vx = b.vy = 0; b.moveTarget = null; b.hp = 9999; b.maxHp = 9999;
+      // just inside contact range: radius sum minus a hair
+      b.y = b.radius + SPELLS.fireball.radius - 0.05;
+      state.events = [];
+      castSpell(state, 'p0', 'fireball', 20, 0);
+    };
+    graze();
+    run(state, 0.4);
+    expect(mosqOn(b, 'p0')).toBe(1);   // armed by a clipping sting
+    graze();
+    let hits = 0;
+    for (let i = 0; i < 20; i++) {
       state.events = [];
       step(state, DT);
-      if (state.events.some(e => e.t === 'hit' && e.id === 'p1')) {
-        landed++;
-        if (landed === 1) {
-          inFlightAfterFirst =
-            state.projectiles.length + state.delayedShots.length;
-          break;
-        }
-      }
+      hits += procHits(state).length;
+      if (state.events.some(e => e.t === 'biteHit')) break;
     }
-    expect(landed).toBe(1);
-    expect(inFlightAfterFirst).toBeGreaterThan(0);
+    expect(hits).toBe(f.procBalls);    // both balls connected, none flew past
   });
 
   it('HARD RULE: the spawned fireballs place NO mosquito stacks (no chaining)', () => {
     const f = ELEMENTS.mosquito.fx;
-    const state = mosquitoProc();
+    const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
     const b = state.players.p1;
-    // the proc's own balls are flagged, and the flag is what breaks the loop
-    expect(state.projectiles.every(p => p.noStacks === true)).toBe(true);
-    expect(state.delayedShots.every(d => d.noStacks === true)).toBe(true);
-    b.hp = 9999; b.maxHp = 9999;   // survive everything, so a chain would show
-    run(state, 3);
     expect(mosqOn(b, 'p0')).toBe(0);            // nothing re-armed
+    run(state, 3);
+    expect(mosqOn(b, 'p0')).toBe(0);            // still nothing, a frame later
     expect(state.projectiles.length).toBe(0);   // and nothing is still spawning
     expect(state.delayedShots.length).toBe(0);
     // exactly ONE proc happened — a chain would have fired more
     expect(state.events.filter(e => e.t === 'biteHit').length).toBe(1);
     expect(f.procBalls).toBeGreaterThan(1);     // the spec still wants a double
+  });
+
+  it('HARD RULE, the case that can actually chain: a PIERCING proc ball may not cash a second mark', () => {
+    // With ghost the proc balls fly THROUGH the first victim, so they can reach a
+    // second body that also carries your mark. That is the real infinite-loop
+    // shape (each cash spawns balls that cash again), and `noStacks` is the guard.
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { mosquito: 1, ghost: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    for (const v of [b, c]) {
+      v.maxHp = 9999; v.hp = 9999; v.vx = v.vy = 0; v.moveTarget = null;
+    }
+    b.x = 8; b.y = 0; c.x = 16; c.y = 0;
+    // arm BOTH of them (stings do not pierce, so one sting each)
+    for (const v of [b, c]) {
+      a.cooldowns = {};
+      v.x = 8; // sting whoever is parked in front
+      const other = v === b ? c : b;
+      other.x = 60;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.4);
+      v.x = v === b ? 8 : 16;
+    }
+    b.x = 8; c.x = 16;
+    b.vx = b.vy = c.vx = c.vy = 0; b.moveTarget = c.moveTarget = null;
+    expect(mosqOn(b, 'p0')).toBe(1);
+    expect(mosqOn(c, 'p0')).toBe(1);
+    // now cash b's mark: the balls pierce b and reach c, who is also marked
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 1.5);
+    expect(state.events.filter(e => e.t === 'biteHit').length).toBe(1); // ONE cash
+    expect(mosqOn(c, 'p0')).toBe(1);          // c's mark is untouched...
+    // ...and the piercing balls still in flight all carry the guard flag
+    expect(state.projectiles.length).toBe(ELEMENTS.mosquito.fx.procBalls);
+    expect(state.projectiles.every(p => p.noStacks === true)).toBe(true);
+    expect(state.projectiles.every(p => p.mosquito === 0)).toBe(true);
   });
 
   it('only your FIREBALL spends the mark — no cross-spell doubling', () => {
@@ -1636,48 +1705,57 @@ describe('elemental mode', () => {
     expect(Math.abs(last.vy)).toBeLessThan(0.001);
   });
 
-  // ---- the proc's follow-up balls are RE-AIMED at release ------------------
-  // Round 12 made knockback constant, which launches a full-HP victim at ~72 u/s
-  // — further, during procGap, than the second ball travels. With a fixed aim
-  // vector the first ball knocked the victim out of the second's path and the
-  // proc silently half-fired. Both of these lock the fix, not the symptom.
+  // ---- the proc's balls are co-located, which doubles the impulse ----------
+  // Two hits in one frame means the knockback impulse lands twice, and impulses
+  // add linearly, so a cashed sting launches for exactly procBalls × a fireball.
+  // Measured (not assumed) and reported to Remi as the cost of the simple version.
 
-  it('the queued proc ball carries a re-aim target, not just a frozen vector', () => {
-    const state = mosquitoProc();
-    const ds = state.delayedShots[0];
-    expect(ds.aimAt).toBe('p1');                          // whom to re-aim at
-    expect(ds.spawnBack).toBe(ELEMENTS.mosquito.fx.procSpawnBack);
-    expect(Math.abs(ds.dy)).toBeLessThan(0.001);          // frozen vector: +x
-  });
-
-  it('the second proc ball follows a victim shoved sideways after the queue was filled', () => {
-    const state = mosquitoProc();
-    const b = state.players.p1;
-    b.hp = 9999; b.maxHp = 9999;
-    // the queued aim is straight +x (asserted above); throw the victim hard off
-    // that lane, which a frozen vector could never follow
-    b.x = 8; b.y = 0; b.vx = 0; b.vy = 45; b.moveTarget = null;
-    let landed = 0;
-    for (let i = 0; i < 45; i++) {
-      state.events = [];
-      step(state, DT);
-      landed += state.events.filter(
-        e => e.t === 'hit' && e.id === 'p1' &&
-             e.amount > ELEMENTS.mosquito.fx.stingDmg + 0.001).length;
-      if (!state.projectiles.length && !state.delayedShots.length) break;
+  it('a cashed sting launches the victim procBalls times as hard as one fireball', () => {
+    const f = ELEMENTS.mosquito.fx;
+    // control: one plain lv1 fireball, velocity read on the frame it connects
+    // (knockback lands in stepProjectiles, after the movement/friction pass, so
+    // this is the raw launch speed in both cases)
+    const state0 = elementalBattle(3);
+    const a0 = state0.players.p0, b0 = state0.players.p1;
+    state0.players.p2.x = 0; state0.players.p2.y = -45;
+    state0.pillars = [];
+    a0.elements = {}; a0.x = 0; a0.y = 0;
+    b0.x = 8; b0.y = 0; b0.vx = b0.vy = 0; b0.moveTarget = null;
+    b0.maxHp = 9999; b0.hp = 9999;
+    castSpell(state0, 'p0', 'fireball', 20, 0);
+    let soloV = 0;
+    for (let i = 0; i < 20; i++) {
+      state0.events = [];
+      step(state0, DT);
+      if (state0.events.some(e => e.t === 'hit' && e.id === 'p1')) {
+        soloV = Math.abs(b0.vx); break;
+      }
     }
-    expect(landed).toBeGreaterThanOrEqual(1); // the re-aimed ball connected
+    expect(soloV).toBeGreaterThan(1);
+    // the proc, on the frame it lands (both balls in that one frame). The sting
+    // itself pushes for nothing, so all of this velocity is the payoff balls.
+    const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
+    expect(Math.abs(state.players.p1.vx)).toBeCloseTo(soloV * f.procBalls, 1);
   });
 
-  it('if the victim dies to the first proc ball, the follow-up never fires', () => {
-    const state = mosquitoProc();
-    const b = state.players.p1;
-    expect(state.delayedShots.length).toBe(ELEMENTS.mosquito.fx.procBalls - 1);
-    b.hp = 1;                       // the first ball is lethal
-    run(state, 0.6);
-    expect(b.alive).toBe(false);
-    expect(state.delayedShots.length).toBe(0);  // drained...
-    expect(state.projectiles.length).toBe(0);   // ...without spawning anything
+  it('the optional procDmgMult lever taxes damage only, never the effect count', () => {
+    // docs/ROUND12.md S3 option (b): keep the fast sting, make each proc ball hit
+    // for a fraction. Absent from the spec by default — this locks the lever so it
+    // still works if Remi asks for it.
+    const f = ELEMENTS.mosquito.fx;
+    const k = 0.6;
+    try {
+      f.procDmgMult = k;
+      const state = mosquitoProc({ mosquito: 1, frost: 1 }, { hp: 9999 });
+      const hits = procHits(state);
+      expect(hits.length).toBe(f.procBalls);          // still procBalls events
+      for (const h of hits)
+        expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0] * k, 5);
+      // and the on-hit effects are untouched: still one frost stack per ball
+      expect(frostOn(state.players.p1, 'p0')).toBe(f.procBalls);
+    } finally {
+      delete f.procDmgMult;
+    }
   });
 
   // ---- vampire 🧛 -----------------------------------------------------------
@@ -2696,6 +2774,274 @@ describe('bot reaction time', () => {
     }
     expect(spreads.length).toBeGreaterThan(8);
     expect(Math.max(...spreads)).toBeGreaterThan(OLD_CEILING * 1.3);
+  });
+});
+
+describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
+  // Round 12 S6: four named tiers, and Normal is the berserker brain with worse
+  // numbers — NOT new AI. These lock the two things that make that true.
+  const tierBattle = (kind) => {
+    const state = createGame({ seed: 9 });
+    addPlayer(state, 'h', 'Human');
+    addPlayer(state, 'b', 'Bot', { bot: true, kind });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    return state;
+  };
+
+  it('every tier declares a brain that the sim actually implements', () => {
+    for (const [kind, spec] of Object.entries(BOTS)) {
+      expect(typeof spec.brain).toBe('string');
+      expect(typeof spec.label).toBe('string');
+      // a tier whose brain does not exist would silently fall back to the grunt
+      expect(['grunt', 'berserker', 'stalker']).toContain(spec.brain);
+    }
+    // and the ladder ranks are unique and cover 1..N
+    const ranks = Object.values(BOTS).map(b => b.difficulty).sort((a, b) => a - b);
+    expect(ranks).toEqual(ranks.map((_, i) => i + 1));
+  });
+
+  it('brawler (Normal) runs the BERSERKER brain, not the grunt brain', () => {
+    // the berserker hunts: it walks toward its prey and fires at it. The grunt
+    // wanders and fires at a uniformly random bearing. One decision tick tells
+    // them apart — the brawler must AIM at the human.
+    const state = tierBattle('brawler');
+    const bot = state.players.b, h = state.players.h;
+    expect(BOTS.brawler.brain).toBe('berserker');
+    bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+    h.x = 12; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 99;
+    stepBot(state, 'b', DT);
+    // _obs is the berserker brain's observation memory; the grunt has none
+    expect(bot._obs).toBeTruthy();
+    expect(bot._obs.x).toBeCloseTo(12, 0);
+    bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+    h.x = 12; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 0;
+    state.events.length = 0;
+    stepBot(state, 'b', DT);
+    const cast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball');
+    expect(cast).toBeTruthy();
+    expect(cast.dx).toBeGreaterThan(0.8);   // aimed east, at the human
+  });
+
+  it("the decision interval comes from BOTS[kind].react, not a literal", () => {
+    // read the spec, don't restate it: whatever react says, _botT must land in
+    // [base, base+jitter] — and Normal's window must be strictly slower than Hard's
+    for (const kind of ['brawler', 'berserker', 'stalker']) {
+      const [base, jitter] = BOTS[kind].react;
+      const state = tierBattle(kind);
+      const bot = state.players.b, h = state.players.h;
+      h.x = 12; h.y = 0; h.moveTarget = null;
+      for (let i = 0; i < 12; i++) {
+        bot._botT = 0;
+        stepBot(state, 'b', DT);
+        expect(bot._botT).toBeGreaterThanOrEqual(base - DT - 1e-9);
+        expect(bot._botT).toBeLessThanOrEqual(base + jitter + 1e-9);
+      }
+    }
+    expect(BOTS.brawler.react[0]).toBeGreaterThan(BOTS.berserker.react[0]);
+    expect(BOTS.berserker.react[0]).toBeGreaterThan(BOTS.stalker.react[0]);
+  });
+
+  it('aim error comes from BOTS[kind].aimErr — Normal scatters more than Hard', () => {
+    // statistical, fixed seeds: same range, same brain, only the BOTS numbers
+    // differ. The perpendicular miss component is bounded by aimErr/2 per shot.
+    const spreadOf = (kind) => {
+      let worst = 0;
+      for (let seed = 1; seed <= 24; seed++) {
+        const state = createGame({ seed });
+        addPlayer(state, 'h', 'Human');
+        addPlayer(state, 'b', 'Bot', { bot: true, kind });
+        startGame(state);
+        run(state, ROUND.COUNTDOWN + DT);
+        const bot = state.players.b, h = state.players.h;
+        state.pillars = [];
+        bot.x = 0; bot.y = 0; h.x = 10; h.y = 0; h.vx = 0; h.moveTarget = null;
+        bot._botT = 0; bot.cooldowns.fireball = 99;
+        stepBot(state, 'b', DT);
+        bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+        h.x = 10; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+        bot._botT = 0; bot.cooldowns.fireball = 0;
+        state.events.length = 0;
+        stepBot(state, 'b', DT);
+        const cast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball');
+        if (cast) worst = Math.max(worst, Math.abs(cast.dy));
+      }
+      return worst;
+    };
+    const [nFloor, nPer] = BOTS.brawler.aimErr;
+    const [hFloor, hPer] = BOTS.berserker.aimErr;
+    expect(nFloor + 10 * nPer).toBeGreaterThan(hFloor + 10 * hPer); // spec first
+    expect(spreadOf('brawler')).toBeGreaterThan(spreadOf('berserker')); // then behaviour
+  });
+
+  it('a tier that omits react/aimErr keeps the historical defaults', () => {
+    // grunt has neither (it needs neither), and nothing may crash or drift when
+    // a BOTS entry is incomplete — the fallback is the round-10 literal.
+    expect(BOTS.grunt.react).toBeUndefined();
+    const state = tierBattle('grunt');
+    const bot = state.players.b;
+    bot._botT = 0;
+    stepBot(state, 'b', DT);
+    expect(bot._botT).toBeGreaterThanOrEqual(0.25 - DT);
+    expect(bot._botT).toBeLessThanOrEqual(0.55 + 1e-9);
+  });
+});
+
+describe('vanish 👁️ (invisibility)', () => {
+  const spec = SPELLS.vanish;
+
+  function vanishBattle() {
+    const state = createGame({ seed: 4 });
+    addPlayer(state, 'a', 'Alice');
+    addPlayer(state, 'b', 'Bob');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    const a = state.players.a, b = state.players.b;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    a.spells.vanish = 1;
+    return state;
+  }
+
+  it('levels buy duration only, and re-casting refreshes instead of stacking', () => {
+    const state = vanishBattle();
+    const a = state.players.a;
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      a.spells.vanish = level;
+      a.cooldowns = {}; a.vanishT = 0;
+      expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
+      expect(a.vanishT).toBeCloseTo(spec.duration[level - 1], 5);
+      expect(a.cooldowns.vanish).toBeCloseTo(spec.cooldown[level - 1], 5);
+      // a second cast (cooldown scrubbed) refreshes, never sums
+      a.cooldowns = {};
+      castSpell(state, 'a', 'vanish', 5, 5);
+      expect(a.vanishT).toBeCloseTo(spec.duration[level - 1], 5);
+    }
+  });
+
+  it('the POSITION is stripped from other viewers’ snapshots, kept in your own', () => {
+    // docs/ROUND12.md N4: hidden on the wire, not in the renderer. Anyone with
+    // devtools must find nothing to draw.
+    const state = vanishBattle();
+    const a = state.players.a;
+    castSpell(state, 'a', 'vanish', 5, 5);
+    const asB = snapshot(state, 'b');
+    const asA = snapshot(state, 'a');
+    const asSpectator = snapshot(state);
+    for (const view of [asB, asSpectator]) {
+      expect(view.players.a).toBeTruthy();          // still in the standings...
+      expect(view.players.a.x).toBeUndefined();     // ...with nowhere to draw it
+      expect(view.players.a.y).toBeUndefined();
+      expect(view.players.a.vanishT).toBeUndefined(); // not even the timer leaks
+      expect(JSON.stringify(view.players.a)).not.toContain('"x"');
+      expect(view.players.b.x).toBeDefined();       // everyone else is untouched
+    }
+    expect(asA.players.a.x).toBeDefined();          // you can always see yourself
+    expect(asA.players.a.vanishT).toBeCloseTo(spec.duration[0], 1);
+    // ...and it comes back on its own
+    run(state, spec.duration[0] + 0.1);
+    expect(a.vanishT).toBe(0);
+    expect(snapshot(state, 'b').players.a.x).toBeDefined();
+  });
+
+  it('the position cannot leak through the EVENT stream either', () => {
+    const state = vanishBattle();
+    const a = state.players.a;
+    a.spells.fireball = 1;
+    castSpell(state, 'a', 'vanish', 5, 5);
+    state.events = [];
+    castSpell(state, 'a', 'fireball', 20, 0);   // casting while invisible is legal
+    const forB = viewEvents(state, state.events, 'b');
+    const forA = viewEvents(state, state.events, 'a');
+    expect(forA.some(e => e.t === 'cast' && e.id === 'a')).toBe(true);
+    expect(forB.some(e => e.id === 'a')).toBe(false);
+    // the projectile itself STAYS visible: you are invisible, your spells are not
+    expect(snapshot(state, 'b').projectiles.length).toBe(1);
+    // and once you are visible again the stream is untouched (no copy at all)
+    a.vanishT = 0;
+    expect(viewEvents(state, state.events, 'b')).toBe(state.events);
+  });
+
+  it('a death is public even if you died invisible', () => {
+    const state = vanishBattle();
+    const a = state.players.a;
+    castSpell(state, 'a', 'vanish', 5, 5);
+    a.hp = 0.5;
+    a.x = state.arenaRadius + 5;   // straight into the lava
+    state.events = [];
+    run(state, 0.3);
+    expect(a.alive).toBe(false);
+    expect(a.vanishT).toBe(0);                              // dying reveals you
+    const forB = viewEvents(state, state.events, 'b');
+    expect(forB.some(e => e.t === 'death' && e.id === 'a')).toBe(true);
+    expect(snapshot(state, 'b').players.a.x).toBeDefined(); // a corpse is visible
+  });
+
+  it('vanishing does NOT disturb your own projectiles in flight', () => {
+    const state = vanishBattle();
+    const a = state.players.a, b = state.players.b;
+    a.spells.fireball = 1;
+    castSpell(state, 'a', 'fireball', 20, 0);
+    a.cooldowns = {};
+    castSpell(state, 'a', 'vanish', 5, 5);       // blink out mid-flight
+    run(state, 0.5);
+    expect(b.hp).toBeLessThan(b.maxHp);          // the ball still connected
+    expect(a.vanishT).toBeGreaterThan(0);
+  });
+
+  it('you can start a Repulse charge and vanish, or vanish and charge', () => {
+    const state = vanishBattle();
+    const a = state.players.a;
+    a.spells.repulse = 1;
+    // charging first: everything except teleport/rush is locked mid-charge, and
+    // vanish is deliberately part of "everything" (no special case was added)
+    expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
+    expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(false);
+    a.charging = null;
+    // vanishing first: the charge still works, and stays hidden while it winds up
+    a.cooldowns = {};
+    expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
+    expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
+    expect(a.charging).toBeTruthy();
+    expect(snapshot(state, 'b').players.a.charging).toBe(true);
+    expect(snapshot(state, 'b').players.a.x).toBeUndefined(); // …but not WHERE
+  });
+
+  it('bots lose sight of a vanished player and shoot the last place they saw them', () => {
+    const state = createGame({ seed: 9 });
+    addPlayer(state, 'h', 'Human');
+    addPlayer(state, 'b', 'Bot', { bot: true, kind: 'stalker' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    const bot = state.players.b, h = state.players.h;
+    h.spells.vanish = 3;
+    bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+    h.x = 12; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 99;
+    stepBot(state, 'b', DT);                    // sees the human at +x
+    // vanish, then walk somewhere completely different
+    expect(castSpell(state, 'h', 'vanish', 0, 5)).toBe(true);
+    h.x = 0; h.y = 12; h.vx = h.vy = 0; h.moveTarget = null;
+    bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+    bot._botT = 0; bot.cooldowns.fireball = 0;
+    state.events.length = 0;
+    stepBot(state, 'b', DT);
+    const cast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball');
+    expect(cast).toBeTruthy();
+    expect(cast.dx).toBeGreaterThan(0.7);        // still shooting at the OLD spot
+    expect(Math.abs(cast.dy)).toBeLessThan(0.7);
+    // and past BOT_MEMORY it has lost the target entirely: no shot at all
+    h.vanishT = 99;
+    bot._seen.h.t = state.time - BOT_MEMORY - 1;
+    bot._botT = 0; bot.cooldowns.fireball = 0;
+    state.events.length = 0;
+    stepBot(state, 'b', DT);
+    expect(state.events.some(e => e.t === 'cast' && e.spell === 'fireball')).toBe(false);
   });
 });
 

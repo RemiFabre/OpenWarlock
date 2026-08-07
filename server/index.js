@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator, fighters,
-  setMode,
+  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
+  setSpectator, fighters, setMode,
 } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE, BOTS, BUILDS } from '../shared/constants.js';
 
@@ -466,9 +466,12 @@ setInterval(() => {
   // applied them, so there is no longer one blob that is correct for everyone —
   // each socket gets its own view. snapshot() is cheap (a field copy per
   // player) and this caps out at MAX_PLAYERS sockets at SNAPSHOT_RATE.
+  // The EVENT stream is per-viewer for the same reason: events carry positions,
+  // so a Vanish that only stripped the snapshot would leak the hidden player
+  // through their own casts and hits (viewEvents; no-op when nobody is hidden).
   for (const [id, ws] of sockets) {
     if (ws.readyState !== 1) continue;
-    ws.send(JSON.stringify({ t: 'snap', s: snapshot(game, id), e: events }));
+    ws.send(JSON.stringify({ t: 'snap', s: snapshot(game, id), e: viewEvents(game, events, id) }));
   }
 }, 1000 / SNAPSHOT_RATE);
 

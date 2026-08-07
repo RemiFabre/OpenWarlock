@@ -3,7 +3,7 @@
 
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
-  BUILDS, MULTIKILL_NAMES, itemCost,
+  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, itemCost,
 } from './constants.js';
 import { itemBonuses, itemFxDelta } from './items.js';
 import {
@@ -103,6 +103,10 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     items: {},           // owned item levels, e.g. {boots: 2, cape: 1}
     cooldowns: {},
     shieldT: 0,
+    // Vanish: seconds of invisibility left. NEVER goes on the wire for anyone
+    // but you (snapshot() strips the whole position instead — see there), and it
+    // is masked out of bot perception too (see seenBy/perceive).
+    vanishT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
     slowT: 0,              // frost: seconds of slow remaining
@@ -440,6 +444,18 @@ export function castSpell(state, id, key, tx, ty) {
       pl.shieldT = spec.duration;
       break;
     }
+    case 'vanish': {
+      // No restrictions at all (Remi, docs/ROUND12.md N4): you keep casting,
+      // hitting and being hit — the level buys duration only. Re-casting
+      // refreshes rather than stacking.
+      pl.vanishT = Math.max(pl.vanishT || 0, lvl(spec, 'duration', level));
+      // Both this and the generic 'cast' event below carry a position, which for
+      // an invisible player is exactly what must not leak — viewEvents drops
+      // every event anchored on a hidden player, so they reach the caster only.
+      state.events.push({ t: 'vanish', id, x: pl.x, y: pl.y,
+        duration: lvl(spec, 'duration', level) });
+      break;
+    }
     case 'rush': {
       pl.dash = { dx, dy, left: spec.distance, level, hit: {} };
       pl.moveTarget = null;
@@ -512,7 +528,9 @@ export function castSpell(state, id, key, tx, ty) {
 //              fireballs, carrying every rider you own EXCEPT mosquito
 //   noStacks — HARD RULE: this ball can neither place nor spend a mosquito
 //              stack. Without it the proc chains forever (test-locked).
-//   x, y     — spawn origin override (the proc starts short of the impact point)
+//   x, y     — spawn origin override (the proc fires from the sting's contact point)
+//   dmgMult  — scales this ball's damage only (the mosquito proc's optional
+//              nerf lever, ELEMENTS.mosquito.fx.procDmgMult; unset = 1)
 //
 // opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
 // pays, resolved at cast time so the projectile carries everything it needs.
@@ -555,6 +573,7 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     pierced: 0,
     elements, radius, mosquito: mosq || 0,
     ...(opts.noStacks ? { noStacks: true } : {}),
+    ...(opts.dmgMult != null ? { dmgMult: opts.dmgMult } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
 }
@@ -762,6 +781,9 @@ function kill(state, target, directSourceId) {
   target.moveTarget = null;
   target.dash = null;
   target.charging = null;
+  // dying reveals you: a corpse and its death burst must be visible to everyone,
+  // and a hidden body would also silently vanish from the standings
+  target.vanishT = 0;
   // credit: direct source, else last hitter within the window
   let killerId = directSourceId != null && directSourceId !== target.id ? directSourceId : null;
   if (killerId == null && target.lastHitBy &&
@@ -852,6 +874,7 @@ function startRound(state) {
     pl.alive = true;
     pl.cooldowns = {};
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
+    pl.vanishT = 0;   // nobody starts a round already invisible
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.stacks = {};   // frost + mosquito stacks are round-long, like the hp bar
@@ -1018,6 +1041,9 @@ function endRound(state) {
     // clearing is the only thing that advances the campaign
     if (state.coop.cleared) { state.coopLevel = state.coop.level + 1; state.coopAttempt = 0; }
   }
+  // the fight is over: nobody stays invisible into the banner and the shop
+  // (the timer only ticks during battle, so it would otherwise freeze there)
+  for (const pl of Object.values(state.players)) pl.vanishT = 0;
   state.phase = 'roundEnd';
   state.phaseT = ROUND.SUMMARY_TIME;
 }
@@ -1157,6 +1183,7 @@ function stepBattle(state, dt) {
     for (const k of Object.keys(pl.cooldowns))
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
+    if (pl.vanishT > 0) pl.vanishT = Math.max(0, pl.vanishT - dt);
 
     if (pl.regenLockT > 0) pl.regenLockT = Math.max(0, pl.regenLockT - dt);
 
@@ -1264,61 +1291,20 @@ function stepBattle(state, dt) {
     }
   }
 
-  // Delayed fireballs (elemental; the list is empty in classic): the Echo
-  // Stone's second shot, and the mosquito proc's staggered balls, which carry
-  // their own origin plus the `plain`/`noStacks` flags.
-  //
-  // `aimAt` (mosquito proc, 2026-08-07): the shot is aimed at that player when
-  // it is RELEASED, not when it was queued. Why this exists: round 12 made
-  // knockback constant, so the first proc ball now launches a full-HP victim at
-  // ~72 u/s — during procGap they travel further than the second ball does, and
-  // a fixed vector fired the second ball into empty space (the proc silently
-  // half-fired; two tests caught it). An intercept solve against the victim's
-  // live position and velocity fixes the mechanic instead of hiding it: being
-  // shoved by your own first ball can no longer defeat your own proc, while a
-  // TELEPORT still dodges it (a blink is discontinuous, so no velocity
-  // extrapolation can follow it) — which is exactly the skill expression the
-  // offset was designed for. If the victim is already dead, the follow-up
-  // simply never fires.
+  // Echo Stone delayed fireballs (elemental; the list is empty in classic).
+  // The mosquito proc used to ride this queue too; it doesn't any more — its
+  // balls all leave at once from the same muzzle (see fireMosquitoProc), so this
+  // is back to the one thing it was written for.
   if (state.delayedShots && state.delayedShots.length) {
     const rest = [];
     for (const ds of state.delayedShots) {
       ds.t -= dt;
       if (ds.t > 0) { rest.push(ds); continue; }
       const owner = state.players[ds.owner];
-      if (!owner || !owner.alive) continue;
-      let dx = ds.dx, dy = ds.dy;
-      let ox = ds.x, oy = ds.y;
-      if (ds.aimAt != null) {
-        const victim = state.players[ds.aimAt];
-        if (!victim || !victim.alive) continue; // died to the first ball
-        const from = {
-          x: ox != null ? ox : owner.x,
-          y: oy != null ? oy : owner.y,
-        };
-        const aim = interceptPoint(from, victim, SPELLS.fireball.speed);
-        let ax = aim.x - from.x, ay = aim.y - from.y;
-        const an = Math.hypot(ax, ay);
-        if (an > 1e-6) { dx = ax / an; dy = ay / an; }
-        // ...and the muzzle follows the victim too, staying `spawnBack` units
-        // short of contact along the new heading. Without this the ball is left
-        // behind at the original bite point and has to run down a body that is
-        // flying faster than a fireball — "quick succession" turns into a
-        // half-second chase (measured), which is not the effect.
-        if (ds.spawnBack != null) {
-          const back = ds.spawnBack + victim.radius + SPELLS.fireball.radius;
-          ox = victim.x - dx * back;
-          oy = victim.y - dy * back;
-        }
+      if (owner && owner.alive) {
+        spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
+        state.events.push({ t: 'cast', id: owner.id, spell: 'fireball', x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy });
       }
-      spawnFireball(state, owner, ds.level, dx, dy, {
-        x: ox, y: oy, plain: ds.plain, noStacks: ds.noStacks,
-      });
-      state.events.push({
-        t: 'cast', id: owner.id, spell: 'fireball',
-        x: ox != null ? ox : owner.x, y: oy != null ? oy : owner.y,
-        dx, dy,
-      });
     }
     state.delayedShots = rest;
   }
@@ -1559,6 +1545,10 @@ function stepProjectiles(state, dt) {
         dmg *= gm; ramp *= gm;
         kb *= efxV(gf.pierceKbMult, pr.elements.ghost);
       }
+      // per-ball damage scale (mosquito's proc balls, if the lever is set).
+      // Damage only: knockback and every on-hit effect are untouched, because the
+      // stated fantasy is "every on-hit effect procs twice", not "double damage".
+      if (pr.dmgMult != null) { dmg *= pr.dmgMult; ramp *= pr.dmgMult; }
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
@@ -1620,9 +1610,23 @@ function plantMosquitoStack(state, target, ownerId) {
 }
 
 // Spend already done by the caller: fire `procBalls` of the owner's NORMAL
-// fireballs at the victim. They start `procSpawnBack` units short of the impact
-// point along the same heading, `procGap` seconds apart, and every one of them
-// carries `noStacks` so the proc can never trigger itself.
+// fireballs. 2026-08-07, Remi's call — ALL of them leave from the SAME point
+// with the SAME vector, so they land together and there is nothing to aim, chase
+// or re-solve. (The previous version staggered them by `procGap` and re-aimed
+// each release at the victim's live position; the stagger is what let constant
+// knockback carry the victim out of the second ball's path, and the fix for that
+// was more machinery than the whole effect is worth. His framing: *"put the 2
+// balls at exactly the same place — we'd just need to clearly see all the on-hit
+// indicators pop twice"*. The feedback IS the feature, so it moved to the
+// client: co-located popups fan out and stagger there — see pushFloater in
+// client/main.js — and the sim just fires N identical balls.)
+//
+// The muzzle is the CONTACT point of the sting, not the end of its tick's
+// travel: the ball that cashed the mark may have swept a little past the body
+// this frame, and a grazing hit released from there would fly on and miss. Every
+// ball therefore starts exactly where the sting touched, which puts the victim
+// on its path by construction. All of them carry `noStacks`, the hard rule that
+// stops the proc triggering itself.
 function fireMosquitoProc(state, pr, target) {
   const owner = state.players[pr.owner];
   if (!owner) return;
@@ -1630,23 +1634,21 @@ function fireMosquitoProc(state, pr, target) {
   const v = Math.hypot(pr.vx, pr.vy) || 1;
   const dx = pr.vx / v, dy = pr.vy / v;
   const level = owner.spells.fireball || pr.level || 1;
-  const x = pr.x - dx * f.procSpawnBack, y = pr.y - dy * f.procSpawnBack;
-  state.events.push({ t: 'biteHit', id: target.id, by: pr.owner, x: pr.x, y: pr.y });
+  // how far past the victim's closest approach this tick's travel carried us
+  const ahead = Math.max(0, (pr.x - target.x) * dx + (pr.y - target.y) * dy);
+  const x = pr.x - dx * ahead, y = pr.y - dy * ahead;
+  state.events.push({ t: 'biteHit', id: target.id, by: pr.owner, x, y });
   for (let i = 0; i < f.procBalls; i++) {
-    if (i === 0) {
-      spawnFireball(state, owner, level, dx, dy, { x, y, plain: true, noStacks: true });
-    } else {
-      // the later balls ride the Echo Stone's delayed-shot queue: same
-      // machinery, and it already survives the owner dying in between.
-      // `aimAt`/`spawnBack` make the release RE-AIM at the victim (see the
-      // delayedShots block in stepBattle): the first ball's knockback used to
-      // carry the victim out of the second ball's path.
-      state.delayedShots.push({
-        t: f.procGap * i, owner: pr.owner, level, dx, dy,
-        x, y, plain: true, noStacks: true,
-        aimAt: target.id, spawnBack: f.procSpawnBack,
-      });
-    }
+    spawnFireball(state, owner, level, dx, dy, {
+      x, y, plain: true, noStacks: true,
+      // OPTIONAL nerf lever, absent from the spec by default (see ELEMENTS
+      // .mosquito): scales the proc balls' damage only, leaving every on-hit
+      // effect procing `procBalls` times.
+      ...(f.procDmgMult != null ? { dmgMult: f.procDmgMult } : {}),
+    });
+    state.events.push({
+      t: 'cast', id: owner.id, spell: 'fireball', x, y, dx, dy,
+    });
   }
 }
 
@@ -1775,17 +1777,54 @@ function ownStacks(p) {
 // per socket. Pass null (tests, journals, crash dumps) for the neutral view.
 // Everything viewer-dependent lives behind the `elemental` guard, so classic and
 // co-op snapshots are byte-identical whatever viewerId says.
+// Events that must reach EVERY viewer even when they belong to an invisible
+// player: a death is public (and clears vanishT anyway), and so is the fact that
+// somebody just killed a teammate.
+const PUBLIC_EVENTS = new Set(['death', 'teamkill']);
+
+// Per-viewer event filter — the twin of snapshot()'s per-viewer player view, and
+// just as load-bearing for Vanish. Events carry positions (`cast`, `hit`, `gold`,
+// `teleport`, `frost`…), so stripping a player's position from the snapshot and
+// then broadcasting their casts would hand the position straight back. Anything
+// anchored on an invisible player is dropped for everyone but that player.
+// ⚠ What deliberately still leaks: `boom` (a projectile detonating on an
+// invisible body) and the victim's own damage numbers if THEY are visible. You
+// can still be hit while invisible, and a hit that produced no feedback at all
+// would be a bug, not stealth.
+export function viewEvents(state, events, viewerId = null) {
+  if (!events || !events.length) return events;
+  let anyHidden = false;
+  for (const p of Object.values(state.players))
+    if (p.vanishT > 0) { anyHidden = true; break; }
+  if (!anyHidden) return events;   // the overwhelmingly common case: no copy
+  return events.filter((e) => {
+    if (!e || e.id == null || e.id === viewerId) return true;
+    const p = state.players[e.id];
+    if (!p || !(p.vanishT > 0)) return true;
+    return PUBLIC_EVENTS.has(e.t);
+  });
+}
+
 export function snapshot(state, viewerId = null) {
   const elemental = state.mode === 'elemental';
   const coop = state.mode === 'coop';
   const players = {};
   for (const [id, p] of Object.entries(state.players)) {
+    // Vanish (SPELLS.vanish): an invisible player's POSITION never reaches
+    // anyone else's snapshot — docs/ROUND12.md N4 is explicit that skipping the
+    // draw client-side is not good enough, because devtools sees through it.
+    // The roster entry stays (name, colour, kills, gold), so the topbar does not
+    // flicker somebody out of the standings every time they blink out; what
+    // leaves is x/y and everything drawn AT x/y. The renderer already skips any
+    // player whose x/y is not finite, so this needs no client cooperation —
+    // client/render.js just never gets a place to draw.
+    const hidden = p.vanishT > 0 && p.id !== viewerId;
     players[id] = {
       id: p.id, name: p.name, color: p.color, bot: p.bot, avatar: p.avatar,
       kind: p.kind, build: p.build || null, shopReady: p.shopReady,
       // co-op-only wire fields — classic snapshots stay byte-identical
       ...(coop ? { team: p.team || null, wave: !!p.wave } : {}),
-      x: round2(p.x), y: round2(p.y),
+      ...(hidden ? {} : { x: round2(p.x), y: round2(p.y) }),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
       gold: p.gold, goldEarned: p.goldEarned, kills: p.kills, deaths: p.deaths,
@@ -1811,6 +1850,9 @@ export function snapshot(state, viewerId = null) {
       inLava: !!p.inLava,
       dashing: !!p.dash,
       charging: !!p.charging,
+      // your OWN invisibility, so the client can show you that it is running and
+      // when it is about to end. Never present on anybody else's entry.
+      ...(p.vanishT > 0 && p.id === viewerId ? { vanishT: round2(p.vanishT) } : {}),
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,
@@ -1921,21 +1963,43 @@ function mapRound(o) {
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 // ---- bot AI --------------------------------------------------------------
-// Three difficulty tiers, dispatched on pl.kind (see BOTS in constants.js):
-//   grunt     ★   wanders and throws — cannon fodder
-//   berserker ★★  hyper-aggressive brawler, rushes in, shoves you off the rim
-//   stalker   ★★★ dodges projectiles, leads its shots, teleport lava saves
+// FOUR difficulty tiers, dispatched on the kind's `brain` (see BOTS in
+// constants.js) — never on the kind itself, which is why Normal costs no new AI:
+//   grunt     Easy    'grunt'     wanders and throws at nothing — cannon fodder
+//   brawler   Normal  'berserker' the same brawler with a slower read and looser aim
+//   berserker Hard    'berserker' rushes in, leads its shots, shoves you off the rim
+//   stalker   Extreme 'stalker'   dodges projectiles, teleport lava saves
+// Adding a tier is therefore a BOTS entry (label + brain + react/aimErr) plus a
+// BOT_BUILDS/BOT_ELEMENTS line, and nothing here.
+
+const BRAINS = {
+  grunt: stepGrunt,
+  berserker: stepBerserker,
+  stalker: stepStalker,
+};
 
 export function stepBot(state, id, dt) {
   const pl = state.players[id];
   if (!pl || !pl.alive || state.phase !== 'battle') return;
-  switch (pl.kind) {
-    case 'berserker': stepBerserker(state, pl, dt); break;
-    case 'stalker': stepStalker(state, pl, dt); break;
-    default: stepGrunt(state, pl, dt); break;
-  }
+  const spec = BOTS[pl.kind];
+  // refresh perception BEFORE deciding: everything a bot knows about where the
+  // enemies are comes from this (see rememberEnemies / enemiesSeen)
+  rememberEnemies(state, pl);
+  (BRAINS[spec && spec.brain] || stepGrunt)(state, pl, dt);
   pilotOwnedSpells(state, pl, dt);
   unwedgeFromPillars(state, pl, dt);
+}
+
+// A tier's piloting numbers, read off BOTS with today's hardcoded values as the
+// fallback so a BOTS entry that omits them cannot silently change how a bot
+// plays. `react: [base, jitter]` is the decision interval (a PERCEPTION delay,
+// not a handicap — see the aim block in stepBerserker) and `aimErr:
+// [floor, perUnit]` is the aim error, floor + distance × perUnit.
+function botTune(pl, key, dflt) {
+  const spec = BOTS[pl.kind];
+  const v = spec && spec[key];
+  return Array.isArray(v) && v.length === 2 && v.every(n => Number.isFinite(n))
+    ? v : dflt;
 }
 
 // Generic "use what you own" pilot. Each kind's native logic covers its own
@@ -2063,12 +2127,81 @@ function unwedgeFromPillars(state, pl, dt) {
 
 // -- shared bot helpers -----------------------------------------------------
 
+// Bot PERCEPTION. Bots read the simulation directly, so without this a Vanish
+// would be worth nothing against them and Extreme would be an aimbot that
+// ignores the spell (docs/ROUND12.md N4). Rather than blinding them — which is
+// LESS human than seeing you, since a person does not forget you exist the
+// instant you blink out — every bot keeps a short memory of where it last saw
+// each enemy and keeps shooting THERE for BOT_MEMORY seconds. So vanishing makes
+// a bot's aim stale (walk out of the ghost and its shots go where you were), and
+// staying invisible past the memory makes it lose you entirely.
+//
+// `enemiesSeen` returns, per hostile enemy: the live player if visible, or a
+// frozen stand-in at the remembered position if not, or nothing once forgotten.
+// The stand-in carries vx/vy = 0 and moveTarget/dash = null, so estVel and
+// interceptPoint aim straight at the last known spot with no lead — which is
+// exactly what a human does with a target that disappeared.
+// Is anybody hidden right now? Perception costs nothing in the overwhelmingly
+// common case (nobody owns Vanish), and both helpers below fall straight through
+// to reading the live players.
+function anyHidden(state) {
+  for (const p of Object.values(state.players)) if (p.vanishT > 0) return true;
+  return false;
+}
+
+// Does the spell exist in this game at all? The memory has to be recorded BEFORE
+// someone blinks out — gating it on "somebody is hidden right now" would leave
+// every bot with an empty memory at exactly the moment it needs one — so the
+// trigger is owning the spell, not using it.
+function vanishInPlay(state) {
+  for (const p of Object.values(state.players))
+    if (p.vanishT > 0 || (p.spells && p.spells.vanish > 0)) return true;
+  return false;
+}
+
+function rememberEnemies(state, pl) {
+  if (!pl.bot || !vanishInPlay(state)) return;  // nothing to remember for
+  const mem = pl._seen || (pl._seen = {});
+  for (const other of Object.values(state.players)) {
+    if (other === pl || !other.alive || !hostile(pl, other)) continue;
+    if (other.vanishT > 0) continue;         // can't see it, can't record it
+    const m = mem[other.id];
+    if (m) {
+      m.x = other.x; m.y = other.y; m.hp = other.hp;
+      m.radius = other.radius; m.t = state.time;
+    } else {
+      mem[other.id] = {
+        id: other.id, x: other.x, y: other.y, hp: other.hp,
+        radius: other.radius, t: state.time,
+      };
+    }
+  }
+}
+
+function enemiesSeen(state, pl) {
+  const out = [];
+  const hiding = anyHidden(state);
+  const mem = pl._seen;
+  for (const other of Object.values(state.players)) {
+    if (other === pl || !other.alive || !hostile(pl, other)) continue;
+    if (!hiding || !(other.vanishT > 0)) { out.push(other); continue; }
+    const m = mem && mem[other.id];
+    if (!m || state.time - m.t > BOT_MEMORY) continue;  // lost them
+    out.push({
+      id: m.id, x: m.x, y: m.y, hp: m.hp, radius: m.radius,
+      vx: 0, vy: 0, moveTarget: null, dash: null, alive: true,
+      spells: other.spells, items: other.items, elements: other.elements,
+      maxHp: other.maxHp, _ghost: true,   // a memory, not a body
+    });
+  }
+  return out;
+}
+
 function nearestEnemy(state, pl, hpWeight = 0) {
   // lowest (distance + hp*weight): weight 0 = strictly nearest,
   // small weight = prefer wounded targets among comparably close ones
   let best = null, bestScore = Infinity;
-  for (const other of Object.values(state.players)) {
-    if (other === pl || !other.alive || !hostile(pl, other)) continue;
+  for (const other of enemiesSeen(state, pl)) {
     const d = Math.hypot(other.x - pl.x, other.y - pl.y);
     const score = d + other.hp * hpWeight;
     if (score < bestScore) { best = other; bestScore = score; }
@@ -2115,6 +2248,9 @@ function interceptPoint(pl, target, s) {
 
 // Most urgent hostile projectile whose current velocity ray brings it within
 // `margin` of the bot within `horizon` seconds.
+// NOT masked by Vanish, deliberately: you are invisible, your spells are not
+// (docs/ROUND12.md N4), so a fireball thrown by an invisible player is dodged
+// like any other. It is also the one cue that gives you away — as it should.
 function scanThreats(state, pl, horizon, margin) {
   let worst = null;
   for (const pr of state.projectiles) {
@@ -2166,8 +2302,7 @@ function stepGrunt(state, pl, dt) {
 // rim-standing enemies are tastier. Lower score = better prey.
 function pickPrey(state, pl) {
   const arena = Math.max(state.arenaRadius, 1);
-  const enemies = Object.values(state.players)
-    .filter((o) => o !== pl && o.alive && hostile(pl, o));
+  const enemies = enemiesSeen(state, pl);   // a vanished enemy is a memory or nothing
   let best = null, bestScore = Infinity;
   for (const e of enemies) {
     const d = Math.hypot(e.x - pl.x, e.y - pl.y);
@@ -2201,9 +2336,12 @@ function pickPrey(state, pl) {
 
 function stepBerserker(state, pl, dt) {
   const id = pl.id;
+  // both tiers on this brain read their numbers from BOTS: Hard (berserker) has
+  // [0.16, 0.10], Normal (brawler) is the SAME code with a slower read
+  const [reactBase, reactJitter] = botTune(pl, 'react', [0.16, 0.10]);
   pl._botT = (pl._botT || 0) - dt;
   if (pl._botT > 0) return;
-  pl._botT = 0.16 + rng(state) * 0.1;
+  pl._botT = reactBase + rng(state) * reactJitter;
 
   const arena = state.arenaRadius;
   const dCenter = Math.hypot(pl.x, pl.y);
@@ -2272,8 +2410,8 @@ function stepBerserker(state, pl, dt) {
   // worth far more than the fireball's damage). Shoot whoever is closest,
   // except when someone in range is one fireball from death — secure that.
   let mark = null;
-  for (const o of Object.values(state.players)) {
-    if (o === pl || !o.alive || o.hp > 16 || !hostile(pl, o)) continue;
+  for (const o of enemiesSeen(state, pl)) {
+    if (o.hp > 16) continue;
     if (Math.hypot(o.x - pl.x, o.y - pl.y) > 24) continue;
     if (!mark || o.hp < mark.hp) mark = o;
   }
@@ -2309,8 +2447,10 @@ function stepBerserker(state, pl, dt) {
       ax += (mark.x / mCenter) * 2.5;
       ay += (mark.y / mCenter) * 2.5;
     }
-    // error floor: the old term (dist * 0.12) vanished at point-blank
-    const err = (rng(state) - 0.5) * (0.35 + mDist * 0.10);
+    // error floor: the old term (dist * 0.12) vanished at point-blank, which is
+    // what made knife fights feel unwinnable. Per-tier, off BOTS.
+    const [errFloor, errPerUnit] = botTune(pl, 'aimErr', [0.35, 0.10]);
+    const err = (rng(state) - 0.5) * (errFloor + mDist * errPerUnit);
     castSpell(state, id, 'fireball', ax - (mdy / mDist) * err, ay + (mdx / mDist) * err);
   }
 }
@@ -2323,9 +2463,10 @@ function stepBerserker(state, pl, dt) {
 function stepStalker(state, pl, dt) {
   const id = pl.id;
   pl._dodgeT = Math.max(0, (pl._dodgeT || 0) - dt); // dodge-hold countdown
+  const [reactBase, reactJitter] = botTune(pl, 'react', [0.12, 0.08]);
   pl._botT = (pl._botT || 0) - dt;
   if (pl._botT > 0) return;
-  pl._botT = 0.12 + rng(state) * 0.08; // short human-ish reaction, not aimbot
+  pl._botT = reactBase + rng(state) * reactJitter; // short human-ish, not aimbot
 
   const arena = state.arenaRadius;
   const dCenter = Math.hypot(pl.x, pl.y);
@@ -2406,7 +2547,8 @@ function stepStalker(state, pl, dt) {
   // -- fireball with a proper intercept solve; error shrinks at close range
   if ((pl.spells.fireball || 0) > 0 && (pl.cooldowns.fireball || 0) <= 0) {
     const aim = interceptPoint(pl, target, SPELLS.fireball.speed);
-    const err = (rng(state) - 0.5) * (0.4 + dist * 0.05);
+    const [errFloor, errPerUnit] = botTune(pl, 'aimErr', [0.4, 0.05]);
+    const err = (rng(state) - 0.5) * (errFloor + dist * errPerUnit);
     castSpell(state, id, 'fireball',
       aim.x - (tdy / dist) * err, aim.y + (tdx / dist) * err);
   }

@@ -56,8 +56,22 @@ consumed and, a few pixels before impact, **two of your normal fireballs**
 appear slightly offset and land in quick succession. So every on-hit effect you
 own procs **twice**: double frost, double venom, double midas.
 
-Your framing, kept: rare but spectacular, and the offset means a perfectly
-timed teleport can dodge the second ball — real skill expression.
+~~Your framing, kept: rare but spectacular, and the offset means a perfectly
+timed teleport can dodge the second ball — real skill expression.~~
+
+> ⚠ **SUPERSEDED 2026-08-07 (Remi, explicit): the offset is gone.** *"What if we
+> do it simpler and put the 2 balls at exactly the same place? We'd just need to
+> clearly see all the on-hit indicators pop twice (for example seeing +1 gold
+> twice)."* Both balls now spawn at the sting's contact point with the same
+> vector and land in the same frame; `procGap`, `procSpawnBack` and the
+> intercept-re-solve machinery below are all deleted. **The dodge window is gone
+> and the FEEDBACK is the feature instead**: co-located popups fan sideways and
+> stagger a couple of frames client-side (`pushFloater`), so two damage numbers,
+> two `+1 g`, two frost pips read as two events. Two consequences, both measured
+> and both in `shared/constants.js` next to `cdMult`: the knockback impulse lands
+> twice in one frame (72.5 → 145.0 u/s, exactly ×2), and the element measured
+> **82.3%** before being nerfed back to ~25% via `cdMult` ×1.3. Everything below
+> this line about re-aiming, `procGap` and the teleport dodge is history.
 
 ⚠️ **Infinite loop risk:** the two spawned fireballs must NOT themselves apply
 mosquito stacks, or the effect chains forever. Hard rule in code + a test. *Done

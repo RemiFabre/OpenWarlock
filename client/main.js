@@ -20,7 +20,7 @@ window.addEventListener('resize', () => view.resize());
 
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
-  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿',
+  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
   meteor: '☄️', hook: '🪝', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   echo: '🔁', crown: '👑',
@@ -33,11 +33,16 @@ const GLOBAL_ELEM = new Set(['arcane', 'chronos']);
 
 // Defaults per Remi 2026-08-03: blink (teleport) on F, dash (rush) on E,
 // boomerang moves to R. Saved custom bindings in localStorage still win.
+// ⚠ THIS is the source of truth for hotkeys, not SPELLS[key].hotkey (which is
+// vestigial — its only other use is being excluded from tooltips). Every spell in
+// SPELLS needs an entry in BOTH presets: refreshKeyUi() walks Object.keys(SPELLS)
+// and calls keyLabel() on the binding, so a missing one throws on load and the
+// client comes up blank. Add the spell here in the same commit you add it there.
 const KEY_PRESETS = {
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
+            pillar: 's', vanish: 'v', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
+            pillar: 's', vanish: 'v', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
 };
 
 function loadKeys() {
@@ -162,12 +167,37 @@ function scheduleReconnect() {
 
 function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 
+// Floating popups (damage, +1 g, lifesteal, frost pips…) that arrive at the SAME
+// spot in the SAME frame must read as N events, not one. Exactly overlapping
+// numbers are indistinguishable from a single hit, and since 2026-08-07 that is
+// not a corner case: the mosquito proc lands `procBalls` fireballs together on
+// purpose, and Remi's requirement for it is literally *"clearly see all the
+// on-hit indicators pop twice (for example seeing +1 gold twice)"*. So each extra
+// copy is fanned sideways (alternating, growing) and delayed a couple of frames,
+// which is what makes the second one legible as a second thing.
+const FLOAT_STAGGER_MS = 70;   // ~2 frames at 30 Hz
+const FLOAT_FAN = 1.15;        // world units sideways per extra copy
+function pushFloater(e, type, dur, now) {
+  let n = 0;
+  for (const f of fx) {
+    if (!f || f.type !== type || now - f.at > FLOAT_STAGGER_MS * 4) continue;
+    if (Math.hypot((f.ax ?? f.x) - e.x, (f.ay ?? f.y) - e.y) < 1.5) n++;
+  }
+  const side = n % 2 ? -1 : 1, step = Math.ceil(n / 2);
+  fx.push({
+    ...e, type, dur,
+    at: now + n * FLOAT_STAGGER_MS,
+    ax: e.x, ay: e.y,                     // anchor: where the event really was
+    x: e.x + side * step * FLOAT_FAN, y: e.y,
+  });
+}
+
 function onEvent(e) {
   const now = performance.now();
   switch (e.t) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
     case 'beam': fx.push({ ...e, type: 'beam', at: now, dur: 0.3 }); playSfx('zap'); break;
-    case 'hit': if (e.amount >= 1) fx.push({ ...e, type: 'hit', at: now, dur: 0.8 }); break;
+    case 'hit': if (e.amount >= 1) pushFloater(e, 'hit', 0.8, now); break;
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
       playSfx('death');
@@ -188,7 +218,10 @@ function onEvent(e) {
       if (e.spell === 'rush') fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.3 });
       if (e.spell === 'fireball') playSfx('whoosh');
       break;
-    case 'gold': fx.push({ ...e, type: 'gold', at: now, dur: 0.9 }); break;       // midas / bounty payout
+    // midas / bounty payout. Fanned: "+1 g twice" is Remi's named acceptance
+    // criterion for the mosquito proc, and two identical popups on one pixel is
+    // exactly the thing that reads as "+1 g once".
+    case 'gold': pushFloater(e, 'gold', 0.9, now); break;
     case 'grow': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); break;       // terra pulse
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
     case 'hooked': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('zap'); break;
@@ -203,17 +236,29 @@ function onEvent(e) {
       if (mine) playSfx('multikill', e.n);
       break;
     }
-    case 'frost': fx.push({ ...e, type: 'frost', at: now, dur: 0.7 }); break;
+    case 'frost': pushFloater(e, 'frost', 0.7, now); break;
+    // mosquito: the trap just sprang. One cue for the CAUSE, then the doubled
+    // on-hit indicators (two damage numbers, two +1 g…) show the effect — without
+    // this you see the payoff and never learn what triggered it.
+    case 'biteHit': fx.push({ ...e, type: 'biteHit', at: now, dur: 0.6 }); break;
     // vampire: the engorged ball just paid out. Loud on purpose — this element's
     // whole design goal is "an EVENT, not a passive trickle"
     case 'lifesteal':
-      fx.push({ ...e, type: 'lifesteal', at: now, dur: 1.1 });
+      pushFloater(e, 'lifesteal', 1.1, now);
       if (e.id === myId) playSfx('drain');
       break;
     // chronos: your cooldowns just jumped back
     case 'chronos':
-      fx.push({ ...e, type: 'chronos', at: now, dur: 0.55 });
+      pushFloater(e, 'chronos', 0.55, now);
       if (e.id === myId) playSfx('rewind');
+      break;
+    // Vanish: the server only ever sends this to the player who cast it
+    // (viewEvents strips events anchored on a hidden player), so this fx and its
+    // sound are self-only by construction — do NOT add a fallback that draws it
+    // for everyone, that is the leak the whole feature is about.
+    case 'vanish':
+      fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 });
+      if (e.id === myId) playSfx('teleport');
       break;
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
@@ -281,7 +326,11 @@ function interpolated(now) {
   for (const [id, pb] of Object.entries(s.players || {})) {
     if (!pb || typeof pb !== 'object') continue;
     const pa = aPlayers[id];
-    players.push(pa && pa.alive && pb.alive
+    // `fin(pb.x)` is load-bearing for Vanish: an invisible player's snapshot
+    // carries NO position, and lerp falls back to the older value when the newer
+    // one is missing — which would leave their last known body frozen on screen
+    // for the whole duration. No position in, nothing interpolated, nothing drawn.
+    players.push(pa && pa.alive && pb.alive && fin(pb.x) && fin(pb.y)
       ? { ...pb, x: lerp(pa.x, pb.x, k), y: lerp(pa.y, pb.y, k) }
       : pb);
   }
@@ -488,9 +537,13 @@ $('againBtn').addEventListener('click', () => {
   send({ t: 'again' });
 });
 
-// bot picker: per difficulty, an add button + a build-strategy select
-// (🎲 random = the server rolls one of the six builds when the bot is seated)
-const botStars = (kind) => BOTS[kind] ? '★'.repeat(BOTS[kind].difficulty) : '';
+// bot picker: one add button per difficulty tier + a build-strategy select
+// (🎲 random = the server rolls one of the six builds when the bot is seated).
+// The tiers are NAMED now (Easy / Normal / Hard / Extreme, round 12) instead of
+// wearing a star count: ★★ told you nothing about what the bot does, and there
+// are four of them. The list is BOTS in spec order, so a new tier appears here
+// (and in the 🎲 chart below) with no client change at all.
+const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
 {
   const wrap = $('botBtns');
   for (const [kind, spec] of Object.entries(BOTS)) {
@@ -501,7 +554,7 @@ const botStars = (kind) => BOTS[kind] ? '★'.repeat(BOTS[kind].difficulty) : ''
     b.className = 'botadd';
     b.id = `addBot-${kind}`;
     b.title = spec.desc;
-    b.innerHTML = `+ ${esc(spec.name)} <span class="stars">${botStars(kind)}</span>`;
+    b.innerHTML = `+ ${esc(spec.name)} <span class="stars">${esc(botLabel(kind))}</span>`;
     const sel = document.createElement('select');
     sel.className = 'botsel';
     sel.id = `botBuild-${kind}`;
@@ -517,8 +570,9 @@ const botStars = (kind) => BOTS[kind] ? '★'.repeat(BOTS[kind].difficulty) : ''
 
 // strategy chart: what each difficulty does and what each build buys
 {
-  const rowsKinds = Object.values(BOTS).map(b =>
-    `<tr><td class="stars">${'★'.repeat(b.difficulty)}</td><td>${esc(b.name)}</td><td>${esc(b.desc)}</td></tr>`).join('');
+  const rowsKinds = Object.values(BOTS)
+    .slice().sort((a, b) => a.difficulty - b.difficulty).map(b =>
+      `<tr><td class="stars">${esc(b.label || '')}</td><td>${esc(b.name)}</td><td>${esc(b.desc)}</td></tr>`).join('');
   const rowsBuilds = Object.values(BUILDS).map(b =>
     `<tr><td>${esc(b.name)}</td><td>${b.order.map(k => ICONS[k] || k).join(' ')}</td><td>${esc(b.desc)}</td></tr>`).join('');
   $('botHelpBody').innerHTML = `
@@ -642,9 +696,9 @@ const FX_FIELDS = {
   pierceKbMult: ['push on everyone behind the first', fmtMult],
   mosquito: ['fireball becomes a mosquito', fmtNum],
   stingDmg: ['sting damage', fmtNum],
-  procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} of your fireballs`],
-  procGap: ['and they land', (v) => `${fmtSec(v)} apart`],
-  procSpawnBack: ['appearing', (v) => `${fmtNum(v)} u before impact`],
+  procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} of your fireballs, together`],
+  // only present when the optional nerf lever is set (ELEMENTS.mosquito)
+  procDmgMult: ['each of those balls hits for', fmtMult],
 };
 
 // Item fx fields — same shape as SPELL_FIELDS/FX_FIELDS. There is no
@@ -1142,7 +1196,7 @@ function updateUi(s) {
       const div = document.createElement('div');
       div.className = 'pl';
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${botStars(p.kind)}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
       // ban button on other humans: clears ghost seats AND keeps them out
       // (name+ip blocked until the server restarts or someone unbans)
@@ -1320,6 +1374,11 @@ function updateUi(s) {
       buffs.push(`<span class="buff vamp">${ELEMENTS.vampire.icon} ` +
         (n === every - 1 ? `NEXT BALL · ${pct}% drain` : `${n}/${every}`) + '</span>');
     }
+    // Vanish: your own invisibility, counted down. `vanishT` is only ever on YOUR
+    // player entry (snapshot() strips the whole position for everyone else), so
+    // this chip is by construction self-only.
+    if (fin(+m.vanishT) && +m.vanishT > 0)
+      buffs.push(`<span class="buff vanish">${ICONS.vanish} invisible · ${(+m.vanishT).toFixed(1)}s</span>`);
     if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');
     else if (m.slow) buffs.push('<span class="buff frost">🐌 slowed</span>');
     if (m.poison) buffs.push(`<span class="buff venom">${ELEMENTS.venom.icon} poisoned</span>`);

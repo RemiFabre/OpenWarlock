@@ -328,6 +328,30 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     // drawn slightly larger than the hitbox for readability
     const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
 
+    // Vanish (SPELLS.vanish): this can only ever be YOUR OWN body — an invisible
+    // player has no x/y in anybody else's snapshot, so no other client reaches
+    // this line for them. You still need to see yourself to play, so the body
+    // goes ghostly and wears a dashed ring plus a countdown; both flash once it
+    // is nearly over, which is the "when is it ending" half of the feedback.
+    const hidden = fin(pl.vanishT) && pl.vanishT > 0;
+    ctx.save();
+    if (hidden) {
+      const ending = pl.vanishT < 0.5;
+      const blink = ending ? 0.35 + 0.35 * (Math.sin(now / 60) > 0 ? 1 : 0) : 0.4;
+      ctx.globalAlpha *= blink;   // keep the round-end world fade (line 98)
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = ending ? 'rgba(255, 210, 120, 0.95)' : 'rgba(210, 200, 255, 0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.55, now / 900, now / 900 + Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.textAlign = 'center';
+      ctx.font = '700 11px ui-monospace, Menlo, monospace';
+      ctx.fillStyle = ending ? 'rgba(255, 210, 120, 1)' : 'rgba(220, 210, 255, 1)';
+      ctx.fillText(`👁️ ${(+pl.vanishT).toFixed(1)}s`, x, y - r - 26);
+    }
+
     // lava tint / shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(x, y + r * 0.6, r * 1.05, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
@@ -426,6 +450,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     const frac = fin(rawFrac) ? Math.max(0, Math.min(1, rawFrac)) : 0;
     ctx.fillStyle = frac > 0.5 ? '#7fb069' : frac > 0.25 ? '#f0b64a' : '#c0392b';
     ctx.fillRect(x - bw / 2, y - r - 12, bw * frac, 5);
+    ctx.restore();   // pairs with the Vanish ghosting save() above
   }
 
   // --- fx ---
@@ -772,6 +797,20 @@ function drawFx(view, fx, now, baseAlpha = 1) {
           ctx.fillStyle = `rgba(168, 216, 255, ${a})`;
           ctx.fillText(`❄ ${+f.stacks}/${+f.of}`, x, y - 30 - 14 * k);
         }
+        ctx.restore();
+        break;
+      }
+      case 'biteHit': {
+        // a mosquito mark was just spent: a purple burst and the pest itself, at
+        // the point the sting connected (which is where both payoff balls launch)
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(198, 150, 255, ${a})`;
+        ctx.lineWidth = 3 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, (1 + 4.5 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.font = `${Math.round(13 + 6 * k)}px serif`;
+        ctx.fillText('🦟', x, y - 18 - 20 * k);
         ctx.restore();
         break;
       }

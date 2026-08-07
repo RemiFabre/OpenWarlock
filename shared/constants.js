@@ -349,46 +349,77 @@ export const ELEMENTS = {
   //
   // The model is frost's: your sting leaves ONE stack on whoever it hits, no
   // geometry involved. Land a fireball on a target already carrying YOUR stack
-  // (never anyone else's) and the stack is spent: a few units before impact, TWO
-  // of your normal fireballs appear slightly offset and land in quick
-  // succession. So every on-hit effect you own fires TWICE — double frost,
-  // double venom, double midas. That is the whole fantasy: the pest is setup,
-  // your own kit is the payoff.
-  // The offset is deliberate, not cosmetic: a perfectly timed teleport can dodge
-  // the second ball, which is real skill expression on both sides.
-  // ⚠ HARD RULE: the two spawned fireballs must NOT place mosquito stacks, or
-  // the effect chains forever. Test-locked — see docs/ROUND12.md S3.
-  // cdMult is a real nerf from the old 0.55/0.5/0.45: the payoff went from one
-  // doubled hit to two full fireballs, so the sting rate pays for it. Level
-  // buys sting cadence — how often you get to set the trap up.
+  // (never anyone else's) and the stack is spent: TWO of your normal fireballs
+  // appear at the sting's contact point and land TOGETHER. So every on-hit effect
+  // you own fires TWICE — double frost, double venom, double midas. That is the
+  // whole fantasy: the pest is setup, your own kit is the payoff.
   //
-  // ⚠⚠ 2026-08-07, LATER THE SAME DAY: **every mosquito win rate recorded above
-  // and in docs/ROUND12.md S3 was measured on a HALF-FIRING proc and is void.**
-  // Constant knockback (PLAYER.KB_CONSTANT_MISSING) launches a full-HP victim at
-  // ~72 u/s, so during procGap the victim outran the second ball and the proc
-  // silently fired ONE ball instead of two. The follow-up balls are now re-aimed
-  // at release (an intercept solve against the victim's live position — see
-  // fireMosquitoProc + the delayedShots block in shared/sim.js), which took the
-  // proc from 45% both-balls-land to **100% on a non-teleporting target**.
-  // Re-measured on the identical 9-element round-11 pool, 400 games, seed 7:
-  // mosquito **18.7% → 65.9%**, and it displaced everything (momentum 43.0 →
-  // 29.5, venom 36.8 → 27.6, frost 15.4 → 9.9). In the current 12-element pool it
-  // measures 52-62%.
-  // So "the new mosquito sits below baseline" was a bug artifact, not a fact, and
-  // "it is a floor because bots never re-target deliberately" is wrong too — a
-  // bot re-hits its nearest enemy constantly, which cashes the mark for free.
-  // cdMult sweep after the fix (400 games, seed 7, 12-element pool, baseline 25%):
-  //   ×1.0 [0.75,0.65,0.55] → 61.9% · **×1.2 [0.9,0.78,0.66] → 32.7%** ·
-  //   ×1.4 [1.05,0.91,0.77] → 6.1% · ×1.6 → 2.0% · ×1.9 → 0.0%
-  // The cliff between ×1.2 and ×1.4 is where the sting stops being cheaper than a
-  // real fireball, so cdMult ≈ 0.9 is the whole usable range. VALUES LEFT
-  // UNCHANGED on purpose: docs/ROUND12.md S3 reserves mosquito's numbers for
-  // Remi's feel report, and this is his call, not the lab's. ×1.2 is the
-  // one-line nerf if he agrees it is too strong.
+  // cdMult buys sting cadence — how often you get to set the trap up. See the
+  // BALANCE block below for what each value actually measured.
+  //
+  // ⚠ 2026-08-07 (Remi, explicit — SIMPLER ON PURPOSE): the balls used to be
+  // offset in time (`procGap`) and behind the impact (`procSpawnBack`), so a
+  // perfectly timed teleport could dodge the second one. That offset is what let
+  // constant knockback shove the victim out of the second ball's path, and the
+  // fix for it (an intercept re-solve at release plus a muzzle that followed the
+  // victim) was more machinery than the effect is worth. His call, verbatim:
+  // *"put the 2 balls at exactly the same place. We'd just need to clearly see
+  // all the on-hit indicators pop twice (for example seeing +1 gold twice)."*
+  // Both knobs are GONE. The dodge window is gone with them, and the FEEDBACK is
+  // now the feature: co-located popups fan sideways and stagger by a couple of
+  // frames on the client (pushFloater in client/main.js) so two damage numbers,
+  // two `+1 g`, two frost pips are legible as two events.
+  // ⚠ Consequence to know, MEASURED not assumed: two simultaneous hits means the
+  // knockback impulse lands twice in one frame, and impulses simply add, so a
+  // cashed sting launches for exactly procBalls × a fireball. Full-HP victim, lv1
+  // fireball, constant KB: one fireball 72.5 u/s → a cashed sting 145.0 u/s
+  // (×2.00, test-locked). With gale lv3 on top that is 239 u/s. That is a LOT of
+  // shove for one sting — it is the price of "both balls land together", and if
+  // Remi finds it silly the honest fix is procDmgMult's sibling (a kb scale on the
+  // proc balls), not re-introducing the stagger he just removed.
+  // ⚠ HARD RULE: the spawned fireballs must NOT place mosquito stacks, or
+  // the effect chains forever. Test-locked — see docs/ROUND12.md S3.
+  //
+  // ---- BALANCE, re-measured on the co-located proc (2026-08-07) --------------
+  // Standard lab: tools/arena.js elemental study, 400 games, seed 7, 12-element
+  // pool, 4 seats, baseline 25%. (Older 9-element-pool numbers in this file and
+  // in docs/ROUND12.md are NOT comparable — the pool grew in round 12.)
+  // At the previous values the simplified proc measured **82.3%** — the strongest
+  // element ever recorded here. It is stronger than the staggered version (52-62%)
+  // for two reasons that are the whole point of the simplification: both balls now
+  // always connect, and both impulses land in one frame.
+  // Two candidate nerfs, both swept:
+  //   (a) sting CADENCE, cdMult ×k — keeps Remi's literal spec ("two genuinely
+  //       normal fireballs") and taxes how often you can set the trap:
+  //       ×1.0 [0.75,0.65,0.55] → 82.3% · ×1.1 [0.83,0.72,0.61] → 60.5% ·
+  //       ×1.2 [0.9,0.78,0.66] → 54.4% · [0.92,0.8,0.68] → 43.5% ·
+  //       [0.94,0.82,0.69] → 38.8% · [0.96,0.83,0.7] → 36.1% ·
+  //       **×1.3 [0.98,0.85,0.72] → 21.8% (seed 7) / 27.8% (seed 11)** ·
+  //       ×1.4 [1.05,0.91,0.77] → 17.7%
+  //   (b) proc-ball DAMAGE, the `procDmgMult` lever (absent below = 1.0). Keeps
+  //       the fast sting and taxes only the raw damage, so a cashed sting is
+  //       ~1.2× rather than 2× a fireball while every on-hit effect still procs
+  //       twice — which is the fantasy as stated ("every on-hit effect procs
+  //       twice", not "double damage"):
+  //       1.0 → 82.3% · 0.8 → 65.3% · 0.7 → 42.2% · 0.65 → 37.4% ·
+  //       **0.6 → 26.5%** · 0.5 → 12.2%
+  // SHIPPED: (a) at ×1.3, because it is what the spec literally says and it needs
+  // no new knob. ⚠ Be honest about what it costs: at fireball lv1 the sting
+  // cooldown is 2.1 × 0.98 = 2.06 s against a plain fireball's 2.1 s, i.e. at
+  // level 1 the "double-rate sting" is GONE and only lv2/lv3 (×0.85/×0.72) still
+  // feel like a pest. The element becomes "a trap you set" rather than "a swarm".
+  // If Remi wants the swarm back, the one-line swap is: restore cdMult to
+  // [0.75, 0.65, 0.55] and add `procDmgMult: 0.6` — same 25%-ish win rate, keeps
+  // the identity, deviates from "two genuinely normal fireballs". Do not apply
+  // both; that lands around 5%.
+  // ⚠ Bot-measured, and bots flatter this element: a bot re-hits its nearest
+  // enemy constantly, so it cashes the mark for free and never has to hunt a
+  // marked target. A human has to aim the setup, so his feel report outranks
+  // this table — and the sweeps above say exactly what each step buys.
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Your fireball becomes a mosquito: 1 damage, no push, but a much faster sting that leaves a mosquito stack on whoever it hits. Sting someone who already carries YOUR stack and it spends it: two of your normal fireballs land back to back, so every effect you own procs twice.',
-           fx: { mosquito: true, cdMult: [0.75, 0.65, 0.55], stingDmg: 1,
-                 procBalls: 2, procGap: 0.09, procSpawnBack: 2 } },
+           desc: 'Your fireball becomes a mosquito: 1 damage, no push, and a faster sting (much faster at higher levels) that leaves a mosquito stack on whoever it hits. Sting someone who already carries YOUR stack and it spends it: two of your normal fireballs land at once, so every effect you own procs twice.',
+           fx: { mosquito: true, cdMult: [0.98, 0.85, 0.72], stingDmg: 1,
+                 procBalls: 2 } },
   // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
   // badges every spell slot with 🔮 so the owner SEES it working.
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
@@ -534,10 +565,28 @@ export const BOTS = {
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
                react: [0.16, 0.10], aimErr: [0.35, 0.10],
                desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well.' },
+  // ⚠ the stalker's aimErr is [0.4, 0.05], NOT the berserker's [0.35, 0.10]:
+  // Extreme has always carried a slightly bigger floor and a much flatter
+  // distance term (that is what makes it accurate at range), and the 65f5597
+  // data-ification copied the berserker's pair in by mistake. Corrected to the
+  // values stepStalker has actually used since round 10, so wiring the data up
+  // changed no behaviour — verified with tools/h2h.js (stalker still beats
+  // berserker 100%).
   stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
-               react: [0.12, 0.08], aimErr: [0.35, 0.10],
+               react: [0.12, 0.08], aimErr: [0.4, 0.05],
                desc: 'Dodges your projectiles, leads its shots, and saves itself with teleport and shield.' },
 };
+
+// How long (seconds) a bot keeps aiming at the last place it SAW an enemy.
+// Bots read the simulation directly, so Vanish (SPELLS.vanish) has to be masked
+// in their perception too or Extreme becomes an aimbot that ignores the spell
+// (docs/ROUND12.md N4). Masked perception alone would be worse than human — a
+// bot would forget you existed the instant you blinked out — so instead it keeps
+// shooting at your last known position and gives up after this. Sized just under
+// the lv3 duration (2.25 s) so a fully levelled Vanish buys a real moment of not
+// being tracked at all, and above lv1 (0.75 s) so a cheap Vanish only ever
+// makes the bot's aim stale, not blind.
+export const BOT_MEMORY = 1.5;
 
 // ---- Bot build strategies -------------------------------------------------
 // A bot = a combat profile (BOTS kind: HOW it fights) × a build strategy
