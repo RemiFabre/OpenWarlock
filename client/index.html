@@ -211,6 +211,23 @@
     text-transform: uppercase; letter-spacing: .12em; margin-top: 10px;
     border-bottom: 1px solid var(--line); padding-bottom: 4px; }
 
+  /* ---- draft mode: the free pick, at the top of the shop and unmissable ---- */
+  .draftpick {
+    grid-column: 1 / -1; border: 2px solid var(--gold);
+    background: linear-gradient(180deg, #2a2013, #191410);
+    padding: 10px 12px 12px; margin-bottom: 6px;
+    box-shadow: 0 0 0 1px #000 inset, 0 0 18px #d9a53433;
+  }
+  .draftpick .drafthead { font-size: 14px; color: var(--parchment); margin-bottom: 8px; }
+  .draftpick .draftnote { color: var(--ash); font-size: 12px; }
+  .draftpick .draftopts {
+    display: grid; gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+  .draftpick .ware.draftopt { border-color: #4a3a22; }
+  .draftpick .ware.draftopt.sel { border-color: var(--gold); background: #2f2415; }
+  .draftpick .ware .cost.free { color: var(--ok); font-weight: 700; }
+
   /* ---- the one big stats table (shop + gameover) ---- */
   table.stats { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.stats th, table.stats td {
@@ -456,6 +473,8 @@
           <div class="row" style="margin-top:10px">
             <button id="modeBtn" type="button" aria-pressed="false"
               title="Elemental (experimental): after Fireball lv1 the shop offers one-time element picks that transform your fireball, plus two experimental combo items. Applies to everyone.">Rules: Classic</button>
+            <button id="draftBtn" type="button" aria-pressed="false"
+              title="Draft (experimental): half of everything — spells, items and elements together — leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">Draft: off</button>
           </div>
         </div>
         <div>

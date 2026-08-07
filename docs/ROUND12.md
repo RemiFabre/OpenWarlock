@@ -73,6 +73,45 @@ timed teleport can dodge the second ball — real skill expression.~~
 > **82.3%** before being nerfed back to ~25% via `cdMult` ×1.3. Everything below
 > this line about re-aiming, `procGap` and the teleport dodge is history.
 
+> ⚠ **AMENDED 2026-08-07 (Remi, explicit): the doubled knockback is GONE — a
+> cashed sting shoves ONCE.** His ruling, in translation: *"we agree it will hit
+> twice in terms of damage, twice in terms of all the on-hits — yes. But the
+> knockback, that will only happen once. I see the mosquito as drawing its
+> strength from DAMAGE rather than from knockback or pushback, otherwise I can
+> imagine a monstrous win rate."*
+> Implementation: every proc ball carries `kbScale: 1 / procBalls`, so the volley
+> totals exactly one ordinary fireball's impulse **whatever `procBalls` becomes**
+> — not "the second ball is free", and there is a test that forces `procBalls` to
+> 3 to prove it. Damage and every on-hit effect still fire `procBalls` times, and
+> the two-of-everything feedback Remi asked for is untouched.
+> **He was right about the win rate, and it cut deeper than expected**, because
+> the lava is the primary killer and a sting that no longer launches anybody into
+> it stops converting hits into kills. Re-swept on the standard 12-element lab
+> (800 games × 3 seeds where it mattered; mosquito's own n is ~1/3 of the games,
+> so 2σ ≈ ±4.5 points):
+>
+> | `cdMult` | lv1 sting cd | win rate (knockback-once) |
+> |---|---|---|
+> | `[0.98,0.85,0.72]` — what ×2 kb shipped with | 2.06 s | **4.8 / 5.3%** |
+> | `[0.90,0.78,0.66]` | 1.89 s | 17.7 / 16.5% |
+> | `[0.86,0.75,0.63]` | 1.81 s | 15.2 / 16.4 / 18.9% |
+> | `[0.83,0.72,0.61]` | 1.74 s | 15.9 / 17.5 / 18.6% |
+> | **`[0.80,0.70,0.59]` ← SHIPPED** | **1.68 s** | **28.3 / 23.9 / 20.4% (mean 24.2)** |
+> | `[0.75,0.65,0.55]` — the pre-nerf value | 1.58 s | 48.6 / 42.2 / 46.8% |
+> | `[0.55,0.50,0.45]` — the original | 1.16 s | 78.2 / 78.9% |
+>
+> **Shipped `[0.80, 0.70, 0.59]`: the fastest sting that still sits on the 25%
+> baseline.** ×1.3 had effectively deleted the element's identity (a
+> "double-rate sting" 2% faster than not taking the element at all); 0.80 is 20%
+> faster than a plain fireball at lv1 and 41% faster at lv3. The full 12-element
+> 1000-game table puts it at **25.1%**, 7th of 12. ⚠ The curve is brutally steep
+> either side of that point — one notch faster is 45%, one slower is 17% — so
+> re-run 800 games × 3 seeds after any change to knockback, lava or the fireball.
+> ⚠ Bots flatter mosquito (they re-hit their nearest enemy constantly and cash the
+> mark for free, never having to hunt a marked target), so 24-25% is an **upper
+> bound** on how easy the setup is. `procDmgMult` still exists and is still
+> test-locked, but it is no longer needed: it existed to pay for the double shove.
+
 ⚠️ **Infinite loop risk:** the two spawned fireballs must NOT themselves apply
 mosquito stacks, or the effect chains forever. Hard rule in code + a test. *Done
 and test-locked.*
@@ -188,6 +227,51 @@ goal better. Server-authoritative either way.
 ⚠️ Details I'll handle unless you say otherwise: options never offer something
 you already own at max level; bots auto-pick; the split must be identical for
 every player in the lobby.
+
+> ✅ **BUILT 2026-08-07.** Lobby toggle `Draft: off / 🎴 on` next to the rules
+> button, **off by default**, an independent flag that composes with classic,
+> elemental and co-op (not a fourth mode). Randomised per game, rolled once in
+> `startGame` from the game's own seeded rng, so it is server-authoritative and
+> identical for everyone; the pool is public on the wire (it has to be — the shop
+> shows which shelves are empty), each player's own offer is private.
+>
+> New file `shared/catalogue.js`: the one enumerable view over spells + elements
+> + items that S7 needed and the codebase never had. `client/main.js` still has
+> its three render loops, but the pool split, the gold-equivalence and the shop
+> gate all read this single list, and the server uses the same one.
+>
+> Judgement calls I made where the brief was silent — each a one-line revert:
+> 1. **A pool thing is unbuyable until you own any level of it.** Owning it IS the
+>    gate, so a drafted thing is back on the shelf at its normal price with no
+>    second bookkeeping list.
+> 2. **Fireball is never in the pool** (`STARTING_KIT` in catalogue.js). Everyone
+>    owns lv1 and every rider element hangs off it, so draft-locking it would lock
+>    half the shop behind one roll. The pool is therefore half of *17* (classic) or
+>    *31* (elemental) draftable things, not half of 18/32.
+> 3. **Offers land in the shops after rounds 1, 4, 7…** — `EVERY_ROUNDS` apart but
+>    starting with the FIRST shop, not the third. Waiting three rounds for your
+>    first pick makes the opening poorer than classic instead of different from it.
+> 4. **An offer never contains something you already own at any level**, which is
+>    what makes "a drafted thing arrives at level 1" literally true (and it covers
+>    the "never offer what is maxed" rule you asked for).
+> 5. **Gold-equivalence** = anchor on one random candidate and take the
+>    `OPTIONS` nearest it in level-1 price. With most things costing 10 g this is
+>    usually exact; late in a game, when few candidates are left, a group can
+>    spread (a real offer was Hook 20 / Repulse 20 / Cape 12). "Roughly" as
+>    specified, but it is the loosest part of this.
+> 6. **A pick is granted immediately**, so you can buy level 2 in the same shop;
+>    an untouched offer pays out its first option when the shop closes. One pick
+>    per offer — clicking twice is refused rather than swapping, because
+>    un-granting an item (amulet's live maxHp) is where the bugs would live.
+> 7. **Bots take the first option** of their own filtered offer (which is already
+>    a random gold-equivalent draw). **Power spells are filtered out of bot offers
+>    entirely** — the `botShop` rule that bots must never acquire what they cannot
+>    pilot. Soak-tested: 80 full 4-bot games (classic + elemental), all finished,
+>    no bot ever ended up owning meteor/hook/repulse/wall.
+>
+> Not measured: what draft mode does to balance. The elemental study gives each
+> seat one element on purpose, which a random half-catalogue pool cannot express —
+> the same trap S2 fell into. If you want a number for draft, it needs its own lab.
 
 ### S8 — Power tier available from round 1
 Drop the `minRound: 5` gate on meteor / hook / repulse / mirror wall.

@@ -528,6 +528,12 @@ $('modeBtn').addEventListener('click', () => {
   const s = latest();
   send({ t: 'mode', mode: nextMode(s ? s.mode : 'classic') }); // classic → elemental → co-op
 });
+// draft is an INDEPENDENT flag, not a fourth ruleset: it rides on top of
+// whichever of the three is selected (docs/ROUND12.md S7)
+$('draftBtn').addEventListener('click', () => {
+  const s = latest();
+  send({ t: 'draft', on: !(s && s.draft) });
+});
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 $('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('unbanBtn').addEventListener('click', () => { send({ t: 'unbanAll' }); toast('bans cleared'); });
@@ -940,11 +946,24 @@ function buildShop(container, mode = 'classic') {
   const elemental = mode === 'elemental';
   container.innerHTML = '';
   const wares = [];
+  // Draft mode: the offer banner sits at the very TOP of the grid and has to be
+  // unmissable (docs/ROUND12.md S7). Built empty and hidden; classic never shows
+  // it. It is created FIRST so it is above the Spells label.
+  const draftBox = document.createElement('div');
+  draftBox.className = 'draftpick hidden';
+  draftBox.id = 'draftBanner';
+  container.appendChild(draftBox);
+  let draftShown = '';   // signature of what the banner currently renders
+  // section headings, each remembering its own wares so a section emptied by the
+  // draft pool can hide its heading too
+  const labels = [];
   const mkLabel = (txt) => {
     const el = document.createElement('div');
     el.className = 'shoplabel'; el.textContent = txt;
     container.appendChild(el);
+    labels.push({ el, wares: [] });
   };
+  const inSection = (w) => { if (labels.length) labels[labels.length - 1].wares.push(w); };
   const mkSpell = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
@@ -957,7 +976,7 @@ function buildShop(container, mode = 'classic') {
     container.appendChild(b);
     const w = { key, spec, el: b, kind: 'spell' };
     attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
-    wares.push(w);
+    wares.push(w); inSection(w);
   };
   mkLabel('Spells');
   for (const [key, spec] of Object.entries(SPELLS))
@@ -980,7 +999,7 @@ function buildShop(container, mode = 'classic') {
       container.appendChild(b);
       const w = { key, spec, el: b, kind: 'element' };
       attachTip(b, () => elementTip(key, spec, w.level || 0));
-      wares.push(w);
+      wares.push(w); inSection(w);
     }
   }
   mkLabel('Items (3 levels each — same price every level, each level gives less)');
@@ -997,16 +1016,28 @@ function buildShop(container, mode = 'classic') {
     container.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
     attachTip(b, () => itemTip(key, spec, w.level || 0));
-    wares.push(w);
+    wares.push(w); inSection(w);
   }
-  return function refresh(m, round = 0) {
+  return function refresh(m, round = 0, s = null) {
     if (!m) return;
     const gold = fin(+m.gold) ? +m.gold : 0;
     const spells = m.spells || {};
+    // draft mode: this game's pool is not for sale. A pool thing you have
+    // DRAFTED goes back on the shelf (that is how levels 2-3 are bought), which
+    // is exactly "do I own any level of it" — the same rule the server uses.
+    const pool = new Set((s && s.draftPool) || []);
+    drawDraftBanner(m, s);
     // {key: level} since round 12; a stale snapshot (or an old array) reads as
     // "nothing owned" rather than throwing.
     const items = (m.items && !Array.isArray(m.items)) ? m.items : {};
+    const ownedOf = (w) => w.kind === 'spell' ? (spells[w.key] || 0)
+      : w.kind === 'element' ? ((m.elements && m.elements[w.key]) || 0)
+      : (items[w.key] || 0);
     for (const w of wares) {
+      // pooled and not yet drafted → this shelf is empty in this game
+      const locked = pool.has(w.key) && ownedOf(w) < 1;
+      w.el.classList.toggle('hidden', locked);
+      if (locked) { w.el.disabled = true; continue; }
       const cost = w.el.querySelector('.cost');
       if (w.kind === 'spell') {
         // power tier stays locked until enough rounds have been fought
@@ -1066,8 +1097,70 @@ function buildShop(container, mode = 'classic') {
         }
       }
     }
+    // a section whose whole stock is in the draft pool would leave a dangling
+    // heading, so a label lives or dies with its wares
+    for (const lab of labels)
+      lab.el.classList.toggle('hidden', lab.wares.length > 0 &&
+        lab.wares.every(w => w.el.classList.contains('hidden')));
     refreshTip(); // a purchase just changed what the open tooltip should say
   };
+
+  // The free-pick banner. Re-rendered only when the offer actually changes, so
+  // clicking never fights the 20 Hz shop refresh for the selection highlight.
+  function drawDraftBanner(m, s) {
+    const off = (s && s.draft && m && m.draftOffer) || null;
+    const sig = off ? `${off.round}|${off.options.join(',')}|${off.picked || ''}` : '';
+    if (sig === draftShown) return;
+    draftShown = sig;
+    draftBox.classList.toggle('hidden', !off);
+    if (!off) { draftBox.innerHTML = ''; return; }
+    draftBox.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'drafthead';
+    head.innerHTML = off.picked
+      ? `🎴 <b>Drafted for free:</b> ${esc(thingName(off.picked))} — it is yours at level 1, and its next levels are on sale below.`
+      : `🎴 <b>Free draft pick</b> — pick one of these ${off.options.length}. ` +
+        `<span class="draftnote">The first is already chosen for you: click nothing and you still get it.</span>`;
+    draftBox.appendChild(head);
+    const row = document.createElement('div');
+    row.className = 'draftopts';
+    off.options.forEach((key, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ware draftopt';
+      b.dataset.key = key;      // stable hook for the UI tests
+      const chosen = off.picked ? off.picked === key : i === 0;
+      b.classList.toggle('sel', chosen);
+      b.innerHTML = `<span class="icon">${thingIcon(key)}</span>
+        <span class="info"><span class="name">${esc(thingName(key))}
+          <span class="lv">${chosen ? (off.picked ? '✓ drafted' : '✓ pre-selected') : ''}</span></span>
+        <span class="desc">${esc(thingDesc(key))}</span></span>
+        <span class="cost num free">FREE<span class="nth">was ${thingCost(key)} g</span></span>`;
+      if (off.picked) b.disabled = true;
+      else b.addEventListener('click', () => {
+        playSfx('buy');
+        send({ t: 'draftPick', id: key });
+      });
+      row.appendChild(b);
+    });
+    draftBox.appendChild(row);
+  }
+}
+// name/icon/cost/desc for ANY catalogue key (spell, item or element), so the
+// draft banner does not need three branches of its own
+function thingSpec(key) {
+  return SPELLS[key] || ELEMENTS[key] || ITEMS[key] || null;
+}
+function thingName(key) { const s = thingSpec(key); return s ? s.name : key; }
+function thingDesc(key) { const s = thingSpec(key); return s ? s.desc : ''; }
+function thingIcon(key) {
+  return ICONS[key] || (ELEMENTS[key] && ELEMENTS[key].icon) || '❓';
+}
+function thingCost(key) {
+  if (SPELLS[key]) return SPELLS[key].costs[0];
+  if (ELEMENTS[key]) return ELEMENTS[key].costs[0];
+  if (ITEMS[key]) return itemCost(key);
+  return 0;
 }
 let shopModeBuilt = 'classic';
 let refreshShop = buildShop($('shopGrid'), shopModeBuilt);
@@ -1225,6 +1318,12 @@ function updateUi(s) {
     modeBtn.title = modeTitle(s.mode);
     modeBtn.classList.toggle('elemental', elemental);
     modeBtn.setAttribute('aria-pressed', s.mode !== 'classic' ? 'true' : 'false');
+    // draft toggle — also server-authoritative, and orthogonal to the ruleset
+    const draftBtn = $('draftBtn');
+    const draftOn = !!s.draft;
+    draftBtn.textContent = draftOn ? 'Draft: 🎴 on' : 'Draft: off';
+    draftBtn.classList.toggle('elemental', draftOn);
+    draftBtn.setAttribute('aria-pressed', draftOn ? 'true' : 'false');
   }
 
   if (s.phase === 'shop') {
@@ -1248,7 +1347,7 @@ function updateUi(s) {
     setVisible('shopGrid', !watching);
     setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
     if (!watching) {
-      refreshShop(m, fin(+s.round) ? +s.round : 0);
+      refreshShop(m, fin(+s.round) ? +s.round : 0, s);
       // ready button: bots are always ready and spectators don't gate the shop;
       // only fighting humans are counted/shown
       const humans = playerList.filter(p => !p.bot && !p.spectator);

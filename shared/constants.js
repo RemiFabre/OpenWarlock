@@ -369,56 +369,68 @@ export const ELEMENTS = {
   // now the feature: co-located popups fan sideways and stagger by a couple of
   // frames on the client (pushFloater in client/main.js) so two damage numbers,
   // two `+1 g`, two frost pips are legible as two events.
-  // ⚠ Consequence to know, MEASURED not assumed: two simultaneous hits means the
-  // knockback impulse lands twice in one frame, and impulses simply add, so a
-  // cashed sting launches for exactly procBalls × a fireball. Full-HP victim, lv1
-  // fireball, constant KB: one fireball 72.5 u/s → a cashed sting 145.0 u/s
-  // (×2.00, test-locked). With gale lv3 on top that is 239 u/s. That is a LOT of
-  // shove for one sting — it is the price of "both balls land together", and if
-  // Remi finds it silly the honest fix is procDmgMult's sibling (a kb scale on the
-  // proc balls), not re-introducing the stagger he just removed.
+  // ⚠ KNOCKBACK HAPPENS ONCE (Remi's ruling, 2026-08-07 — this replaced the ×2
+  // shove described below). Two simultaneous hits used to mean two impulses, and
+  // impulses simply add, so a cashed sting launched a full-HP victim at 145.0 u/s
+  // against a plain lv1 fireball's 72.5 (×2.00 exactly; 239 u/s with gale lv3).
+  // His call, in translation: *"it will hit twice in damage and twice in all the
+  // on-hits, yes. But the knockback, that will only happen once — I see the
+  // mosquito as drawing its strength from DAMAGE rather than from knockback,
+  // otherwise I can imagine a monstrous win rate."* So every proc ball now
+  // carries `kbScale: 1 / procBalls` (shared/sim.js, spawnFireball → the collision
+  // block) and the volley totals EXACTLY one fireball's push whatever procBalls
+  // is. Damage and every on-hit effect still fire procBalls times: two damage
+  // numbers, two `+1 g`, two frost pips — all test-locked, including a run with
+  // procBalls forced to 3 so the rule cannot silently degrade into "ball 2 is
+  // free".
   // ⚠ HARD RULE: the spawned fireballs must NOT place mosquito stacks, or
   // the effect chains forever. Test-locked — see docs/ROUND12.md S3.
   //
-  // ---- BALANCE, re-measured on the co-located proc (2026-08-07) --------------
-  // Standard lab: tools/arena.js elemental study, 400 games, seed 7, 12-element
-  // pool, 4 seats, baseline 25%. (Older 9-element-pool numbers in this file and
-  // in docs/ROUND12.md are NOT comparable — the pool grew in round 12.)
-  // At the previous values the simplified proc measured **82.3%** — the strongest
-  // element ever recorded here. It is stronger than the staggered version (52-62%)
-  // for two reasons that are the whole point of the simplification: both balls now
-  // always connect, and both impulses land in one frame.
-  // Two candidate nerfs, both swept:
-  //   (a) sting CADENCE, cdMult ×k — keeps Remi's literal spec ("two genuinely
-  //       normal fireballs") and taxes how often you can set the trap:
-  //       ×1.0 [0.75,0.65,0.55] → 82.3% · ×1.1 [0.83,0.72,0.61] → 60.5% ·
-  //       ×1.2 [0.9,0.78,0.66] → 54.4% · [0.92,0.8,0.68] → 43.5% ·
-  //       [0.94,0.82,0.69] → 38.8% · [0.96,0.83,0.7] → 36.1% ·
-  //       **×1.3 [0.98,0.85,0.72] → 21.8% (seed 7) / 27.8% (seed 11)** ·
-  //       ×1.4 [1.05,0.91,0.77] → 17.7%
-  //   (b) proc-ball DAMAGE, the `procDmgMult` lever (absent below = 1.0). Keeps
-  //       the fast sting and taxes only the raw damage, so a cashed sting is
-  //       ~1.2× rather than 2× a fireball while every on-hit effect still procs
-  //       twice — which is the fantasy as stated ("every on-hit effect procs
-  //       twice", not "double damage"):
-  //       1.0 → 82.3% · 0.8 → 65.3% · 0.7 → 42.2% · 0.65 → 37.4% ·
-  //       **0.6 → 26.5%** · 0.5 → 12.2%
-  // SHIPPED: (a) at ×1.3, because it is what the spec literally says and it needs
-  // no new knob. ⚠ Be honest about what it costs: at fireball lv1 the sting
-  // cooldown is 2.1 × 0.98 = 2.06 s against a plain fireball's 2.1 s, i.e. at
-  // level 1 the "double-rate sting" is GONE and only lv2/lv3 (×0.85/×0.72) still
-  // feel like a pest. The element becomes "a trap you set" rather than "a swarm".
-  // If Remi wants the swarm back, the one-line swap is: restore cdMult to
-  // [0.75, 0.65, 0.55] and add `procDmgMult: 0.6` — same 25%-ish win rate, keeps
-  // the identity, deviates from "two genuinely normal fireballs". Do not apply
-  // both; that lands around 5%.
+  // ---- BALANCE, RE-SWEPT under knockback-once (2026-08-07, later) ------------
+  // Standard lab: tools/arena.js elemental study, 12-element pool, 4 seats,
+  // baseline 25%. (Older 9-element-pool numbers in this file and in
+  // docs/ROUND12.md are NOT comparable — the pool grew in round 12.)
+  //
+  // Removing the doubled shove cost the element far more than it cost the
+  // spreadsheet, exactly as predicted: the lava is the primary killer, so a sting
+  // that no longer launches anybody into it stops converting hits into kills.
+  // Every table below is knockback-once. 400 games/seed for the wide sweep,
+  // 800 games × 3 seeds for the band that decided it (mosquito's own n is ~1/3 of
+  // the games, so at 800 games one cell is ~270-315 games, 2σ ≈ ±4.5 points —
+  // which is why the wide sweep looked non-monotone between 0.86 and 0.95 and the
+  // fine sweep does not):
+  //   [0.98,0.85,0.72] (what shipped with ×2 kb, 21.8/27.8%) → **4.8 / 5.3%**
+  //   [0.95,0.82,0.70] → 6.8 / 6.0%      [0.92,0.80,0.68] → 14.3 / 9.8%
+  //   [0.90,0.78,0.66] → 17.7 / 16.5%
+  //   [0.86,0.75,0.63] → 15.2 / 16.4 / 18.9%   (mean 16.8, 800 games)
+  //   [0.83,0.72,0.61] → 15.9 / 17.5 / 18.6%   (mean 17.3, 800 games)
+  //   **[0.80,0.70,0.59] → 28.3 / 23.9 / 20.4% (mean 24.2, 800 games) ← SHIPPED**
+  //   [0.75,0.65,0.55] (the pre-nerf value) → 48.6 / 42.2 / 46.8% (mean 45.9)
+  //   [0.55,0.50,0.45] (the original) → 78.2 / 78.9%
+  //   [0.45,0.40,0.35] → 94.6 / 92.5%
+  // SHIPPED [0.80, 0.70, 0.59]: the FASTEST sting that still lands on the 25%
+  // baseline, chosen deliberately over the safer-looking 0.83/0.86 because the
+  // fast sting IS this element's identity and ×1.3 had effectively deleted it
+  // (lv1 sting 2.06 s vs a plain fireball's 2.10 s — a "double-rate sting" that
+  // was 2% faster than not taking the element at all). At 0.80 the sting is
+  // 1.68 s at lv1 and 0.94 s at lv3 against a plain fireball's 2.10/1.60, i.e.
+  // 20% and 41% faster: a pest again.
+  // ⚠ The response curve is brutally steep either side of this point — one notch
+  // faster (0.75) is 45%, one notch slower (0.83) is 17%. Do not eyeball this
+  // knob; re-run 800 games × 3 seeds after any change to knockback, the lava or
+  // the fireball's own numbers.
+  // The `procDmgMult` lever (proc-ball damage only, absent = 1.0) is still
+  // implemented and still test-locked, but it is NOT needed any more: it existed
+  // to pay for the double shove, which no longer exists. Its old sweep was
+  // measured against the ×2 version and is void.
   // ⚠ Bot-measured, and bots flatter this element: a bot re-hits its nearest
   // enemy constantly, so it cashes the mark for free and never has to hunt a
-  // marked target. A human has to aim the setup, so his feel report outranks
-  // this table — and the sweeps above say exactly what each step buys.
+  // marked target. Treat 24% as an UPPER bound on how hard the setup is, and
+  // Remi's feel report outranks the table — the sweep above says what each step
+  // buys.
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Your fireball becomes a mosquito: 1 damage, no push, and a faster sting (much faster at higher levels) that leaves a mosquito stack on whoever it hits. Sting someone who already carries YOUR stack and it spends it: two of your normal fireballs land at once, so every effect you own procs twice.',
-           fx: { mosquito: true, cdMult: [0.98, 0.85, 0.72], stingDmg: 1,
+           desc: 'Your fireball becomes a mosquito: 1 damage, no push, and a much faster sting that leaves a mosquito stack on whoever it hits. Sting someone who already carries YOUR stack and it spends it: two of your normal fireballs land at once, so every effect you own procs twice — double damage, double frost, double gold. The push, though, is only ever a single fireball.',
+           fx: { mosquito: true, cdMult: [0.80, 0.70, 0.59], stingDmg: 1,
                  procBalls: 2 } },
   // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
   // badges every spell slot with 🔮 so the owner SEES it working.
@@ -517,6 +529,19 @@ export const ELEMENTS = {
 // rare-but-spectacular combos get to exist because nobody can plan around them.
 // The pool split is rolled per GAME (so no two matches feel alike), decided
 // server-side, and identical for every player in the lobby.
+// Implementation notes, all decided 2026-08-07 and all one-liners to revert:
+//   · "The catalogue" is shared/catalogue.js — one enumerable list of spells +
+//     elements + items for the current ruleset, MINUS the starting kit
+//     (Fireball: everyone owns lv1 and every rider element hangs off it, so
+//     draft-locking it would lock half the shop behind one roll).
+//   · A pool thing is unbuyable until you own it; the moment you draft it, it is
+//     back on the shelf at its normal price for levels 2 and 3. "Do you own any
+//     level of it" IS the gate — no second bookkeeping list.
+//   · Offers land in the shop after rounds 1, 4, 7… (EVERY_ROUNDS apart, but
+//     starting with the FIRST shop rather than the third: you draft before you
+//     have calcified, which is the whole point).
+//   · An offer is never something you already own at any level, which is what
+//     makes "a drafted thing arrives at level 1" true.
 export const DRAFT = {
   POOL_FRAC: 0.5,      // fraction of the catalogue pulled out of the shop
   EVERY_ROUNDS: 3,     // a free pick is offered this often

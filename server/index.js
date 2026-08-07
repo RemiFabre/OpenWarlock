@@ -11,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
-  setSpectator, fighters, setMode,
+  setSpectator, fighters, setMode, setDraft, draftPick,
 } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE, BOTS, BUILDS } from '../shared/constants.js';
 
@@ -143,8 +143,11 @@ function resetToLobby() {
   clearTimeout(againTimer); againTimer = null;
   ghosts.clear(); // progress stashes never outlive the game they came from
   const old = game.players;
+  const wasDraft = game.draft;
   // the ruleset (like avatars) survives "play again"
   game = createGame({ seed: SEED + game.round + 1, mode: game.mode });
+  // ...and so does the draft toggle (the pool itself is re-rolled per game)
+  game.draft = wasDraft;
   // the new game starts with an empty events array; a stale counter would
   // make the journal skip the first events of the new game
   journaledEvents = 0;
@@ -159,7 +162,8 @@ function resetToLobby() {
 }
 
 // ---- websocket protocol ---------------------------------------------------
-// client -> server: join, ready, spectate, mode, move, cast, buy, addBot, removeBot, again
+// client -> server: join, ready, spectate, mode, draft, move, cast, buy,
+//                   draftPick, addBot, removeBot, again
 // server -> client: welcome {id}, snap {state, events}, denied {reason}
 
 const wss = new WebSocketServer({ server: httpServer });
@@ -295,6 +299,17 @@ wss.on('connection', (ws, req) => {
         // setMode validates both the phase and the value
         if (typeof m.mode === 'string') setMode(game, m.mode);
         break;
+      case 'draft':
+        // draft mode is an INDEPENDENT flag, not a fourth ruleset: it composes
+        // with classic, elemental and co-op. Lobby only, like 'mode'.
+        setDraft(game, !!m.on);
+        break;
+      case 'draftPick': {
+        const r = draftPick(game, id, String(m.id || ''));
+        journal('draftPick', { id, thing: m.id, ok: r.ok, err: r.err });
+        if (!r.ok) ws.send(JSON.stringify({ t: 'denied', reason: r.err }));
+        break;
+      }
       case 'move':
         if (typeof m.x === 'number' && typeof m.y === 'number')
           setMoveTarget(game, id, m.x, m.y);

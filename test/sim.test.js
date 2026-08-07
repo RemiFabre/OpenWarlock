@@ -3,10 +3,12 @@ import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, BOT_ELEMENTS, playerStats,
+  setDraft, draftPick, draftDue, MODES,
 } from '../shared/sim.js';
+import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, itemCost,
+  BOT_MEMORY, DRAFT, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
@@ -1705,16 +1707,19 @@ describe('elemental mode', () => {
     expect(Math.abs(last.vy)).toBeLessThan(0.001);
   });
 
-  // ---- the proc's balls are co-located, which doubles the impulse ----------
-  // Two hits in one frame means the knockback impulse lands twice, and impulses
-  // add linearly, so a cashed sting launches for exactly procBalls × a fireball.
-  // Measured (not assumed) and reported to Remi as the cost of the simple version.
+  // ---- the proc's balls are co-located, and the SHOVE happens ONCE ---------
+  // Two hits in one frame used to mean two impulses (impulses add linearly), so a
+  // cashed sting launched for exactly procBalls × a fireball — 72.5 → 145.0 u/s,
+  // 239 with gale lv3. Remi's ruling 2026-08-07: "I see the mosquito as drawing
+  // its strength from DAMAGE rather than from knockback — otherwise I can imagine
+  // a monstrous win rate." So each proc ball carries kbScale = 1/procBalls and
+  // the volley totals ONE fireball's push, while damage and every on-hit effect
+  // still fire procBalls times (locked by the tests above and below).
 
-  it('a cashed sting launches the victim procBalls times as hard as one fireball', () => {
-    const f = ELEMENTS.mosquito.fx;
-    // control: one plain lv1 fireball, velocity read on the frame it connects
-    // (knockback lands in stepProjectiles, after the movement/friction pass, so
-    // this is the raw launch speed in both cases)
+  // one plain lv1 fireball's launch speed, read on the frame it connects
+  // (knockback lands in stepProjectiles, after the movement/friction pass, so
+  // this is the raw launch speed for the proc too)
+  function plainFireballLaunch() {
     const state0 = elementalBattle(3);
     const a0 = state0.players.p0, b0 = state0.players.p1;
     state0.players.p2.x = 0; state0.players.p2.y = -45;
@@ -1723,19 +1728,50 @@ describe('elemental mode', () => {
     b0.x = 8; b0.y = 0; b0.vx = b0.vy = 0; b0.moveTarget = null;
     b0.maxHp = 9999; b0.hp = 9999;
     castSpell(state0, 'p0', 'fireball', 20, 0);
-    let soloV = 0;
     for (let i = 0; i < 20; i++) {
       state0.events = [];
       step(state0, DT);
-      if (state0.events.some(e => e.t === 'hit' && e.id === 'p1')) {
-        soloV = Math.abs(b0.vx); break;
-      }
+      if (state0.events.some(e => e.t === 'hit' && e.id === 'p1'))
+        return Math.abs(b0.vx);
     }
+    return 0;
+  }
+
+  it('a cashed sting launches the victim exactly as hard as ONE fireball', () => {
+    const f = ELEMENTS.mosquito.fx;
+    const soloV = plainFireballLaunch();
     expect(soloV).toBeGreaterThan(1);
     // the proc, on the frame it lands (both balls in that one frame). The sting
-    // itself pushes for nothing, so all of this velocity is the payoff balls.
+    // itself pushes for nothing, so all of this velocity is the payoff balls —
+    // and it must equal ONE fireball's launch, not procBalls of them.
     const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
-    expect(Math.abs(state.players.p1.vx)).toBeCloseTo(soloV * f.procBalls, 1);
+    const procV = Math.abs(state.players.p1.vx);
+    expect(procV).toBeCloseTo(soloV, 4);
+    expect(f.procBalls).toBeGreaterThan(1);   // ...and that is NOT trivially true
+    expect(procV).toBeLessThan(soloV * f.procBalls * 0.9);
+    // meanwhile the DAMAGE is procBalls × a fireball: the split is push-only
+    const hits = procHits(state);
+    expect(hits.length).toBe(f.procBalls);
+    const total = hits.reduce((s, h) => s + h.amount, 0);
+    expect(total).toBeCloseTo(SPELLS.fireball.damage[0] * f.procBalls, 4);
+  });
+
+  it('knockback-once is DERIVED from procBalls, not "ball 2 pushes for nothing"', () => {
+    // The lazy implementation (first ball pushes, the rest are free) passes the
+    // test above and breaks the moment procBalls changes. Prove the rule is
+    // 1/procBalls by moving the spec to 3 balls: 3× the damage, still 1× the push.
+    const f = ELEMENTS.mosquito.fx;
+    const soloV = plainFireballLaunch();
+    const orig = f.procBalls;
+    try {
+      f.procBalls = 3;
+      const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
+      const hits = procHits(state);
+      expect(hits.length).toBe(3);                                  // 3 balls
+      expect(Math.abs(state.players.p1.vx)).toBeCloseTo(soloV, 4);  // 1 shove
+    } finally {
+      f.procBalls = orig;
+    }
   });
 
   it('the optional procDmgMult lever taxes damage only, never the effect count', () => {
@@ -3333,5 +3369,293 @@ describe('co-op: campaign scaling rule', () => {
       expect(u2.length).toBeGreaterThanOrEqual(u1.length);
       expect(u3.length).toBeGreaterThanOrEqual(u2.length);
     });
+  });
+});
+
+// ---- draft mode 🎴 (docs/ROUND12.md S7) -------------------------------------
+// An independent lobby toggle, OFF by default: half the catalogue leaves the shop
+// for the whole game and becomes a pool you are given free picks from every
+// DRAFT.EVERY_ROUNDS rounds. Every number below is read from DRAFT / the
+// catalogue, never hardcoded (AGENTS.md scar: round-11 tests broke on intended
+// retunes purely because they pinned constants).
+
+describe('draft mode 🎴', () => {
+  // a game already in its first shop, with the toggle in whatever state
+  // end the current round without fighting it, and walk into the shop (which is
+  // where afterSummary rolls the offers)
+  function toShop(state) {
+    state.phase = 'roundEnd';
+    state.roundSummary = { final: false };
+    state.phaseT = 0;
+    step(state, DT);
+    expect(state.phase).toBe('shop');
+  }
+
+  function draftGame({ draft = true, mode = 'elemental', seed = 7, players = ['a', 'b'] } = {}) {
+    const state = createGame({ seed, mode });
+    for (const id of players) addPlayer(state, id, id.toUpperCase());
+    setDraft(state, draft);
+    startGame(state);                       // rolls the pool
+    run(state, ROUND.COUNTDOWN + DT);
+    toShop(state);
+    return state;
+  }
+
+  it('is OFF by default, and off means the shop is exactly the classic shop', () => {
+    const off = createGame({ seed: 7, mode: 'elemental' });
+    expect(off.draft).toBe(false);
+    expect(off.draftPool).toBe(null);
+    addPlayer(off, 'a', 'A'); addPlayer(off, 'b', 'B');
+    startGame(off);
+    expect(off.draftPool).toBe(null);        // never rolled
+    off.phase = 'shop';
+    const a = off.players.a;
+    a.gold = 9999;
+    // every single catalogue entry is still purchasable, and no offer exists
+    for (const e of catalogue('elemental')) {
+      if (e.key === 'fireball') continue;    // starting kit, level 1 already owned
+      expect(buy(off, 'a', e.key).ok).toBe(true);
+    }
+    expect(a.draftOffer).toBe(null);
+    // ...and nothing draft-shaped reaches the wire
+    const snap = snapshot(off, 'a');
+    expect(snap.draft).toBeUndefined();
+    expect(snap.draftPool).toBeUndefined();
+    expect(snap.players.a.draftOffer).toBeUndefined();
+  });
+
+  it('the toggle is independent of the ruleset and composes with all three', () => {
+    for (const mode of MODES) {
+      const state = createGame({ seed: 3, mode });
+      expect(setDraft(state, true)).toBe(true);
+      expect(state.mode).toBe(mode);         // ...and did not become a 4th mode
+      expect(state.draft).toBe(true);
+      addPlayer(state, 'a', 'A'); addPlayer(state, 'b', 'B');
+      startGame(state);
+      expect(state.draftPool.length).toBeGreaterThan(0);
+      // the pool only ever contains things that exist in THIS ruleset's shop
+      const keys = new Set(catalogue(mode).map(e => e.key));
+      for (const k of state.draftPool) expect(keys.has(k)).toBe(true);
+    }
+  });
+
+  it('is lobby-only, like the ruleset toggle', () => {
+    const state = createGame({ seed: 7 });
+    addPlayer(state, 'a', 'A'); addPlayer(state, 'b', 'B');
+    startGame(state);
+    expect(setDraft(state, true)).toBe(false);
+    expect(state.draft).toBe(false);
+  });
+
+  it('pulls DRAFT.POOL_FRAC of the catalogue out, identically for every player', () => {
+    const state = draftGame({ players: ['a', 'b', 'c'] });
+    const all = draftable(state.mode);
+    expect(state.draftPool.length).toBe(Math.round(all.length * DRAFT.POOL_FRAC));
+    // the pool is state, not per-player: every viewer reads the same list
+    const seen = ['a', 'b', 'c'].map(id => snapshot(state, id).draftPool.join(','));
+    expect(new Set(seen).size).toBe(1);
+    expect(seen[0]).toBe(state.draftPool.join(','));
+    // the starting kit is never locked away
+    expect(state.draftPool).not.toContain('fireball');
+    // and it really is a SPLIT: the rest is still on sale
+    const rest = all.filter(e => !state.draftPool.includes(e.key));
+    expect(rest.length).toBe(all.length - state.draftPool.length);
+    const a = state.players.a;
+    a.gold = 9999;
+    for (const e of rest) expect(buy(state, 'a', e.key).ok).toBe(true);
+  });
+
+  it('a pooled thing cannot be bought at any price until it is drafted', () => {
+    const state = draftGame();
+    const a = state.players.a;
+    a.gold = 9999;
+    for (const key of state.draftPool) {
+      const r = buy(state, 'a', key);
+      expect(r.ok).toBe(false);
+      expect(String(r.err)).toMatch(/draft/);
+    }
+    expect(a.gold).toBe(9999);              // and it cost them nothing to try
+  });
+
+  it('a drafted thing arrives at LEVEL 1, free, and is then upgradable at normal cost', () => {
+    const state = draftGame();
+    const a = state.players.a;
+    const off = a.draftOffer;
+    expect(off).toBeTruthy();
+    // pick something with room to grow so "upgradable afterwards" is testable
+    const key = off.options.find(k => {
+      const e = catalogue(state.mode).find(x => x.key === k);
+      return e && e.maxLevel > 1;
+    }) || off.options[0];
+    const goldBefore = (a.gold = 9999);
+    expect(draftPick(state, 'a', key).ok).toBe(true);
+    expect(ownedLevel(a, key)).toBe(1);      // level 1...
+    expect(a.gold).toBe(goldBefore);         // ...and free
+    const e = catalogue(state.mode).find(x => x.key === key);
+    if (e.maxLevel > 1) {
+      // it is back on the shelf now, at the normal price of its next level
+      const expected = e.kind === 'item' ? itemCost(key) : e.spec.costs[1];
+      expect(buy(state, 'a', key).ok).toBe(true);
+      expect(ownedLevel(a, key)).toBe(2);
+      expect(a.gold).toBe(goldBefore - expected);
+    }
+  });
+
+  it('offers DRAFT.OPTIONS roughly gold-equivalent choices, none of them owned', () => {
+    const state = draftGame();
+    const a = state.players.a;
+    const off = a.draftOffer;
+    expect(off.options.length).toBe(DRAFT.OPTIONS);
+    expect(new Set(off.options).size).toBe(DRAFT.OPTIONS);   // no duplicates
+    const cat = catalogue(state.mode);
+    const costs = off.options.map(k => cat.find(e => e.key === k).cost);
+    // "roughly equivalent" = within the cheapest option's own price of each other
+    expect(Math.max(...costs) - Math.min(...costs)).toBeLessThanOrEqual(Math.min(...costs));
+    for (const k of off.options) {
+      expect(state.draftPool).toContain(k);      // only ever out of the pool
+      expect(ownedLevel(a, k)).toBe(0);          // which is why a pick is level 1
+    }
+  });
+
+  it('never offers something already owned at max level', () => {
+    const state = draftGame();
+    const a = state.players.a;
+    // max out everything in the pool, then re-roll this player's offer
+    for (const key of state.draftPool) {
+      const e = catalogue(state.mode).find(x => x.key === key);
+      const bag = e.kind === 'spell' ? a.spells : e.kind === 'element' ? a.elements : a.items;
+      bag[key] = e.maxLevel;
+    }
+    state.round = 1;
+    a.draftOffer = null;
+    // walk another shop opening: nothing is left to offer, so no offer at all
+    toShop(state);
+    expect(a.draftOffer).toBe(null);
+    // ...and the maxed pool things stay unbuyable-as-upgrades for the right
+    // reason: they are maxed, not because they are pooled
+    for (const key of state.draftPool) {
+      a.gold = 9999;
+      expect(buy(state, 'a', key).err).toBe('max level');
+    }
+  });
+
+  it('the pre-selected FIRST option is granted when the player clicks nothing', () => {
+    const state = draftGame();
+    const a = state.players.a;
+    const first = a.draftOffer.options[0];
+    expect(DRAFT.AUTO_PICK_FIRST).toBe(true);
+    expect(ownedLevel(a, first)).toBe(0);
+    // never clicked: run the shop out and into the next round
+    run(state, ROUND.SHOP_TIME + DT);
+    expect(state.phase).toBe('countdown');
+    expect(ownedLevel(a, first)).toBe(1);
+    expect(a.draftOffer).toBe(null);          // and the offer is retired
+  });
+
+  it('clicking a different option takes that one instead, and only once', () => {
+    const state = draftGame();
+    const a = state.players.a;
+    const [first, second] = a.draftOffer.options;
+    expect(draftPick(state, 'a', second).ok).toBe(true);
+    expect(ownedLevel(a, second)).toBe(1);
+    expect(ownedLevel(a, first)).toBe(0);
+    // a second click is refused, and the auto-grant must not fire on top
+    expect(draftPick(state, 'a', first).ok).toBe(false);
+    run(state, ROUND.SHOP_TIME + DT);
+    expect(ownedLevel(a, first)).toBe(0);
+    expect(ownedLevel(a, second)).toBe(1);
+  });
+
+  it('refuses picks that were not on offer, and picks outside the shop', () => {
+    const state = draftGame();
+    const notOffered = state.draftPool.find(k => !state.players.a.draftOffer.options.includes(k));
+    expect(draftPick(state, 'a', notOffered).ok).toBe(false);
+    expect(draftPick(state, 'a', 'constructor').ok).toBe(false);
+    expect(draftPick(state, 'nobody', 'boots').ok).toBe(false);
+    run(state, ROUND.SHOP_TIME + DT);        // now in countdown
+    expect(draftPick(state, 'a', 'boots').err).toBe('shop is closed');
+  });
+
+  it('offers land every DRAFT.EVERY_ROUNDS rounds, starting with the first shop', () => {
+    // the rule itself, read off the spec
+    expect(draftDue(1)).toBe(true);
+    expect(draftDue(1 + DRAFT.EVERY_ROUNDS)).toBe(true);
+    for (let r = 2; r < 1 + DRAFT.EVERY_ROUNDS; r++) expect(draftDue(r)).toBe(false);
+    expect(draftDue(0)).toBe(false);
+    // ...and the shop actually honours it over a run of rounds
+    const state = draftGame();
+    const a = state.players.a;
+    const withOffer = [];
+    for (let r = 1; r <= 3 * DRAFT.EVERY_ROUNDS; r++) {
+      if (a.draftOffer) withOffer.push(state.round);
+      // straight from this shop to the next one
+      run(state, ROUND.SHOP_TIME + DT);      // shop -> countdown (round++)
+      run(state, ROUND.COUNTDOWN + DT);      // countdown -> battle
+      toShop(state);
+    }
+    expect(withOffer.length).toBeGreaterThan(1);
+    for (const r of withOffer) expect(draftDue(r)).toBe(true);
+  });
+
+  it('bots draft immediately and NEVER draft a power spell they cannot pilot', () => {
+    // the pool is rolled from the seed, so force the question: put the whole
+    // power tier in the pool and give the bot nothing else to want
+    const state = createGame({ seed: 5, mode: 'elemental' });
+    addPlayer(state, 'a', 'A');
+    addPlayer(state, 'z', 'Zed', { bot: true, kind: 'berserker' });
+    setDraft(state, true);
+    startGame(state);
+    const power = Object.entries(SPELLS).filter(([, s]) => s.tier === 'power').map(([k]) => k);
+    state.draftPool = power.slice();          // a pool of nothing but power spells
+    run(state, ROUND.COUNTDOWN + DT);
+    toShop(state);
+    const bot = state.players.z;
+    // no candidates survive the filter, so the bot is offered nothing at all...
+    expect(bot.draftOffer).toBe(null);
+    // ...and the auto-grant at shop close cannot sneak one in either
+    run(state, ROUND.SHOP_TIME + DT);
+    for (const k of power) expect(bot.spells[k] || 0).toBe(0);
+    // the human, meanwhile, is offered them
+    expect(state.players.a.spells.meteor || 0).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a bot with a mixed pool drafts on the spot, and never a power spell', () => {
+    const state = createGame({ seed: 11, mode: 'elemental' });
+    addPlayer(state, 'a', 'A');
+    addPlayer(state, 'z', 'Zed', { bot: true, kind: 'berserker' });
+    setDraft(state, true);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    toShop(state);
+    const bot = state.players.z;
+    expect(bot.draftOffer).toBeTruthy();
+    expect(bot.draftOffer.picked).toBe(bot.draftOffer.options[0]);   // immediately
+    expect(ownedLevel(bot, bot.draftOffer.picked)).toBe(1);
+    for (const k of bot.draftOffer.options)
+      expect(SPELLS[k] && SPELLS[k].tier).not.toBe('power');
+  });
+
+  it('your offer is PRIVATE: it never appears on another player snapshot', () => {
+    const state = draftGame({ players: ['a', 'b'] });
+    expect(state.players.a.draftOffer).toBeTruthy();
+    const asA = snapshot(state, 'a');
+    expect(asA.players.a.draftOffer.options.length).toBe(DRAFT.OPTIONS);
+    expect(asA.players.b.draftOffer).toBeUndefined();
+    const asB = snapshot(state, 'b');
+    expect(asB.players.a.draftOffer).toBeUndefined();
+    expect(asB.draft).toBe(true);            // the FLAG and the pool are public
+    expect(asB.draftPool.length).toBe(state.draftPool.length);
+  });
+
+  it('the split is a function of the seed: same seed same pool, different seeds differ', () => {
+    const pool = (seed) => {
+      const s = createGame({ seed, mode: 'elemental' });
+      addPlayer(s, 'a', 'A'); addPlayer(s, 'b', 'B');
+      setDraft(s, true); startGame(s);
+      return s.draftPool.join(',');
+    };
+    expect(pool(7)).toBe(pool(7));
+    const many = new Set([1, 2, 3, 4, 5, 6, 7, 8].map(pool));
+    expect(many.size).toBeGreaterThan(1);    // rolled per game, not curated
   });
 });

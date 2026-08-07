@@ -3,8 +3,9 @@
 
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
-  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, itemCost,
+  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, DRAFT, itemCost,
 } from './constants.js';
+import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxDelta } from './items.js';
 import {
   TEAM, ENEMY_COLOR, CAMPAIGN, MAX_LEVEL, levelFor, waveUnits, levelRoster,
@@ -30,6 +31,12 @@ export function createGame({ seed = 1, mode = 'classic' } = {}) {
     phase: 'lobby',        // lobby | countdown | battle | shop | gameover
     phaseT: 0,             // time remaining in countdown/shop
     mode: MODES.includes(mode) ? mode : 'classic',
+    // Draft mode (docs/ROUND12.md S7) — an INDEPENDENT flag, not a fourth mode:
+    // it composes with classic, elemental and co-op alike. OFF means every field
+    // below stays exactly as it is here for the whole game, which is what keeps
+    // classic byte-identical.
+    draft: false,
+    draftPool: null,       // [key] pulled out of the shop; rolled once per game
     round: 0,
     time: 0,               // elapsed battle time this round
     arenaRadius: ARENA.START_RADIUS,
@@ -58,6 +65,14 @@ export function setMode(state, mode) {
   if (state.phase !== 'lobby') return false;
   if (!MODES.includes(mode)) return false;
   state.mode = mode;
+  return true;
+}
+
+// Draft toggle — lobby only, same rule as the ruleset: a running game can never
+// change the deal. Independent of `mode` on purpose (docs/ROUND12.md S7).
+export function setDraft(state, on) {
+  if (state.phase !== 'lobby') return false;
+  state.draft = !!on;
   return true;
 }
 
@@ -101,6 +116,9 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
     items: {},           // owned item levels, e.g. {boots: 2, cape: 1}
+    // draft mode only: this shop's free offer, {round, options:[key], picked}.
+    // Stays null for the whole game when the toggle is off.
+    draftOffer: null,
     cooldowns: {},
     shieldT: 0,
     // Vanish: seconds of invisibility left. NEVER goes on the wire for anyone
@@ -531,6 +549,10 @@ export function castSpell(state, id, key, tx, ty) {
 //   x, y     — spawn origin override (the proc fires from the sting's contact point)
 //   dmgMult  — scales this ball's damage only (the mosquito proc's optional
 //              nerf lever, ELEMENTS.mosquito.fx.procDmgMult; unset = 1)
+//   kbScale  — scales this ball's KNOCKBACK only (unset = 1). The proc passes
+//              1/procBalls so that all its co-located balls TOGETHER shove for
+//              exactly one ordinary fireball: Remi's ruling is that the mosquito
+//              draws its strength from damage, never from push.
 //
 // opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
 // pays, resolved at cast time so the projectile carries everything it needs.
@@ -574,6 +596,7 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     elements, radius, mosquito: mosq || 0,
     ...(opts.noStacks ? { noStacks: true } : {}),
     ...(opts.dmgMult != null ? { dmgMult: opts.dmgMult } : {}),
+    ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
 }
@@ -621,6 +644,10 @@ export function buy(state, id, thing) {
   if (!pl) return { ok: false, err: 'no player' };
   if (state.phase !== 'shop')
     return { ok: false, err: 'shop is closed' };
+  // draft mode: half the catalogue is not for sale in this game at all — until
+  // you draft it, after which its remaining levels are bought normally
+  if (draftLocked(state, pl, thing))
+    return { ok: false, err: 'not sold this game — draft it first' };
 
   if (Object.hasOwn(SPELLS, thing)) {
     const spec = SPELLS[thing];
@@ -677,6 +704,144 @@ export function buy(state, id, thing) {
     return { ok: true };
   }
   return { ok: false, err: 'unknown' };
+}
+
+// ---- draft mode (docs/ROUND12.md S7) -------------------------------------
+// OFF by default and every function here is a no-op while it is off, so classic
+// and elemental stay bit-for-bit what they were.
+//
+// The shape: at game start the server rolls HALF the catalogue out of the shop
+// into `state.draftPool` — one roll, from the game's own seeded rng, so it is
+// authoritative and identical for everybody. Every DRAFT.EVERY_ROUNDS rounds each
+// player is handed DRAFT.OPTIONS free picks out of that pool, roughly
+// gold-equivalent to each other. A pick arrives at LEVEL 1 and then behaves like
+// anything else in the shop: its next levels cost their normal price.
+
+// Is this thing locked away in this game's pool for this player? A pool thing
+// you already own is NOT locked — that is how a drafted thing goes back on sale
+// (and it is why no separate "drafted" list has to exist).
+export function draftLocked(state, pl, thing) {
+  if (!state.draft || !state.draftPool) return false;
+  if (!state.draftPool.includes(thing)) return false;
+  return ownedLevel(pl, thing) < 1;
+}
+
+// Rolled once, at the moment the game leaves the lobby (so the ruleset — and
+// therefore the catalogue — is final). Uses the game rng: same seed, same split,
+// and every player reads the one list off the wire.
+function rollDraftPool(state) {
+  const keys = draftable(state.mode).map(e => e.key);
+  for (let i = keys.length - 1; i > 0; i--) {           // Fisher-Yates
+    const j = Math.floor(rng(state) * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  state.draftPool = keys.slice(0, Math.round(keys.length * DRAFT.POOL_FRAC)).sort();
+}
+
+// Which shops carry an offer: the FIRST one (after round 1) and every
+// EVERY_ROUNDS after it. Starting at round 1 rather than round EVERY_ROUNDS is
+// deliberate — the point of draft is to shape a build before it calcifies, and
+// waiting three rounds for your first pick makes the opening rounds poorer than
+// classic instead of different from it.
+export function draftDue(round) {
+  return round >= 1 && (round - 1) % DRAFT.EVERY_ROUNDS === 0;
+}
+
+// DRAFT.OPTIONS things out of the pool, roughly gold-equivalent to each other:
+// anchor on one random candidate and take the ones nearest it in price. Never
+// something already owned (so a pick always arrives at level 1 — which also
+// covers "never offer what is already maxed"), and never a power spell to a bot,
+// which cannot pilot one (see botShop: buying it would just burn its gold).
+function draftOptionsFor(state, pl) {
+  const cands = draftable(state.mode).filter(e =>
+    state.draftPool.includes(e.key) &&
+    ownedLevel(pl, e.key) < 1 &&
+    !(pl.bot && e.kind === 'spell' && e.spec.tier === 'power'));
+  // shuffle first so the price sort's ties (most things cost 10 g) are random
+  // rather than catalogue order
+  for (let i = cands.length - 1; i > 0; i--) {
+    const j = Math.floor(rng(state) * (i + 1));
+    [cands[i], cands[j]] = [cands[j], cands[i]];
+  }
+  if (!cands.length) return [];
+  const anchor = cands[Math.floor(rng(state) * cands.length)];
+  const near = cands
+    .map((e, i) => ({ e, i }))       // index keeps the sort deterministic
+    .sort((a, b) => Math.abs(a.e.cost - anchor.cost) - Math.abs(b.e.cost - anchor.cost) ||
+                    a.i - b.i)
+    .slice(0, DRAFT.OPTIONS)
+    .map(x => x.e.key);
+  // ...and shuffle the shortlist, so the pre-selected first option is not
+  // systematically the anchor
+  for (let i = near.length - 1; i > 0; i--) {
+    const j = Math.floor(rng(state) * (i + 1));
+    [near[i], near[j]] = [near[j], near[i]];
+  }
+  return near;
+}
+
+// Called when the shop opens. Bots take their pick on the spot (the first
+// option, which is already a random gold-equivalent draw from their filtered
+// candidates) so they never sit on an unresolved offer.
+function rollDraftOffers(state) {
+  if (!state.draft || !state.draftPool) return;
+  for (const pl of Object.values(state.players)) {
+    if (pl.spectator || pl.wave) continue;
+    const options = draftOptionsFor(state, pl);
+    pl.draftOffer = options.length ? { round: state.round, options, picked: null } : null;
+    if (pl.draftOffer && pl.bot) draftPick(state, pl.id, options[0]);
+  }
+}
+
+// The pick itself: free, level 1, no gold involved. Grants immediately so the
+// shop can show it and you can buy level 2 in the same visit.
+function grantDraft(state, pl, key) {
+  switch (kindOf(key)) {
+    case 'spell': pl.spells[key] = Math.max(pl.spells[key] || 0, 1); break;
+    case 'element': pl.elements[key] = Math.max(pl.elements[key] || 0, 1); break;
+    case 'item': {
+      if ((pl.items[key] || 0) > 0) return;
+      pl.items[key] = 1;
+      // maxHp is a live field, not derived — same rule buy() follows
+      if (key === 'amulet') {
+        const gain = itemFxDelta('amulet', 'maxHp', 1);
+        pl.maxHp += gain; pl.hp += gain;
+      }
+      break;
+    }
+    default: return;
+  }
+  state.events.push({ t: 'drafted', id: pl.id, thing: key });
+}
+
+export function draftPick(state, id, thing) {
+  const pl = state.players[id];
+  if (!pl) return { ok: false, err: 'no player' };
+  if (state.phase !== 'shop') return { ok: false, err: 'shop is closed' };
+  const off = pl.draftOffer;
+  if (!off) return { ok: false, err: 'nothing on offer' };
+  if (off.picked) return { ok: false, err: 'already drafted' };
+  const key = String(thing || '');
+  if (!off.options.includes(key)) return { ok: false, err: 'not on offer' };
+  grantDraft(state, pl, key);
+  off.picked = key;
+  return { ok: true };
+}
+
+// The shop is closing: anyone who never clicked gets the pre-selected FIRST
+// option (DRAFT.AUTO_PICK_FIRST — "a player who clicks nothing still receives
+// it"), then the offer is retired.
+function resolveDraftOffers(state) {
+  if (!state.draft) return;
+  for (const pl of Object.values(state.players)) {
+    const off = pl.draftOffer;
+    if (!off) continue;
+    if (!off.picked && DRAFT.AUTO_PICK_FIRST && off.options.length) {
+      grantDraft(state, pl, off.options[0]);
+      off.picked = off.options[0];
+    }
+    pl.draftOffer = null;
+  }
 }
 
 // ---- combat helpers -----------------------------------------------------
@@ -839,10 +1004,15 @@ function kill(state, target, directSourceId) {
 
 export function startGame(state) {
   if (state.phase !== 'lobby') return;
+  // draft mode: the split is rolled ONCE here, when the ruleset can no longer
+  // change, and lives on state for the whole game
+  if (state.draft) rollDraftPool(state);
   startRound(state);
 }
 
 function startRound(state) {
+  // the shop is closing: an untouched offer still pays out its first option
+  resolveDraftOffers(state);
   state.round++;
   state.phase = 'countdown';
   state.phaseT = ROUND.COUNTDOWN;
@@ -1060,6 +1230,8 @@ function afterSummary(state) {
   } else {
     state.phase = 'shop';
     state.phaseT = ROUND.SHOP_TIME;
+    // state.round is the round just fought, so this shop belongs to it
+    if (state.draft && draftDue(state.round)) rollDraftOffers(state);
   }
 }
 
@@ -1549,6 +1721,13 @@ function stepProjectiles(state, dt) {
       // Damage only: knockback and every on-hit effect are untouched, because the
       // stated fantasy is "every on-hit effect procs twice", not "double damage".
       if (pr.dmgMult != null) { dmg *= pr.dmgMult; ramp *= pr.dmgMult; }
+      // per-ball knockback scale. The mosquito proc sets 1/procBalls on every
+      // ball it fires, so its co-located volley adds up to exactly ONE
+      // fireball's impulse (Remi's ruling: damage and every on-hit effect proc
+      // procBalls times, the SHOVE happens once). Applies after every element
+      // multiplier, so gale/critical still price the total the same way they
+      // price a single fireball.
+      if (pr.kbScale != null) kb *= pr.kbScale;
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
@@ -1645,6 +1824,10 @@ function fireMosquitoProc(state, pr, target) {
       // .mosquito): scales the proc balls' damage only, leaving every on-hit
       // effect procing `procBalls` times.
       ...(f.procDmgMult != null ? { dmgMult: f.procDmgMult } : {}),
+      // KNOCKBACK ONCE (Remi, 2026-08-07): impulses add linearly, so N
+      // co-located balls at 1/N each shove for exactly one fireball, whatever
+      // procBalls is. Damage and every on-hit effect still fire N times.
+      kbScale: 1 / f.procBalls,
     });
     state.events.push({
       t: 'cast', id: owner.id, spell: 'fireball', x, y, dx, dy,
@@ -1853,6 +2036,9 @@ export function snapshot(state, viewerId = null) {
       // your OWN invisibility, so the client can show you that it is running and
       // when it is about to end. Never present on anybody else's entry.
       ...(p.vanishT > 0 && p.id === viewerId ? { vanishT: round2(p.vanishT) } : {}),
+      // draft mode: your OWN free offer, nobody else's. Absent entirely when the
+      // toggle is off (and when it is on but this shop carries no offer).
+      ...(p.draftOffer && p.id === viewerId ? { draftOffer: p.draftOffer } : {}),
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,
@@ -1878,6 +2064,11 @@ export function snapshot(state, viewerId = null) {
   return {
     phase: state.phase, phaseT: round2(state.phaseT),
     mode: state.mode,
+    // draft mode: the flag (so the lobby toggle reads back) and the pool, which
+    // is public by design — it is the same for everyone, and the shop has to know
+    // which shelves are empty this game. Both absent while the toggle is off, so
+    // a classic snapshot is unchanged.
+    ...(state.draft ? { draft: true, draftPool: state.draftPool || [] } : {}),
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
     pillars: (state.pillars || []).map(p => ({
