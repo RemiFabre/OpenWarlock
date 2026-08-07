@@ -268,6 +268,7 @@ wss.on('connection', (ws, req) => {
         pl.maxHp = ghost.maxHp; // amulet hp travels here — never re-apply items
         pl.hp = Math.min(pl.hp, pl.maxHp);
         pl.spells = ghost.spells; pl.items = ghost.items; pl.elements = ghost.elements;
+        pl.momentumHits = ghost.momentumHits || 0; // the permanent ramp survives
         ghosts.delete(normName(m.name));
         journal('reconnect-restore', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
       }
@@ -392,6 +393,9 @@ wss.on('connection', (ws, req) => {
         deaths: pl.deaths, dmgDealt: pl.dmgDealt, maxHp: pl.maxHp,
         spells: { ...pl.spells }, items: { ...pl.items },
         elements: { ...(pl.elements || {}) },
+        // Momentum's ramp is game-long, so a tunnel hiccup must not erase the
+        // power earned over 20 rounds of landed fireballs
+        momentumHits: pl.momentumHits || 0,
       });
       journal('reconnect-stash', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
     }
@@ -458,7 +462,14 @@ setInterval(() => {
   const events = game.events;
   game.events = [];
   journaledEvents = 0;
-  broadcast({ t: 'snap', s: snapshot(game), e: events });
+  // PER-VIEWER snapshots (round 12): element stacks are private to whoever
+  // applied them, so there is no longer one blob that is correct for everyone —
+  // each socket gets its own view. snapshot() is cheap (a field copy per
+  // player) and this caps out at MAX_PLAYERS sockets at SNAPSHOT_RATE.
+  for (const [id, ws] of sockets) {
+    if (ws.readyState !== 1) continue;
+    ws.send(JSON.stringify({ t: 'snap', s: snapshot(game, id), e: events }));
+  }
 }, 1000 / SNAPSHOT_RATE);
 
 // ---- go --------------------------------------------------------------------

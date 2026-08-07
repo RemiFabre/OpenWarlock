@@ -4,18 +4,10 @@ import {
   startGame, step, snapshot, stepBot, botShop, setShopReady, setSpectator,
   setMode, BOT_ELEMENTS, playerStats,
 } from '../shared/sim.js';
-import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, itemCost } from '../shared/constants.js';
+import { ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS, itemCost } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
 const DT = 1 / 30;
-
-// Smallest signed angle between two bearings — bites live on arcs.
-function angDist(a, b) {
-  let d = (a - b) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
 
 function run(state, seconds) {
   const n = Math.round(seconds / DT);
@@ -928,6 +920,13 @@ describe('elemental mode', () => {
     return state;
   }
 
+  // Stacks are PRIVATE to whoever applied them (round 12): read one attacker's
+  // pile out of the generic per-attacker store.
+  const stacksOf = (pl, kind, by) =>
+    ((pl.stacks && pl.stacks[kind] && pl.stacks[kind][by]) || 0);
+  const frostOn = (pl, by) => stacksOf(pl, 'frost', by);
+  const mosqOn = (pl, by) => stacksOf(pl, 'mosquito', by);
+
   it('setMode works only in the lobby, validates values, and ships in snapshot', () => {
     const state = createGame({ seed: 1 });
     expect(state.mode).toBe('classic');
@@ -984,7 +983,7 @@ describe('elemental mode', () => {
   it('elements stack on one fireball: frost stacks AND ember hits harder', () => {
     const state = hitWith({ frost: 1, ember: 1 });
     const b = state.players.p1;
-    expect(b.frostStacks).toBe(1);                      // frost rider applied
+    expect(frostOn(b, 'p0')).toBe(1);                   // frost rider applied
     // ember lv1 +2 dmg on the same hit: 7+2 = 9, minus a hair of regen
     expect(b.maxHp - b.hp).toBeGreaterThan(8.0);
     expect(b.maxHp - b.hp).toBeLessThan(9.5);
@@ -1020,11 +1019,11 @@ describe('elemental mode', () => {
 
   it('frost: the first two hits only stack — the THIRD detonates', () => {
     const two = frostHits(1, 2);
-    expect(two.players.p1.frostStacks).toBe(2);
+    expect(frostOn(two.players.p1, 'p0')).toBe(2);
     expect(two.players.p1.slowT).toBe(0);   // nothing yet: it just builds
     const three = frostHits(1, 3);
     const b = three.players.p1;
-    expect(b.frostStacks).toBe(0);          // detonated and reset
+    expect(frostOn(b, 'p0')).toBe(0);       // detonated and reset
     expect(b.slowT).toBeGreaterThan(2.5);   // lv1: 3 s of slow
     expect(b.slowMultHit).toBeCloseTo(ELEMENTS.frost.fx.slowMult[0], 5);
     expect(three.events.some(e => e.t === 'frostBreak')).toBe(true);
@@ -1048,14 +1047,17 @@ describe('elemental mode', () => {
     expect(b.x - x0).toBeGreaterThan(5);
   });
 
-  it('frost stacks are shared: two attackers feed the same counter', () => {
+  // Round 12: stacks are PRIVATE, so two attackers no longer feed one counter —
+  // the 3rd-stack detonation must count only the attacker who landed it.
+  it('frost stacks are PRIVATE: two attackers do not feed one counter', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
     a.elements = { frost: 1 };
     c.elements = { frost: 1 };              // a second frost player
     b.x = 8; b.y = 0; b.moveTarget = null;
-    // two hits from a, one from c — the third stack (c's) detonates.
+    // two hits from a, one from c: under shared stacks that third hit was the
+    // detonation. Now a sits on 2 and c on 1, and nothing goes off.
     // Whoever isn't shooting is parked far off the lane, or the shot would
     // pop on them instead of reaching the victim.
     for (const shooter of ['p0', 'p0', 'p2']) {
@@ -1067,8 +1069,51 @@ describe('elemental mode', () => {
       castSpell(state, shooter, 'fireball', 20, 0);
       run(state, 0.4);
     }
-    expect(b.frostStacks).toBe(0);
+    const need = ELEMENTS.frost.fx.stacksToTrigger;
+    expect(frostOn(b, 'p0')).toBe(need - 1);
+    expect(frostOn(b, 'p2')).toBe(1);
+    expect(b.slowT).toBe(0);                // nobody reached their own 3
+    expect(state.events.some(e => e.t === 'frostBreak')).toBe(false);
+    // a's own third stack does detonate, and clears only a's counter
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    c.x = 0; c.y = -40; c.vx = c.vy = 0; c.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(frostOn(b, 'p0')).toBe(0);
+    expect(frostOn(b, 'p2')).toBe(1);       // c's pile is untouched
     expect(b.slowT).toBeGreaterThan(2.5);
+  });
+
+  it('snapshots are PER VIEWER: you only see the stacks you applied', () => {
+    const state = elementalBattle(3);
+    const b = state.players.p1;
+    state.players.p0.elements = { frost: 1 };
+    state.players.p2.elements = { frost: 1 };
+    // hand-place stacks: this test is about the wire, not about aiming
+    b.stacks = { frost: { p0: 2, p2: 1 }, mosquito: { p2: 1 } };
+    const asP0 = snapshot(state, 'p0').players;
+    expect(asP0.p1.myStacks).toEqual({ frost: 2 });     // mine only
+    const asP2 = snapshot(state, 'p2').players;
+    expect(asP2.p1.myStacks).toEqual({ frost: 1, mosquito: 1 });
+    // ...and the victim sees the worst incoming pile on themselves, with no
+    // attacker identities on the wire at all
+    const asP1 = snapshot(state, 'p1').players;
+    expect(asP1.p1.stacksOnMe).toEqual({ frost: 2, mosquito: 1 });
+    expect(asP1.p1.myStacks).toBeUndefined();
+    expect(JSON.stringify(asP1.p1)).not.toContain('p0');
+    // the neutral view (tests, journals, crash dumps) leaks nothing either
+    expect(snapshot(state).players.p1.myStacks).toBeUndefined();
+  });
+
+  it('classic snapshots carry no elemental fields, per viewer or not', () => {
+    const state = freshBattle(2);
+    const a = snapshot(state, 'p0').players.p0;
+    expect(a.myStacks).toBeUndefined();
+    expect(a.stacksOnMe).toBeUndefined();
+    expect(a.momentumHits).toBeUndefined();
+    // byte-for-byte: a viewer-specific classic snapshot IS the broadcast one
+    expect(JSON.stringify(snapshot(state, 'p0'))).toBe(JSON.stringify(snapshot(state)));
   });
 
   it('venom lv1: discrete 1-per-second ticks, ~5 dmg over 5 s, then it stops', () => {
@@ -1140,21 +1185,24 @@ describe('elemental mode', () => {
     expect(b2.lastHitBy).toBe(null);        // round-9 rule: DoT never stamps
   });
 
-  it('critical 💢: starts weak, every landed hit ramps damage and push', () => {
-    const f = ELEMENTS.critical.fx;
+  // ---- momentum ⚙️ ------------------------------------------------------
+  // Every number below is read out of ELEMENTS.momentum.fx: AGENTS.md — balance
+  // tests must not pin constants the owner is still tuning.
+  it('momentum ⚙️: starts weak, every landed hit permanently ramps DAMAGE', () => {
+    const f = ELEMENTS.momentum.fx;
     const base = SPELLS.fireball.damage[0];
     // hit 1: no ramp yet — a fraction of a normal fireball
-    const s1 = hitWith('critical');
+    const s1 = hitWith('momentum');
     const b1 = s1.players.p1;
     const first = b1.maxHp - b1.hp;
     expect(first).toBeGreaterThan(base * f.dmgMult - 0.8);
     expect(first).toBeLessThan(base * f.dmgMult + 0.5);
     expect(first).toBeLessThan(base);          // strictly weaker to start
-    expect(s1.players.p0.critHits).toBe(1);
+    expect(s1.players.p0.momentumHits).toBe(1);
     // after 10 landed hits the ramp is doing real work
-    const s2 = hitWith('critical');
+    const s2 = hitWith('momentum');
     const a2 = s2.players.p0, b2 = s2.players.p1;
-    a2.critHits = 10;
+    a2.momentumHits = 10;
     b2.hp = b2.maxHp; b2.x = 8; b2.y = 0; b2.vx = 0; b2.vy = 0;
     a2.cooldowns = {};
     castSpell(s2, 'p0', 'fireball', 20, 0);
@@ -1163,118 +1211,246 @@ describe('elemental mode', () => {
     const expected = (base + 10 * f.rampDmg[0]) * f.dmgMult;
     expect(dealt).toBeGreaterThan(expected - 0.8); // regen nibbles a little
     expect(dealt).toBeLessThan(expected + 0.5);
-    expect(dealt).toBeGreaterThan(base * 1.5);     // and it's now MONSTROUS
-    expect(a2.critHits).toBe(11);
-    // knockback ramps too: same hit, compare fresh vs ramped launch speed
+    expect(dealt).toBeGreaterThan(first);          // strictly ramping
+    expect(a2.momentumHits).toBe(11);
+    // The payoff is a WHOLE GAME, not ten hits: a momentum seat lands a median
+    // 78 fireballs per game (measured 2026-08-07), which is where the "you
+    // earned a cannon" fantasy actually lands. Deriving the hit count from the
+    // spec would be circular, so 78 is the measured median, stated as such.
+    const GAME_HITS = 78;
+    const s3 = hitWith('momentum');
+    s3.players.p0.momentumHits = GAME_HITS;
+    const b3 = s3.players.p1;
+    b3.maxHp = 999; b3.hp = b3.maxHp; b3.x = 8; b3.y = 0; b3.vx = 0; b3.vy = 0;
+    s3.players.p0.cooldowns = {};
+    castSpell(s3, 'p0', 'fireball', 20, 0);
+    run(s3, 0.4);
+    const lateGame = (base + GAME_HITS * f.rampDmg[0]) * f.dmgMult;
+    expect(b3.maxHp - b3.hp).toBeGreaterThan(lateGame - 1);
+    expect(b3.maxHp - b3.hp).toBeLessThan(lateGame + 1);
+    // ...and by then it must genuinely beat a plain fireball, or the whole
+    // element is pointless (it starts at dmgMult, so it has to climb back out)
+    expect(lateGame).toBeGreaterThan(base * 1.4);
+    // no ceiling: twice the hits keeps climbing, it never plateaus
+    const twice = (base + 2 * GAME_HITS * f.rampDmg[0]) * f.dmgMult;
+    expect(twice).toBeGreaterThan(lateGame * 1.3);
+  });
+
+  it('momentum is DAMAGE ONLY: a huge stack pushes exactly as hard as none', () => {
+    // round 12 dropped the knockback half of the ramp: a big Momentum stack must
+    // melt people, not launch them into the lava (gale and ember do that)
     const peak = (hits) => {
-      const s = hitWith('critical');
+      const s = hitWith('momentum');
       const a = s.players.p0, b = s.players.p1;
-      a.critHits = hits;
+      a.momentumHits = hits;
       b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
       a.cooldowns = {};
       castSpell(s, 'p0', 'fireball', 20, 0);
       for (let i = 0; i < 12; i++) { step(s, DT); if (b.vx > 1) break; }
       return b.vx;
     };
-    expect(peak(15)).toBeGreaterThan(peak(0) * 1.25);
-    // the ramp has NO ceiling: a monster round makes a monster fireball
-    const s3 = hitWith('critical');
-    s3.players.p0.critHits = 40;
-    const b3 = s3.players.p1;
-    b3.maxHp = 999; b3.hp = b3.maxHp; b3.x = 8; b3.y = 0; b3.vx = 0; b3.vy = 0;
-    s3.players.p0.cooldowns = {};
-    castSpell(s3, 'p0', 'fireball', 20, 0);
-    run(s3, 0.4);
-    const at40 = (base + 40 * f.rampDmg[0]) * f.dmgMult;
-    expect(b3.maxHp - b3.hp).toBeGreaterThan(at40 - 1);
-    expect(b3.maxHp - b3.hp).toBeLessThan(at40 + 1);
+    const cold = peak(0);
+    expect(cold).toBeGreaterThan(1);          // it does push, just not more
+    expect(peak(40)).toBeCloseTo(cold, 5);
+    expect(ELEMENTS.momentum.fx.rampKb).toBeUndefined(); // and the spec agrees
   });
 
-  it('mosquito 🦟: stings for 1, no push, at double the fire rate', () => {
-    const state = hitWith('mosquito');
+  it('the damage number splits base from the momentum bonus (the white number)', () => {
+    // AGENTS.md scar: this element ramped correctly for weeks and still read as
+    // broken. The hit event has to carry the split, or the client cannot show it.
+    const f = ELEMENTS.momentum.fx;
+    const base = SPELLS.fireball.damage[0];
+    const state = hitWith('momentum');
     const a = state.players.p0, b = state.players.p1;
-    expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
-    expect(Math.abs(b.vx)).toBeLessThan(0.5);   // no knockback at all
-    // the cooldown it set is the mosquito's, not the fireball's
-    const full = SPELLS.fireball.cooldown[0];
-    expect(a.cooldowns.fireball).toBeLessThan(full * 0.6);
-  });
-
-  it('mosquito leaves a bite where it stung, and it lasts the round', () => {
-    const state = hitWith('mosquito');
-    const b = state.players.p1;
-    expect(b.bites.length).toBe(1);
-    expect(b.bites[0].by).toBe('p0');
-    // the sting came from the west, so the bite sits on the west side
-    expect(Math.abs(angDist(b.bites[0].a, Math.PI))).toBeLessThan(0.6);
-    run(state, 8);
-    expect(b.bites.length).toBe(1); // no expiry
-    expect(state.events.some(e => e.t === 'bite')).toBe(true);
-  });
-
-  it('mosquito carries NO other element riders (no midas/venom farming)', () => {
-    const state = hitWith({ mosquito: 1, midas: 3, venom: 3, critical: 3 });
-    const a = state.players.p0, b = state.players.p1;
-    expect(a.gold).toBe(GOLD.START);       // midas paid nothing
-    expect(b.poisonT).toBe(0);             // venom applied nothing
-    expect(a.critHits).toBe(0);            // critical counted nothing
-    expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
-  });
-
-  it('another spell landing ON a bite hits double and consumes it', () => {
-    const state = hitWith('mosquito');
-    const a = state.players.p0, b = state.players.p1;
-    a.spells.lightning = 1;
-    expect(b.bites.length).toBe(1);
-    b.hp = b.maxHp;
-    run(state, ELEMENTS.mosquito.fx.biteArm); // let the bite swell
-    b.hp = b.maxHp;
-    // lightning down the same lane strikes the same (west) side of the body
-    castSpell(state, 'p0', 'lightning', 20, 0);
-    run(state, 0.2);
-    const doubled = SPELLS.lightning.damage[0] * ELEMENTS.mosquito.fx.biteMult[0];
-    expect(b.maxHp - b.hp).toBeGreaterThan(doubled - 1);
-    expect(b.bites.length).toBe(0);        // cashed in
-    expect(state.events.some(e => e.t === 'biteHit')).toBe(true);
-  });
-
-  it('stinging your own bite lands the PLAIN fireball, doubled', () => {
-    const state = hitWith('mosquito');
-    const a = state.players.p0, b = state.players.p1;
-    expect(b.bites.length).toBe(1);
-    run(state, ELEMENTS.mosquito.fx.biteArm); // let the bite swell
+    const hits = 10;
+    a.momentumHits = hits;
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
     a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0); // same lane: onto the bite
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
-    const doubled = SPELLS.fireball.damage[0] * ELEMENTS.mosquito.fx.biteMult[0];
-    expect(b.maxHp - b.hp).toBeGreaterThan(doubled - 1.5);
-    expect(Math.abs(b.vx)).toBeGreaterThan(50); // and it PUSHES, unlike a sting
-    expect(b.bites.length).toBe(0);
+    const hit = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(hit).toBeTruthy();
+    expect(hit.bonus).toBeCloseTo(hits * f.rampDmg[0] * f.dmgMult, 5);
+    expect(hit.amount - hit.bonus).toBeCloseTo(base * f.dmgMult, 5);
+    // a plain fireball carries no bonus field at all
+    const plain = hitWith('ember');
+    expect(plain.events.find(e => e.t === 'hit' && e.id === 'p1').bonus).toBeUndefined();
   });
 
-  it('a hit on the wrong side of the body misses the bite', () => {
-    const state = hitWith('mosquito');
-    const a = state.players.p0, b = state.players.p1;
-    a.spells.lightning = 1;
-    expect(b.bites.length).toBe(1);        // bite is on b's west side
-    b.hp = b.maxHp;
-    a.x = 20; a.y = 0;                     // shoot from the EAST instead
-    castSpell(state, 'p0', 'lightning', b.x - 10, 0);
-    run(state, 0.2);
-    expect(b.maxHp - b.hp).toBeLessThan(SPELLS.lightning.damage[0] + 1); // plain hit
-    expect(b.bites.length).toBe(1);        // bite untouched, still waiting
-  });
-
-  it('critical ramp resets at round start', () => {
-    const state = hitWith('critical');
-    expect(state.players.p0.critHits).toBe(1);
-    // kill everyone else -> round ends -> next round starts fresh
+  it('momentum ramp SURVIVES a round boundary (it is permanent now)', () => {
+    expect(ELEMENTS.momentum.fx.rampPermanent).toBe(true);
+    const state = hitWith('momentum');
+    expect(state.players.p0.momentumHits).toBe(1);
+    // kill everyone else -> round ends -> next round starts, ramp intact
     state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
     state.players.p2.hp = 0.01; state.players.p2.x = ARENA.START_RADIUS + 5;
     run(state, 1 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
     expect(state.phase).toBe('battle');
-    expect(state.players.p0.critHits).toBe(0);
+    expect(state.round).toBeGreaterThan(1);
+    expect(state.players.p0.momentumHits).toBe(1);
+  });
+
+  // ---- mosquito 🦟 (simplified: stacks, no geometry) ----------------------
+  it('mosquito 🦟: stings for 1, no push, on a shortened cooldown', () => {
+    const f = ELEMENTS.mosquito.fx;
+    const state = hitWith('mosquito');
+    const a = state.players.p0, b = state.players.p1;
+    expect(b.maxHp - b.hp).toBeCloseTo(f.stingDmg, 0);
+    expect(Math.abs(b.vx)).toBeLessThan(0.5);   // no knockback at all
+    // the cooldown it sets is the mosquito's, not the fireball's
+    const full = SPELLS.fireball.cooldown[0];
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    expect(a.cooldowns.fireball).toBeCloseTo(full * f.cdMult[0], 5);
+  });
+
+  it('a mosquito stack is PRIVATE to its attacker, and lasts the round', () => {
+    const state = hitWith('mosquito');
+    const b = state.players.p1;
+    expect(mosqOn(b, 'p0')).toBe(1);
+    expect(mosqOn(b, 'p2')).toBe(0);   // nobody else can see or spend it
+    run(state, 8);
+    expect(mosqOn(b, 'p0')).toBe(1);   // no expiry: the trap is setup
+    expect(state.events.some(e => e.t === 'bite')).toBe(true);
+    // a SECOND mosquito player's sting builds their own separate trap
+    const c = state.players.p2;
+    c.elements = { mosquito: 1 };
+    state.players.p0.x = 0; state.players.p0.y = -40;
+    state.players.p0.vx = 0; state.players.p0.vy = 0; state.players.p0.moveTarget = null;
+    c.x = 0; c.y = 0; c.vx = c.vy = 0; c.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p2', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(mosqOn(b, 'p0')).toBe(1);
+    expect(mosqOn(b, 'p2')).toBe(1);
+  });
+
+  it('mosquito carries NO other element riders (no midas/venom farming)', () => {
+    const state = hitWith({ mosquito: 1, midas: 3, venom: 3, momentum: 3 });
+    const a = state.players.p0, b = state.players.p1;
+    expect(a.gold).toBe(GOLD.START);       // midas paid nothing
+    expect(b.poisonT).toBe(0);             // venom applied nothing
+    expect(a.momentumHits).toBe(0);        // the ramp counted nothing
+    expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
+  });
+
+  // Sting `b` twice from `a`: the first arms the trap, the second spends it.
+  // Stops on the exact frame the stack is spent, so the proc's fireballs are
+  // still in flight (they spawn procSpawnBack units short of the impact point).
+  function mosquitoProc(elements = { mosquito: 1 }) {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { ...elements };
+    const sting = () => {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      state.events = [];
+      castSpell(state, 'p0', 'fireball', 20, 0);
+    };
+    sting();
+    run(state, 0.4);       // arms the trap
+    sting();
+    for (let i = 0; i < 20; i++) {
+      step(state, DT);
+      if (state.events.some(e => e.t === 'biteHit')) break;
+    }
+    return state;
+  }
+
+  it('spending a mosquito stack fires exactly procBalls NORMAL fireballs', () => {
+    const f = ELEMENTS.mosquito.fx;
+    const state = mosquitoProc();
+    const b = state.players.p1;
+    // the stack is spent, and NOT re-armed by the hit that cashed it in
+    expect(mosqOn(b, 'p0')).toBe(0);
+    expect(state.events.some(e => e.t === 'biteHit')).toBe(true);
+    // procBalls of them: one out now, the rest queued procGap apart
+    expect(state.projectiles.filter(p => p.type === 'fireball').length).toBe(1);
+    expect(state.delayedShots.length).toBe(f.procBalls - 1);
+    expect(state.delayedShots[0].t).toBeCloseTo(f.procGap, 5);
+    // they are NORMAL fireballs: full damage, full knockback, not 1-dmg stings
+    const proc = state.projectiles.find(p => p.type === 'fireball');
+    expect(proc.mosquito).toBe(0);
+    expect(proc.owner).toBe('p0');
+    // ...and they land in quick succession, so all procBalls connect
+    b.hp = b.maxHp;
+    run(state, 0.6);
+    const full = SPELLS.fireball.damage[0] * f.procBalls;
+    expect(b.maxHp - b.hp).toBeGreaterThan(full - 1.5);
+    expect(Math.abs(b.vx)).toBeGreaterThan(50); // and they PUSH, unlike a sting
+  });
+
+  it('the temporal offset is real: the balls do NOT land on the same frame', () => {
+    const state = mosquitoProc();
+    const b = state.players.p1;
+    b.hp = b.maxHp;
+    // step until the first proc ball connects, then confirm at least one is
+    // still in flight — that gap is what a well-timed teleport dodges
+    let landed = 0, inFlightAfterFirst = null;
+    for (let i = 0; i < 30; i++) {
+      state.events = [];
+      step(state, DT);
+      if (state.events.some(e => e.t === 'hit' && e.id === 'p1')) {
+        landed++;
+        if (landed === 1) {
+          inFlightAfterFirst =
+            state.projectiles.length + state.delayedShots.length;
+          break;
+        }
+      }
+    }
+    expect(landed).toBe(1);
+    expect(inFlightAfterFirst).toBeGreaterThan(0);
+  });
+
+  it('HARD RULE: the spawned fireballs place NO mosquito stacks (no chaining)', () => {
+    const f = ELEMENTS.mosquito.fx;
+    const state = mosquitoProc();
+    const b = state.players.p1;
+    // the proc's own balls are flagged, and the flag is what breaks the loop
+    expect(state.projectiles.every(p => p.noStacks === true)).toBe(true);
+    expect(state.delayedShots.every(d => d.noStacks === true)).toBe(true);
+    b.hp = 9999; b.maxHp = 9999;   // survive everything, so a chain would show
+    run(state, 3);
+    expect(mosqOn(b, 'p0')).toBe(0);            // nothing re-armed
+    expect(state.projectiles.length).toBe(0);   // and nothing is still spawning
+    expect(state.delayedShots.length).toBe(0);
+    // exactly ONE proc happened — a chain would have fired more
+    expect(state.events.filter(e => e.t === 'biteHit').length).toBe(1);
+    expect(f.procBalls).toBeGreaterThan(1);     // the spec still wants a double
+  });
+
+  it('only your FIREBALL spends the mark — no cross-spell doubling', () => {
+    // the 2026-08-06 version let any spell cash the mark in, which made
+    // mosquito+lightning the obvious meta. Explicitly killed in round 12.
+    const state = hitWith('mosquito');
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.lightning = 1;
+    a.spells.boomerang = 1;
+    expect(mosqOn(b, 'p0')).toBe(1);
+    b.hp = b.maxHp;
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    run(state, 0.2);
+    expect(b.maxHp - b.hp).toBeLessThan(SPELLS.lightning.damage[0] + 1); // plain hit
+    expect(mosqOn(b, 'p0')).toBe(1);        // mark untouched, still waiting
+    b.hp = b.maxHp;
+    castSpell(state, 'p0', 'boomerang', 20, 0);
+    run(state, 0.4);
+    expect(mosqOn(b, 'p0')).toBe(1);        // and a boomerang cannot spend it
+    expect(state.events.some(e => e.t === 'biteHit')).toBe(false);
+  });
+
+  it('the proc doubles every rider you own: two frost stacks, not one', () => {
+    // the point of the element: your own kit procs twice. Frost is the readable
+    // proof — the sting carries nothing, the two proc balls carry frost.
+    const state = mosquitoProc({ mosquito: 1, frost: 1 });
+    const b = state.players.p1;
+    b.hp = 9999; b.maxHp = 9999;
+    run(state, 0.6);
+    expect(frostOn(b, 'p0')).toBe(ELEMENTS.mosquito.fx.procBalls);
   });
 
   it('venom fireballs drip a trail that burns whoever stands in it', () => {
@@ -1505,16 +1681,54 @@ describe('elemental mode', () => {
 });
 
 describe('power spells & pillar', () => {
-  it('power tier is locked until round 5, then purchasable', () => {
+  // round 12 (Remi): the power tier is buyable from the FIRST shop. The
+  // minRound machinery is kept generic and still tested below, because a
+  // community version may well want to gate something.
+  it('power tier is purchasable from round 1', () => {
     const state = freshBattle(2);
     state.phase = 'shop';
-    state.players.p0.gold = 99;
-    for (const key of ['meteor', 'hook', 'repulse', 'wall'])
-      expect(buy(state, 'p0', key).err).toBe('unlocks after round 5');
-    expect(buy(state, 'p0', 'pillar').ok).toBe(true); // pillar is a normal spell
-    state.round = 5;
-    for (const key of ['meteor', 'hook', 'repulse', 'wall'])
+    state.players.p0.gold = 999;
+    for (const key of ['meteor', 'hook', 'repulse', 'wall']) {
+      expect(SPELLS[key].minRound).toBeUndefined();
       expect(buy(state, 'p0', key).ok).toBe(true);
+    }
+  });
+
+  it('the generic minRound gate still works when a spell sets it', () => {
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    state.players.p0.gold = 999;
+    const spec = SPELLS.pillar;
+    const saved = spec.minRound;
+    try {
+      spec.minRound = 5;
+      expect(buy(state, 'p0', 'pillar').err).toBe('unlocks after round 5');
+      state.round = 5;
+      expect(buy(state, 'p0', 'pillar').ok).toBe(true);
+    } finally {
+      if (saved === undefined) delete spec.minRound; else spec.minRound = saved;
+    }
+  });
+
+  it('bots never buy power-tier spells, even when a build list names one', () => {
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    const bot = state.players.p0;
+    bot.kind = 'berserker'; bot.gold = 999;
+    bot.build = null;
+    // inject a power spell into the consumed order to prove the guard, not the
+    // omission, is what protects us
+    const orig = BUILDS.bruiser.order;
+    try {
+      BUILDS.bruiser.order = ['meteor', 'hook', 'repulse', 'wall', 'fireball'];
+      bot.build = 'bruiser';
+      botShop(state, 'p0');
+      for (const key of ['meteor', 'hook', 'repulse', 'wall'])
+        expect(bot.spells[key] || 0).toBe(0);
+      expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
+    } finally {
+      BUILDS.bruiser.order = orig;
+    }
   });
 
   it('pillar: raises a blocker, one at a time, and it expires', () => {
@@ -1759,7 +1973,11 @@ describe('bot profiles', () => {
 });
 
 describe('v5 mechanics', () => {
-  it('low-HP players fly measurably further from the same hit', () => {
+  // Round 12 (Remi): knockback is being TESTED as constant, via
+  // PLAYER.KB_CONSTANT_MISSING — the HP-scaling formula is untouched, it is just
+  // fed a fixed "fraction missing". This test covers BOTH settings so flipping
+  // that one constant back stays a genuine one-line revert.
+  it('knockback: constant when KB_CONSTANT_MISSING is set, HP-scaled when null', () => {
     const peakKnockVx = (hpFrac) => {
       const state = freshBattle(3);
       const a = state.players.p0, b = state.players.p1;
@@ -1772,12 +1990,23 @@ describe('v5 mechanics', () => {
       for (let i = 0; i < 30; i++) { step(state, DT); peak = Math.max(peak, b.vx); }
       return peak;
     };
-    const full = peakKnockVx(1.0);
-    const low = peakKnockVx(0.2);
-    expect(full).toBeGreaterThan(0);
-    // 20% hp -> 1 + 0.55*0.8 = 1.44x the impulse
-    expect(low).toBeGreaterThan(full * 1.25);
-    expect(low).toBeLessThan(full * 1.6);
+    const saved = PLAYER.KB_CONSTANT_MISSING;
+    try {
+      // the mode we currently ship: identical impulse at any HP
+      PLAYER.KB_CONSTANT_MISSING = 0.30;
+      const cFull = peakKnockVx(1.0), cLow = peakKnockVx(0.2);
+      expect(cFull).toBeGreaterThan(0);
+      expect(cLow).toBeCloseTo(cFull, 4);
+
+      // the revert: % missing drives it again
+      PLAYER.KB_CONSTANT_MISSING = null;
+      const full = peakKnockVx(1.0), low = peakKnockVx(0.2);
+      expect(full).toBeGreaterThan(0);
+      const expected = 1 + PLAYER.KB_HP_FACTOR * 0.8;   // 20% hp -> 80% missing
+      expect(low / full).toBeCloseTo(expected, 1);
+    } finally {
+      PLAYER.KB_CONSTANT_MISSING = saved;
+    }
   });
 
   it('knockback ignores body size — big is only ever a disadvantage', () => {

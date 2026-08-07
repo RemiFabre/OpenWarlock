@@ -322,12 +322,23 @@ export const ELEMENTS = {
   // a big Momentum stack melts people rather than launching them into the lava.
   // The white bonus number over the damage number is not decoration, it is the
   // fix for the 2026-08-06 report — see docs/ROUND12.md S5.
-  // ⚠ No round reset means this is genuinely unbounded over 25 rounds. Starting
-  // at +1/hit per Remi; if the lab shows late rounds one-shotting, the lever is
-  // rampDmg or a soft cap, NOT the removal of the permanence.
+  // rampDmg was Remi's suggested +1/hit and it MEASURED 100% win rate (2026-08-07,
+  // 1000 games): a momentum seat lands a median 78 fireballs per game (max 108
+  // over ~15 rounds), so +1/hit is +78 damage on a 7-14 damage fireball against
+  // 100 max HP — exactly the one-shotting the design ⚠ predicted. Sweep at 400
+  // games: 1 → 99.6% · 0.3 → 86.4% · 0.15 → 61.8% · **0.08 → 27.2%** · 0.04 → 6.6%
+  // (baseline 25%). 0.08 keeps the 1:1.5:2 level ratio and the permanence, and
+  // still ends a long game at +6 dmg (lv1) to +12.5 (lv3) — a fireball roughly
+  // DOUBLED, earned over 20 rounds.
+  // The small per-hit step does NOT re-create the 2026-08-06 "I can't see it
+  // working" complaint, because the feedback now comes from the accumulated
+  // white number on the damage popup, not from the size of one step.
+  // ⚠ Bot-measured. Bots spam fireballs; if Remi's human read says the ramp
+  // feels too slow to earn, rampDmg is the one-line lever — raise it, don't
+  // touch the permanence.
   momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Starts at 80% damage. EVERY fireball you LAND makes your fireball permanently stronger — for the whole game, not just the round, with no ceiling. Damage only: your push never changes.',
-           fx: { dmgMult: 0.8, rampDmg: [1, 1.5, 2], rampPermanent: true } },
+           fx: { dmgMult: 0.8, rampDmg: [0.08, 0.12, 0.16], rampPermanent: true } },
   // 2026-08-07 (Remi, round 12) — SIMPLIFIED. The 2026-08-06 version put a bite
   // on an ARC of the victim's body and let any OTHER spell double on it. Two
   // things killed it: it was too fiddly to aim and too invisible to read (the

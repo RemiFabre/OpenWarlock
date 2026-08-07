@@ -107,15 +107,20 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
     slowT: 0,              // frost: seconds of slow remaining
     slowMultHit: 1,        // frost: strength of the slow that hit us
-    bites: [],             // mosquito: [{a: angle on our body, by, lv}], round-long
-    frostStacks: 0,        // frost: stacks on us (ALL attackers share the count)
+    // Per-attacker stack store: {kind: {attackerId: n}}. Stacks are PRIVATE to
+    // whoever applied them (2026-08-07, round 12 — reverses the shared-counter
+    // decision: your element's power must not depend on what everyone else
+    // picked). One generic store, two users today: frost and mosquito.
+    stacks: {},
     stunT: 0,              // frost lv3: seconds frozen solid (no move, no cast)
     poisonT: 0,            // venom: seconds of DoT remaining
     poisonTick: 0,         // venom: damage per 1 s tick (re-hits stack it)
     poisonBy: null,        // venom: who poisoned us (kill credit)
     growT: 0,              // terra: seconds of forced growth remaining
     growMultHit: 1,        // terra: strength of the grow that hit us
-    critHits: 0,           // critical: fireball hits landed this round (ramp)
+    // momentum: fireball hits landed for the WHOLE GAME (the ramp is permanent
+    // — deliberately NOT cleared in startRound, see ELEMENTS.momentum)
+    momentumHits: 0,
     echoN: 0,              // echo stone: fireballs cast this round
     dash: null,            // {dx, dy, left, hit:Set-as-object}
     lastHitBy: null,       // {id, t}  t = state.time when hit
@@ -232,6 +237,41 @@ function lvl(spec, field, level) {
 // Same idea for raw element fx values (scalar, or array indexed by level-1).
 function efxV(v, level) {
   return Array.isArray(v) ? v[Math.min(level, v.length) - 1] : v;
+}
+
+// ---- per-attacker stack store (elemental) ---------------------------------
+// `target.stacks` is {kind: {attackerId: count}} — see addPlayer. Every stacking
+// element goes through these three helpers, so "private to whoever applied it"
+// is one mechanism rather than one implementation per element. An ownerless
+// projectile (its caster left the game) can neither place nor spend a stack:
+// there is nobody to own the counter.
+function stackCount(target, kind, byId) {
+  if (byId == null) return 0;
+  const s = target.stacks && target.stacks[kind];
+  return (s && s[byId]) || 0;
+}
+
+function addStack(target, kind, byId, n = 1) {
+  if (byId == null) return 0;
+  const store = target.stacks || (target.stacks = {});
+  const s = store[kind] || (store[kind] = {});
+  return (s[byId] = (s[byId] || 0) + n);
+}
+
+function clearStacks(target, kind, byId) {
+  const s = target.stacks && target.stacks[kind];
+  if (s && byId != null) delete s[byId];
+}
+
+// The worst single attacker's count of `kind` riding on this body. This is the
+// only honest "a detonation is coming" reading now that counters are private,
+// and it is shown to the victim only (snapshot's `stacksOnMe`).
+function worstStack(target, kind) {
+  const s = target.stacks && target.stacks[kind];
+  if (!s) return 0;
+  let max = 0;
+  for (const n of Object.values(s)) if (n > max) max = n;
+  return max;
 }
 
 // Mosquito level a player is flying with, or 0 (elemental mode only).
@@ -397,22 +437,30 @@ export function castSpell(state, id, key, tx, ty) {
   return true;
 }
 
-// Fireball factory shared by castSpell and the Echo Stone delayed shot.
-// Spawns at the caster (owner is excluded from collisions; point-blank shots
-// connect). In elemental mode ALL the caster's rider elements (everything
-// but arcane) ride on the projectile at their current levels.
-function spawnFireball(state, pl, level, dx, dy) {
+// Fireball factory shared by castSpell, the Echo Stone delayed shot and the
+// mosquito proc. Spawns at the caster (owner is excluded from collisions;
+// point-blank shots connect). In elemental mode ALL the caster's rider elements
+// (everything but arcane) ride on the projectile at their current levels.
+//
+// opts, all used by the mosquito proc (ELEMENTS.mosquito):
+//   plain    — never turn this into a sting: it is one of your NORMAL
+//              fireballs, carrying every rider you own EXCEPT mosquito
+//   noStacks — HARD RULE: this ball can neither place nor spend a mosquito
+//              stack. Without it the proc chains forever (test-locked).
+//   x, y     — spawn origin override (the proc starts short of the impact point)
+function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
-  const mosq = mosquitoLevel(state, pl);
+  const mosq = opts.plain ? 0 : mosquitoLevel(state, pl);
   if (mosq) {
     // the mosquito REPLACES the fireball and carries nothing else: a 1-damage
-    // pellet on half the cooldown would otherwise farm midas gold, venom
-    // stacks and crit ramp for free
+    // pellet on a much shorter cooldown would otherwise farm midas gold, venom
+    // stacks and the momentum ramp for free
     elements = { mosquito: mosq };
   } else if (state.mode === 'elemental' && pl.elements) {
     for (const [k, v] of Object.entries(pl.elements)) {
       if (k === 'arcane' || !(v > 0)) continue;
+      if (k === 'mosquito') continue; // the pest is the setup, never a rider
       (elements = elements || {})[k] = v;
     }
   }
@@ -420,13 +468,16 @@ function spawnFireball(state, pl, level, dx, dy) {
     ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
-    x: pl.x + dx * pl.radius * 0.5,
-    y: pl.y + dy * pl.radius * 0.5,
+    // an explicit origin is used verbatim (the proc places its own muzzle);
+    // otherwise the ball starts half a body ahead of the caster
+    x: opts.x != null ? opts.x : pl.x + dx * pl.radius * 0.5,
+    y: opts.y != null ? opts.y : pl.y + dy * pl.radius * 0.5,
     vx: dx * spec.speed, vy: dy * spec.speed,
     traveled: 0,
     returning: false,
     hit: {},
     elements, radius, mosquito: mosq || 0,
+    ...(opts.noStacks ? { noStacks: true } : {}),
   });
 }
 
@@ -462,12 +513,9 @@ function fireLightning(state, pl, level, dx, dy) {
   });
   if (best) {
     if (best.shieldT > 0) return; // shield blocks (no reflect for hitscan)
-    // the bolt lands on the side facing the caster; the ray's closest point is
-    // the victim's own centre, which has no meaningful bearing
-    const m = biteHit(state, best, pl.id, pl.x, pl.y);
     const kb = lvl(spec, 'knockback', level);
-    if (kb) applyKnockback(state, best, dx, dy, kb * m); // lightning has no push
-    applyDamage(state, best, lvl(spec, 'damage', level) * m, pl.id);
+    if (kb) applyKnockback(state, best, dx, dy, kb); // lightning has no push
+    applyDamage(state, best, lvl(spec, 'damage', level), pl.id);
   }
 }
 
@@ -540,8 +588,14 @@ function applyKnockback(state, target, dx, dy, magnitude) {
   // near-death ≈ 1+KB_HP_FACTOR). Cape still multiplies on top. Deliberately
   // NO size/radius term: small and big bodies take identical impulses —
   // being big must only ever be a disadvantage (bigger target).
-  const hpFrac = clamp(target.hp / target.maxHp, 0, 1);
-  const hpScale = 1 + PLAYER.KB_HP_FACTOR * (1 - hpFrac);
+  // KB_CONSTANT_MISSING (round 12) overrides the real HP fraction with a fixed
+  // one, making knockback constant for everyone without touching this formula.
+  // Set it to null in constants.js and true HP scaling is back — that is the
+  // whole revert.
+  const missing = PLAYER.KB_CONSTANT_MISSING == null
+    ? 1 - clamp(target.hp / target.maxHp, 0, 1)
+    : PLAYER.KB_CONSTANT_MISSING;
+  const hpScale = 1 + PLAYER.KB_HP_FACTOR * missing;
   target.vx += dx * magnitude * kbMult * hpScale;
   target.vy += dy * magnitude * kbMult * hpScale;
 }
@@ -550,7 +604,12 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 // credit). Direct hits do; DoT ticks (poison, trails) must NOT — a 30 Hz
 // poison tick would otherwise re-stamp forever and steal every lava kill
 // from the player who actually landed the shove.
-function applyDamage(state, target, amount, sourceId, { silent = false, stamp = true } = {}) {
+// `bonus` is the part of `amount` that came from the Momentum ramp. It rides on
+// the hit event so the client can print it as a separate white number above the
+// damage — AGENTS.md scar: this element ramped correctly for weeks and still
+// read as broken because +0.45/hit is invisible. Visibility is the feature.
+function applyDamage(state, target, amount, sourceId,
+  { silent = false, stamp = true, bonus = 0 } = {}) {
   if (!target.alive) return;
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
@@ -592,7 +651,10 @@ function applyDamage(state, target, amount, sourceId, { silent = false, stamp = 
     }
   }
   if (!silent)
-    state.events.push({ t: 'hit', id: target.id, amount, x: target.x, y: target.y });
+    state.events.push({
+      t: 'hit', id: target.id, amount, x: target.x, y: target.y,
+      ...(bonus > 0 ? { bonus } : {}),  // momentum: shown above the damage
+    });
   if (target.hp <= 0) kill(state, target, sourceId);
 }
 
@@ -694,10 +756,13 @@ function startRound(state) {
     pl.cooldowns = {};
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.slowT = 0; pl.slowMultHit = 1;
-    pl.stunT = 0; pl.frostStacks = 0; pl.regenLockT = 0; pl.roundGold = 0;
-    pl.bites = [];
+    pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
+    pl.stacks = {};   // frost + mosquito stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
-    pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0; pl.critHits = 0;
+    pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0;
+    // pl.momentumHits is DELIBERATELY not reset: the Momentum ramp is permanent
+    // for the whole game (ELEMENTS.momentum.fx.rampPermanent). Adding it here
+    // would silently delete the element's entire point.
     pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
     pl.roundKills = 0;
@@ -950,9 +1015,8 @@ function stepBattle(state, dt) {
         const dd = Math.hypot(ddx, ddy);
         if (dd > spec.radius + pl.radius) continue;
         const nx = dd > 1e-6 ? ddx / dd : 1, ny = dd > 1e-6 ? ddy / dd : 0;
-        const bm = pl.id === m.owner ? 1 : biteHit(state, pl, m.owner, m.x, m.y);
-        applyKnockback(state, pl, nx, ny, lvl(spec, 'knockback', m.level) * bm);
-        applyDamage(state, pl, lvl(spec, 'damage', m.level) * bm,
+        applyKnockback(state, pl, nx, ny, lvl(spec, 'knockback', m.level));
+        applyDamage(state, pl, lvl(spec, 'damage', m.level),
           pl.id === m.owner ? null : m.owner);
       }
     }
@@ -1028,9 +1092,8 @@ function stepBattle(state, dt) {
           if (dd > lvl(spec, 'radius', level) + other.radius) continue;
           const nx = dd > 1e-6 ? ddx / dd : 1, ny = dd > 1e-6 ? ddy / dd : 0;
           if (other.shieldT > 0) continue; // shield holds the blast
-          const bm = biteHit(state, other, pl.id, pl.x, pl.y);
-          applyKnockback(state, other, nx, ny, lvl(spec, 'knockback', level) * bm);
-          applyDamage(state, other, lvl(spec, 'damage', level) * bm, pl.id);
+          applyKnockback(state, other, nx, ny, lvl(spec, 'knockback', level));
+          applyDamage(state, other, lvl(spec, 'damage', level), pl.id);
         }
       }
     }
@@ -1055,9 +1118,8 @@ function stepBattle(state, dt) {
           const kx = -pl.dash.dy * side * 0.8 + pl.dash.dx * 0.4;
           const ky = pl.dash.dx * side * 0.8 + pl.dash.dy * 0.4;
           const n = Math.hypot(kx, ky) || 1;
-          const m = biteHit(state, other, pl.id, pl.x, pl.y);
-          applyKnockback(state, other, kx / n, ky / n, lvl(spec, 'knockback', pl.dash.level) * m);
-          applyDamage(state, other, lvl(spec, 'damage', pl.dash.level) * m, pl.id);
+          applyKnockback(state, other, kx / n, ky / n, lvl(spec, 'knockback', pl.dash.level));
+          applyDamage(state, other, lvl(spec, 'damage', pl.dash.level), pl.id);
         }
       }
       if (pl.dash.left <= 0) pl.dash = null;
@@ -1097,7 +1159,9 @@ function stepBattle(state, dt) {
     }
   }
 
-  // Echo Stone delayed fireballs (elemental; the list is empty in classic)
+  // Delayed fireballs (elemental; the list is empty in classic): the Echo
+  // Stone's second shot, and the mosquito proc's staggered balls, which carry
+  // their own origin plus the `plain`/`noStacks` flags.
   if (state.delayedShots && state.delayedShots.length) {
     const rest = [];
     for (const ds of state.delayedShots) {
@@ -1105,8 +1169,14 @@ function stepBattle(state, dt) {
       if (ds.t > 0) { rest.push(ds); continue; }
       const owner = state.players[ds.owner];
       if (owner && owner.alive) {
-        spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
-        state.events.push({ t: 'cast', id: owner.id, spell: 'fireball', x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy });
+        spawnFireball(state, owner, ds.level, ds.dx, ds.dy, {
+          x: ds.x, y: ds.y, plain: ds.plain, noStacks: ds.noStacks,
+        });
+        state.events.push({
+          t: 'cast', id: owner.id, spell: 'fireball',
+          x: ds.x != null ? ds.x : owner.x, y: ds.y != null ? ds.y : owner.y,
+          dx: ds.dx, dy: ds.dy,
+        });
       }
     }
     state.delayedShots = rest;
@@ -1300,49 +1370,50 @@ function stepProjectiles(state, dt) {
       const v = Math.hypot(pr.vx, pr.vy) || 1;
       let dmg = lvl(spec, 'damage', pr.level);
       let kb = lvl(spec, 'knockback', pr.level);
+      // Momentum's earned bonus rides along in its own accumulator so the
+      // floating damage number can show base and bonus separately (the white
+      // number over the red one IS the feature — see ELEMENTS.momentum). Every
+      // damage multiplier applies to both halves, so the split is exact and
+      // does not depend on which order the riders happen to be iterated in.
+      let ramp = 0;
+      // Mosquito payoff: does this hit land on a victim already carrying THIS
+      // owner's stack? Decided BEFORE the sting plants its own, or a single
+      // sting would arm and cash itself in the same frame. A proccing hit does
+      // not re-arm — you have to sting again to set the next one up.
+      // FIREBALLS ONLY: the 2026-08-06 version let any other spell cash the mark
+      // in, and the owner killed that outright ("mosquito+lightning becomes THE
+      // meta"). A boomerang must not spend the stack either.
+      const procMosq = pr.type === 'fireball' && !pr.noStacks && pr.owner != null &&
+        stackCount(other, 'mosquito', pr.owner) > 0;
+      if (procMosq) clearStacks(other, 'mosquito', pr.owner);
       if (pr.mosquito) {
-        // sting an existing bite and the pest lands as your PLAIN fireball,
-        // doubled; otherwise it's 1 damage, no push, and it leaves a mark
-        const f = ELEMENTS.mosquito.fx;
-        const m = biteHit(state, other, pr.owner, pr.x, pr.y);
-        if (m > 1) {
-          dmg *= m; kb *= m;
-          // the payoff sting drops you back to a full fireball cooldown
-          const own = state.players[pr.owner];
-          if (own && f.selfCashFullCd) {
-            const full = lvl(spec, 'cooldown', pr.level) * cdrOf(state, own);
-            own.cooldowns.fireball = Math.max(own.cooldowns.fireball || 0, full);
-          }
-        } else {
-          dmg = ELEMENTS.mosquito.fx.stingDmg; kb = 0;
-          plantBite(state, other, pr.owner, pr.x, pr.y, pr.mosquito);
-        }
+        // the sting: 1 damage, zero knockback, no geometry
+        dmg = ELEMENTS.mosquito.fx.stingDmg; kb = 0;
       } else if (pr.elements) { // every rider element bends the numbers, stacking
         for (const [ek, el] of Object.entries(pr.elements)) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
           if (f.kbAdd) kb += efxV(f.kbAdd, el);
           if (f.rampDmg) {
-            // critical: the ramp counts hits landed so far this round, read
-            // at hit time from the owner (an add, so dmgMult applies on top).
-            // Deliberately uncapped — the round reset is the only ceiling.
+            // momentum: the ramp counts every fireball this owner has landed
+            // ALL GAME, read at hit time. Damage only — knockback is untouched
+            // on purpose, so a big stack melts people instead of launching them.
             const own = state.players[pr.owner];
-            const hits = (own && own.critHits) || 0;
-            dmg += hits * efxV(f.rampDmg, el);
-            kb += hits * efxV(f.rampKb, el);
+            ramp += ((own && own.momentumHits) || 0) * efxV(f.rampDmg, el);
           }
-          if (f.dmgMult) dmg *= efxV(f.dmgMult, el);
+          if (f.dmgMult) { dmg *= efxV(f.dmgMult, el); ramp *= efxV(f.dmgMult, el); }
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
       }
-      if (!pr.mosquito) {
-        // any NON-mosquito hit that lands on one of your bites cashes it in
-        const m = biteHit(state, other, pr.owner, pr.x, pr.y);
-        dmg *= m; kb *= m;
-      }
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
-      applyDamage(state, other, dmg, pr.owner);
+      applyDamage(state, other, dmg + ramp, pr.owner, { bonus: ramp });
       if (pr.elements) applyElementsHit(state, pr, other);
+      // the sting arms the trap: one mosquito stack of this attacker only.
+      // `noStacks` balls (the proc's own fireballs) can never arm anything —
+      // that is the hard rule that stops the effect chaining forever.
+      if (pr.mosquito && !pr.noStacks && !procMosq)
+        plantMosquitoStack(state, other, pr.owner);
+      if (procMosq) fireMosquitoProc(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // hook: yank the (surviving) victim to right BEHIND the caster —
@@ -1370,56 +1441,48 @@ function stepProjectiles(state, dt) {
   state.projectiles = keep;
 }
 
-// ---- mosquito bites (elemental) -------------------------------------------
-// A bite sits on an ARC of the victim's body (a third of the circumference by
-// default) and belongs to the mosquito player who left it. Landing anything
-// on that arc cashes it in. Bites survive the whole round — they are setup.
+// ---- mosquito (elemental) -------------------------------------------------
+// 2026-08-07 rework: no geometry at all. A sting leaves ONE stack of its owner
+// on the victim (the same private store frost uses); the owner's next hit on
+// that victim spends it and buys them TWO of their own normal fireballs,
+// slightly staggered in time. Every on-hit effect the owner has therefore fires
+// twice — and a well-timed teleport can still dodge the second ball.
 
-function angDiff(a, b) {
-  let d = (a - b) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-
-// Half-width of a bite arc, in radians (biteArc is a fraction of the circle).
-function biteHalfArc() {
-  return Math.PI * ELEMENTS.mosquito.fx.biteArc;
-}
-
-// Did a hit from `ownerId` landing at (hx, hy) connect with one of that
-// owner's bites on `target`? Consumes it and returns its multiplier, else 1.
-function biteHit(state, target, ownerId, hx, hy) {
-  const bites = target.bites;
-  if (ownerId == null || !bites || !bites.length) return 1;
-  const ang = Math.atan2(hy - target.y, hx - target.x);
-  const half = biteHalfArc();
-  for (let i = 0; i < bites.length; i++) {
-    const b = bites[i];
-    if (b.by !== ownerId || Math.abs(angDiff(ang, b.a)) > half) continue;
-    if (state.time - b.at < ELEMENTS.mosquito.fx.biteArm) continue; // still swelling
-    bites.splice(i, 1);
-    state.events.push({ t: 'biteHit', id: target.id, x: hx, y: hy });
-    return efxV(ELEMENTS.mosquito.fx.biteMult, b.lv);
-  }
-  return 1;
-}
-
-function plantBite(state, target, ownerId, hx, hy, lv) {
+function plantMosquitoStack(state, target, ownerId) {
   if (ownerId == null) return;
+  // one stack, not a growing pile: the trap is either armed or it is not
+  const store = target.stacks || (target.stacks = {});
+  const s = store.mosquito || (store.mosquito = {});
+  if (s[ownerId]) return;
+  s[ownerId] = 1;
+  state.events.push({ t: 'bite', id: target.id, by: ownerId, x: target.x, y: target.y });
+}
+
+// Spend already done by the caller: fire `procBalls` of the owner's NORMAL
+// fireballs at the victim. They start `procSpawnBack` units short of the impact
+// point along the same heading, `procGap` seconds apart, and every one of them
+// carries `noStacks` so the proc can never trigger itself.
+function fireMosquitoProc(state, pr, target) {
+  const owner = state.players[pr.owner];
+  if (!owner) return;
   const f = ELEMENTS.mosquito.fx;
-  const a = Math.atan2(hy - target.y, hx - target.x);
-  const bites = target.bites || (target.bites = []);
-  // maxBites is counted PER ATTACKER: your newest sting replaces your oldest,
-  // so you always have exactly one mark to come back to — and two mosquito
-  // players each keep their own
-  const mine = bites.filter(b => b.by === ownerId);
-  if (mine.some(b => Math.abs(angDiff(a, b.a)) <= biteHalfArc())) return;
-  while (mine.length >= f.maxBites) {
-    bites.splice(bites.indexOf(mine.shift()), 1);
+  const v = Math.hypot(pr.vx, pr.vy) || 1;
+  const dx = pr.vx / v, dy = pr.vy / v;
+  const level = owner.spells.fireball || pr.level || 1;
+  const x = pr.x - dx * f.procSpawnBack, y = pr.y - dy * f.procSpawnBack;
+  state.events.push({ t: 'biteHit', id: target.id, by: pr.owner, x: pr.x, y: pr.y });
+  for (let i = 0; i < f.procBalls; i++) {
+    if (i === 0) {
+      spawnFireball(state, owner, level, dx, dy, { x, y, plain: true, noStacks: true });
+    } else {
+      // the later balls ride the Echo Stone's delayed-shot queue: same
+      // machinery, and it already survives the owner dying in between
+      state.delayedShots.push({
+        t: f.procGap * i, owner: pr.owner, level, dx, dy,
+        x, y, plain: true, noStacks: true,
+      });
+    }
   }
-  bites.push({ a, by: ownerId, lv, at: state.time });
-  state.events.push({ t: 'bite', id: target.id, x: hx, y: hy });
 }
 
 // Turn a boomerang around toward its LAUNCH POINT (not the thrower — standing
@@ -1446,18 +1509,19 @@ function turnBoomerangHome(state, pr) {
 function applyElementsHit(state, pr, target) {
   for (const [ek, el] of Object.entries(pr.elements)) {
     const f = ELEMENTS[ek].fx;
-    // frost (2026-08-06): stacks build on the VICTIM and are shared by every
-    // attacker — two frost players feed the same counter. The 3rd stack
-    // detonates (slow, or a hard freeze at lv3) and clears the counter; the
-    // level of whoever landed the 3rd stack decides how bad it is.
+    // frost: stacks build on the VICTIM but are PRIVATE to each attacker
+    // (2026-08-07, round 12 — reverses the 2026-08-06 shared counter). Only
+    // your own 3 detonate, so your element's power no longer depends on what
+    // everyone else bought. The level of whoever lands the 3rd decides how bad
+    // it is, and only that attacker's counter is cleared.
     if (f.stacksToTrigger) {
-      target.frostStacks = (target.frostStacks || 0) + 1;
+      const n = addStack(target, 'frost', pr.owner);
       state.events.push({
-        t: 'frost', id: target.id, stacks: target.frostStacks,
+        t: 'frost', id: target.id, stacks: n, by: pr.owner,
         of: f.stacksToTrigger, x: target.x, y: target.y,
       });
-      if (target.frostStacks >= f.stacksToTrigger) {
-        target.frostStacks = 0;
+      if (n >= f.stacksToTrigger) {
+        clearStacks(target, 'frost', pr.owner);
         const stun = efxV(f.stunT, el);
         const slowT = efxV(f.slowT, el);
         if (stun > 0) {
@@ -1502,8 +1566,10 @@ function applyElementsHit(state, pr, target) {
       }
     }
     if (f.rampDmg && pr.owner != null) {
+      // momentum: one more permanent point of fireball damage, banked for the
+      // rest of the GAME (never reset in startRound)
       const owner = state.players[pr.owner];
-      if (owner) owner.critHits = (owner.critHits || 0) + 1;
+      if (owner) owner.momentumHits = (owner.momentumHits || 0) + 1;
     }
     if (f.growMult) {
       target.growT = f.growT;
@@ -1515,8 +1581,36 @@ function applyElementsHit(state, pr, target) {
 
 // ---- serialization ------------------------------------------------------
 
+// The stacks `viewerId` has personally applied to `p`, as {kind: n}. Omitted
+// entirely when there are none, so an ordinary snapshot carries no extra bytes.
+function viewStacks(p, viewerId) {
+  const out = {};
+  for (const kind of Object.keys(p.stacks || {})) {
+    const n = stackCount(p, kind, viewerId);
+    if (n > 0) out[kind] = n;
+  }
+  return Object.keys(out).length ? { myStacks: out } : {};
+}
+
+// What is riding on your own body: per kind, the biggest single attacker's pile.
+function ownStacks(p) {
+  const out = {};
+  for (const kind of Object.keys(p.stacks || {})) {
+    const n = worstStack(p, kind);
+    if (n > 0) out[kind] = n;
+  }
+  return Object.keys(out).length ? { stacksOnMe: out } : {};
+}
+
 // Strip internals for the wire. Events are drained separately by the server.
-export function snapshot(state) {
+//
+// PER-VIEWER (2026-08-07, round 12): `viewerId` is the player this snapshot is
+// being built for. Stacks are private to whoever applied them, so a single
+// broadcast blob can no longer serve everyone — the server builds one snapshot
+// per socket. Pass null (tests, journals, crash dumps) for the neutral view.
+// Everything viewer-dependent lives behind the `elemental` guard, so classic and
+// co-op snapshots are byte-identical whatever viewerId says.
+export function snapshot(state, viewerId = null) {
   const elemental = state.mode === 'elemental';
   const coop = state.mode === 'coop';
   const players = {};
@@ -1556,11 +1650,18 @@ export function snapshot(state) {
       ...(elemental ? {
         elements: p.elements,
         slow: p.slowT > 0, poison: p.poisonT > 0, grow: p.growT > 0,
-        stun: p.stunT > 0, frostStacks: p.frostStacks || 0,
-        critHits: p.critHits || 0,   // so the HUD can show the ramp building
-        // mosquito bites, as angles on this body — the client draws them as
-        // arcs so you can aim the payoff shot at the right side
-        bites: (p.bites || []).map(b => ({ a: round2(b.a), by: b.by })),
+        stun: p.stunT > 0,
+        momentumHits: p.momentumHits || 0, // so the HUD can show the ramp building
+        // PRIVATE: only the stacks the VIEWER put on this body. This is the one
+        // thing you need to see to play a stacking element — is my frost
+        // detonation one hit away, is my mosquito trap armed on that target —
+        // and nobody else's counter is on the wire at all.
+        ...(viewerId != null && p.id !== viewerId
+          ? viewStacks(p, viewerId) : {}),
+        // ...and on your OWN body, the worst single attacker's count, which is
+        // the honest "a detonation is coming" warning. Attacker identities stay
+        // off the wire.
+        ...(p.id === viewerId ? ownStacks(p) : {}),
       } : {}),
     };
   }
@@ -2148,6 +2249,10 @@ const BOT_BUILDS = {
     'lightning', 'ring', 'sword', 'treads', 'lightning', 'teleport'],
   berserker: ['fireball', 'fireball', 'rush', 'sword', 'amulet', 'boots',
     'rush', 'cape', 'treads'],
+  // brawler (Normal) shares the berserker brain, so it shares its shopping
+  // list too — the tier difference is reaction/aim only, never gear.
+  brawler: ['fireball', 'fireball', 'rush', 'sword', 'amulet', 'boots',
+    'rush', 'cape', 'treads'],
   stalker: ['teleport', 'fireball', 'lightning', 'boots', 'fireball',
     'shield', 'lightning', 'cape', 'ring', 'teleport', 'lightning', 'shield'],
 };
@@ -2155,7 +2260,8 @@ const BOT_BUILDS = {
 // In elemental mode each bot kind commits to a fixed element (bought as soon
 // as affordable) so bots-only elemental games exercise the effect code paths.
 // Their combat logic needs no changes — elements apply passively on hit.
-export const BOT_ELEMENTS = { berserker: 'gale', stalker: 'frost', grunt: 'ember' };
+export const BOT_ELEMENTS = { berserker: 'gale', stalker: 'frost', grunt: 'ember',
+  brawler: 'venom' };
 
 export function botShop(state, id) {
   const pl = state.players[id];
@@ -2167,6 +2273,14 @@ export function botShop(state, id) {
   const order = (pl.build && BUILDS[pl.build] && BUILDS[pl.build].order) ||
     BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   for (const thing of order) {
+    // Remi's rule (round 12): a bot must NEVER buy a spell it pilots badly.
+    // The power tier lost its minRound gate, so nothing else stops a bot from
+    // sinking 20+ gold into a Meteor it will never cast. The build lists happen
+    // to omit them today; this makes it structural, and test-locked, so adding
+    // a power spell to a list can't silently gut every difficulty tier and the
+    // whole co-op curve. Delete this ONLY together with teaching bots to cast
+    // them (AGENTS.md debt #2 — the highest-value lab work left).
+    if (SPELLS[thing] && SPELLS[thing].tier === 'power') continue;
     buy(state, id, thing); // ignores failures (owned / poor / maxed)
   }
 }

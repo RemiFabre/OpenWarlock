@@ -616,16 +616,13 @@ const FX_FIELDS = {
   growMult: ['target grows', fmtMult],
   growT: ['growth lasts', fmtSec],
   growCap: ['growth cap', (v) => `×${fmtNum(v)}`],
-  rampDmg: ['damage per stack', (v) => `+${fmtNum(v)}`],
-  rampKb: ['push per stack', (v) => `+${fmtNum(v)}`],
-  rampCap: ['ramp caps at', (v) => `${fmtNum(v)} hits`],
+  rampDmg: ['damage per landed hit', (v) => `+${fmtNum(v)}`],
+  rampPermanent: ['the ramp', (v) => (v ? 'never resets — it is yours for the game' : 'resets each round')],
   mosquito: ['fireball becomes a mosquito', fmtNum],
   stingDmg: ['sting damage', fmtNum],
-  biteArc: ['bite covers', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of the body`],
-  biteMult: ['spell landed on a bite', (v) => `×${fmtNum(v)}`],
-  maxBites: ['your bites at once', fmtNum],
-  biteArm: ['bite arms after', fmtSec],
-  selfCashFullCd: ['stinging your own bite', (v) => (v ? 'costs the fire-rate bonus' : '—')],
+  procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} of your fireballs`],
+  procGap: ['and they land', (v) => `${fmtSec(v)} apart`],
+  procSpawnBack: ['appearing', (v) => `${fmtNum(v)} u before impact`],
 };
 
 // Item fx fields — same shape as SPELL_FIELDS/FX_FIELDS. There is no
@@ -1265,20 +1262,26 @@ function updateUi(s) {
     }
   }
 
-  // live element readouts. A crit ramp you can't see is a mechanic you don't
-  // play around, and the frost stacks riding on you are a countdown to a stun.
+  // live element readouts. A ramp you can't see is a mechanic you don't play
+  // around, and the frost stacks riding on you are a countdown to a stun.
   const buffs = [];
   if (inGame && m && !m.spectator) {
-    const critLv = (m.elements && m.elements.critical) || 0;
-    if (critLv > 0) {
-      const f = ELEMENTS.critical.fx;
-      const hits = Math.min(+m.critHits || 0, f.rampCap);
-      buffs.push(`<span class="buff crit">${ELEMENTS.critical.icon} ${hits}/${f.rampCap}` +
-        ` · +${fmtNum(statAt(f.rampDmg, critLv) * hits)} dmg</span>`);
+    const momLv = (m.elements && m.elements.momentum) || 0;
+    if (momLv > 0) {
+      // no cap to show any more (the ramp is uncapped AND permanent): the
+      // number that matters is the damage it has actually bought you
+      const hits = Math.max(0, +m.momentumHits || 0);
+      buffs.push(`<span class="buff crit">${ELEMENTS.momentum.icon} ${hits} hits` +
+        ` · +${fmtNum(statAt(ELEMENTS.momentum.fx.rampDmg, momLv) * hits)} dmg</span>`);
     }
-    if (+m.frostStacks > 0)
+    // stacks riding on YOU: the worst single attacker's pile, i.e. how close
+    // somebody is to detonating on you (counters are private now)
+    const onMe = m.stacksOnMe || null;
+    if (onMe && onMe.frost > 0)
       buffs.push(`<span class="buff frost">${ELEMENTS.frost.icon} ` +
-        `${m.frostStacks}/${ELEMENTS.frost.fx.stacksToTrigger}</span>`);
+        `${onMe.frost}/${ELEMENTS.frost.fx.stacksToTrigger}</span>`);
+    if (onMe && onMe.mosquito > 0)
+      buffs.push(`<span class="buff venom">${ELEMENTS.mosquito.icon} marked</span>`);
     if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');
     else if (m.slow) buffs.push('<span class="buff frost">🐌 slowed</span>');
     if (m.poison) buffs.push(`<span class="buff venom">${ELEMENTS.venom.icon} poisoned</span>`);

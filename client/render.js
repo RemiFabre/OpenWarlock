@@ -46,7 +46,7 @@ const fin = Number.isFinite;
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
   frost: '#8fd8ff', venom: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
-  critical: '#ff5d5d',
+  momentum: '#d8dee9',
 };
 
 export function draw(view, vs, fx, myId, moveMark, now) {
@@ -341,16 +341,28 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
-    // frost stacks riding on this body — you can see the detonation coming
-    if (pl.frostStacks > 0) {
+    // Stack pips. Stacks are PRIVATE (round 12), so the snapshot only ever
+    // carries YOUR count on an enemy (`myStacks`) and the worst incoming pile on
+    // your own body (`stacksOnMe`) — exactly one of the two is ever present,
+    // which is why one expression covers both. Frost pips arc over the head;
+    // mosquito's single pip sits under it, so an armed trap is unmistakable.
+    const mine = pl.myStacks || pl.stacksOnMe || null;
+    if (mine && mine.frost > 0) {
       const of = ELEMENTS.frost.fx.stacksToTrigger;
-      for (let i = 0; i < Math.min(pl.frostStacks, of); i++) {
+      for (let i = 0; i < Math.min(mine.frost, of); i++) {
         const ang = -Math.PI / 2 + (i - (of - 1) / 2) * 0.42;
         ctx.fillStyle = 'rgba(168, 216, 255, 0.95)';
         ctx.beginPath();
         ctx.arc(x + Math.cos(ang) * r * 1.6, y + Math.sin(ang) * r * 1.6, 2.6, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+    if (mine && mine.mosquito > 0) {
+      // the trap is armed: your next fireball on this body doubles
+      ctx.fillStyle = 'rgba(198, 150, 255, 0.95)';
+      ctx.beginPath();
+      ctx.arc(x, y + r * 1.6, 3.1, 0, Math.PI * 2);
+      ctx.fill();
     }
     if (pl.charging) {
       // repulse wind-up: hard-blinking double ring — VERY visible on purpose
@@ -580,10 +592,21 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'hit': {
         const x = view.sx(f.x), y = view.sy(f.y) - 18 - 26 * k;
+        // Momentum: the earned ramp is split off the total and printed ABOVE the
+        // damage in white. AGENTS.md scar — this element ramped correctly for
+        // weeks and still read as broken, because a bigger red number is not a
+        // number you can see growing. The white one is the feedback.
+        const bonus = +f.bonus || 0;
+        const base = (+f.amount || 0) - bonus;
         ctx.font = '700 15px ui-monospace, Menlo, monospace';
         // venom DoT ticks are green; normal hits stay ember-red
         ctx.fillStyle = f.poison ? `rgba(130, 220, 110, ${a})` : `rgba(255, 120, 80, ${a})`;
-        ctx.fillText(String(Math.round(+f.amount || 0)), x, y);
+        ctx.fillText(String(Math.round(base)), x, y);
+        if (bonus >= 0.5) {
+          ctx.font = '700 13px ui-monospace, Menlo, monospace';
+          ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+          ctx.fillText(`+${Math.round(bonus)}`, x, y - 15);
+        }
         break;
       }
       case 'gold': {

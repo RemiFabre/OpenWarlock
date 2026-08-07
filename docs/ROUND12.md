@@ -28,9 +28,19 @@ by *all* attackers; you now want each player to see and consume only their own.
 Rationale you gave: shared stacks make your element's power depend on what
 everyone else picked — too much variance.
 
-⚠️ This is a **real nerf to frost** (reaching 3 stacks alone is much harder than
-with 4 players feeding it). Frost needs a compensating retune in the same pass —
-almost certainly faster stack decay or a cheaper 3rd stack.
+~~⚠️ This is a real nerf to frost, needing a compensating retune.~~
+**MEASURED WRONG, 2026-08-07 — no compensation applied, and none needed.** The
+standard elemental study literally cannot see this effect: it gives each seat a
+different element, so there is only ever *one* frost player, and with one
+attacker shared and private stacks are provably identical (byte-identical
+tables). A purpose-built frost-share lab found the real answer: **1 frost seat
+7.8% → 7.8% (unchanged), 2 seats 20.8% → 17.0%, 3 seats 21.2% → 18.6%.** The nerf
+is 2.6–3.8 points and *only* in multi-frost lineups — not the cliff I predicted.
+Also worth recording: frost's apparent 29.4% → 15.7% collapse in the mixed table
+is **displacement, not this nerf** — mosquito went 0% → 21.6% and took wins from
+venom, gale and ember too.
+*Lesson for the next agent: when a study's design can't express the variable,
+its "no change" is not evidence. Build the lab that can.*
 ✅ It also makes the new mosquito (S3) coherent by construction, and it's the
 right call for the same reason you gave.
 
@@ -50,12 +60,32 @@ Your framing, kept: rare but spectacular, and the offset means a perfectly
 timed teleport can dodge the second ball — real skill expression.
 
 ⚠️ **Infinite loop risk:** the two spawned fireballs must NOT themselves apply
-mosquito stacks, or the effect chains forever. Hard rule in code + a test.
-⚠️ This is a large net buff, to be paid for elsewhere (sting damage, sting rate)
-— arena-measured, not guessed.
-❓ Do the two spawned balls each get full damage and full knockback? I'll assume
-**yes, two genuinely normal fireballs of yours** — that's what you said, and
-it's the version worth testing.
+mosquito stacks, or the effect chains forever. Hard rule in code + a test. *Done
+and test-locked.*
+
+~~⚠️ This is a large net buff, to be paid for elsewhere.~~
+**MEASURED WRONG, 2026-08-07 — nothing paid, and the old version was simply
+broken.** With momentum excluded from the pool: berserker **0.0% → 18.6%** (avg
+kills 1.0 → 10.6), stalker **0.0% → 1.0%** (kills 1.4 → 8.5). The bite-arc
+mosquito was not "strong and fiddly", it was **unable to kill anybody**; the new
+one sits *below* the 25% baseline. So the cdMult I pre-nerfed on spec
+(0.55/0.5/0.45 → 0.75/0.65/0.55) was a guess against a phantom — it is left in
+place only because the honest read is the next one:
+⚠️ **Likely bot artifact, and AGENTS.md forbids number-buffing around those.**
+Bots never deliberately re-target a marked victim, which is this element's entire
+skill expression, so 18.6% is a floor and a human should score well above it.
+**Remi's feel report decides mosquito's numbers, not the lab.** If it feels weak
+in his hands, `cdMult` is the lever back.
+
+❓ Do the two spawned balls each get full damage and full knockback? Assumed
+**yes, two genuinely normal fireballs of yours** — implemented that way.
+**Two implementation calls made deliberately** (say if you disagree, both are
+one-liners): (1) only *your fireball* can cash the mark — a boomerang or
+lightning landing on it does nothing, because letting other spells cash it would
+quietly revive the cross-spell doubling you explicitly killed; (2) cashing
+consumes the stack and does **not** re-arm it, so you must sting again — if it
+re-armed, every sting after the first would fire two fireballs, which is a
+permanent machine gun rather than "rare but spectacular".
 
 ### S4 — Items get levels instead of unlimited stacks
 Today: buy any item repeatedly, effects pile up, each copy costs +20%. The
