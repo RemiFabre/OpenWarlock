@@ -361,6 +361,30 @@ export const ELEMENTS = {
   // cdMult is a real nerf from the old 0.55/0.5/0.45: the payoff went from one
   // doubled hit to two full fireballs, so the sting rate pays for it. Level
   // buys sting cadence — how often you get to set the trap up.
+  //
+  // ⚠⚠ 2026-08-07, LATER THE SAME DAY: **every mosquito win rate recorded above
+  // and in docs/ROUND12.md S3 was measured on a HALF-FIRING proc and is void.**
+  // Constant knockback (PLAYER.KB_CONSTANT_MISSING) launches a full-HP victim at
+  // ~72 u/s, so during procGap the victim outran the second ball and the proc
+  // silently fired ONE ball instead of two. The follow-up balls are now re-aimed
+  // at release (an intercept solve against the victim's live position — see
+  // fireMosquitoProc + the delayedShots block in shared/sim.js), which took the
+  // proc from 45% both-balls-land to **100% on a non-teleporting target**.
+  // Re-measured on the identical 9-element round-11 pool, 400 games, seed 7:
+  // mosquito **18.7% → 65.9%**, and it displaced everything (momentum 43.0 →
+  // 29.5, venom 36.8 → 27.6, frost 15.4 → 9.9). In the current 12-element pool it
+  // measures 52-62%.
+  // So "the new mosquito sits below baseline" was a bug artifact, not a fact, and
+  // "it is a floor because bots never re-target deliberately" is wrong too — a
+  // bot re-hits its nearest enemy constantly, which cashes the mark for free.
+  // cdMult sweep after the fix (400 games, seed 7, 12-element pool, baseline 25%):
+  //   ×1.0 [0.75,0.65,0.55] → 61.9% · **×1.2 [0.9,0.78,0.66] → 32.7%** ·
+  //   ×1.4 [1.05,0.91,0.77] → 6.1% · ×1.6 → 2.0% · ×1.9 → 0.0%
+  // The cliff between ×1.2 and ×1.4 is where the sting stops being cheaper than a
+  // real fireball, so cdMult ≈ 0.9 is the whole usable range. VALUES LEFT
+  // UNCHANGED on purpose: docs/ROUND12.md S3 reserves mosquito's numbers for
+  // Remi's feel report, and this is his call, not the lab's. ×1.2 is the
+  // one-line nerf if he agrees it is too strong.
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Your fireball becomes a mosquito: 1 damage, no push, but a much faster sting that leaves a mosquito stack on whoever it hits. Sting someone who already carries YOUR stack and it spends it: two of your normal fireballs land back to back, so every effect you own procs twice.',
            fx: { mosquito: true, cdMult: [0.75, 0.65, 0.55], stingDmg: 1,
@@ -378,9 +402,34 @@ export const ELEMENTS = {
   // ⚠ Interaction to keep bounded: lifesteal is paid on damage ACTUALLY dealt
   // (overkill excluded, never from lava), which is what stops vampire+mosquito's
   // 1-damage sting from healing anything meaningful. Test it, don't assume it.
+  // MEASURED AND RETUNED 2026-08-07, same session it was written. As specced
+  // (every 3rd cast, 200/275/350%) it won **74.7%** of games — 3x the 25%
+  // baseline, the most dominant element ever measured here, because sustain is
+  // this game's strongest axis (see the 2026-08-03 study: sustain items topped
+  // every mirror table, and round 10's knockback cut crowned them again).
+  // Both knobs swept independently at 400 games, seed 7, standard elemental
+  // study (baseline 25%):
+  //   chargeEvery, % kept at spec: 3 → 74.7 · 5 → 48.6 · 7 → 31.5 · 9 → 15.8 ·
+  //                                12 → 6.8 · 16 → 4.1
+  //   chargeLifesteal ×k, every 3: 1.0 → 74.7 · 0.6 → 51.4 · 0.4 → 34.9 ·
+  //                                0.25 → 17.8 · 0.15 → 11.0
+  //   combinations: every 8 at spec% → 21.2 · every 6 ×0.8 → 34.9 ·
+  //                 **every 5 ×0.7 → 26.7** · every 5 ×0.55 → 28.1 ·
+  //                 every 4 ×0.55 → 41.1
+  // Split across BOTH knobs on purpose, because each one alone deletes half the
+  // design: shrinking only the % (0.35x, i.e. ~70%) makes the engorged ball heal
+  // LESS than the Blood Sword already pays passively, and stretching only the
+  // cadence to every 8th makes it unreadable and hostage to short rounds. At
+  // every 5th × 0.7 the lifesteal is still ABOVE 100% at every level — the ball
+  // still heals you for more than it hit for, which is the whole fantasy — and it
+  // measures 26.7%. The level ratio is untouched (1 : 1.37 : 1.75).
+  // ⚠ Probably still generous in Remi's hands, and probably OVER-measured by
+  // bots: a bruiser berserker brawls point-blank forever, which is the ideal
+  // lifesteal engine. `chargeEvery` and `chargeLifesteal` are both one-line
+  // levers; raise them if his feel report says the ball is not an event.
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every 3rd fireball is engorged: it heals you for 200% of the damage it deals (275% / 350% at higher levels). Rare, loud, and it turns a won trade into a full heal.',
-           fx: { chargeEvery: 3, chargeLifesteal: [2.0, 2.75, 3.5] } },
+           desc: 'Every 5th fireball is engorged: it heals you for 140% of the damage it deals (192% / 245% at higher levels). Rare, loud, and it turns a won trade around.',
+           fx: { chargeEvery: 5, chargeLifesteal: [1.4, 1.92, 2.45] } },
   // Remi's design, and the build he wants to make possible: buy level 1 of
   // EVERYTHING — boomerang, lightning, fireball, repulse, hook — and machine-gun
   // the whole kit, using repulse's AoE to refund it all at once. Rise, ~2013.
@@ -399,6 +448,28 @@ export const ELEMENTS = {
   // BEHIND them takes the bonus, and the level buys how big that bonus is.
   // Cheap to build: boomerang already tracks one-hit-per-enemy-per-throw, so
   // ghost reuses that set plus the pierce flag.
+  // MEASURED 2026-08-07 and DELIBERATELY LEFT ALONE at 4.3% (1000-game study,
+  // baseline 25%) — the numbers below are not the problem, the trigger rate is,
+  // and AGENTS.md forbids number-buffing around a bot artifact. The evidence:
+  //   • the pierce bonus fires on **3.07% of ghost fireballs** (60 games, 11880
+  //     balls: 51.1% hit somebody, only 3.07% reached a SECOND body) — about 6
+  //     bonus hits per whole game, i.e. ~21 extra damage over ~15 rounds.
+  //   • controls, 400 games each: an element that does literally NOTHING scores
+  //     2.2%, and "pierces but with a 1.0x bonus" scores 2.9% — so piercing
+  //     costs nothing, and ghost's 4.4% is the no-op floor plus a rounding error.
+  //     The 25% baseline is an average over the pool; a seat with no working
+  //     element sits at ~2%, which is what ghost currently is TO A BOT.
+  //   • scaling the bonus does work, but only at absurd values: ×2
+  //     (dmg 2.0/2.8/3.6) → 6.6% · ×3 (2.5/3.7/4.9) → 11.0% · ×5
+  //     (3.5/5.5/7.5) → 28.7%. A second victim taking 3.5x a fireball out-damages
+  //     a Meteor; that is not a retune, it is a different element.
+  // Bots never line two enemies up — "line them up" IS this element's entire
+  // skill expression, exactly the case AGENTS.md says to flag rather than pay
+  // for. A human in a late-round arena (radius 10, everyone clustered) should
+  // trigger it far more often than 3%. If Remi's feel report says it is weak
+  // anyway, the honest fix is FREQUENCY (pierce more reliably, or give the first
+  // victim something), not a bigger multiplier — the sweep above shows what each
+  // multiplier step actually buys.
   ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Your fireball passes straight through people. The first one hit takes a normal hit; anyone caught BEHIND them takes +50% damage and +30% push (+90/+55% and +130/+80% at higher levels). Line them up.',
            fx: { pierce: true, pierceDmgMult: [1.5, 1.9, 2.3],

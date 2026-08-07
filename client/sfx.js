@@ -139,6 +139,20 @@ const FX = {
     tone({ type: 'sine', f0: 120, f1: 48, dur: 0.5, vol: 0.55 });
   },
 
+  // vampire drain: a wet upward slurp — rising body, breathy noise tail. The
+  // engorged ball is meant to be an event you HEAR land.
+  drain() {
+    tone({ type: 'sawtooth', f0: 180, f1: 520, dur: 0.26, vol: 0.3 });
+    tone({ type: 'sine', f0: 90, f1: 330, dur: 0.3, vol: 0.34, t0: 0.02 });
+    noise({ dur: 0.22, vol: 0.16, filter: 'bandpass', f0: 700, q: 1.4, t0: 0.05 });
+  },
+
+  // chronos refund: a short clockwork tick rewinding (two fast descending pips)
+  rewind() {
+    tone({ type: 'square', f0: 1480, f1: 990, dur: 0.07, vol: 0.16 });
+    tone({ type: 'square', f0: 1180, f1: 780, dur: 0.07, vol: 0.13, t0: 0.06 });
+  },
+
   // frost detonation: glassy shatter over a dropping chime
   freeze() {
     tone({ type: 'triangle', f0: 2300, f1: 640, dur: 0.24, vol: 0.22 });

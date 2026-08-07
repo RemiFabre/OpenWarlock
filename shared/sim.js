@@ -118,6 +118,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     poisonBy: null,        // venom: who poisoned us (kill credit)
     growT: 0,              // terra: seconds of forced growth remaining
     growMultHit: 1,        // terra: strength of the grow that hit us
+    vampN: 0,              // vampire: fireballs CAST this round (every 3rd is engorged)
     // momentum: fireball hits landed for the WHOLE GAME (the ramp is permanent
     // — deliberately NOT cleared in startRound, see ELEMENTS.momentum)
     momentumHits: 0,
@@ -274,6 +275,14 @@ function worstStack(target, kind) {
   return max;
 }
 
+// Elements that are NOT fireball riders: they are global effects, so they never
+// ride on the projectile and they do not require Fireball in the shop. Arcane
+// (flat CDR) has always been one; chronos (2026-08-07) is the second — it
+// triggers off ANY spell of yours that lands, so gating it behind the fireball
+// would be a lie. Keeping the set here means buy() and spawnFireball can never
+// disagree about what a rider is.
+const GLOBAL_ELEMENTS = new Set(['arcane', 'chronos']);
+
 // Mosquito level a player is flying with, or 0 (elemental mode only).
 function mosquitoLevel(state, pl) {
   if (state.mode !== 'elemental') return 0;
@@ -285,6 +294,44 @@ function cdrOf(state, pl) {
   if (state.mode !== 'elemental') return 1;
   const el = pl.elements && pl.elements.arcane;
   return el ? efxV(ELEMENTS.arcane.fx.cdrMult, el) : 1;
+}
+
+// Chronos (elemental): every spell of YOURS that lands on an enemy hands you
+// seconds back off everything currently on cooldown — including the spell that
+// just landed, which is what makes the "level 1 of everything, machine-gun the
+// whole kit" build possible.
+//
+// THE CHOKE POINT: this is called from applyDamage, which is the single place
+// every spell that can hit an enemy funnels through — fireball, lightning,
+// boomerang, rush, meteor, repulse and hook all land there, so nothing needed
+// inventing and nothing can be forgotten by a future spell. The `stamp` flag
+// (already maintained for the round-9 kill-credit rule: direct hits stamp the
+// last-hitter slot, DoT ticks and ground trails must not) is exactly the
+// "this was a HIT, not a burn" distinction chronos needs, so a poison tick or a
+// venom trail cannot machine-gun your cooldowns 30×/s.
+//
+// The refund is per VICTIM: one call per body damaged, so a repulse catching
+// four people refunds four times, exactly as specified — no counting code.
+//
+// ⚠ cdFloor: a refund never drives a cooldown to zero (that would allow a
+// same-frame re-cast loop), and it never RAISES one that is already below the
+// floor. Test-locked.
+function chronosRefund(state, pl, target) {
+  if (state.mode !== 'elemental') return;
+  const el = pl.elements && pl.elements.chronos;
+  if (!el) return;
+  if (!hostile(pl, target)) return;   // only an enemy's blood buys you time
+  const f = ELEMENTS.chronos.fx;
+  const refund = efxV(f.cdRefund, el);
+  let any = false;
+  for (const k of Object.keys(pl.cooldowns)) {
+    const cd = pl.cooldowns[k];
+    if (cd > f.cdFloor) {
+      pl.cooldowns[k] = Math.max(f.cdFloor, cd - refund);
+      any = true;
+    }
+  }
+  if (any) state.events.push({ t: 'chronos', id: pl.id, x: pl.x, y: pl.y });
 }
 
 // ---- inputs -------------------------------------------------------------
@@ -330,7 +377,22 @@ export function castSpell(state, id, key, tx, ty) {
 
   switch (key) {
     case 'fireball': {
-      spawnFireball(state, pl, level, dx, dy);
+      // Vampire (elemental): the counter runs on YOUR CASTS, so unlike mosquito
+      // it needs no setup on a particular target — every chargeEvery'th fireball
+      // flies engorged and pays back a multiple of the damage it deals. Only a
+      // real cast advances it: the Echo Stone's second ball and the mosquito
+      // proc's balls are extra shots, not casts, so they neither tick the
+      // counter nor inherit the engorgement (that would turn one charge into
+      // two or three heals and delete the rhythm the counter exists to sell).
+      let engorged = 0;
+      const vampLv = state.mode === 'elemental' && pl.elements
+        ? (pl.elements.vampire || 0) : 0;
+      if (vampLv) {
+        pl.vampN = (pl.vampN || 0) + 1;
+        if (pl.vampN % ELEMENTS.vampire.fx.chargeEvery === 0)
+          engorged = efxV(ELEMENTS.vampire.fx.chargeLifesteal, vampLv);
+      }
+      spawnFireball(state, pl, level, dx, dy, { engorged });
       // Echo Stone (elemental): every Nth fireball fires a second one shortly
       // after, along the same aim direction
       if (state.mode === 'elemental' && (pl.items.echo || 0) > 0) {
@@ -356,6 +418,8 @@ export function castSpell(state, id, key, tx, ty) {
         returning: false,           // boomerang only
         lost: false,                // flew past its launch point: uncatchable
         hit: {},                    // players hit this leg
+        pierce: true,               // never pops on a body: one hit each, flies on
+        pierced: 0,
       });
       break;
     }
@@ -409,6 +473,7 @@ export function castSpell(state, id, key, tx, ty) {
         y: pl.y + dy * pl.radius * 0.5,
         vx: dx * spec.speed, vy: dy * spec.speed,
         traveled: 0, returning: false, hit: {},
+        pierce: false, pierced: 0,   // skewers the FIRST body and stops there
       });
       break;
     }
@@ -448,6 +513,9 @@ export function castSpell(state, id, key, tx, ty) {
 //   noStacks — HARD RULE: this ball can neither place nor spend a mosquito
 //              stack. Without it the proc chains forever (test-locked).
 //   x, y     — spawn origin override (the proc starts short of the impact point)
+//
+// opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
+// pays, resolved at cast time so the projectile carries everything it needs.
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
@@ -459,7 +527,7 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     elements = { mosquito: mosq };
   } else if (state.mode === 'elemental' && pl.elements) {
     for (const [k, v] of Object.entries(pl.elements)) {
-      if (k === 'arcane' || !(v > 0)) continue;
+      if (GLOBAL_ELEMENTS.has(k) || !(v > 0)) continue;
       if (k === 'mosquito') continue; // the pest is the setup, never a rider
       (elements = elements || {})[k] = v;
     }
@@ -476,8 +544,18 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     traveled: 0,
     returning: false,
     hit: {},
+    // ghost (elemental): this ball passes THROUGH bodies. `pierce` is the
+    // per-projectile flag that decides whether a hit pops the shot at all (the
+    // boomerang has always been a piercing projectile; a hook and a plain
+    // fireball are not) and `pierced` counts the victims already behind it —
+    // the first takes an ordinary hit, everyone after it takes the bonus.
+    // Read off the SPEC (any rider whose fx declares `pierce`), not off the
+    // element's name, so ELEMENTS.ghost.fx.pierce is the real switch.
+    pierce: !!(elements && Object.keys(elements).some(k => ELEMENTS[k].fx.pierce)),
+    pierced: 0,
     elements, radius, mosquito: mosq || 0,
     ...(opts.noStacks ? { noStacks: true } : {}),
+    ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
 }
 
@@ -547,7 +625,9 @@ export function buy(state, id, thing) {
     // Own as many as you like (frost+ember = chilling fire).
     if (state.mode !== 'elemental') return { ok: false, err: 'elemental mode only' };
     const espec = ELEMENTS[thing];
-    if (thing !== 'arcane' && (pl.spells.fireball || 0) < 1)
+    // riders need something to ride on; the global elements (arcane, chronos)
+    // do not touch the fireball at all — see GLOBAL_ELEMENTS
+    if (!GLOBAL_ELEMENTS.has(thing) && (pl.spells.fireball || 0) < 1)
       return { ok: false, err: 'requires fireball' };
     const elevel = pl.elements[thing] || 0;
     if (elevel >= espec.maxLevel) return { ok: false, err: 'max level' };
@@ -608,8 +688,12 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 // the hit event so the client can print it as a separate white number above the
 // damage — AGENTS.md scar: this element ramped correctly for weeks and still
 // read as broken because +0.45/hit is invisible. Visibility is the feature.
+// `lifesteal` is EXTRA lifesteal for this one hit, on top of whatever the
+// source's items pay (ELEMENTS.vampire's engorged ball). It obeys the same rule
+// as the Blood Sword and deliberately reuses its code path: paid on damage
+// actually dealt, so overkill is excluded, and lava (sourceId null) never pays.
 function applyDamage(state, target, amount, sourceId,
-  { silent = false, stamp = true, bonus = 0 } = {}) {
+  { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0 } = {}) {
   if (!target.alive) return;
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
@@ -643,11 +727,24 @@ function applyDamage(state, target, amount, sourceId,
       // heal on EFFECTIVE damage (overkill doesn't feed the sword); works on
       // everything with a source — spells, DoT ticks, trails — never lava
       const { lifesteal } = stats(src);
-      if (lifesteal > 0) {
+      const total = lifesteal + bonusLifesteal;
+      if (total > 0) {
         const before = src.hp;
-        src.hp = Math.min(src.maxHp, src.hp + effective * lifesteal);
-        src.healLifesteal += src.hp - before; // scoreboard column
+        src.hp = Math.min(src.maxHp, src.hp + effective * total);
+        const healed = src.hp - before;
+        src.healLifesteal += healed;   // scoreboard column
+        // Vampire's engorged ball is an EVENT, not a trickle, so it gets its own
+        // green number. The Blood Sword deliberately stays silent: a popup on
+        // every poison tick would be noise, and this element's whole problem
+        // (AGENTS.md scar) is being legible.
+        if (bonusLifesteal > 0 && healed > 0.5)
+          state.events.push({
+            t: 'lifesteal', id: src.id, amount: healed, x: src.x, y: src.y,
+          });
       }
+      // Chronos (elemental): a landed spell refunds time off every cooldown you
+      // have running. `stamp` is the choke point — see chronosRefund.
+      if (stamp) chronosRefund(state, src, target);
     }
   }
   if (!silent)
@@ -760,6 +857,14 @@ function startRound(state) {
     pl.stacks = {};   // frost + mosquito stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0;
+    // vampire's charge counter resets with the round, exactly like the Echo
+    // Stone's (the other "every Nth cast" mechanic). Deliberate: the rhythm you
+    // are asked to count is "my 3rd fireball of this fight", and carrying a
+    // half-charged counter across a shop would make the first shot of a round
+    // randomly engorged with nothing on screen having explained why. Momentum is
+    // the one element that persists, and that is stated in its spec — this one
+    // is not, so it follows the local precedent. Test-locked.
+    pl.vampN = 0;
     // pl.momentumHits is DELIBERATELY not reset: the Momentum ramp is permanent
     // for the whole game (ELEMENTS.momentum.fx.rampPermanent). Adding it here
     // would silently delete the element's entire point.
@@ -1162,22 +1267,58 @@ function stepBattle(state, dt) {
   // Delayed fireballs (elemental; the list is empty in classic): the Echo
   // Stone's second shot, and the mosquito proc's staggered balls, which carry
   // their own origin plus the `plain`/`noStacks` flags.
+  //
+  // `aimAt` (mosquito proc, 2026-08-07): the shot is aimed at that player when
+  // it is RELEASED, not when it was queued. Why this exists: round 12 made
+  // knockback constant, so the first proc ball now launches a full-HP victim at
+  // ~72 u/s — during procGap they travel further than the second ball does, and
+  // a fixed vector fired the second ball into empty space (the proc silently
+  // half-fired; two tests caught it). An intercept solve against the victim's
+  // live position and velocity fixes the mechanic instead of hiding it: being
+  // shoved by your own first ball can no longer defeat your own proc, while a
+  // TELEPORT still dodges it (a blink is discontinuous, so no velocity
+  // extrapolation can follow it) — which is exactly the skill expression the
+  // offset was designed for. If the victim is already dead, the follow-up
+  // simply never fires.
   if (state.delayedShots && state.delayedShots.length) {
     const rest = [];
     for (const ds of state.delayedShots) {
       ds.t -= dt;
       if (ds.t > 0) { rest.push(ds); continue; }
       const owner = state.players[ds.owner];
-      if (owner && owner.alive) {
-        spawnFireball(state, owner, ds.level, ds.dx, ds.dy, {
-          x: ds.x, y: ds.y, plain: ds.plain, noStacks: ds.noStacks,
-        });
-        state.events.push({
-          t: 'cast', id: owner.id, spell: 'fireball',
-          x: ds.x != null ? ds.x : owner.x, y: ds.y != null ? ds.y : owner.y,
-          dx: ds.dx, dy: ds.dy,
-        });
+      if (!owner || !owner.alive) continue;
+      let dx = ds.dx, dy = ds.dy;
+      let ox = ds.x, oy = ds.y;
+      if (ds.aimAt != null) {
+        const victim = state.players[ds.aimAt];
+        if (!victim || !victim.alive) continue; // died to the first ball
+        const from = {
+          x: ox != null ? ox : owner.x,
+          y: oy != null ? oy : owner.y,
+        };
+        const aim = interceptPoint(from, victim, SPELLS.fireball.speed);
+        let ax = aim.x - from.x, ay = aim.y - from.y;
+        const an = Math.hypot(ax, ay);
+        if (an > 1e-6) { dx = ax / an; dy = ay / an; }
+        // ...and the muzzle follows the victim too, staying `spawnBack` units
+        // short of contact along the new heading. Without this the ball is left
+        // behind at the original bite point and has to run down a body that is
+        // flying faster than a fireball — "quick succession" turns into a
+        // half-second chase (measured), which is not the effect.
+        if (ds.spawnBack != null) {
+          const back = ds.spawnBack + victim.radius + SPELLS.fireball.radius;
+          ox = victim.x - dx * back;
+          oy = victim.y - dy * back;
+        }
       }
+      spawnFireball(state, owner, ds.level, dx, dy, {
+        x: ox, y: oy, plain: ds.plain, noStacks: ds.noStacks,
+      });
+      state.events.push({
+        t: 'cast', id: owner.id, spell: 'fireball',
+        x: ox != null ? ox : owner.x, y: oy != null ? oy : owner.y,
+        dx, dy,
+      });
     }
     state.delayedShots = rest;
   }
@@ -1332,6 +1473,7 @@ function stepProjectiles(state, dt) {
       pr.vy -= 2 * vn * w.ny;
       pr.owner = w.owner;
       pr.hit = {};
+      pr.pierced = 0;   // ghost: a mirrored ball is a fresh ball, first victim again
       pr.traveled = 0;
       if (pr.type === 'boomerang') {
         pr.returning = false; pr.lost = false;
@@ -1356,6 +1498,7 @@ function stepProjectiles(state, dt) {
         pr.vx = -pr.vx; pr.vy = -pr.vy;
         pr.owner = other.id;
         pr.hit = {};
+        pr.pierced = 0;  // ghost: reflected back at you as a fresh, un-pierced ball
         pr.traveled = 0;
         if (pr.type === 'boomerang') {
           // the reflector re-launches it: fresh legs, returns to THIS spot
@@ -1405,8 +1548,20 @@ function stepProjectiles(state, dt) {
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
       }
+      // Ghost (elemental): the FIRST body the ball reaches takes an ordinary
+      // fireball; everyone caught BEHIND them takes the multiplied hit. The
+      // level buys how big that bonus is and deliberately NOT how it compounds
+      // per victim — a lucky 4-player line must not produce a nonsense number.
+      // Multiplies the momentum ramp too, like every other damage multiplier.
+      if (pr.elements && pr.elements.ghost && pr.pierced > 0) {
+        const gf = ELEMENTS.ghost.fx;
+        const gm = efxV(gf.pierceDmgMult, pr.elements.ghost);
+        dmg *= gm; ramp *= gm;
+        kb *= efxV(gf.pierceKbMult, pr.elements.ghost);
+      }
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
-      applyDamage(state, other, dmg + ramp, pr.owner, { bonus: ramp });
+      applyDamage(state, other, dmg + ramp, pr.owner,
+        { bonus: ramp, lifesteal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
       // the sting arms the trap: one mosquito stack of this attacker only.
       // `noStacks` balls (the proc's own fireballs) can never arm anything —
@@ -1432,8 +1587,14 @@ function stepProjectiles(state, dt) {
         }
       }
 
-      if (pr.type === 'fireball' || pr.type === 'hook') dead = true; // pops on hit
-      else pr.hit[other.id] = true;                 // boomerang passes through
+      // Pops on the body it hits — unless the projectile PIERCES, which is now a
+      // per-projectile flag instead of a hardcoded type list (the boomerang has
+      // always pierced; a ghost fireball does too). Piercing shots remember
+      // every body they have already touched, so one lingering ball can never
+      // hit the same person twice, and `pierced` tells the next victim they are
+      // standing behind someone.
+      if (!pr.pierce) dead = true;
+      else { pr.hit[other.id] = true; pr.pierced = (pr.pierced || 0) + 1; }
       break;
     }
     if (!dead) keep.push(pr);
@@ -1476,10 +1637,14 @@ function fireMosquitoProc(state, pr, target) {
       spawnFireball(state, owner, level, dx, dy, { x, y, plain: true, noStacks: true });
     } else {
       // the later balls ride the Echo Stone's delayed-shot queue: same
-      // machinery, and it already survives the owner dying in between
+      // machinery, and it already survives the owner dying in between.
+      // `aimAt`/`spawnBack` make the release RE-AIM at the victim (see the
+      // delayedShots block in stepBattle): the first ball's knockback used to
+      // carry the victim out of the second ball's path.
       state.delayedShots.push({
         t: f.procGap * i, owner: pr.owner, level, dx, dy,
         x, y, plain: true, noStacks: true,
+        aimAt: target.id, spawnBack: f.procSpawnBack,
       });
     }
   }
@@ -1652,6 +1817,9 @@ export function snapshot(state, viewerId = null) {
         slow: p.slowT > 0, poison: p.poisonT > 0, grow: p.growT > 0,
         stun: p.stunT > 0,
         momentumHits: p.momentumHits || 0, // so the HUD can show the ramp building
+        // vampire: casts banked toward the next engorged ball, so the HUD can
+        // count it down for you (2/3 → the next one is the big one)
+        vampN: p.vampN || 0,
         // PRIVATE: only the stacks the VIEWER put on this body. This is the one
         // thing you need to see to play a stacking element — is my frost
         // detonation one hit away, is my mosquito trap armed on that target —
@@ -1684,6 +1852,9 @@ export function snapshot(state, viewerId = null) {
       id: p.id, type: p.type, x: round2(p.x), y: round2(p.y),
       vx: round2(p.vx), vy: round2(p.vy), owner: p.owner,
       ...(p.elements ? { elements: p.elements } : {}),
+      // vampire: the engorged ball must LOOK different — both fields can only
+      // ever be set in elemental mode, so a classic projectile is byte-identical
+      ...(p.engorged ? { engorged: 1 } : {}),
     })),
     // campaign HUD state, co-op only
     ...(coop && state.coop ? {

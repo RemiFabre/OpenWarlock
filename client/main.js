@@ -25,6 +25,10 @@ const ICONS = {
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   echo: '🔁', crown: '👑',
 };
+// Elements that are NOT fireball riders (mirrors GLOBAL_ELEMENTS in shared/sim.js):
+// they badge every owned spell slot instead of the fireball, because that is
+// where you actually see them working. Arcane = flat CDR, chronos = CDR on hit.
+const GLOBAL_ELEM = new Set(['arcane', 'chronos']);
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
 // Defaults per Remi 2026-08-03: blink (teleport) on F, dash (rush) on E,
@@ -200,6 +204,17 @@ function onEvent(e) {
       break;
     }
     case 'frost': fx.push({ ...e, type: 'frost', at: now, dur: 0.7 }); break;
+    // vampire: the engorged ball just paid out. Loud on purpose — this element's
+    // whole design goal is "an EVENT, not a passive trickle"
+    case 'lifesteal':
+      fx.push({ ...e, type: 'lifesteal', at: now, dur: 1.1 });
+      if (e.id === myId) playSfx('drain');
+      break;
+    // chronos: your cooldowns just jumped back
+    case 'chronos':
+      fx.push({ ...e, type: 'chronos', at: now, dur: 0.55 });
+      if (e.id === myId) playSfx('rewind');
+      break;
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
       playSfx('freeze');
@@ -618,6 +633,13 @@ const FX_FIELDS = {
   growCap: ['growth cap', (v) => `×${fmtNum(v)}`],
   rampDmg: ['damage per landed hit', (v) => `+${fmtNum(v)}`],
   rampPermanent: ['the ramp', (v) => (v ? 'never resets — it is yours for the game' : 'resets each round')],
+  chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
+  chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
+  cdRefund: ['refund per enemy hit', (v) => `−${fmtSec(v)} off every cooldown`],
+  cdFloor: ['a refund never goes below', fmtSec],
+  pierce: ['your fireball', (v) => (v ? 'passes THROUGH bodies' : 'pops on the first body')],
+  pierceDmgMult: ['damage to everyone behind the first', fmtMult],
+  pierceKbMult: ['push on everyone behind the first', fmtMult],
   mosquito: ['fireball becomes a mosquito', fmtNum],
   stingDmg: ['sting damage', fmtNum],
   procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} of your fireballs`],
@@ -1248,13 +1270,19 @@ function updateUi(s) {
       // your owned elements ride on the fireball slot (elemental mode);
       // arcane is global CDR, so it badges EVERY owned spell slot — that's
       // how you see it working
+      // chronos joins arcane as a GLOBAL element (it refunds every cooldown you
+      // have running, off any spell that lands), so it badges every owned slot
+      // instead of riding on the fireball
       const riders = key === 'fireball' && m.elements
-        ? Object.keys(m.elements).filter(k => k !== 'arcane' && m.elements[k] > 0 && ELEMENTS[k])
+        ? Object.keys(m.elements)
+            .filter(k => !GLOBAL_ELEM.has(k) && m.elements[k] > 0 && ELEMENTS[k])
             .map(k => ELEMENTS[k].icon).join('')
         : '';
-      const arcane = m.elements && m.elements.arcane > 0 && level > 0
-        ? ELEMENTS.arcane.icon : '';
-      el.querySelector('.elem').textContent = riders + arcane;
+      const global = m.elements && level > 0
+        ? [...GLOBAL_ELEM].filter(k => m.elements[k] > 0 && ELEMENTS[k])
+            .map(k => ELEMENTS[k].icon).join('')
+        : '';
+      el.querySelector('.elem').textContent = riders + global;
       const cd = fin(+cooldowns[key]) ? +cooldowns[key] : 0;
       const cdEl = el.querySelector('.cd');
       cdEl.classList.toggle('hidden', cd <= 0);
@@ -1282,6 +1310,16 @@ function updateUi(s) {
         `${onMe.frost}/${ELEMENTS.frost.fx.stacksToTrigger}</span>`);
     if (onMe && onMe.mosquito > 0)
       buffs.push(`<span class="buff venom">${ELEMENTS.mosquito.icon} marked</span>`);
+    // vampire: count the casts down, so "the next one is the big one" is a thing
+    // you KNOW rather than something you notice afterwards
+    const vampLv = (m.elements && m.elements.vampire) || 0;
+    if (vampLv > 0) {
+      const every = ELEMENTS.vampire.fx.chargeEvery;
+      const n = Math.max(0, +m.vampN || 0) % every;
+      const pct = Math.round(statAt(ELEMENTS.vampire.fx.chargeLifesteal, vampLv) * 100);
+      buffs.push(`<span class="buff vamp">${ELEMENTS.vampire.icon} ` +
+        (n === every - 1 ? `NEXT BALL · ${pct}% drain` : `${n}/${every}`) + '</span>');
+    }
     if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');
     else if (m.slow) buffs.push('<span class="buff frost">🐌 slowed</span>');
     if (m.poison) buffs.push(`<span class="buff venom">${ELEMENTS.venom.icon} poisoned</span>`);

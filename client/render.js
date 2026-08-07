@@ -47,6 +47,9 @@ const fin = Number.isFinite;
 const ELEM_CORE = {
   frost: '#8fd8ff', venom: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
   momentum: '#d8dee9',
+  // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
+  // arterial red (and it also gets the engorged halo below)
+  ghost: '#dcd6ff', vampire: '#e0405a',
 };
 
 export function draw(view, vs, fx, myId, moveMark, now) {
@@ -252,6 +255,37 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       glow.addColorStop(1, 'rgba(255, 90, 20, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fill();
+      // Vampire's engorged ball (every 3rd cast) must be unmistakable in flight
+      // — you are supposed to aim this one. A fat pulsing blood halo plus a
+      // 🧛 rider, matched to how the Echo Stone's extra ball announces itself.
+      if (pr.engorged) {
+        ctx.save();   // this block sets textAlign/baseline; the fx pass below
+                      // draws damage numbers without setting them itself
+        const pulse = 0.7 + 0.3 * Math.sin(t * 22);
+        ctx.strokeStyle = `rgba(224, 64, 90, ${0.55 + 0.35 * pulse})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(x, y, r * 2.9 * pulse, 0, Math.PI * 2); ctx.stroke();
+        const bg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.4);
+        bg.addColorStop(0, `rgba(255, 60, 90, ${0.30 * pulse})`);
+        bg.addColorStop(1, 'rgba(180, 0, 40, 0)');
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.arc(x, y, r * 3.4, 0, Math.PI * 2); ctx.fill();
+        ctx.font = `${Math.round(Math.max(11, r * 1.6))}px serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('🧛', x, y - r * 3.2);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+      }
+      // ghost: a faint second ring trailing the ball, so "this one goes through
+      // people" is visible BEFORE it goes through someone
+      if (pr.elements && pr.elements.ghost) {
+        ctx.strokeStyle = 'rgba(220, 214, 255, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x - Math.cos(ang) * r * 1.8, y - Math.sin(ang) * r * 1.8,
+          r * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     } else if (pr.type === 'hook') {
       // taut chain from the caster to the hook head — the range is VISIBLE
       // (hooks used to fly invisible: no render branch for the type)
@@ -607,6 +641,40 @@ function drawFx(view, fx, now, baseAlpha = 1) {
           ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
           ctx.fillText(`+${Math.round(bonus)}`, x, y - 15);
         }
+        break;
+      }
+      case 'lifesteal': {
+        // vampire's payout, on the HEALER's body: a big green number and a
+        // rising blood ring. Deliberately louder than the damage popup — the
+        // whole point of the element is that you feel the trade flip.
+        const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = '700 19px ui-monospace, Menlo, monospace';
+        ctx.fillStyle = `rgba(120, 235, 140, ${a})`;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 8;
+        ctx.fillText(`+${Math.round(+f.amount || 0)} hp`, x, y);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = `rgba(224, 64, 90, ${a * 0.9})`;
+        ctx.lineWidth = 3 * a + 1;
+        ctx.beginPath();
+        ctx.arc(view.sx(f.x), view.sy(f.y), (1.2 + 2.6 * k) * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'chronos': {
+        // a landed spell just refunded every cooldown: an hourglass over the
+        // caster and a ring winding INWARD (time coming back to you)
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(200, 180, 255, ${a})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, (3.2 - 2.0 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.font = '14px serif';
+        ctx.fillText('⏳', x, y - 26 - 14 * k);
+        ctx.restore();
         break;
       }
       case 'gold': {

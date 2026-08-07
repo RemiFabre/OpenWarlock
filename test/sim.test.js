@@ -1112,6 +1112,15 @@ describe('elemental mode', () => {
     expect(a.myStacks).toBeUndefined();
     expect(a.stacksOnMe).toBeUndefined();
     expect(a.momentumHits).toBeUndefined();
+    expect(a.vampN).toBeUndefined();
+    // ...and neither do classic PROJECTILES: pierce/pierced/engorged are all
+    // internal or elemental-only, so the projectile wire is unchanged
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    step(state, DT);
+    const pr = snapshot(state, 'p0').projectiles[0];
+    expect(pr).toBeDefined();
+    expect(Object.keys(pr).sort())
+      .toEqual(['id', 'owner', 'type', 'vx', 'vy', 'x', 'y']);
     // byte-for-byte: a viewer-specific classic snapshot IS the broadcast one
     expect(JSON.stringify(snapshot(state, 'p0'))).toBe(JSON.stringify(snapshot(state)));
   });
@@ -1625,6 +1634,502 @@ describe('elemental mode', () => {
     const last = state.projectiles[state.projectiles.length - 1];
     expect(last.vx).toBeGreaterThan(0);            // same aim: straight +x
     expect(Math.abs(last.vy)).toBeLessThan(0.001);
+  });
+
+  // ---- the proc's follow-up balls are RE-AIMED at release ------------------
+  // Round 12 made knockback constant, which launches a full-HP victim at ~72 u/s
+  // — further, during procGap, than the second ball travels. With a fixed aim
+  // vector the first ball knocked the victim out of the second's path and the
+  // proc silently half-fired. Both of these lock the fix, not the symptom.
+
+  it('the queued proc ball carries a re-aim target, not just a frozen vector', () => {
+    const state = mosquitoProc();
+    const ds = state.delayedShots[0];
+    expect(ds.aimAt).toBe('p1');                          // whom to re-aim at
+    expect(ds.spawnBack).toBe(ELEMENTS.mosquito.fx.procSpawnBack);
+    expect(Math.abs(ds.dy)).toBeLessThan(0.001);          // frozen vector: +x
+  });
+
+  it('the second proc ball follows a victim shoved sideways after the queue was filled', () => {
+    const state = mosquitoProc();
+    const b = state.players.p1;
+    b.hp = 9999; b.maxHp = 9999;
+    // the queued aim is straight +x (asserted above); throw the victim hard off
+    // that lane, which a frozen vector could never follow
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 45; b.moveTarget = null;
+    let landed = 0;
+    for (let i = 0; i < 45; i++) {
+      state.events = [];
+      step(state, DT);
+      landed += state.events.filter(
+        e => e.t === 'hit' && e.id === 'p1' &&
+             e.amount > ELEMENTS.mosquito.fx.stingDmg + 0.001).length;
+      if (!state.projectiles.length && !state.delayedShots.length) break;
+    }
+    expect(landed).toBeGreaterThanOrEqual(1); // the re-aimed ball connected
+  });
+
+  it('if the victim dies to the first proc ball, the follow-up never fires', () => {
+    const state = mosquitoProc();
+    const b = state.players.p1;
+    expect(state.delayedShots.length).toBe(ELEMENTS.mosquito.fx.procBalls - 1);
+    b.hp = 1;                       // the first ball is lethal
+    run(state, 0.6);
+    expect(b.alive).toBe(false);
+    expect(state.delayedShots.length).toBe(0);  // drained...
+    expect(state.projectiles.length).toBe(0);   // ...without spawning anything
+  });
+
+  // ---- vampire 🧛 -----------------------------------------------------------
+
+  it('vampire 🧛: every Nth CAST is engorged and heals a multiple of the damage', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    const dmg = SPELLS.fireball.damage[0];
+    let healed = 0;
+    for (let n = 1; n <= f.chargeEvery; n++) {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      a.hp = a.maxHp - 60;                 // room to heal, and no overkill cap
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      const before = a.hp;
+      expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
+      const ball = state.projectiles[state.projectiles.length - 1];
+      // only the Nth ball is engorged, and it says so on the wire
+      const engorgedNow = n % f.chargeEvery === 0;
+      expect(!!ball.engorged).toBe(engorgedNow);
+      const wire = snapshot(state, 'p0').projectiles.find(p => p.id === ball.id);
+      expect(wire.engorged).toBe(engorgedNow ? 1 : undefined);
+      run(state, 0.4);
+      healed = a.hp - before;
+      if (!engorgedNow) {
+        // regen is the only healing on a plain ball (no Blood Sword owned)
+        expect(healed).toBeLessThan(1);
+      }
+    }
+    // the engorged one pays chargeLifesteal × the damage it dealt, on top of regen
+    expect(healed).toBeGreaterThan(dmg * f.chargeLifesteal[0] - 1);
+    expect(a.healLifesteal).toBeGreaterThan(dmg * f.chargeLifesteal[0] - 1);
+    expect(state.events.some(e => e.t === 'lifesteal' && e.id === 'p0')).toBe(true);
+  });
+
+  it('vampire pays only on damage ACTUALLY DEALT: no overkill, and never from lava', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 3 };
+    a.vampN = f.chargeEvery - 1;          // the next cast is the engorged one
+    a.hp = 10;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    // 1 hp AND 1 max hp: the rest of the hit is overkill, and regen cannot top
+    // the victim up in the ball's flight time (which would inflate the payout)
+    b.maxHp = 1; b.hp = 1;
+    const before = a.hp;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(b.alive).toBe(false);
+    // 1 point of damage was DEALT, so at most 1 × the multiplier is paid — not
+    // the full fireball's worth. This is the rule that bounds vampire+mosquito.
+    const paid = a.healLifesteal;
+    expect(paid).toBeGreaterThan(0);
+    expect(paid).toBeLessThan(1 * f.chargeLifesteal[2] + 0.01);
+    expect(before + paid).toBeGreaterThan(a.hp - 1); // the rest is just regen
+    // ...and the lava pays nothing at all, however engorged you are
+    const hpNow = a.hp;
+    a.healLifesteal = 0;
+    state.arenaRadius = 1;                 // everyone is swimming
+    a.hp = hpNow;
+    run(state, 0.5);
+    expect(a.healLifesteal).toBe(0);
+  });
+
+  it('vampire + mosquito: an engorged STING heals off 1 damage, not a fireball', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 3, mosquito: 1 };
+    a.vampN = f.chargeEvery - 1;          // next cast: engorged
+    a.hp = a.maxHp - 60;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    // the sting deals stingDmg, so the engorged payout is bounded by that —
+    // 1 damage × 350% is 3.5 hp, not a full heal
+    expect(a.healLifesteal).toBeLessThan(
+      ELEMENTS.mosquito.fx.stingDmg * f.chargeLifesteal[2] + 0.01);
+    expect(a.healLifesteal).toBeGreaterThan(0);
+  });
+
+  it('the vampire charge counter RESETS on a round boundary (unlike momentum)', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(2);
+    const a = state.players.p0;
+    a.elements = { vampire: 1 };
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    expect(a.vampN).toBe(1);
+    // end the round the blunt way, then run into the next one
+    state.players.p1.hp = 0.0001;
+    state.players.p1.alive = false;
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.round).toBeGreaterThan(1);
+    expect(a.vampN).toBe(0);
+    // and the first cast of the new round is charge 1 of chargeEvery again
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    expect(a.vampN).toBe(1);
+    expect(f.chargeEvery).toBeGreaterThan(1);
+  });
+
+  // ---- chronos ⏳ ----------------------------------------------------------
+
+  it('chronos ⏳: a landed spell refunds every running cooldown, its own included', () => {
+    const f = ELEMENTS.chronos.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { chronos: 1 };
+    a.spells.teleport = 1;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    a.cooldowns.teleport = SPELLS.teleport.cooldown[0];  // something long, running
+    const fbBefore = a.cooldowns.fireball;
+    const tpBefore = a.cooldowns.teleport;
+    let elapsed = 0;
+    for (let i = 0; i < 20; i++) {
+      state.events = [];
+      step(state, DT); elapsed += DT;
+      if (state.events.some(e => e.t === 'chronos' && e.id === 'p0')) break;
+    }
+    // both cooldowns jumped back by cdRefund (on top of the normal tick down)
+    expect(a.cooldowns.teleport).toBeCloseTo(tpBefore - elapsed - f.cdRefund[0], 2);
+    expect(a.cooldowns.fireball).toBeCloseTo(fbBefore - elapsed - f.cdRefund[0], 2);
+  });
+
+  it('chronos refunds ONCE PER ENEMY HIT: a repulse into 3 bodies pays 3×', () => {
+    const f = ELEMENTS.chronos.fx;
+    const state = elementalBattle(4);
+    const a = state.players.p0;
+    state.pillars = [];
+    a.elements = { chronos: 3 };
+    a.spells.repulse = 1;
+    a.spells.teleport = 1;
+    a.x = 0; a.y = 0;
+    const victims = ['p1', 'p2', 'p3'];
+    victims.forEach((id, i) => {
+      const v = state.players[id];
+      v.x = Math.cos((i / 3) * Math.PI * 2) * 3;
+      v.y = Math.sin((i / 3) * Math.PI * 2) * 3;
+      v.vx = v.vy = 0; v.moveTarget = null; v.maxHp = 500; v.hp = 500;
+    });
+    castSpell(state, 'p0', 'repulse', 10, 0);
+    a.cooldowns.teleport = 15;
+    const before = a.cooldowns.teleport;
+    let elapsed = 0;
+    for (let i = 0; i < 90; i++) {
+      state.events = [];
+      step(state, DT); elapsed += DT;
+      if (state.events.some(e => e.t === 'repulse')) break;
+    }
+    const refunded = before - elapsed - a.cooldowns.teleport;
+    expect(refunded).toBeCloseTo(f.cdRefund[2] * victims.length, 1);
+  });
+
+  it('chronos cdFloor: a refund never reaches 0, and never RAISES a short cooldown', () => {
+    const f = ELEMENTS.chronos.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { chronos: 3 };            // the biggest refund in the spec
+    a.spells.lightning = 1;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.maxHp = 500; b.hp = 500;
+    // a cooldown SHORTER than the floor must be left exactly alone: clamping
+    // with a bare max() would push it UP to the floor, which is a stealth nerf
+    a.cooldowns.rush = f.cdFloor / 2;
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    const lightningCd = a.cooldowns.lightning;
+    expect(lightningCd).toBeGreaterThan(f.cdRefund[2]); // the refund would zero it
+    expect(f.cdRefund[2]).toBeGreaterThan(f.cdFloor);
+    const rushBefore = a.cooldowns.rush;
+    step(state, DT);
+    expect(a.cooldowns.lightning).toBeGreaterThanOrEqual(f.cdFloor);
+    expect(a.cooldowns.rush).toBeLessThanOrEqual(rushBefore); // never pushed up
+    // and it can never re-cast in the same frame it landed
+    expect(castSpell(state, 'p0', 'lightning', 20, 0)).toBe(false);
+  });
+
+  it('chronos + arcane stack without producing a negative or NaN cooldown', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { chronos: 3, arcane: 3 };  // both maxed, the stack Remi asked for
+    a.spells.lightning = 1; a.spells.boomerang = 1; a.spells.rush = 1;
+    b.maxHp = 9999; b.hp = 9999;
+    for (let round = 0; round < 40; round++) {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0;
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+      for (const k of ['fireball', 'lightning', 'boomerang', 'rush'])
+        castSpell(state, 'p0', k, 20, 0);
+      run(state, 0.2);
+      for (const [k, v] of Object.entries(a.cooldowns)) {
+        expect(Number.isFinite(v), `${k} cooldown is ${v}`).toBe(true);
+        expect(v).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('chronos triggers on EVERY spell that hits, but not on DoT ticks or trails', () => {
+    const f = ELEMENTS.chronos.fx;
+    // one refund per spell landing: fireball, lightning, boomerang and rush all
+    // funnel through the same choke point (applyDamage with stamp)
+    for (const spell of ['fireball', 'lightning', 'boomerang', 'rush']) {
+      const state = elementalBattle(3);
+      const a = state.players.p0, b = state.players.p1;
+      state.players.p2.x = 0; state.players.p2.y = -45;
+      state.pillars = [];
+      a.elements = { chronos: 1 };
+      a.spells[spell] = 1;
+      a.spells.teleport = 1;
+      a.x = 0; a.y = 0; b.x = 5; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+      b.maxHp = 500; b.hp = 500;
+      // set the long cooldown BEFORE casting: lightning is hitscan, so its hit
+      // (and its refund) happens inside castSpell, not on a later frame
+      a.cooldowns.teleport = 15;
+      const before = a.cooldowns.teleport;
+      state.events = [];
+      expect(castSpell(state, 'p0', spell, 20, 0)).toBe(true);
+      let elapsed = 0;
+      let fired = state.events.some(e => e.t === 'chronos' && e.id === 'p0');
+      for (let i = 0; i < 40 && !fired; i++) {
+        state.events = [];
+        step(state, DT); elapsed += DT;
+        if (state.events.some(e => e.t === 'chronos' && e.id === 'p0')) { fired = true; break; }
+      }
+      expect(fired, `${spell} should refund`).toBe(true);
+      expect(before - elapsed - a.cooldowns.teleport).toBeCloseTo(f.cdRefund[0], 2);
+    }
+    // ...and venom's DoT does NOT: a tick is a burn, not a hit (same `stamp`
+    // rule that stops poison from stealing lava kills)
+    const state = hitWith({ chronos: 1, venom: 1 });
+    const a = state.players.p0, b = state.players.p1;
+    b.maxHp = 500; b.hp = 500;
+    a.spells.teleport = 1;
+    a.cooldowns.teleport = 15;
+    a.x = 0; a.y = -40;                    // out of the way, no more hits
+    const before = a.cooldowns.teleport;
+    state.events = [];
+    run(state, 3);                          // several poison ticks
+    expect(b.poisonT).toBeGreaterThanOrEqual(0);
+    expect(state.events.some(e => e.t === 'chronos')).toBe(false);
+    expect(a.cooldowns.teleport).toBeCloseTo(before - 3, 1);
+  });
+
+  // ---- ghost 👻 -----------------------------------------------------------
+
+  // a at the origin, b at 8, c at 24, all in a line on +x. Returns what each
+  // victim took. The first victim is teleported away the instant it is hit: its
+  // own knockback (72 u/s, faster than the ball) would otherwise carry it into
+  // the second body and confuse the measurement.
+  function pierceLine(elements, { clearFirst = true } = {}) {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { ...elements };
+    a.x = 0; a.y = 0;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    c.x = 24; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    b.maxHp = 500; b.hp = 500; c.maxHp = 500; c.hp = 500;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    const out = { first: null, second: null, survived: false };
+    for (let i = 0; i < 60; i++) {
+      state.events = [];
+      step(state, DT);
+      for (const e of state.events) {
+        if (e.t !== 'hit') continue;
+        if (e.id === 'p1' && out.first == null) {
+          out.first = { dmg: e.amount, kb: b.vx };
+          out.survived = state.projectiles.some(p => p.type === 'fireball');
+          if (clearFirst) { b.x = 0; b.y = -45; b.vx = b.vy = 0; }
+        } else if (e.id === 'p2' && out.second == null) {
+          out.second = { dmg: e.amount, kb: c.vx };
+        }
+      }
+      if (out.second) break;
+    }
+    return out;
+  }
+
+  it('ghost 👻: the ball passes through, and everyone BEHIND the first takes the bonus', () => {
+    const f = ELEMENTS.ghost.fx;
+    const r = pierceLine({ ghost: 1 });
+    expect(r.survived).toBe(true);                    // it did not pop on body 1
+    expect(r.first.dmg).toBeCloseTo(SPELLS.fireball.damage[0], 5);
+    expect(r.second).not.toBe(null);
+    // the level buys the SIZE of the bonus, not a per-victim compounding
+    expect(r.second.dmg / r.first.dmg).toBeCloseTo(f.pierceDmgMult[0], 5);
+    expect(r.second.kb / r.first.kb).toBeCloseTo(f.pierceKbMult[0], 2);
+  });
+
+  it('ghost levels scale the bonus, and level 3 hits harder than level 1', () => {
+    const f = ELEMENTS.ghost.fx;
+    for (const lv of [1, 2, 3]) {
+      const r = pierceLine({ ghost: lv });
+      expect(r.second.dmg / r.first.dmg).toBeCloseTo(f.pierceDmgMult[lv - 1], 5);
+      expect(r.second.kb / r.first.kb).toBeCloseTo(f.pierceKbMult[lv - 1], 2);
+    }
+  });
+
+  it('a piercing ball hits each body ONCE, then leaves the world', () => {
+    const state = elementalBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    state.arenaRadius = ARENA.START_RADIUS;
+    a.elements = { ghost: 3 };
+    a.x = 0; a.y = 0;
+    b.x = 6; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.maxHp = 9999; b.hp = 9999;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    let hits = 0;
+    for (let i = 0; i < 30; i++) {
+      state.events = [];
+      step(state, DT);
+      hits += state.events.filter(e => e.t === 'hit' && e.id === 'p1').length;
+      // hold the victim still and IN the ball's path the whole way
+      b.x = 6; b.y = 0; b.vx = b.vy = 0;
+    }
+    expect(hits).toBe(1);                    // the boomerang's one-hit-per-enemy set
+    // and a pierced ball is not immortal: the world cull takes it
+    run(state, 6);
+    expect(state.projectiles.length).toBe(0);
+  });
+
+  it('a plain fireball still POPS on the first body, and so does a hook', () => {
+    // regression for replacing the hardcoded type list with a per-projectile flag
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.maxHp = 500; b.hp = 500;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    expect(state.projectiles[0].pierce).toBe(false);
+    run(state, 0.4);
+    expect(state.projectiles.length).toBe(0);
+    a.spells.hook = 1; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0;
+    castSpell(state, 'p0', 'hook', 20, 0);
+    expect(state.projectiles[0].pierce).toBe(false);
+    run(state, 0.4);
+    expect(state.projectiles.length).toBe(0);
+  });
+
+  it('ghost + shield: the ball reflects, and comes back as a FRESH un-pierced ball', () => {
+    const f = ELEMENTS.ghost.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { ghost: 3 };
+    a.maxHp = 500; a.hp = 500;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.maxHp = 500; b.hp = 500;
+    b.shieldT = SPELLS.shield.duration;
+    c.x = 0; c.y = -45;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.6);
+    expect(state.events.some(e => e.t === 'reflect')).toBe(true);
+    expect(b.hp).toBe(500);                       // the shield ate it entirely
+    // it flew home and hit its own caster as a FIRST victim: a plain fireball's
+    // damage, not the pierce bonus
+    expect(500 - a.hp).toBeGreaterThan(SPELLS.fireball.damage[0] - 1);
+    expect(500 - a.hp).toBeLessThan(SPELLS.fireball.damage[0] * f.pierceDmgMult[2] - 1);
+  });
+
+  it('ghost + mirror wall: reflected, ownership flips, and the pierce counter resets', () => {
+    const f = ELEMENTS.ghost.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { ghost: 3 };
+    a.maxHp = 500; a.hp = 500;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    // b owns the wall and stands behind it; c is parked far away
+    b.x = 30; b.y = 0; b.spells.wall = 1;
+    c.x = 0; c.y = -45;
+    castSpell(state, 'p1', 'wall', 20, 0);        // wall at b - 20 on the x axis
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 1.6);   // out to the wall (20 u) and all the way back
+    expect(state.events.some(e => e.t === 'reflect')).toBe(true);
+    // the bounced ball belongs to the wall's owner and treats the caster as its
+    // first victim (ordinary damage, no pierce bonus)
+    const taken = 500 - a.hp;
+    expect(taken).toBeGreaterThan(SPELLS.fireball.damage[0] - 1);
+    expect(taken).toBeLessThan(SPELLS.fireball.damage[0] * f.pierceDmgMult[2] - 1);
+  });
+
+  it('ghost + mosquito: the STING does not pierce, the proc balls do', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { mosquito: 1, ghost: 1 };
+    a.x = 0; a.y = 0;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.maxHp = 500; b.hp = 500;
+    c.x = 0; c.y = -45;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    // the sting is the mosquito's own ball: it carries no riders at all, so it
+    // cannot pierce (the pest REPLACES your fireball — existing rule)
+    const sting = state.projectiles[0];
+    expect(sting.mosquito).toBe(1);
+    expect(sting.pierce).toBe(false);
+    run(state, 0.4);
+    expect(state.projectiles.length).toBe(0);     // it popped on the body
+    // the proc's balls ARE your normal fireballs, so they carry ghost and pierce
+    a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    for (let i = 0; i < 20; i++) {
+      state.events = [];
+      step(state, DT);
+      if (state.events.some(e => e.t === 'biteHit')) break;
+    }
+    const proc = state.projectiles.find(p => p.type === 'fireball');
+    expect(proc.pierce).toBe(true);
+    expect(proc.elements.ghost).toBe(1);
+  });
+
+  it('chronos and arcane are the only elements that do not require a fireball', () => {
+    const state = createGame({ seed: 9, mode: 'elemental' });
+    addPlayer(state, 'a', 'Alice');
+    state.phase = 'shop';
+    const a = state.players.a;
+    a.gold = 999;
+    a.spells.fireball = 0;
+    expect(buy(state, 'a', 'chronos').ok).toBe(true);
+    expect(buy(state, 'a', 'arcane').ok).toBe(true);
+    for (const k of ['vampire', 'ghost', 'frost', 'ember'])
+      expect(buy(state, 'a', k).err).toBe('requires fireball');
+    // ...and neither global element ever rides on the projectile
+    a.spells.fireball = 1;
+    a.x = 0; a.y = 0;
+    state.phase = 'battle';
+    a.alive = true;
+    castSpell(state, 'a', 'fireball', 20, 0);
+    const pr = state.projectiles[0];
+    expect((pr.elements || {}).chronos).toBeUndefined();
+    expect((pr.elements || {}).arcane).toBeUndefined();
   });
 
   it('elemental bots-only game reaches gameover with each kind on its element', () => {

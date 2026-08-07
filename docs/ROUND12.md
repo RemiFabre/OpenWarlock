@@ -63,6 +63,20 @@ timed teleport can dodge the second ball — real skill expression.
 mosquito stacks, or the effect chains forever. Hard rule in code + a test. *Done
 and test-locked.*
 
+> ⚠️⚠️ **BOTH measurements below are VOID (2026-08-07, later the same day).**
+> The proc was only firing ONE of its two balls. S1's constant knockback launches
+> a full-HP victim at ~72 u/s, so during `procGap` the victim outran the second
+> ball, which was aimed with a frozen vector at where they used to be. Two vitest
+> tests caught it. The second ball is now **re-aimed at release** with an
+> intercept solve against the victim's live position (a teleport still dodges it —
+> a blink is discontinuous), taking the proc from 45% to **100% both balls on a
+> non-teleporting target**. Re-measured on the identical 9-element pool, 400
+> games, seed 7: mosquito **18.7% → 65.9%**, displacing everything around it
+> (momentum 43.0 → 29.5, venom 36.8 → 27.6). So the "it can't kill anybody" and
+> "18.6% is a floor" readings were both artifacts of the bug. cdMult sweep and
+> the recommended one-line nerf are in `shared/constants.js` next to `cdMult`.
+> Numbers left unchanged: this section says mosquito's numbers are your call.
+
 ~~⚠️ This is a large net buff, to be paid for elsewhere.~~
 **MEASURED WRONG, 2026-08-07 — nothing paid, and the old version was simply
 broken.** With momentum excluded from the pool: berserker **0.0% → 18.6%** (avg
