@@ -51,10 +51,11 @@ reading its priorities: what it wants first is what the strategy is about.
 (The arena additionally runs a **greedless** control that never buys anything
 — it exists only to calibrate the tables and is not offered in the lobby.)
 
-**Which strategy fits which difficulty**: see the build × tier table in
-`BALANCE.md` (report #4, 1500 mirror games per tier). It used to be restated
-here, which meant every retune had to be typed into two files and the copies
-drifted — read it there.
+**Which strategy fits which difficulty**: see the build × tier mirror table in
+`BALANCE.md` §7 (1500 mirror games per tier). It used to be restated here, which
+meant every retune had to be typed into two files and the copies drifted — read
+it there. (The pointer used to say "report #4"; that report is now in git history
+at `33b64ab:BALANCE.md` and the live table is the round-15 one.)
 
 **Boomer is the strongest pick at every tier**, and that is partly a bot
 artifact: nothing in the bot code dodges a boomerang (Extreme's dodge routine
@@ -86,10 +87,12 @@ conventions — keep these in mind and the numbers stop being mysterious:
   read the **mirror** tables (`--mirror=stalker`: all seats the same
   difficulty, only builds differ) — that isolates the shopping question.
 - **lava kill share**: fraction of deaths where the victim died in lava.
-  Knockback into lava IS the game, but the target share has drifted with the
-  retunes: ~86% originally, ~68% after round 8/9, **~45–60% after round 10**
-  (softer low-HP knockback + 2× swim speed make lava escapable). Remi hasn't
-  ruled on the right value yet — treat big moves as a signal, not a bug.
+  Knockback into lava IS the game, but the share has fallen every single round:
+  ~86% originally, ~68% after round 8/9, ~47% after round 10, ~38% after round
+  11, and **30.0% now** (round 15) — softer knockback plus 2× swim speed make the
+  lava escapable. It also depends heavily on who is playing: 20.9% in a Hard
+  mirror, 45.2% in an Extreme one. Remi has still never ruled on the right value
+  (BALANCE.md open question C) — treat big moves as a signal, not a bug.
 - **comeback rate**: fraction of games the winner was at some point ≥4
   kills behind — a health check that games aren't decided in round 3.
 

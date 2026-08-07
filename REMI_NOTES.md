@@ -6,6 +6,65 @@ you asked before leaving.*
 
 ---
 
+## ROUND 15 — What everything is actually worth, and your Cape/Treads question (2026-08-08)
+
+You asked for `BALANCE.md` rewritten around *"the most isolated possible win rate
+of everything we know"*, and you asked directly whether **Lava Treads** and the
+**Cape of the Magi** should be buffed. Both are done. The whole report is in
+`BALANCE.md` — this is the short version.
+
+### The measuring stick, first
+
+I built the isolated lab into the real tool instead of leaving it as a throwaway
+script: `node tools/arena.js --isolate=treads`. Four identical seats, one holds
+the thing, the other three hold **a control that costs the same and does
+nothing**. So if the thing were also worthless, all four would win 25% — and the
+number I report is *"points above wasting the same gold"*. It checks itself four
+ways (including six spells no bot ever casts, which all land on 25% as they must).
+
+### Your question: buff them?
+
+**Lava Treads — yes, and they are buffed.** They were worth almost exactly
+nothing (+1.4 points). Now **−50% lava damage** at level 1 instead of −15%, and
+they are worth +7.3. ⚠ But there is a ceiling I want you to know about: I measured
+what *total* lava immunity would be worth, and it is only +17, because the lava is
+just 8.5% of all the damage in the game (it does most of the *killing*, not most
+of the damage). So the Treads can be made worth their gold and can never be made
+exciting by percentages. If you want them exciting, they need a different
+effect — swim speed, a burn-free window — and that is your call.
+
+**Cape of the Magi — no, and this is the interesting one.** Its value **changes
+sign depending on who is wearing it**. Knockback resistance is worth **−20 points
+to a Hard bot and +26 to an Extreme bot**. A Hard bot charges in and never
+retreats, so being shoved out of a fight it is losing accidentally saves it; an
+Extreme bot dodges and holds position, so not being shoved is exactly what it
+wants. A human is at least as positional as the Extreme bot. So the "cape is
+weak" number you saw was a **bot artifact**, and "buffing" it means pushing it
+toward the value that measures −20 on the tier all our tables use. **I changed
+nothing and this one needs your playtest, not more games.**
+
+### The other thing you should know
+
+The old claim that *"item levels 2 and 3 are near-worthless"* was **wrong**, and
+it was my measurement error last round (the control cost a flat 15 g at every
+level, so higher levels were compared against a bigger and bigger waste). Against
+a fair control, **every item gets better with every level.** What is true is that
+levels 2-3 lose to **breadth** — and the reason is that the **Amulet and the Blood
+Sword are worth 3 to 6 times more per gold than anything else in the shop**. A bot
+that skips the Amulet wins 0.4% of its games. That is the real open question and
+it is yours to rule on; I did not nerf them.
+
+I also fixed one thing the shop was lying about: it said the powerful spells
+*"unlock after round 5"*. They have been on sale from round 1 since round 12.
+
+Numbers changed: Lava Treads −15/−26/−32% → **−50/−64/−72%** lava damage; Boots
++15/+27/+35% → **+15/+29/+42%** speed (level 3 previously bought *nothing*
+measurable — level 1 is untouched at your +15%). One consequence to flag: better
+items made the **late co-op campaign 5-10 points easier**. I did not retune your
+levels to compensate — they are your design.
+
+---
+
 ## ROUND 14 — Bots lean on the leader, and the dead get a live scoreboard (2026-08-07)
 
 Two jobs from your feedback, both shipped.

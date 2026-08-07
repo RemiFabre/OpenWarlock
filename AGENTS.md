@@ -6,15 +6,19 @@ first; it replaces digging through history.*
 
 ## ⚠ State of the repo right now (read before your first command)
 
-- **Round 12 is pushed** (`3024b3f`). **Round 13 is UNCOMMITTED working-tree
-  changes**: the gale stack-and-burst rework (`constants.js`, `sim.js`,
-  `render.js`, `main.js`, `sfx.js`, 4 new tests), the `dmgTakenLava` /
-  `dmgTakenDirect` accounting counters, and the Blood Sword investigation
-  written up in `constants.js` + BALANCE 13A/13B (**no number was changed for
-  the sword — read the block before "fixing" it**). Verified: 199 vitest, both
-  harness scenarios, `--mode=elemental --games=1000`, `--games=60 --players=4`,
-  co-op `--levels` bit-identical, client rendered in a headless browser with
-  zero console errors. Not committed and not pushed by instruction.
+- **Rounds 12-14 are committed** (HEAD before round 15 was `33b64ab`, the shop
+  pause button). **Round 15 is UNCOMMITTED working-tree changes**, by
+  instruction: the **isolation lab** as real flags on `tools/arena.js`
+  (`--isolate=`, `--ladder=`, `--fx=`, `--tail=`, `--control=`), a **rewritten
+  `BALANCE.md`**, two retuned constants (`treads.lavaMult`, `boots.speedMult` —
+  sweeps in `constants.js`), one spec-driven test fix, one stale shop label in
+  `client/main.js`, and the AGENTS/STRATEGIES corrections around them.
+  Verified: **212 vitest**, both harness scenarios, `--games=60 --players=4`
+  (lava 30.0%, comeback 10.0%), both mirrors at 1500 games, the h2h ladder
+  (100 / 99.8 / 100), `tools/coop.js --levels` re-run in the same change (the
+  late campaign got 5-10 points EASIER — see BALANCE §8, not compensated for on
+  purpose), and the client screenshotted in a headless browser with zero console
+  errors. Not committed and not pushed by instruction.
 - **Remi may still be playing.** Do not `pkill` anything matching
   `server/index.js` and do not run `test/client-robustness.js` or
   `tools/reconnect-test.js` without checking first — they spawn and kill
@@ -67,16 +71,16 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=`), crash dumps, `/health`, static serving, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel → public URL (verified end-to-end incl. websockets) |
 | `client/` | canvas client: main.js (net/input/HUD/shop/draft banner/floaters), render.js (full-res art + 1/3-res blob layer), music.js, sfx.js (synthesized) |
-| `test/sim.test.js` | 199 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 212 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`, and `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
-| `tools/arena.js` | balance lab: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
+| `tools/arena.js` | balance lab. **`--isolate=` is the one to reach for** (round 15): 1 seat holds the thing, 3 hold a price-matched do-nothing control, so the baseline is exactly 25% and the number is *points over wasting the same gold*. Also `--ladder=` (item levels: depth vs breadth), `--fx=item.field=a,b,c` (sweep a constant without editing it), `--tail=bruiser`, `--control=none`, `--isolate=self-test` / `no-op` (the lab checks itself). Older views: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
 | `tools/h2h.js` | **difficulty-ladder check** (2 seats vs 2 seats, 50% = parity) — the mixed Elo table hides tier gaps; this one doesn't |
 | `shared/campaign.js` | **co-op campaign**: the 10 levels as pure data (unit templates + waves + the party-scaling rule). Levels are data, never code |
 | `tools/coop.js` | co-op lab: `--levels` (isolated per-level clear rates, the tuning view), no flag (full campaign runs), `--roster` |
 | `client/coop.js` | co-op client: level card, battle status strip, the 3-way rules toggle. Self-contained on purpose |
 | `tools/reconnect-test.js` | e2e reconnect-persistence test (spawns a real server + ws clients) |
-| `BALANCE.md` | **round-13 addendum on top of the round-12 one, the round-11 one and report #4 (round 10) — current**; #3/#2 in git history at `ab48932` / `9a96b47`. Findings are labelled `13A`-`13C`, `12A`-`12H` |
+| `BALANCE.md` | **REWRITTEN round 15** around isolated win rates — one report, no addendum stack: every element, item (per level), spell, build and tier measured against a price-matched do-nothing control. Findings `15A`-`15F`; §9 carries forward what is still true from the old ones. Everything from report #4 (round 10) through the round-14 addendum is in git history at `33b64ab:BALANCE.md`, #3/#2 at `ab48932` / `9a96b47` |
 | `STRATEGIES.md` | bot difficulty × build chart + how to read arena reports |
 | `REMI_NOTES.md` | per-round changelog Remi actually reads (newest on top; round 12 onward in English) |
 | `docs/` | **design + decision docs, all current**: `ROUND12.md` (the round-12 work order as dictated, with every correction applied inline — read it for *why*, not for numbers), `VERSIONING.md` (**revision 2**: a version is **arbitrary code** with **distributed maintenance** — rev 1's "a version is a data patch" was OVERRULED by Remi and the reasoning is on the page), `HOSTING.md` (player-hosting plan: named tunnel + domain, one-button "Create game", chat box → Worker → GitHub issue), `NAMING.md` + `CONTRIBUTING-LEGAL.md` (name/licence/contributor answers), `archive/` |
@@ -118,7 +122,8 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   that number.
 - **Items have 3 LEVELS** (round 12, S4): hard cap 3, the **same flat gold cost
   at every level**, each level worth less than the last (`ITEM_FX` arrays are
-  **cumulative totals**, boots 1.15/1.27/1.35). Round 11's free stacking
+  **cumulative totals**, boots **1.15/1.29/1.42** and treads **0.50/0.36/0.28**
+  since round 15 — see the sweeps in `constants.js`). Round 11's free stacking
   produced a 4-5-boots meta Remi didn't want. ⚠ Two measured consequences:
   it **resurrected the gold-saturation artifact** (midas back to 0.0% on ~49 g
   of unspent gold — see the scars) and it **broke the co-op campaign** (see the
@@ -156,11 +161,25 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   in every round from 2 to 18; it does NOT rise as the ring closes. **The lava
   is the executioner, not the damage dealer** — any argument of the form "most
   damage is lava, therefore X" is wrong. BALANCE 13A.
-- **Item levels 2-3 are near-worthless across the whole roster** (round 13):
-  lv1→lv3 is −29 to −33 points for ring/boots/cape/treads, −3.6 for the sword,
-  and **+43.3 for the amulet, the one outlier**. The amulet at lv3 scores +83
-  against a do-nothing control while nothing else clears +11. It has never had
-  a ruling from Remi and it is now the open item question. BALANCE 13B.
+- ~~**Item levels 2-3 are near-worthless across the whole roster** (round 13)~~
+  **SUPERSEDED AND WRONG — do not quote it.** That table's control item cost a
+  flat 15 g at *every* level, so an item at lv3 (30-45 g) was scored against a
+  45 g waste while the same item at lv1 was scored against a 15 g waste; the
+  "collapse" was mostly that arithmetic. Against a control price-matched at every
+  level, **every item's value RISES with its level** (round 15, BALANCE 15C).
+- **What IS true about item levels**: they lose to BREADTH, not to their price.
+  Level 2 of the boots beats 10 g of nothing by +6.5 points and loses to 10 g of
+  the rest of the shop by 12.7. The cause is that **the Amulet (+64 at lv1) and
+  the Blood Sword (+41) return 3-6× more per gold than anything else** — a seat
+  that skips the amulet wins 0.4% of its games. ⚠ Therefore **escalating the cost
+  of levels 2-3 would make them worse, not better**: Remi's flat cost is not the
+  problem and was left alone. The amulet/sword outlier has still never had a
+  ruling and is BALANCE.md open question A.
+- **The Cape of the Magi cannot be measured by this lab and must NOT be buffed on
+  its numbers** (round 15, BALANCE 15D): knockback resistance is worth **−20
+  points to a Hard berserker and +26 to an Extreme stalker** — it changes SIGN
+  with the pilot. A "buff" means pushing `kbMult` down, toward the value that
+  measures −20 on the tier every table uses. Needs a playtest, not more games.
 - **Elemental mode** ⚗️ (lobby toggle): **12 elements**, each 3 levels
   (10+8+8 g), **stackable with each other** (frost+ember works). Stacks (frost,
   mosquito) are **PRIVATE to the attacker who applied them** since round 12 (S2)
@@ -317,7 +336,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 199 green
+npx vitest run                                   # 212 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
@@ -351,12 +370,22 @@ takes his session down with it.
    targets up), **whether constant knockback feels better**, **whether draft
    mode is fun** (unmeasured by design), and the **lava kill share**. His feel
    report outranks every table in BALANCE.md.
-1. **Teach bots the power tier** — meteor/hook/repulse/wall are still
-   unmeasurable (bots pilot none), so all their numbers are design guesses.
-   **Now more urgent**: round 12 made the tier buyable from round 1, and the
-   only thing keeping bots out of it is that no build list names one. Same for
-   boomerang catches, which is why the lab over-rates boomer. Highest-value lab
-   work left.
+1. **Teach bots the power tier — AND the Stone Pillar.** meteor/hook/repulse/wall
+   are still unmeasurable (bots pilot none), so all their numbers are design
+   guesses. Round 15 measured all of them at **exactly the do-nothing control**
+   (+2.0 / +0.4 / +0.4 / +0.0), which is the proof rather than the assertion —
+   and it caught a new one: **`pilotOwnedSpells` casts `pillar` only for the Easy
+   grunt** (the `['boomerang','lightning','rush','pillar']` loop), so
+   Normal/Hard/Extreme never place one and the Pillar measures +0.0 too. No build
+   list names it today, so nothing is currently wasting gold on it — but unlike
+   the power tier it has **no structural guard** in `botShop` (that guard keys on
+   `tier === 'power'`), and **draft mode can hand a bot a Pillar**, since only
+   power spells are filtered out of bot offers. Adding it to a build list, or one
+   draft roll, silently gives three of the four tiers a spell they never cast.
+   **Also now more urgent**: round 12 made the power tier buyable from round 1,
+   and the only thing keeping bots out of it is that no build list names one.
+   Same for boomerang catches, which is why the lab over-rates boomer.
+   Highest-value lab work left.
 2. **The lava kill share needs a RULING, not another measurement.** 86% at
    launch → 68% → 47% → ~38% → **30%**, i.e. two deaths in three are now people
    being shot on the platform rather than shoved into the lava. It has been

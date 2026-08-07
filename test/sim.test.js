@@ -198,9 +198,14 @@ describe('lava', () => {
     b.x = -(ARENA.START_RADIUS + 5); b.y = 0;
     run(state, 1);
     const lossA = a.maxHp - a.hp, lossB = b.maxHp - b.hp;
-    // lv1 treads lavaMult 0.85: net-of-regen loss ratio ≈ (14·0.85−1.2)/(14−1.2) ≈ 0.84
-    expect(lossA).toBeLessThan(lossB * 0.88);
-    expect(lossA).toBeGreaterThan(lossB * 0.6); // and it's a trim, not immunity
+    // Read the expectation OUT OF THE SPEC so a retune of treads cannot fail
+    // this test for the wrong reason (AGENTS.md: balance tests must not pin
+    // constants). Regen offsets both sides slightly, so the observed loss ratio
+    // sits a hair under lavaMult[0] — a ±0.1 band around it is the assertion.
+    const m = ITEM_FX.treads.lavaMult[0];
+    expect(lossA / lossB).toBeGreaterThan(m - 0.1);
+    expect(lossA / lossB).toBeLessThan(m + 0.1);
+    expect(lossA).toBeGreaterThan(0); // and it's a trim, not immunity
   });
 
   it('speeds you up instead of slowing you down (the lava dodge is real)', () => {

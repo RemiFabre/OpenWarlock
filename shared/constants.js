@@ -232,10 +232,59 @@ export const SPELLS = {
 // agent should be able to read the answer off the array without doing algebra).
 // Boots are Remi's spec: +15% / +10% more / +7% more → 1.15 / 1.27 / 1.35.
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: '+15% move speed, then +27% and +35%' },
-  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: '-15% lava damage, then -26% and -32%' },
+  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: '+15% move speed, then +29% and +42%' },
+  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: '-50% lava damage, then -64% and -72%' },
   amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: '+25 max HP, then +43 and +56' },
   ring:   { name: 'Ring of Regeneration', cost: 12, maxLevel: 3, desc: '+0.7 HP/s, then +1.2 and +1.55' },
+  // ---- 2026-08-08 (round 15): Remi asked directly whether the Cape and the
+  // Lava Treads should be buffed, having read the round-13 item table. They got
+  // OPPOSITE answers, and the reason is worth more than either number.
+  // Both were measured in the isolation lab (`tools/arena.js --isolate=`, see
+  // BALANCE 15A for what it is): 4 identical seats, one holds the item, the
+  // other three hold a price-matched do-nothing control, so the baseline is
+  // exactly 25% by symmetry and the number is points over wasting the same gold.
+  //
+  //  · THE TREADS WERE REAL AND TOO SMALL. Points over 25, 800 games/cell,
+  //    Hard berserker, seeds 1 and 7 (2σ ≈ ±3.1 on one cell):
+  //        lavaMult              lv1     lv2     lv3
+  //        [0.85,0.74,0.68] ship +1.4    +2.9    +6.4     <- was worth ~nothing
+  //        [0.60,0.45,0.35]      +4.4     --    +11.4
+  //      **[0.50,0.36,0.28]      +6.0    +8.1   +12.7  <- SHIPPED**
+  //        [0.45,0.30,0.20]      +7.9     --    +11.0
+  //        [0,   0,   0   ] ceil +16.5    --    +20.0     <- total lava immunity
+  //    The ceiling is the important row: even IMMUNITY to the lava is only worth
+  //    ~+17 at this price, because the lava is 8.5% of all damage dealt (BALANCE
+  //    13A). So the treads can be made worth their gold, and can never be made
+  //    a headline item — the value is bounded by that 8.5%, not by this array.
+  //    Value scales roughly linearly with the fraction of burn removed, which is
+  //    why the shipped −15% measured as nothing: 15% of a small thing.
+  //    ⚠ Checked for the trap below: the sign is the SAME at every bot tier
+  //    (Extreme reads +2.5 shipped / +13.8 at the new values, i.e. the same
+  //    story roughly doubled), so this is a number problem and a number fixes it.
+  //
+  //  · THE CAPE IS NOT A NUMBER PROBLEM — NOTHING CHANGED HERE, DELIBERATELY.
+  //    Its measured value depends on WHO IS WEARING IT, and it changes SIGN:
+  //        cape lv1, 800 games, seed 1  shipped (0.92)   kbMult 0 (immune)
+  //        Normal  (brawler)                  --             −11.5
+  //        Hard    (berserker)               +0.9            −19.8
+  //        Extreme (stalker)                 +1.1            +25.6
+  //    (lv3 on Extreme: +9.1, against −2.0 on Hard. On Hard the direction sweep
+  //    is 0 → −19.8, 0.5 → −10.4, 0.92 → +0.9, 1.25 → −5.0: the peak is at "no
+  //    cape at all", and moving either way from ×1.0 loses points.)
+  //    Knockback resistance is worth −20 points to a
+  //    berserker and +26 to a stalker. A bot that charges in and never retreats
+  //    is HELPED by being shoved out of a fight it is losing; a bot that dodges,
+  //    kites and holds its ground is helped by not being shoved at all. A human
+  //    is at least as positional as the stalker.
+  //    So the honest reading is that the Hard-tier number Remi saw (11.7 in the
+  //    round-13 table, ~0 here) is a BOT ARTIFACT, and buffing the cape on it
+  //    would be tuning the item for the pilot that misuses it — the exact
+  //    mistake AGENTS.md says to flag rather than pay for. Note also that a
+  //    "buff" here means pushing kbMult DOWN, i.e. toward the value that
+  //    measures −19 on Hard: the lab would report the buffed cape as worse.
+  //    ⚠ THIS ONE NEEDS REMI, NOT MORE GAMES. If it feels weak in his hands the
+  //    lever is this array; if it feels fine, the round-13 table was reading a
+  //    berserker's mistake. See BALANCE 15D.
   cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: '-8% knockback taken, then -15% and -20%' },
   // ---- 2026-08-07: Remi played a game with it and reported *"the sword that
   // does lifesteal is very expensive and when I looked at my numbers with it, it
@@ -324,9 +373,59 @@ export function itemCost(key) {
 // trimmed one gentle step; mobility spells got cheaper entries instead.
 // Level 1 is a small NERF vs the old single copy (boots 1.2 → 1.15, treads
 // 0.8 → 0.85, cape 0.9 → 0.92) because three levels are now reachable.
+// ---- 2026-08-08 (round 15): the LEVEL curve, measured level by level -------
+// The round-13 addendum reported "item levels 2-3 are near-worthless across the
+// whole roster, lv1→lv3 is −29 to −33 points". That does NOT reproduce, and the
+// reason is a flaw in how it was measured: its control item cost a flat 15 g at
+// every level, so a level-3 item (30-45 g) was being compared against a 45 g
+// waste while a level-1 item (10-15 g) was compared against a 15 g waste — the
+// mismatch grew with the level. Against a control that is price-matched AT EVERY
+// LEVEL, every item's value RISES with its level (`--isolate=items`, 800
+// games/cell, mean of seeds 1 and 7, points over wasting the same gold):
+//     item     lv1     lv2     lv3        item     lv1     lv2     lv3
+//     amulet  +63.5   +73.9   +74.9*      boots    +8.7   +18.9   +19.0
+//     sword   +41.0   +58.8   +64.4       treads   +1.4    +2.9    +6.4
+//     ring    +12.0   +20.8   +27.9       cape     −0.2    −0.9    −1.4
+//   (*the amulet wins 100.0% of its games at lv2-3: the instrument saturates
+//    there and cannot resolve the last two levels. See BALANCE 15C.)
+//
+// So levels 2-3 are NOT worthless. What is true — and it is the real finding —
+// is that they LOSE TO BREADTH. The level ladder (`--ladder=`, four identical
+// seats capped at 0/1/2/3 levels of one item, everyone spending the saved gold
+// on the same shared list, so 25% = "this level is exactly worth its price"):
+//     item    lv0    lv1    lv2    lv3     reading
+//     amulet   0.2    3.4   37.6   58.9    mandatory, and deep
+//     sword    3.9   21.5   33.3   41.5    every level pays
+//     boots   32.3   31.6   21.8   14.4    level 1 breaks even, 2-3 are traps
+//     ring    32.1   31.7   22.1   14.2    same shape
+//     treads  48.6   28.8   15.7    7.0    even level 1 lost to the alternative
+//     cape    53.7   29.8   12.9    3.6    the worst purchase in the shop
+// Both tables are true at once: level 2 of the boots beats 10 g of NOTHING by
+// +10 points and loses to 10 g of THE REST OF THE SHOP by 10. That gap is the
+// amulet and the sword, which return 3-6x more per gold than anything else.
+//
+// ⚠ THE FLAT COST IS NOT THE PROBLEM, so it was NOT touched (Remi's explicit
+// round-12 instruction, and the measurement backs it): the levels lose to
+// breadth, so ESCALATING their cost would make them worse, not better, and the
+// measured cause is the amulet/sword outlier, not the price of a second pair of
+// boots. Deliberately not acted on here — nerfing the two best items in the shop
+// is a much bigger change than this round's brief, and it is BALANCE 15C's open
+// question for Remi.
+// The one thing that WAS a curve problem is boots level 3, which measured as
+// adding literally nothing (+18.9 → +19.0, i.e. 0 ± 3 across two seeds). The
+// falloff was too steep at the last step only:
+//     speedMult                lv2     lv3
+//     [1.15,1.27,1.35] shipped +18.9   +19.0   <- level 3 buys nothing
+//   **[1.15,1.29,1.42]         +16.6   +26.9   <- SHIPPED (seeds 1/7: 25.7/28.1)**
+// Level 1 is untouched at ×1.15 — that is Remi's own spec ("+15%, then +10%
+// more, then +7% more") and only the last step is re-cut, to +14pp/+13pp instead
+// of +12pp/+8pp. ⚠ This is still an edit to a number he specced by hand: the
+// one-line revert is [1.15, 1.27, 1.35]. Round 11's 4-5-boots meta cannot come
+// back from it — that needed UNCAPPED stacking (1.2^5 = ×2.49); this is ×1.42
+// behind a hard cap of 3.
 export const ITEM_FX = {
-  boots: { speedMult: [1.15, 1.27, 1.35] },
-  treads: { lavaMult: [0.85, 0.74, 0.68] },
+  boots: { speedMult: [1.15, 1.29, 1.42] },
+  treads: { lavaMult: [0.50, 0.36, 0.28] },
   amulet: { maxHp: [25, 43, 56] },
   ring: { regen: [0.7, 1.2, 1.55] },
   cape: { kbMult: [0.92, 0.85, 0.80] },

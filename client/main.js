@@ -997,7 +997,11 @@ function buildShop(container, mode = 'classic') {
   mkLabel('Spells');
   for (const [key, spec] of Object.entries(SPELLS))
     if (spec.tier !== 'power') mkSpell(key, spec);
-  mkLabel('Powerful ⚡ (unlock after round 5 — pricey, decisive)');
+  // 2026-08-07: round 12 deleted the `minRound: 5` gate (SPELLS, constants.js) —
+  // the power tier is buyable from the FIRST shop and the only thing keeping
+  // bots out of it is that no build list names one. This label still said
+  // "unlock after round 5", i.e. the shop was lying about the rules.
+  mkLabel('Powerful ⚡ (pricey, decisive — on sale from round 1)');
   for (const [key, spec] of Object.entries(SPELLS))
     if (spec.tier === 'power') mkSpell(key, spec);
   if (elemental) {
