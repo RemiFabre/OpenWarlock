@@ -3,12 +3,12 @@ import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, BOT_ELEMENTS, playerStats,
-  setDraft, draftPick, draftDue, MODES,
+  setDraft, draftPick, draftDue, MODES, pickPrey, killLead,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, DRAFT, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
@@ -3747,5 +3747,224 @@ describe('draft mode 🎴', () => {
     expect(pool(7)).toBe(pool(7));
     const many = new Set([1, 2, 3, 4, 5, 6, 7, 8].map(pool));
     expect(many.size).toBeGreaterThan(1);    // rolled per game, not curated
+  });
+});
+
+describe('bots pressure the kill leader (BOT_TARGETING.LEADER_BIAS)', () => {
+  // Geometry, chosen so the ONLY thing that differs between the two candidates
+  // is distance and kill count:
+  //   bot at (0, -14) · "near" at (0, -4) · "leader" at (0, +4)
+  // Both candidates sit the same distance (4) from the centre, so pickPrey's
+  // rim term is identical; both have exactly one neighbour 8 units away, so the
+  // crowd term is identical; both are at full HP. Only the distance to the bot
+  // differs — 10 vs 18, i.e. GAP arena units in the near one's favour.
+  const GAP = 8;
+
+  function duelBattle({ mode = 'classic', kind = 'berserker' } = {}) {
+    const state = createGame({ seed: 3, mode });
+    addPlayer(state, 'bot', 'Hunter', { bot: true, kind });
+    addPlayer(state, 'near', 'Near');
+    addPlayer(state, 'lead', 'Leader');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    const place = (id, x, y) => {
+      const p = state.players[id];
+      p.x = x; p.y = y; p.vx = p.vy = 0; p.moveTarget = null;
+      p.hp = p.maxHp; p.alive = true;
+    };
+    place('bot', 0, -14);
+    place('near', 0, -4);
+    place('lead', 0, 4);
+    return state;
+  }
+
+  it('the bias only bites in the band the constant defines — spec, not literals', () => {
+    // A lead of 1 must NOT cover GAP units; a runaway lead must. Everything the
+    // two behaviour tests below assert follows from these two inequalities, so
+    // if LEADER_BIAS is ever retuned outside this band the arithmetic says so
+    // here instead of the behaviour tests failing mysteriously.
+    expect(1 * BOT_TARGETING.LEADER_BIAS).toBeLessThan(GAP);
+    expect((ROUND.KILLS_TO_WIN - 1) * BOT_TARGETING.LEADER_BIAS).toBeGreaterThan(GAP);
+  });
+
+  it('a runaway kill leader is hunted over the closer enemy', () => {
+    const state = duelBattle();
+    state.players.lead.kills = ROUND.KILLS_TO_WIN - 1;
+    expect(pickPrey(state, state.players.bot).id).toBe('lead');
+  });
+
+  it('a level field barely moves the choice: the closer enemy still wins', () => {
+    const state = duelBattle();
+    // dead level: identical to having no mechanism at all
+    expect(pickPrey(state, state.players.bot).id).toBe('near');
+    // one kill ahead is "5 vs 4", which must not be enough to cross the arena
+    state.players.lead.kills = 1;
+    expect(pickPrey(state, state.players.bot).id).toBe('near');
+    // and it is genuinely inert, not merely outweighed: the bot that is ITSELF
+    // ahead sees a lead of 0 on everyone (the bounty's floor-at-zero rule)
+    state.players.bot.kills = ROUND.KILLS_TO_WIN - 1;
+    state.players.lead.kills = ROUND.KILLS_TO_WIN - 1;
+    expect(killLead(state.players.bot, state.players.lead)).toBe(0);
+    expect(pickPrey(state, state.players.bot).id).toBe('near');
+  });
+
+  it('the lead is exactly the gold bounty gap: per-observer and floored at 0', () => {
+    const state = duelBattle();
+    const bot = state.players.bot, lead = state.players.lead;
+    bot.kills = 2; lead.kills = 9;
+    expect(killLead(bot, lead)).toBe(lead.kills - bot.kills);  // what kill() pays on
+    expect(killLead(lead, bot)).toBe(0);                       // the leader collects nothing
+  });
+
+  it('a vanished leader is still known to be the leader (kills are scoreboard, not position)', () => {
+    // Vanish hides WHERE you are, never your place on the scoreboard — the
+    // topbar shows it to every human. If the memory entry dropped `kills` the
+    // bias would flicker off every time the leader blinked, which is a stealth
+    // buff nobody asked for.
+    const state = duelBattle();
+    const lead = state.players.lead;
+    lead.kills = ROUND.KILLS_TO_WIN - 1;
+    lead.spells.vanish = 1;
+    lead.vanishT = SPELLS.vanish.duration[0];
+    state.players.bot._seen = {
+      lead: { id: 'lead', x: lead.x, y: lead.y, hp: lead.hp, radius: lead.radius, t: state.time },
+    };
+    expect(pickPrey(state, state.players.bot).id).toBe('lead');
+  });
+
+  it('Extreme gets the same bias (its whole target choice is one call)', () => {
+    // The stalker never calls pickPrey; it kites whatever nearestEnemy returns,
+    // so the bias has to be wired there too or the top tier is exempt. Observed
+    // through behaviour: it holds a ring around its mark, so the mark is
+    // whichever candidate its move target ends up nearest to. The two are 30
+    // units apart, twice the kite ring, so the answer is never ambiguous.
+    const markOf = (leadKills) => {
+      const state = createGame({ seed: 3 });
+      addPlayer(state, 'bot', 'Hunter', { bot: true, kind: 'stalker' });
+      addPlayer(state, 'near', 'Near');
+      addPlayer(state, 'lead', 'Leader');
+      startGame(state);
+      run(state, ROUND.COUNTDOWN + DT);
+      state.pillars = [];
+      for (const [id, x] of [['bot', 0], ['near', 10], ['lead', -20]]) {
+        const p = state.players[id];
+        p.x = x; p.y = 0; p.vx = p.vy = 0; p.moveTarget = null; p.hp = p.maxHp;
+      }
+      state.players.lead.kills = leadKills;
+      state.players.bot._botT = 0;
+      stepBot(state, 'bot', DT);
+      const mt = state.players.bot.moveTarget;
+      expect(mt).toBeTruthy();
+      const to = (id) => Math.hypot(mt.x - state.players[id].x, mt.y - state.players[id].y);
+      return to('near') < to('lead') ? 'near' : 'lead';
+    };
+    // the leader is 10 units farther away; check the spec can pay for that
+    // before asserting the behaviour that depends on it
+    expect((ROUND.KILLS_TO_WIN - 1) * BOT_TARGETING.LEADER_BIAS).toBeGreaterThan(10);
+    expect(1 * BOT_TARGETING.LEADER_BIAS).toBeLessThan(10);
+    expect(markOf(0)).toBe('near');                       // level: kite the near one
+    expect(markOf(ROUND.KILLS_TO_WIN - 1)).toBe('lead');  // runaway: go get the leader
+  });
+
+  it('co-op is exempt: the party is one team and a monster tally is not a race', () => {
+    const state = createGame({ seed: 5, mode: 'coop' });
+    addPlayer(state, 'a', 'Ally');
+    addPlayer(state, 'b', 'Ally2');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const monsters = Object.values(state.players).filter(p => p.team === 'ai');
+    expect(monsters.length).toBeGreaterThanOrEqual(2);
+    const [m1, m2] = monsters;
+    // every co-op fighter, party or wave, carries a team — that is the switch
+    expect(state.players.a.team).not.toBe(null);
+    expect(m1.team).not.toBe(null);
+    m1.kills = ROUND.KILLS_TO_WIN;
+    expect(killLead(state.players.a, m1)).toBe(0);   // a party member: no race
+    expect(killLead(m2, state.players.a)).toBe(0);   // a monster: no race either
+    // and the pick is byte-identical to the pick with the leader's tally wiped
+    state.pillars = [];
+    const before = pickPrey(state, state.players.a);
+    m1.kills = 0;
+    expect(pickPrey(state, state.players.a)).toBe(before);
+  });
+});
+
+describe('live spectator standings', () => {
+  // Remi, 2026-08-07: a dead player watching the round wants the end-of-game
+  // table, live, with the game-total kill count on it. The panel is built by
+  // client/main.js's statsTable() from the ordinary snapshot, so the contract
+  // this suite defends is "the snapshot carries every column, and it carries
+  // nothing a living player is not already given".
+  const COLUMNS = [
+    'kills', 'deaths', 'multiKillBest', 'dmgDealt', 'dmgLava',
+    'healLifesteal', 'healRegen', 'gold', 'goldEarned',
+    'roundGold', 'roundKills',        // the two per-ROUND columns
+  ];
+
+  function watched() {
+    const state = createGame({ seed: 8 });
+    addPlayer(state, 'dead', 'Ghost');
+    addPlayer(state, 'a', 'Alice');
+    addPlayer(state, 'b', 'Bob');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    return state;
+  }
+
+  it('every column the end screen prints is on the wire, for every player', () => {
+    const state = watched();
+    const snap = snapshot(state, 'dead');
+    for (const id of Object.keys(state.players)) {
+      for (const col of COLUMNS) {
+        expect(Object.hasOwn(snap.players[id], col)).toBe(true);
+        expect(Number.isFinite(snap.players[id][col])).toBe(true);
+      }
+    }
+  });
+
+  it('kills are the GAME total and roundKills the current round — both, separately', () => {
+    const state = watched();
+    const a = state.players.a;
+    a.kills = 4; a.roundKills = 4;
+    // a fresh round zeroes the per-round tally and leaves the game total alone
+    state.phase = 'roundEnd';
+    state.roundSummary = { final: false };
+    state.phaseT = 0;
+    step(state, DT);
+    expect(state.phase).toBe('shop');
+    run(state, ROUND.SHOP_TIME + ROUND.COUNTDOWN + DT * 3);
+    expect(state.phase).toBe('battle');
+    const wire = snapshot(state, 'dead').players.a;
+    expect(wire.kills).toBe(4);      // what wins the match
+    expect(wire.roundKills).toBe(0); // what this round has paid
+  });
+
+  it('a dead viewer is given exactly what a living one is — no extra fields', () => {
+    const state = watched();
+    state.players.dead.alive = false;
+    state.players.dead.hp = 0;
+    const asDead = JSON.stringify(snapshot(state, 'dead').players.a);
+    const asAlive = JSON.stringify(snapshot(state, 'b').players.a);
+    expect(asDead).toBe(asAlive);
+  });
+
+  it('a VANISHED player is not exposed through the stats payload', () => {
+    const state = watched();
+    const a = state.players.a;
+    a.spells.vanish = 1;
+    a.kills = 3; a.roundKills = 3; a.dmgDealt = 120;
+    expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
+    const wire = snapshot(state, 'dead').players.a;
+    // the scoreboard row survives — a player must not drop out of the standings
+    // every time they blink — but nothing positional comes with it
+    expect(wire.kills).toBe(3);
+    expect(wire.roundKills).toBe(3);
+    expect(wire.x).toBeUndefined();
+    expect(wire.y).toBeUndefined();
+    expect(wire.vanishT).toBeUndefined();
+    // and the dead viewer is told no more than a living opponent is
+    expect(JSON.stringify(wire)).toBe(JSON.stringify(snapshot(state, 'b').players.a));
   });
 });

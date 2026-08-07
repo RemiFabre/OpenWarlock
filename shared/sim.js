@@ -3,7 +3,7 @@
 
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
-  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, DRAFT, itemCost,
+  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, DRAFT, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxDelta } from './items.js';
@@ -2082,7 +2082,11 @@ export function snapshot(state, viewerId = null) {
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
       gold: p.gold, goldEarned: p.goldEarned, kills: p.kills, deaths: p.deaths,
-      roundGold: p.roundGold,
+      // per-ROUND counters, beside the per-GAME ones above. Both are on the wire
+      // because the live spectator scoreboard shows them side by side and the
+      // player has to be able to tell "this round" from "this game" at a glance
+      // (the table labels them; see statsTable() in client/main.js).
+      roundGold: p.roundGold, roundKills: p.roundKills,
       dmgDealt: Math.round(p.dmgDealt), dmgLava: Math.round(p.dmgLava),
       healLifesteal: Math.round(p.healLifesteal), healRegen: Math.round(p.healRegen),
       multiKillBest: p.multiKillBest,
@@ -2453,19 +2457,47 @@ function enemiesSeen(state, pl) {
       id: m.id, x: m.x, y: m.y, hp: m.hp, radius: m.radius,
       vx: 0, vy: 0, moveTarget: null, dash: null, alive: true,
       spells: other.spells, items: other.items, elements: other.elements,
+      // the kill count is SCOREBOARD, not position: everyone can read it off
+      // the topbar whether or not you are invisible, so the leader bias below
+      // must not flicker on and off with a Vanish. Nothing here is a leak.
+      kills: other.kills,
       maxHp: other.maxHp, _ghost: true,   // a memory, not a body
     });
   }
   return out;
 }
 
-function nearestEnemy(state, pl, hpWeight = 0) {
+// How many kills `e` is AHEAD of `pl` — exactly the gap the gold bounty is paid
+// on (kill(): `target.kills - killer.kills`, floored at 0, GOLD.BOUNTY_PER_GAP),
+// so the economy and the AI agree about who is "ahead". Floored at 0 means the
+// leader never hunts anybody for being ahead, and a level field yields 0 for
+// everyone — the bias only wakes up once somebody actually pulls away.
+//
+// Free-for-all ONLY. In co-op the whole party is one team and the wave has its
+// own targeting; a monster's kill tally is not a scoreboard anyone is racing, so
+// `pl.team != null` (any co-op fighter, party or wave) switches this off.
+export function killLead(pl, e) {
+  if (!pl || !e) return 0;
+  if (pl.team != null || pl.wave) return 0;   // co-op: no leader race
+  return Math.max(0, (e.kills || 0) - (pl.kills || 0));
+}
+
+// The prey-score discount for a target's kill lead, in ARENA UNITS of apparent
+// distance (see BOT_TARGETING.LEADER_BIAS). Subtract it from a distance-shaped
+// score; multiply by the score's distance coefficient elsewhere.
+function leadPull(pl, e) {
+  return killLead(pl, e) * BOT_TARGETING.LEADER_BIAS;
+}
+
+function nearestEnemy(state, pl, hpWeight = 0, leadBias = false) {
   // lowest (distance + hp*weight): weight 0 = strictly nearest,
-  // small weight = prefer wounded targets among comparably close ones
+  // small weight = prefer wounded targets among comparably close ones.
+  // `leadBias` additionally makes a runaway kill leader feel closer than it is
+  // — a bias inside the same score, not an override (BOT_TARGETING.LEADER_BIAS).
   let best = null, bestScore = Infinity;
   for (const other of enemiesSeen(state, pl)) {
     const d = Math.hypot(other.x - pl.x, other.y - pl.y);
-    const score = d + other.hp * hpWeight;
+    const score = d + other.hp * hpWeight - (leadBias ? leadPull(pl, other) : 0);
     if (score < bestScore) { best = other; bestScore = score; }
   }
   return best;
@@ -2560,9 +2592,19 @@ function stepGrunt(state, pl, dt) {
   }
 }
 
-// Berserker target choice: closest wins, but wounded, isolated, or
-// rim-standing enemies are tastier. Lower score = better prey.
-function pickPrey(state, pl) {
+// Berserker target choice: closest wins, but wounded, isolated, rim-standing,
+// or FAR AHEAD ON KILLS enemies are tastier. Lower score = better prey.
+//
+// The kill-lead term (2026-08-07) is deliberately one weighted term among five
+// and not a rule: at BOT_TARGETING.LEADER_BIAS = 2.5 a 10-kill lead is worth 25
+// arena units of apparent distance out of a 56-unit start radius, which flips
+// the choice between two roughly equal candidates and still loses to "half-dead
+// and 30 units nearer". That is the balance Remi asked for — a rebalancing
+// tendency, not a 3-v-1 rule.
+//
+// Exported for the tests: this is THE bot-targeting seam, and the leader bias
+// is only observable here without reverse-engineering a strafe ring.
+export function pickPrey(state, pl) {
   const arena = Math.max(state.arenaRadius, 1);
   const enemies = enemiesSeen(state, pl);   // a vanished enemy is a memory or nothing
   let best = null, bestScore = Infinity;
@@ -2574,7 +2616,9 @@ function pickPrey(state, pl) {
       crowd += Math.max(0, 18 - Math.hypot(o.x - e.x, o.y - e.y));
     }
     const rim = Math.min(1, Math.hypot(e.x, e.y) / arena); // 1 = at the edge
-    const score = d * 0.8 + e.hp * 0.35 + crowd * 0.8 - rim * 8;
+    // 0.8 = this score's distance coefficient, so leadPull stays in arena units
+    const score = d * 0.8 + e.hp * 0.35 + crowd * 0.8 - rim * 8
+      - leadPull(pl, e) * 0.8;
     if (score < bestScore) { best = e; bestScore = score; }
   }
   return best;
@@ -2773,7 +2817,9 @@ function stepStalker(state, pl, dt) {
     }
   }
 
-  const target = nearestEnemy(state, pl, 0.04);
+  // the stalker gets the same kill-leader bias as pickPrey (its whole target
+  // choice is this one call, so leaving it out would exempt Extreme)
+  const target = nearestEnemy(state, pl, 0.04, true);
   if (!target) return;
   const tdx = target.x - pl.x, tdy = target.y - pl.y;
   const dist = Math.hypot(tdx, tdy) || 1;

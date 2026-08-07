@@ -6,6 +6,71 @@ you asked before leaving.*
 
 ---
 
+## ROUND 14 — Bots lean on the leader, and the dead get a live scoreboard (2026-08-07)
+
+Two jobs from your feedback, both shipped.
+
+### 1. The computers now gang up on whoever is winning — gently
+
+You said: *"a tendency to group up against whoever has the most kills, or at
+least for that to bias their targeting… it mustn't be extreme. If a computer
+thinks it can kill someone else, or that someone is in a vulnerable position, it
+can make sense to finish them off."*
+
+So it is a **bias inside the targeting they already had**, not a new rule. A bot
+already prefers prey that is close, wounded, alone, and standing near the lava;
+now it also prefers prey that is **ahead of it on kills**. All five pull on the
+same score, so *"this one is half dead and right next to me"* still beats
+*"the leader is on the other side of the arena"* — which is exactly the balance
+you asked for.
+
+- The size of the pull is **how far ahead they are**, not their raw kill count.
+  Someone on 5 while you are on 4 barely registers; someone on 12 while you are
+  on 3 gets hunted.
+- It uses **the same "who is ahead" the gold bounty uses**, so the money and the
+  AI can never disagree about who the leader is. As with the bounty, the leader
+  himself never gets the bonus — being in front is not a reason to chase people.
+- **Off in the co-op campaign** — the party is one team and the monsters have
+  their own plans. Verified: the whole campaign lab is byte-identical.
+- It applies to Normal, Hard and Extreme. Easy is still pure chaos.
+
+**Measured, 7500 games per setting, same games replayed at every setting:** the
+comeback rate (the winner was at some point 4+ kills behind) goes **12.5% →
+14.8%**. Games did **not** start dragging — not one game in any setting hit the
+25-round cap, and the average length moved 9.13 → 9.30 rounds. The difficulty
+ladder is exactly where it was (Normal beats Easy 100%, Hard beats Normal 99.5%,
+Extreme beats Hard 100%). In games between four *equally skilled* bots, where
+the effect has the most room, comebacks go **44% → 55%**.
+
+**What the lab can't tell you: whether it feels good to be the one being hunted.**
+Bots don't mind. If it feels like a pile-on, the dial is one line
+(`BOT_TARGETING.LEADER_BIAS` in `shared/constants.js`): `1.5` is a measured
+half-step, `0` turns it off.
+
+### 2. Dead? You now watch with the full scoreboard
+
+You said: *"When you're dead and watching the game… we'd like to have more
+complete stats, like the ones we have at the end of the game… plus the total
+number of kills, because that represents what makes you win or lose the game."*
+
+While you are dead during a round, a **Live standings** panel sits along the
+bottom of the screen with **the same table the end-of-game screen prints** —
+kills, deaths, best multi-kill, damage (direct / lava / total), lifesteal, regen,
+gold, and everyone's kit. It updates as the round plays out.
+
+- **Total kills are the first number**, as you asked, and the header says so.
+- Two extra columns show **this round only** — kills and gold — in green, so
+  per-round and per-game can't be confused. The end-of-game screen still shows
+  game totals only.
+- It replaces the spell bar while you're dead (you can't cast anyway) and it
+  never shares the screen with the shop, which is a different phase.
+- **It shows nothing a living player isn't already shown**: no positions, no HP,
+  no cooldowns. In particular a **Vanished** player still can't be found through
+  it — their row stays on the scoreboard (as it already did in the corner
+  scoreboard) but there is nothing positional in it.
+
+---
+
 ## ROUND 13 — Gale becomes a stack-and-burst element, and the Blood Sword investigated (2026-08-07)
 
 Two jobs from your post-playtest feedback: the wind rework you asked for, and a

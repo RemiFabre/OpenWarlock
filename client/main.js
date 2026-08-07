@@ -1213,32 +1213,41 @@ function kitIcons(p) {
   return parts.join(' ');
 }
 
-// One scoreboard for both the shop and the end-of-game screen: same columns in
-// the same order, so it only has to be learned once. A field the snapshot
-// doesn't carry (classic mode, an older snapshot still in the ring buffer)
-// prints as a dash rather than a zero — zero would be a claim.
+// One scoreboard for the shop, the LIVE spectator panel and the end-of-game
+// screen: same columns in the same order, so it only has to be learned once. A
+// field the snapshot doesn't carry (classic mode, an older snapshot still in the
+// ring buffer) prints as a dash rather than a zero — zero would be a claim.
+//
+// `showRound` adds the two per-ROUND columns (kills and gold) next to their
+// per-GAME twins. Everything else in this table is a game total, always: the
+// end screen never shows the round columns, and the two live views (shop, dead
+// spectator) always do, with the word "round" in the header and the tooltip.
+// Nothing here reads a position, an HP or a cooldown, which is why it is safe
+// to show live to a dead player — see the spectator block in updateUi().
 function statsTable(fighters, specs, opts = {}) {
   const { winnerId = null, showRound = false } = opts;
   const cell = (v, cls = '') =>
     `<td class="n ${cls}">${fin(+v) ? Math.round(+v) : '<span class="dim">–</span>'}</td>`;
   const goldCols = showRound ? 3 : 2;
+  const roundCols = showRound ? 1 : 0;
   const th = (label, tip) => `<th class="n" title="${esc(tip)}">${label}</th>`;
   const head = `<thead>
-    <tr class="grp"><th colspan="5"></th>
+    <tr class="grp"><th colspan="${5 + roundCols}"></th>
       <th class="g" colspan="3">Damage dealt</th>
       <th class="g" colspan="2">HP healed</th>
       <th class="g" colspan="${goldCols}">Gold</th>
       <th class="c-kit"></th></tr>
     <tr><th></th><th>Warlock</th>
-      ${th('⚔️ Kills', 'enemies you killed')}
-      ${th('💀 Deaths', 'times you died')}
+      ${th('⚔️ Kills', `enemies you killed — GAME TOTAL, the number that wins the match (first to ${ROUND.KILLS_TO_WIN})`)}
+      ${showRound ? th('⚔️ Round', 'kills you have scored in the CURRENT round') : ''}
+      ${th('💀 Deaths', 'times you died, all game')}
       ${th('Streak', 'best multi-kill this game (×2 = double kill)')}
       ${th('Direct', 'damage you landed yourself: spells, poison ticks, trails')}
       ${th('Lava', 'lava burn credited to you for shoving someone in')}
       ${th('Total', 'direct + lava')}
       ${th('Lifesteal', 'HP the Blood Sword clawed back')}
       ${th('Regen', 'HP regenerated (baseline + rings)')}
-      ${showRound ? th('This round', 'gold earned since the last shop') : ''}
+      ${showRound ? th('Round', 'gold earned since the last shop — the CURRENT round only') : ''}
       ${th('Wallet', 'gold you can spend right now')}
       ${th('Earned', 'gold earned all game, spent or not')}
       <th class="c-kit">Kit</th></tr></thead>`;
@@ -1252,16 +1261,16 @@ function statsTable(fighters, specs, opts = {}) {
     const cls = [p.id === myId ? 'me' : '', winnerId && p.id === winnerId ? 'winner' : '']
       .filter(Boolean).join(' ');
     return `<tr class="${cls}"><td class="rank">${i + 1}</td>${who(p)}
-      ${cell(p.kills)}${cell(p.deaths)}
+      ${cell(p.kills)}${showRound ? cell(p.roundKills, 'g-round') : ''}${cell(p.deaths)}
       <td class="n">${mk >= 2 ? `<span class="mk">×${mk}</span>` : '<span class="dim">–</span>'}</td>
       ${cell(direct)}${cell(lava, 'g-lava')}${cell(direct != null && lava != null ? direct + lava : null)}
       ${cell(p.healLifesteal, 'g-heal')}${cell(p.healRegen, 'g-heal')}
-      ${showRound ? cell(p.roundGold, 'g-gold') : ''}
+      ${showRound ? cell(p.roundGold, 'g-round') : ''}
       ${cell(p.gold, 'g-gold')}${cell(p.goldEarned ?? p.gold, 'g-gold')}
       <td class="kit c-kit">${kitIcons(p)}</td></tr>`;
   }).concat(specs.map((p) =>
     `<tr class="spec"><td class="rank">👁</td>${who(p)}
-      <td colspan="${8 + goldCols}"></td><td class="c-kit"></td></tr>`)).join('');
+      <td colspan="${8 + goldCols + roundCols}"></td><td class="c-kit"></td></tr>`)).join('');
   return `${head}<tbody>${rows}</tbody>`;
 }
 
@@ -1281,7 +1290,15 @@ function updateUi(s) {
   setVisible('shop', !!myId && s.phase === 'shop');
   setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
   if (s.phase !== 'shop') hideTip();
-  setVisible('spellbar', !!myId && inGame && !(m && m.spectator));
+  // Dead and watching the rest of the round: the same scoreboard the end screen
+  // prints, live (Remi, 2026-08-07). Battle phase only — the shop is a different
+  // phase and already carries this table, and roundEnd belongs to the art
+  // reveal, so the live panel never has to share the screen with either.
+  const watchingLive = !!myId && s.phase === 'battle' && !!m && !m.alive;
+  // a spell bar you cannot use: castSpell() refuses while !alive, so while you
+  // are dead it is decoration — and it is exactly where the live panel sits
+  setVisible('spellbar', !!myId && inGame && !(m && (m.spectator || !m.alive)));
+  setVisible('specpanel', watchingLive);
   // the shop and the final standings carry the same numbers in full, so the
   // corner scoreboard would only peek out from behind them
   setVisible('topbar', !!myId && s.phase !== 'lobby' && s.phase !== 'shop' &&
@@ -1383,6 +1400,23 @@ function updateUi(s) {
     $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {
     $('phasebar').textContent = `next round in ${Math.ceil(phaseT)} s`;
+  }
+
+  // Live standings for the dead. Deliberately the SAME statsTable() the shop and
+  // the end screen build — one scoreboard, not a second implementation — with
+  // the per-round columns on, since the owner asked for "the current round AND
+  // the game total". Nothing here is privileged information: every field it
+  // reads (kills, deaths, streak, damage, heals, gold, kit) is already in every
+  // living player's snapshot and already on the shop screen each round. It
+  // deliberately shows NO position, NO hp and NO cooldowns, so a Vanished player
+  // is exposed by exactly as much as before: nothing.
+  if (watchingLive) {
+    $('specSub').textContent = `round ${s.round} · game totals — the two “round” ` +
+      `columns are this round only`;
+    $('specStats').innerHTML = statsTable(
+      playerList.filter(p => !p.spectator).sort(byRank),
+      playerList.filter(p => p.spectator),
+      { showRound: true });
   }
 
   if (s.phase === 'gameover') {

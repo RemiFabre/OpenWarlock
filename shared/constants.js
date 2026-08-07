@@ -818,6 +818,52 @@ export const BOTS = {
 // makes the bot's aim stale, not blind.
 export const BOT_MEMORY = 1.5;
 
+// ---- Bot targeting: pressure on the kill leader ---------------------------
+// A comeback lever, asked for 2026-08-07: "a tendency to group up against
+// whoever has the most kills, or at least for that to bias their targeting…
+// it mustn't be extreme". So it is a WEIGHT inside the existing prey score
+// (pickPrey / nearestEnemy in sim.js), never an override — "this one is nearly
+// dead and standing next to me" still beats "the leader is across the map".
+//
+// Unit: **arena units of apparent distance per kill of lead**. A target the bot
+// is N kills behind feels `N * LEADER_BIAS` units closer than it is. The lead is
+// the SAME gap the gold bounty pays on (GOLD.BOUNTY_PER_GAP, kill() in sim.js):
+// per-observer, floored at 0, so the leader never hunts anyone for being ahead
+// and a field that is level produces no bias at all. Free-for-all only — co-op
+// parties are one team and monsters have their own targeting (see killLead()).
+//
+// SWEPT 2026-08-07. Mixed 4-player study (the same sampler tools/arena.js's
+// default study uses), 3 seeds x 2500 games = **7500 games per cell**, and every
+// cell replays the SAME lineups and seeds, so the only thing that differs
+// between rows is this number. "comeback" = the eventual winner was at some
+// point >= 4 kills behind, i.e. exactly what arena.js prints. Cell 0 was
+// verified byte-identical to the pre-change build (same Elo table, same lava
+// share) — the term is provably inert at 0, so row 0 IS the old game.
+//   bias   comeback%          mean   avg rounds   games hitting MAX_ROUNDS
+//   0     12.6 / 12.7 / 12.2  12.5      9.13              0.0%
+//   1     13.0 / 14.0 / 12.7  13.2      9.21              0.0%
+//   1.5   13.4 / 14.5 / 13.0  13.6      9.25              0.0%
+//   2.5   14.9 / 14.7 / 14.8  14.8      9.30              0.0%   <- shipped
+//   4     14.8 / 13.8 / 14.9  14.5      9.31              0.0%
+// Comeback climbs monotonically to 2.5 and then flattens/declines (4.0 is not an
+// improvement on any seed pair and 8.0 was erratic in an earlier 1200-game run),
+// so 2.5 is the top of the useful range rather than a step along it. The feared
+// failure mode — the leader can never close it out and games run to the 25-round
+// cap — **did not appear at any weight**: no cell had a single capped game, and
+// mean game length moved 9.13 -> 9.30 rounds (+1.9%). Lava kill share 30.3% ->
+// 30.4%, i.e. untouched. The difficulty ladder is untouched too: tools/h2h.js at
+// 400 games/pair reads Normal>Easy 100%, Hard>Normal 99.5%, Extreme>Hard 100%
+// both before and after, the same figures as AGENTS.md.
+// Second lab, where the mechanic has the most room (4 EQUAL Hard berserkers,
+// builds differing only, 800 games, seed 7): comeback 44.3% at 0 -> 54.6% at
+// 2.5, again 0 capped games, mean rounds 13.95 -> 15.20.
+// ⚠ What no lab here can see: bots do not experience being ganged up on. If it
+// feels oppressive in a real game, 1.5 is the measured step down (+1.1 instead
+// of +2.3 points) and 0 removes the mechanic entirely.
+export const BOT_TARGETING = {
+  LEADER_BIAS: 2.5,
+};
+
 // ---- Bot build strategies -------------------------------------------------
 // A bot = a combat profile (BOTS kind: HOW it fights) × a build strategy
 // (WHAT it buys). Each order list is consumed greedily every shop: first

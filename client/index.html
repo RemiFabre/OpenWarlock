@@ -339,6 +339,38 @@
   #buffbar .buff.vamp { border-color: #8c2f3f; color: #ff8fa3; }
   #buffbar .buff.vanish { border-color: #6a5f9c; color: #cfc6ff; }
 
+  /* ---- live standings while you are dead and watching ----
+     Bottom band: the topbar owns the top-right, the phasebar the top-centre,
+     and the spell bar is hidden while you're dead (you cannot cast), so this
+     band is free. It stops short of the music/mute buttons at right:12/52px.
+     The shop is a different PHASE, so the two can never be on screen together;
+     the table scrolls inside .spbody rather than pushing the page around. */
+  #specpanel {
+    position: fixed; left: 12px; right: 96px; bottom: 12px; z-index: 40;
+    pointer-events: auto; display: flex; flex-direction: column;
+    max-height: min(46vh, 430px);
+    background: rgba(20, 16, 14, .93); border: 1px solid #2e241c;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, .45);
+  }
+  #specpanel .sphead {
+    display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+    padding: 6px 10px; border-bottom: 1px solid var(--line);
+  }
+  #specpanel .sptitle {
+    color: var(--ember); font-size: 11px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  #specpanel .spsub { color: var(--ash); font-size: 11.5px; }
+  #specpanel .spbody { overflow: auto; }
+  /* narrow windows: the band uses the full width and the table scrolls */
+  @media (max-width: 720px) { #specpanel { right: 12px; max-height: 40vh; } }
+  /* the panel is ~108px narrower than its viewport (margins + the audio
+     buttons), so it must shed the kit strip earlier than the shop overlay does
+     — measured: at a 1024px window the numbers fit and only Kit was clipped */
+  @media (max-width: 1128px) { #specpanel table.stats .c-kit { display: none; } }
+  /* the per-round columns, told apart from their per-game twins by colour too */
+  table.stats .g-round { color: var(--ok); }
+
   #topbar {
     position: fixed; top: 10px; right: 12px;
     background: rgba(20, 16, 14, .82); border: 1px solid #2e241c;
@@ -433,6 +465,13 @@
   <div id="topbar" class="hidden"></div>
   <div id="buffbar" class="hidden"></div>
   <div id="spellbar" class="hidden"></div>
+  <div id="specpanel" class="hidden">
+    <div class="sphead">
+      <span class="sptitle">👁 Live standings</span>
+      <span class="spsub" id="specSub"></span>
+    </div>
+    <div class="spbody"><table id="specStats" class="stats"></table></div>
+  </div>
   <div id="toast"></div>
 </div>
 

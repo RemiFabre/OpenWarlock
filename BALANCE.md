@@ -1,3 +1,74 @@
+# Balance addendum — round 14 (2026-08-07)
+
+*One balance question this round: make the bots lean on whoever is winning,
+without turning every game into a 3-v-1. The round-13 addendum follows below and
+is unchanged by this one.*
+
+## Finding 14A — a kill-leader targeting bias buys +2.3 points of comeback and costs no game length
+
+Remi: *"a tendency to group up against whoever has the most kills, or at least
+for that to bias their targeting… it mustn't be extreme."*
+
+**What it is.** One extra weighted term in `pickPrey()` — the berserker/brawler
+prey score that already weighs distance, wounds, isolation and rim proximity —
+and in the stalker's single `nearestEnemy()` call, which is its whole target
+choice. Not an override: a nearly-dead enemy standing next to you still beats a
+leader across the map. The lead is **exactly the gold bounty's gap**
+(`target.kills - self.kills`, floored at 0, `GOLD.BOUNTY_PER_GAP`), so the
+economy and the AI now agree about who is ahead, and the leader — who never
+collects a bounty — likewise never hunts anyone for being ahead. Off in co-op
+(`pl.team != null`). The whole lever is `BOT_TARGETING.LEADER_BIAS`, in **arena
+units of apparent distance per kill of lead**.
+
+**Method.** Mixed 4-player study, same lineup sampler as `tools/arena.js`'s
+default, 3 seeds × 2500 games = **7500 games per cell**, every cell replaying
+the *same* lineups and seeds so the weight is the only difference (a paired
+comparison, so the usual ±0.8-point 2σ band overstates the noise here). Cell 0
+was checked byte-identical to the pre-change build: same Elo table, same lava
+share, same comeback rate. The term is provably inert at 0, so row 0 is the old
+game rather than an approximation of it.
+
+| bias | comeback% (3 seeds) | mean | mean rounds/game | games hitting `MAX_ROUNDS` |
+|---|---|---|---|---|
+| 0 | 12.6 / 12.7 / 12.2 | 12.5 | 9.13 | 0.0% |
+| 1 | 13.0 / 14.0 / 12.7 | 13.2 | 9.21 | 0.0% |
+| 1.5 | 13.4 / 14.5 / 13.0 | 13.6 | 9.25 | 0.0% |
+| **2.5** | 14.9 / 14.7 / 14.8 | **14.8** | 9.30 | 0.0% |
+| 4 | 14.8 / 13.8 / 14.9 | 14.5 | 9.31 | 0.0% |
+
+Comeback climbs monotonically to 2.5 and then stops — 4.0 beats 2.5 on no seed,
+and an earlier 1200-game run had 8.0 bouncing around erratically. **2.5 is the
+top of the useful range, not a point on a slope**, which is the happiest place
+to sit given the instruction not to be extreme.
+
+**The feared failure mode never appeared.** "The leader can never close it out
+and games drag to the round cap" would show as capped games; there were **zero
+at every weight, on every seed**, and mean game length moved 9.13 → 9.30 rounds
+(+1.9%). Lava kill share 30.3% → 30.4%.
+
+**The ladder is untouched.** `tools/h2h.js`, 400 games/pair, before and after:
+Normal beats Easy 100%, Hard beats Normal 99.5%, Extreme beats Hard 100% — the
+same three numbers as AGENTS.md.
+
+**Second lab, where the mechanic has the most room.** Four *equal* Hard
+berserkers (only builds differ), 800 games, seed 7 — the comeback rate is high
+there by construction because nobody is outclassed: 44.3% at 0 → 53.6% at 1.5 →
+**54.6% at 2.5** → 58.5% at 4. Rounds 13.95 → 15.20, still 0 capped games. Same
+shape, ~5× the amplitude, which is what "a bias that only matters between
+comparable opponents" should look like.
+
+**Co-op is provably unaffected**: `tools/coop.js --levels` output is
+byte-identical with the mechanic on and off, and `killLead()` returns 0 for any
+fighter carrying a team.
+
+⚠ **What this lab cannot see.** Bots do not experience being ganged up on. The
+comeback rate says the *outcome* distribution flattened; it says nothing about
+whether a human in the lead feels unfairly swarmed or pleasantly pressured. That
+needs a playtest. `1.5` is the measured step down (+1.1 instead of +2.3 points)
+and `0` removes the mechanic; both are one-line edits.
+
+---
+
 # Balance addendum — round 13 (2026-08-07)
 
 *Two questions this round, both from Remi's playtest: rework Gale into a
