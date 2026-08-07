@@ -1,3 +1,180 @@
+# Balance addendum — round 13 (2026-08-07)
+
+*Two questions this round, both from Remi's playtest: rework Gale into a
+stack-and-burst element, and find out whether the Blood Sword is worth 15 g.
+The round-12 addendum follows below and is superseded only where this one says
+so; its Finding 12A (the do-nothing floor) is the method this round leans on
+hardest and should still be read first.*
+
+## Finding 13A — the lava does 8.5% of the damage and 30% of the killing
+
+Remi's hypothesis for why lifesteal underperforms was: *"a lot of damage — even
+if the kills don't come directly from the lava — a lot of damage comes from the
+lava. So lifesteal only works on the damage we deal ourselves."* It is testable
+and it is **false**.
+
+Nothing in the repo could answer it: `dmgDealt` and `dmgLava` are the *dealer's*
+view and only count burn that a last-hitter got credit for. So `dmgTakenLava` and
+`dmgTakenDirect` were added to `addPlayer`/`applyDamage` — pure accounting, from
+the victim's side, always summing to the total damage a body absorbed. Lava is
+the only sourceless damage in the game (`stepBattle`'s burn tick passes
+`sourceId = null`), so the split is exact rather than heuristic.
+
+| condition (300-game 4-player mirrors, Hard berserker/bruiser) | lava share of all damage taken |
+|---|---|
+| classic, seed 1 | 8.4% |
+| classic, seed 7 | 8.8% |
+| elemental, seed 1 | 8.7% |
+
+Dealer side, same runs: **91.3% of the damage a player is credited with causing
+is their own hits** — i.e. lifesteal-eligible. Only 8.7% is shoved-in burn,
+which pays no lifesteal.
+
+**It does not rise as the ring closes**, which was the other half of the
+question. Per round index the lava share is ~8% in every round from 2 to 18,
+dead flat. Round 1 is the only outlier at 15-16%, and that is because spells are
+still level 1, so there is less *player* damage to dilute it — not because there
+is more lava.
+
+**The real shape of it: the lava is the executioner, not the damage dealer.** It
+takes ~30% of the kills (unchanged, re-measured this round) off 8.5% of the
+damage, because it finishes players whom other players already chipped down. Any
+future reasoning of the form "lava does most of the damage, therefore X" is
+wrong; the correct form is "lava does most of the *finishing*".
+
+⚠ One number in this measurement is a bot artifact: **essentially 0% of lava
+burn goes uncredited** (0.02-0.1%). That is only true because bots are
+permanently in a firefight, so somebody has hit you within
+`ROUND.KILL_CREDIT_WINDOW` (5 s) of every burn tick. A human who walks into the
+lava alone generates uncredited burn; the lab never does.
+
+## Finding 13B — the Blood Sword is the second-strongest item in the game
+
+Finding 12A established that an *element* that does nothing scores 2.7%, not
+25%. Items needed the same calibration before any "the sword is weak" claim
+could be interpreted, so this round built it: a lab-only **control item**, 15 g,
+three levels, `fx` literally `{}`. Every seat then runs an identical long build
+order (every spell a bot pilots plus every item to level 3 — the "more to buy"
+lever that kills the gold-saturation artifact; seats end on ~15 unspent gold,
+not the ~100 a short order leaves) and **only the probe purchase differs**.
+3000 games per item, Hard berserker/bruiser, seed 1, ~2400 games/arm, 2σ ±1.8.
+
+**The calibration itself:** a seat that buys the tail and nothing else scores
+31.6%. Burning 15 g on the control drops it to **7.8%**; burning 45 g drops it to
+**0.7%**. So 15 g is worth roughly 24 points in this game — which is the number
+that makes every row below readable.
+
+| item | lv1 − control1 | lv3 − control3 | lv3 − lv1 |
+|---|---|---|---|
+| Amulet of Health | +39.1 | **+83.0** | **+43.3** |
+| **Blood Sword** | **+36.5** | **+40.0** | −3.6 |
+| Boots of Speed | +27.5 | +8.2 | −32.2 |
+| Ring of Regeneration | +24.9 | +10.7 | −28.9 |
+| Lava Treads | +19.7 | +3.7 | −32.5 |
+| Cape of the Magi | +11.7 | +0.4 | −30.6 |
+
+⚠ **Read the delta column, not the raw win rates.** The `none` arm is not
+comparable across rows: each run strips the item under test from the shared
+tail, so `none` scores 1.8% in the amulet run (no HP items at all) and 69.6% in
+the cape run (losing the cape costs nearly nothing). `lvN − controlN` is clean,
+because both arms sit in the same games with the same tail.
+
+⚠ **The control is 15 g at every level**, so it is exactly price-matched to the
+sword and 3-5 g *dearer* than every other item. The bias runs against the sword,
+and the sword still places second at both levels. The conclusion is conservative.
+
+Three readings:
+
+1. **The sword is not weak.** At level 1 it returns +36.5 points against wasting
+   the same gold, second only to the amulet, and it does so while being the
+   most expensive item in the shop.
+2. **Item levels 2-3 are near-worthless across the whole roster** — every item
+   except the amulet loses 29-33 points going from lv1 to lv3. The sword loses
+   3.6, by far the least. So "the sword's levels are bad" is true but it is an
+   *item-levels* finding, not a sword finding. This is the flat-cost,
+   diminishing-effect design from round 12 (S4) meeting a long build order:
+   the third copy of anything loses to the first copy of something else.
+3. **The Amulet is the outlier and has never had a ruling.** +83 points at lv3,
+   while nothing else clears +11. This report does not act on it — it is a much
+   larger change than the round's brief — but it is now the open item question.
+
+### 13B(i) — build dependence, and where the sword actually is bad
+
+Same lab, tail flavoured by build (the build's own order first, then the generic
+tail), 4000 games, seed 1. Win rates, control-calibrated:
+
+| build | none | sword1 | sword2 | sword3 | control1 | control3 |
+|---|---|---|---|---|---|---|
+| bruiser (mean of seeds 1/7/23) | 27.8 | **39.7** | 39.1 | 36.1 | 6.6 | 0.6 |
+| turtle | 32.5 | **39.1** | 35.9 | 27.0 | 13.9 | 1.3 |
+| rusher | 48.5 | 46.6 | 28.3 | 17.3 | 8.6 | 0.2 |
+
+Remi asked whether it is fine in some builds and bad in others. It is: **level 1
+is good everywhere**, and the *levels* collapse in proportion to how tight the
+build's budget is — free in a bruiser, mildly bad in a turtle, catastrophic in a
+rusher (−29 points from lv1 to lv3).
+
+### 13B(ii) — why it read as "really really weak", which is a UI finding
+
+The sword returns real HP: **349 hp/game at lv1**, 551 at lv2, 646 at lv3 for a
+bruiser. The standings table prints that under **Lifesteal** — directly beside
+**Regen**, which for the same seat reads **357**. The 15 g item appears to have
+healed slightly *less* than the free passive regen.
+
+The number Remi read is correct and it understates the item, because the two
+columns are not the same currency: lifesteal lands mid-fight, while regen is
+throttled to 25% for 2.5 s after every hit taken (`PLAYER.REGEN_LOCK`). And the
+sword has **no in-fight feedback at all** — deliberately silent in `applyDamage`,
+where only vampire's engorged ball produces a green number.
+
+This is the third instance of the same scar (mosquito's invisible bites,
+momentum's invisible ramp). **Recommended, not applied**, because it is a feel
+change rather than a number: give the Blood Sword some visible in-fight return.
+
+## Finding 13C — Gale reworked into stack-and-burst, and impulse beat distribution
+
+Gale was an always-on `kbMult: [1.28, 1.46, 1.65]`. It is now frost's shape:
+one private stack per landed gale fireball, **completely normal knockback while
+stacking**, and the 3rd stack spent on one large gust.
+
+Sweep for `burstKbMult`, standard elemental study, 1000 games:
+
+| burstKbMult | seed 1 | seed 7 | seed 23 |
+|---|---|---|---|
+| pre-rework (flat kbMult) | 23.5% | 28.0% | 28.1% |
+| **[1.84, 2.38, 2.95]** (shipped) | **23.5%** | **26.4%** | **24.3%** |
+| [2.20, 2.85, 3.55] | — | 40.4% | 36.7% |
+| [2.60, 3.40, 4.20] | 48.4% | — | — |
+| [3.20, 4.20, 5.20] | 64.2% | — | — |
+| [4.00, 5.20, 6.40] | 81.7% | — | — |
+
+Two lessons:
+
+- **The impulse-neutral value was the right one.** Gale now pushes ×1 twice and
+  ×B once, so `B = 3M − 2` preserves the average impulse per hit. The prediction
+  going in was that concentrating the same average shove into one hit would be
+  worth *more* (only a big shove reaches the lava); measured, it changed the win
+  rate by less than noise. **In bot hands, total impulse is what counts and its
+  distribution does not.**
+- **The lever is violently steep.** +20% on the burst is +14 points. Do not round
+  this constant up without re-running the table.
+
+⚠ **Bot artifact, flagged not corrected.** Everything a burst is *for* — timing
+it, holding it, walking a victim toward the edge before spending it — is
+invisible to a lab whose bots never bait and never notice they are on 2 stacks.
+So 23.5% is a **floor** on gale's value in human hands, and "unchanged" means
+"unchanged for players who don't aim it". This is the one number in the round
+that Remi's playtest, not the lab, has to settle.
+
+Post-rework 12-element table (1000 games, seed 1): venom 39.2 · vampire 37.4 ·
+ember 34.4 · arcane 33.2 · mosquito 31.8 · terra 28.7 · momentum 24.8 ·
+**gale 23.5** · chronos 20.1 · frost 18.6 · ghost 8.6 · midas 0.0. Gale holds
+8th of 12, exactly where it was. Lava kill share 30.0%, comeback rate 11.7%,
+both unchanged. Co-op is untouched by construction (elements are gated to
+`mode === 'elemental'`) and re-measured bit-identical to the round-12 curve.
+
+---
+
 # Balance addendum — round 12 (2026-08-07)
 
 *Tens of thousands of headless games on top of the round-11 addendum (which follows below,

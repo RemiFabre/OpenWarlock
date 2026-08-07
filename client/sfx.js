@@ -153,6 +153,14 @@ const FX = {
     tone({ type: 'square', f0: 1180, f1: 780, dur: 0.07, vol: 0.13, t0: 0.06 });
   },
 
+  // gale detonation: a whoosh — filtered noise sweeping UP and out, with a short
+  // low thump under it for the shove. Deliberately unlike freeze()'s glassy
+  // shatter: the two elements stack, so their bursts must not sound alike.
+  gust() {
+    noise({ dur: 0.34, vol: 0.3, filter: 'bandpass', f0: 420, f1: 2600, q: 0.9 });
+    tone({ type: 'sine', f0: 240, f1: 70, dur: 0.22, vol: 0.26 });
+  },
+
   // frost detonation: glassy shatter over a dropping chime
   freeze() {
     tone({ type: 'triangle', f0: 2300, f1: 640, dur: 0.24, vol: 0.22 });

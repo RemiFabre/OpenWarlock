@@ -1561,29 +1561,111 @@ describe('elemental mode', () => {
     expect(state.hazards.length).toBe(0);
   });
 
-  it('gale pushes measurably further than ember on the same hit', () => {
-    const peakVx = (element) => {
-      const state = elementalBattle(3);
-      const a = state.players.p0, b = state.players.p1;
-      state.players.p2.x = 0; state.players.p2.y = -45;
-      state.pillars = [];
-      a.elements = typeof element === 'string' ? { [element]: 1 } : element || {};
-      a.x = 0; a.y = 0; b.x = 8; b.y = 0;
-      castSpell(state, 'p0', 'fireball', 20, 0);
+  // ---- gale: stack-and-burst (2026-08-07 rework) ---------------------------
+  // Land `n` identical point-blank fireballs on p1 and return the PEAK shove of
+  // each one. p1 is reset to a standstill at the same spot before every shot, so
+  // the peaks are directly comparable and the middle hits can be checked against
+  // a plain fireball rather than against each other.
+  function galePeaks(elements, n, shooter = 'p0') {
+    const state = elementalBattle(3);
+    const a = state.players[shooter], b = state.players.p1;
+    state.pillars = [];
+    a.elements = { ...elements };
+    const peaks = [];
+    for (let i = 0; i < n; i++) {
+      const idle = state.players[shooter === 'p0' ? 'p2' : 'p0'];
+      idle.x = 0; idle.y = -45; idle.vx = idle.vy = 0; idle.moveTarget = null;
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      castSpell(state, shooter, 'fireball', 20, 0);
       let peak = 0;
-      for (let i = 0; i < 30; i++) { step(state, DT); peak = Math.max(peak, b.vx); }
-      return peak;
-    };
-    const gale3 = peakVx({ gale: 3 });
-    const gale1 = peakVx({ gale: 1 });
-    const plain = peakVx(null);
+      for (let t = 0; t < 12; t++) { step(state, DT); peak = Math.max(peak, b.vx); }
+      peaks.push(peak);
+    }
+    return { state, peaks };
+  }
+  const galeOn = (pl, by) => stacksOf(pl, 'gale', by);
+
+  it('gale: knockback is NORMAL while stacking, and the 3rd stack bursts', () => {
+    const f = ELEMENTS.gale.fx;
+    const need = f.stacksToTrigger;
+    const plain = galePeaks({}, 1).peaks[0];
     expect(plain).toBeGreaterThan(0);
-    // read the ladder out of the spec so retunes can't make this test lie:
-    // every level pushes harder than plain, and lv3 clearly beats lv1
-    const kb = ELEMENTS.gale.fx.kbMult;
-    expect(gale1 / plain).toBeCloseTo(kb[0], 1);
-    expect(gale3 / plain).toBeCloseTo(kb[2], 1);
-    expect(gale3).toBeGreaterThan(gale1 * 1.1);
+    const { state, peaks } = galePeaks({ gale: 1 }, need);
+    const b = state.players.p1;
+    // every hit before the last is an ORDINARY fireball — that is the whole
+    // point of the rework, so it is asserted against the real plain shove and
+    // not against a tolerance band
+    for (let i = 0; i < need - 1; i++) expect(peaks[i] / plain).toBeCloseTo(1, 1);
+    // ...and the last one is the gust, at the level's multiplier from the spec
+    expect(peaks[need - 1] / plain).toBeCloseTo(f.burstKbMult[0], 1);
+    // the burst is bigger than the stacking hits by the SPEC's factor, not by a
+    // hardcoded one — this line said `* 2` and broke the moment the sweep landed
+    // burstKbMult[0] at 1.84 (AGENTS.md: balance tests read the spec)
+    expect(peaks[need - 1]).toBeGreaterThan(peaks[0] * f.burstKbMult[0] * 0.9);
+    // the stack was SPENT, so the next three start the count again
+    expect(galeOn(b, 'p0')).toBe(0);
+    // and it is legible: one pip event per hit, exactly one burst
+    expect(state.events.filter(e => e.t === 'gale').length).toBe(need);
+    expect(state.events.filter(e => e.t === 'galeBurst').length).toBe(1);
+  });
+
+  it('gale: stopping one short leaves stacks on the body and no burst', () => {
+    const need = ELEMENTS.gale.fx.stacksToTrigger;
+    const { state } = galePeaks({ gale: 3 }, need - 1);
+    expect(galeOn(state.players.p1, 'p0')).toBe(need - 1);
+    expect(state.events.some(e => e.t === 'galeBurst')).toBe(false);
+  });
+
+  it('gale burst strength is the LEVEL, read from the spec', () => {
+    const f = ELEMENTS.gale.fx;
+    const need = f.stacksToTrigger;
+    const plain = galePeaks({}, 1).peaks[0];
+    const burst = (lv) => galePeaks({ gale: lv }, need).peaks[need - 1];
+    expect(burst(1) / plain).toBeCloseTo(f.burstKbMult[0], 1);
+    expect(burst(3) / plain).toBeCloseTo(f.burstKbMult[2], 1);
+    expect(burst(3)).toBeGreaterThan(burst(1) * 1.1);
+  });
+
+  // The round-12 rule: an element's power must not depend on what everyone else
+  // bought. Two gale players hitting one body must each need their own 3.
+  it('gale stacks are PRIVATE: two attackers do not feed one counter', () => {
+    const need = ELEMENTS.gale.fx.stacksToTrigger;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { gale: 1 };
+    c.elements = { gale: 1 };                 // a second gale player
+    const plainPeak = galePeaks({}, 1).peaks[0];
+    // p0 lands need-1, p2 lands one: under a shared counter that last hit would
+    // have been the burst. It must be an ordinary shove instead.
+    const shooters = [...Array(need - 1).fill('p0'), 'p2'];
+    let lastPeak = 0;
+    for (const shooter of shooters) {
+      const s = state.players[shooter];
+      const idle = state.players[shooter === 'p0' ? 'p2' : 'p0'];
+      idle.x = 0; idle.y = -45; idle.vx = idle.vy = 0; idle.moveTarget = null;
+      s.x = 0; s.y = 0; s.vx = s.vy = 0; s.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      castSpell(state, shooter, 'fireball', 20, 0);
+      lastPeak = 0;
+      for (let t = 0; t < 12; t++) { step(state, DT); lastPeak = Math.max(lastPeak, b.vx); }
+    }
+    expect(galeOn(b, 'p0')).toBe(need - 1);
+    expect(galeOn(b, 'p2')).toBe(1);
+    expect(lastPeak / plainPeak).toBeCloseTo(1, 1);   // p2's first hit: no burst
+    expect(state.events.some(e => e.t === 'galeBurst')).toBe(false);
+    // p0's own 3rd DOES burst, and clears only p0's counter
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    c.x = 0; c.y = -45; c.vx = c.vy = 0; c.moveTarget = null;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    let peak = 0;
+    for (let t = 0; t < 12; t++) { step(state, DT); peak = Math.max(peak, b.vx); }
+    expect(galeOn(b, 'p0')).toBe(0);
+    expect(galeOn(b, 'p2')).toBe(1);          // c's pile is untouched
+    expect(peak / plainPeak).toBeCloseTo(ELEMENTS.gale.fx.burstKbMult[0], 1);
+    expect(state.events.some(e => e.t === 'galeBurst')).toBe(true);
   });
 
   it('midas pays gold per fireball hit (and hits much softer now)', () => {

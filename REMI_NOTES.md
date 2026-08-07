@@ -6,6 +6,116 @@ you asked before leaving.*
 
 ---
 
+## ROUND 13 — Gale becomes a stack-and-burst element, and the Blood Sword investigated (2026-08-07)
+
+Two jobs from your post-playtest feedback: the wind rework you asked for, and a
+dedicated study of the lifesteal sword.
+
+### 1. Gale 🌪️ is now "three gusts, then you fly"
+
+You said: *"I find [wind] very strong... I think we're going to change the wind's
+gameplay to redo it like with the ice, where the pushback is enormous after
+three stacks and normal the rest of the time."* Done, exactly that.
+
+- Every gale fireball that lands leaves **one gale stack** on the victim.
+- While the stacks build, **knockback is completely normal** — a gale fireball
+  shoves exactly as far as a plain one.
+- The **3rd stack is spent** on one enormous gust: **×1.84** knockback at level
+  1, **×2.38** at level 2, **×2.95** at level 3.
+- Stacks are **private to you**, like frost's — only *your* three count, so what
+  everyone else bought no longer changes what your element does.
+- You can **see it**: white dashes under the victim counting 1, 2, 3; a `🌪 n/3`
+  popup on each hit; a hard white shockwave with swept streaks and the word
+  **GUST!** when it fires, with its own whoosh sound (deliberately nothing like
+  frost's glassy shatter, since you can own both).
+
+**It measures where it was.** In the 12-element table gale was 23.5% before and
+is **23.5%** after (seed 1, 1000 games); at other seeds 28.0 → 26.4 and 28.1 →
+24.3. So this is a change of *feel*, not a stealth buff or nerf, which is what
+you asked for. Lava kill share is still 30.0% and the comeback rate 11.7%.
+
+Two things worth knowing:
+
+- The value that landed on target was the **impulse-neutral** one: pushing ×1
+  twice and ×1.84 once averages out to the old flat ×1.28. I expected a burst to
+  be worth *more* than the same average shove — it wasn't, in bot hands.
+- **And that is probably wrong for a human.** Bots never bait, never hold a
+  shot, and never notice they are on 2 stacks with the lava behind them.
+  Everything a burst is *for* is invisible to the lab, so **23.5% is a floor**.
+  If it feels too strong when you play it, the burst multiplier is a very steep
+  lever — a 20% bump was +14 points — so tell me and I will move it a little.
+
+### 2. The Blood Sword 🗡️ — your hypothesis was wrong, and your instinct had a real cause
+
+You said: *"the sword that does lifesteal is very expensive and when I looked at
+my numbers with it, it was really really weak"*, and guessed the reason was
+*"a lot of damage comes from the lava... lifesteal only works on the damage we
+deal ourselves"*.
+
+**I changed nothing, because the measurements say the sword is the second-best
+item in the game.** Here is the evidence rather than an opinion.
+
+**The lava does 8.5% of the damage, not "a lot".** Nothing in this repo had ever
+measured it, so I added the two counters that can. Of all damage absorbed by all
+players: **lava 8.4-8.8%, other players 91.2-91.6%** — the same in classic and
+elemental, at two seeds, and flat at ~8% in *every* round from 2 to 18. The lava
+takes ~30% of the **kills** off 8.5% of the **damage**, because it finishes
+people who players already chipped down. So lifesteal's ceiling is barely dented
+by it, and "make lifesteal also pay on lava" would fix a problem that isn't there.
+
+**What 15 g actually buys.** I built the item version of the do-nothing control
+we used for elements: a fake 15 g item with three levels that does *literally
+nothing*, so a win rate has a floor. Every seat then ran an identical long build
+order and only the probe purchase differed (3000 games each, ±1.8 points):
+
+| item | lv1 vs wasting the same gold | lv3 vs wasting the same gold |
+|---|---|---|
+| Amulet | +39.1 | +83.0 |
+| **Blood Sword** | **+36.5** | **+40.0** |
+| Boots | +27.5 | +8.2 |
+| Ring | +24.9 | +10.7 |
+| Lava Treads | +19.7 | +3.7 |
+| Cape | +11.7 | +0.4 |
+
+The control costs 15 g at every level, so it is price-matched to the *sword* and
+3-5 g dearer than everything else — the bias runs **against** the sword, and it
+still comes second at both levels.
+
+**So why did it feel weak? Because of the scoreboard, and you were reading it
+correctly.** The standings print **Lifesteal** right next to **Regen** — and for
+a bruiser with one sword level those columns read **349** and **357**. Your 15 g
+item appears to have healed you slightly *less* than the free passive regen
+everybody gets. That number is true and it understates the item badly, because
+lifesteal arrives **mid-fight** while regen is throttled to 25% for 2.5 s after
+every hit you take. In-combat HP and out-of-combat HP are not the same HP.
+
+**My recommendation, not applied because it is a feel change and your call:**
+give the sword some feedback *during* the fight. It is completely silent today
+on purpose (only the vampire element's big drain gets a green number). This is
+the momentum and mosquito lesson a third time — a correct mechanic with nothing
+on screen reads as broken.
+
+**Two things that are genuinely true in your complaint**, both about levels
+rather than about lifesteal:
+
+- **Sword levels 2 and 3 are not worth it** — lv3 is 3.6 points *worse* than
+  lv1. But so are every other item's levels 2-3 (ring −28.9, boots −32.2, cape
+  −30.6, treads −32.5). The sword has the *least bad* level curve of the five.
+- **The Amulet is the outlier**, +43.3 points from lv1 to lv3 while everything
+  else is flat or negative. If any item wants a ruling from you, it is that one.
+  I did not touch it — it is a much bigger change than this round's brief.
+
+And it does depend on the build, as you suspected: sword lv2/lv3 are free in a
+**bruiser**, mildly bad in a **turtle**, and a disaster in a **rusher**
+(46.6 → 28.3 → 17.3%), whose gold is tightest. Level 1 is good in all three.
+
+⚠ **The usual bot caveat, and it bites hardest here:** lifesteal rewards
+*choosing to fight* — "I can win this brawl because I heal through it". Bots
+never make that decision. Nothing in the lab dodges, baits or trades. So take
+the sword numbers as a floor too.
+
+---
+
 ## ROUND 12 — item levels, constant knockback, Mosquito reborn, Momentum ⚙️, three new elements, Vanish 👁️ and draft mode (2026-08-07)
 
 *This entry is in English — you asked that everything written in the project be

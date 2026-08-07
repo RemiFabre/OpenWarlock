@@ -237,6 +237,73 @@ export const ITEMS = {
   amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: '+25 max HP, then +43 and +56' },
   ring:   { name: 'Ring of Regeneration', cost: 12, maxLevel: 3, desc: '+0.7 HP/s, then +1.2 and +1.55' },
   cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: '-8% knockback taken, then -15% and -20%' },
+  // ---- 2026-08-07: Remi played a game with it and reported *"the sword that
+  // does lifesteal is very expensive and when I looked at my numbers with it, it
+  // was really really weak"*, with the hypothesis that *"a lot of damage comes
+  // from the lava... lifesteal only works on the damage we deal ourselves, so in
+  // the end it's not that much"*. Both halves were measured. NOTHING CHANGED
+  // HERE, and here is why.
+  //
+  //  (i) THE LAVA HYPOTHESIS IS FALSE, and it is the cleanest number in the
+  //      study. Across 300-game mirrors, of ALL damage absorbed by all bodies
+  //      the lava is **8.4-8.8%** and other players are 91.2-91.6% — same in
+  //      classic and elemental, same at seeds 1 and 7, and flat at ~8% in EVERY
+  //      round from 2 to 18 (only round 1 is higher, 15-16%, because spells are
+  //      still level 1). From the dealer's side, 91.3% of the damage you are
+  //      credited with causing is your own hits, i.e. lifesteal-eligible.
+  //      The lava is the EXECUTIONER, not the damage dealer: it takes ~30% of
+  //      the kills (AGENTS.md) off ~8.5% of the damage, because it finishes
+  //      people who were already chipped down by players. So lifesteal's ceiling
+  //      is barely dented by it, and "make lifesteal pay on lava too" would be
+  //      chasing a cause that does not exist. (dmgTakenLava/dmgTakenDirect were
+  //      added to the sim for this; nothing had ever recorded uncredited burn.)
+  //
+  //  (ii) THE SWORD IS THE SECOND-STRONGEST ITEM IN THE GAME, not a weak one.
+  //      Measured against a lab-only CONTROL item — same 15 g, three levels,
+  //      `fx` literally `{}` — in mirror games where every seat runs an
+  //      identical long build order and only the probe purchase differs
+  //      (3000 games, Hard berserker/bruiser, seed 1, ~2400 games/arm, 2σ ±1.8).
+  //      Points over wasting the SAME gold on the control:
+  //          item     lv1 vs control1    lv3 vs control3    lv3 − lv1
+  //          amulet        +39.1              +83.0            +43.3
+  //          sword         +36.5              +40.0             −3.6
+  //          boots         +27.5               +8.2            −32.2
+  //          ring          +24.9              +10.7            −28.9
+  //          treads        +19.7               +3.7            −32.5
+  //          cape          +11.7               +0.4            −30.6
+  //      The control is 15 g at every level, so it is exactly price-matched to
+  //      the SWORD and 3-5 g dearer than everything else — the bias runs against
+  //      the sword and it still places 2nd at both levels. Calibration for the
+  //      absolute scale (the item-side twin of the 2.7% do-nothing element):
+  //      burning 15 g on the control scores 7.8% and burning 45 g scores 0.7%,
+  //      against 31.6% for a seat that just buys the tail. 15 g is worth ~24
+  //      points in this game; the sword returns ~36.
+  //
+  //  (iii) WHAT IS REAL IN HIS REPORT is the LEVELS and the SCOREBOARD.
+  //      · Levels: sword lv3 is 3.6 points WORSE than lv1 (44.3 -> 40.7) because
+  //        30 g of lifesteal loses to 30 g of the rest of the shop. That is
+  //        true of every item except the amulet, and by far the least badly for
+  //        the sword — so it is an ITEM-LEVELS question (see the note in ITEMS
+  //        above), not a sword question. Build-dependent: lv2/lv3 are free in a
+  //        bruiser (39.1/37.0 vs 38.4 at lv1), mildly bad in a turtle, and a
+  //        disaster in a rusher (46.6 -> 28.3 -> 17.3), whose budget is tighter.
+  //      · Scoreboard: the standings print "Lifesteal" directly beside "Regen",
+  //        and for a sword-lv1 bruiser those columns read 349 and 357. The 15 g
+  //        item appears to heal slightly LESS than the free passive regen — so
+  //        the number he read is real, and it understates the item, because
+  //        lifesteal arrives mid-fight while regen is throttled to 25% for 2.5 s
+  //        after every hit (PLAYER.REGEN_LOCK). In-combat hp and out-of-combat
+  //        hp are not the same hp. THIS is the "really really weak" reading.
+  //      Recommended (NOT done here — it is a feel change, not a number):
+  //      give the sword some in-fight feedback. It is deliberately silent today
+  //      (see applyDamage: only vampire's engorged ball gets a green number),
+  //      which is the momentum/mosquito scar again — a correct mechanic with no
+  //      on-screen presence reads as broken.
+  //
+  //  ⚠ BOT CAVEAT on all of the above: bots never dodge, never bait, and never
+  //  make the trade a human makes with a lifesteal build ("I can win this
+  //  brawl because I heal through it"). Lifesteal is a mechanic that rewards
+  //  choosing to fight, and nothing in this lab chooses.
   sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Heal 18% of damage dealt, then 30% and 38% (poison too — lava excluded)' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
             desc: '⚗️ experimental — every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
@@ -330,9 +397,48 @@ export const ELEMENTS = {
            fx: { dmgMult: 0.85, tickDmg: [1, 1.5, 2], stackAdd: [0.4, 0.6, 0.8],
                  stackCap: [3, 4.5, 6], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
+  // 2026-08-06 -> 2026-08-07 rework (Remi, from playtest: *"I find [wind] very
+  // strong... I think we're going to change the wind's gameplay to redo it like
+  // with the ice, where the pushback is enormous after three stacks and normal
+  // the rest of the time"*). Gale WAS an always-on `kbMult: [1.28, 1.46, 1.65]`
+  // on every hit — invisible, unavoidable, and the reason bots that bought it all
+  // felt the same. It is now FROST'S SHAPE: every gale fireball that lands leaves
+  // one stack, knockback is completely normal while they build, and the 3rd stack
+  // is spent on one enormous shove. Stacks are PRIVATE to whoever applied them
+  // (the round-12 rule) and go through the same generic store frost and mosquito
+  // use — see addStack/galeHit in sim.js.
+  //
+  // ---- SWEEP for burstKbMult (`tools/arena.js --mode=elemental --games=1000`,
+  // Hard berserker/bruiser). The brief was to land gale NEAR where it already
+  // was, so the rework is a change of FEEL and not a stealth buff or nerf.
+  // Pre-rework gale, same lab: 23.5% (seed 1) · 28.0% (seed 7).
+  //
+  // The starting candidate was impulse-neutral: gale now pushes ×1 twice and ×B
+  // once, so B = 3M − 2 keeps the AVERAGE impulse per hit at the old flat M.
+  // That gives [1.84, 2.38, 2.95] — and it measured dead on target:
+  //     [1.84, 2.38, 2.95]  ->  23.5 / 26.4 / 24.3%  (seeds 1/7/23)  <- SHIPPED
+  //     [2.20, 2.85, 3.55]  ->    -- / 40.4 / 36.7%
+  //     [2.60, 3.40, 4.20]  ->  48.4 /   -- /   --
+  //     [3.20, 4.20, 5.20]  ->  64.2 /   -- /   --
+  //     [4.00, 5.20, 6.40]  ->  81.7 /   -- /   --
+  // Two things to carry forward from that table:
+  //  · IMPULSE IS WHAT COUNTS, not its distribution — concentrating the same
+  //    average shove into one hit in three changed the win rate by less than
+  //    noise. The prediction going in was the opposite (that a burst would be
+  //    worth more, because only a big shove reaches the lava); it was wrong, and
+  //    see the bot caveat below for why it may still be right for a human.
+  //  · THIS LEVER IS VIOLENTLY STEEP. A 20% bump on the burst (1.84 -> 2.20) is
+  //    +14 points. Do not "round it up a bit" without re-running the table.
+  //
+  // ⚠ BOT ARTIFACT, flagged not corrected: bots never bait, never hold a shot,
+  // and never notice they are standing at 2 stacks with the lava behind them.
+  // Everything a burst is FOR — timing it, saving it, walking someone toward the
+  // edge before spending it — is invisible to this lab, so 23.5% is a floor on
+  // gale's value in human hands and the honest reading of "unchanged" is
+  // "unchanged for players who don't aim it". Remi's playtest decides.
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'A gust in a ball: more push each level.',
-           fx: { kbMult: [1.28, 1.46, 1.65] } },
+           desc: 'Hits leave a gale stack and push normally. The 3rd stack is spent on one enormous gust: ×1.84 knockback, then ×2.38 and ×2.95. Only YOUR stacks count toward your 3.',
+           fx: { stacksToTrigger: 3, burstKbMult: [1.84, 2.38, 2.95] } },
   // 2026-08-06 rework (Remi, from human play — the lab's 1% win rate is a
   // gold-saturation artifact, see BALANCE.md): +1 g per hit is ALREADY strong,
   // so the payout is capped there forever and the levels buy back a real

@@ -108,6 +108,15 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     roundGold: 0,          // gold earned THIS round (scoreboard column)
     dmgDealt: 0,           // damage you landed yourself (spells, DoT, trails)
     dmgLava: 0,            // lava burn credited to you (you shoved them in)
+    // What KILLED you, from the receiving end. dmgDealt/dmgLava are the dealer's
+    // view and only count CREDITED burn; these two are the victim's and always
+    // add up to the total damage this body absorbed. Added 2026-08-07 to answer
+    // "how much of the damage in this game is the lava?" — a question three
+    // rounds of balance work had no number for, because uncredited lava burn was
+    // recorded nowhere at all. Pure accounting: nothing reads them but the
+    // scoreboard and the labs.
+    dmgTakenLava: 0,       // burn absorbed from the lava (sourceId null)
+    dmgTakenDirect: 0,     // damage absorbed from other players (any sourced hit)
     healLifesteal: 0,      // hp clawed back by the Blood Sword
     healRegen: 0,          // hp regenerated (baseline + rings)
     regenLockT: 0,         // seconds of suppressed regen after taking a hit
@@ -132,7 +141,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // Per-attacker stack store: {kind: {attackerId: n}}. Stacks are PRIVATE to
     // whoever applied them (2026-08-07, round 12 — reverses the shared-counter
     // decision: your element's power must not depend on what everyone else
-    // picked). One generic store, two users today: frost and mosquito.
+    // picked). One generic store, three users today: frost, gale and mosquito.
     stacks: {},
     stunT: 0,              // frost lv3: seconds frozen solid (no move, no cast)
     poisonT: 0,            // venom: seconds of DoT remaining
@@ -890,6 +899,14 @@ function applyDamage(state, target, amount, sourceId,
       state.time - target.lastHitBy.t <= ROUND.KILL_CREDIT_WINDOW) {
     creditId = target.lastHitBy.id;
   }
+  // victim-side accounting, independent of who gets the credit: lava is the one
+  // and only sourceless damage in the game (stepBattle's burn tick), so this
+  // split is exact rather than heuristic. Self-damage (a meteor dropped on your
+  // own head) counts as direct — it is still a spell.
+  if (effective > 0) {
+    if (sourceId == null) target.dmgTakenLava += effective;
+    else target.dmgTakenDirect += effective;
+  }
   if (creditId != null) {
     const cr = state.players[creditId];
     // the scoreboard splits these: dmgDealt is damage YOU landed (spells,
@@ -1047,7 +1064,7 @@ function startRound(state) {
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
-    pl.stacks = {};   // frost + mosquito stacks are round-long, like the hp bar
+    pl.stacks = {};   // frost/gale/mosquito stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0;
     // vampire's charge counter resets with the round, exactly like the Echo
@@ -1703,8 +1720,20 @@ function stepProjectiles(state, dt) {
             ramp += ((own && own.momentumHits) || 0) * efxV(f.rampDmg, el);
           }
           if (f.dmgMult) { dmg *= efxV(f.dmgMult, el); ramp *= efxV(f.dmgMult, el); }
+          // flat knockback multiplier. Gale used to be the loud user of this;
+          // since the 2026-08-07 rework its push is a burst and lives below.
+          // midas still rides it (its levels buy back a push/damage penalty),
+          // so deleting this line silently un-nerfs midas — it did, and the
+          // midas test caught it.
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
+        // Gale (elemental): stack-and-burst, so its multiplier is NOT a constant
+        // and cannot be folded into the loop above — it depends on how many of
+        // THIS owner's stacks the victim is already carrying. Resolved here
+        // because knockback is applied a few lines below, before the on-hit
+        // riders run. Multiplies whatever the loop produced, so a gale+midas
+        // build still pays midas's push penalty on the gust.
+        if (pr.elements.gale) kb *= galeHit(state, pr, other, pr.elements.gale);
       }
       // Ghost (elemental): the FIRST body the ball reaches takes an ordinary
       // fireball; everyone caught BEHIND them takes the multiplied hit. The
@@ -1853,9 +1882,45 @@ function turnBoomerangHome(state, pr) {
   state.events.push({ t: 'recall', id: pr.owner, x: pr.x, y: pr.y });
 }
 
+// ---- gale (elemental) -----------------------------------------------------
+// 2026-08-07 rework (Remi: *"change the wind's gameplay to redo it like with the
+// ice, where the pushback is enormous after three stacks and normal the rest of
+// the time"*). Gale used to be a flat `kbMult` on every hit; it is now frost's
+// shape — one private stack per landed gale fireball, ordinary knockback while
+// they build, and the 3rd stack spent on one enormous gust.
+//
+// Why this is a function of its own instead of another branch in
+// applyElementsHit next to frost and venom: gale's payload is KNOCKBACK, and
+// knockback is computed and applied BEFORE the on-hit riders run. So gale has to
+// resolve at the same point mosquito's mark does — decided on the way in, not on
+// the way out. Returns the knockback multiplier for THIS hit: 1 while stacking,
+// the level's burst multiplier on the 3rd.
+//
+// The counter is the generic per-attacker store (addStack/clearStacks), so
+// "private to whoever applied them" is the same one mechanism frost and mosquito
+// use rather than a third implementation. An ownerless ball (its caster left)
+// can neither place nor spend a stack: there is nobody to own the counter.
+function galeHit(state, pr, target, level) {
+  const f = ELEMENTS.gale.fx;
+  if (pr.owner == null) return 1;
+  const n = addStack(target, 'gale', pr.owner);
+  // every landing is an event, exactly like frost's pips: the player has to be
+  // able to watch the gust winding up or this reads as a random shove
+  state.events.push({
+    t: 'gale', id: target.id, stacks: n, by: pr.owner,
+    of: f.stacksToTrigger, x: target.x, y: target.y,
+  });
+  if (n < f.stacksToTrigger) return 1;
+  clearStacks(target, 'gale', pr.owner);
+  state.events.push({
+    t: 'galeBurst', id: target.id, by: pr.owner, x: target.x, y: target.y,
+  });
+  return efxV(f.burstKbMult, level);
+}
+
 // Elemental on-hit riders (frost / venom / midas / terra), each at its own
-// level. Ember and gale are pure number tweaks handled at the
-// damage/knockback computation above.
+// level. Ember is a pure number tweak handled at the damage/knockback
+// computation above; gale is resolved there too, by galeHit().
 function applyElementsHit(state, pr, target) {
   for (const [ek, el] of Object.entries(pr.elements)) {
     const f = ELEMENTS[ek].fx;
@@ -1864,7 +1929,13 @@ function applyElementsHit(state, pr, target) {
     // your own 3 detonate, so your element's power no longer depends on what
     // everyone else bought. The level of whoever lands the 3rd decides how bad
     // it is, and only that attacker's counter is cleared.
-    if (f.stacksToTrigger) {
+    //
+    // ⚠ Keyed on the element NAME, not on `f.stacksToTrigger` alone: gale is a
+    // stack-and-burst element too now and declares the same field. The body
+    // below is frost-specific anyway (it names the 'frost' stack kind and pushes
+    // frost/frostBreak events) — gale's twin lives in galeHit(), because its
+    // payload is knockback and that is resolved before the riders run.
+    if (ek === 'frost' && f.stacksToTrigger) {
       const n = addStack(target, 'frost', pr.owner);
       state.events.push({
         t: 'frost', id: target.id, stacks: n, by: pr.owner,

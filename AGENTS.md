@@ -1,27 +1,30 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-07, after round 12 (see REMI_NOTES.md for the
+*Last updated 2026-08-07, after round 13 (see REMI_NOTES.md for the
 player-facing changelog of each round, BALANCE.md for the numbers). Read this
 first; it replaces digging through history.*
 
 ## ⚠ State of the repo right now (read before your first command)
 
-- **TWELVE commits are on local `main` and NOT pushed** (`origin/main` is at
-  `41c4b7d`, local HEAD at `2ae0ccb`): the whole of round 12 — item levels,
-  private stacks, momentum, the mosquito rework, constant knockback, four named
-  difficulty tiers, Vanish, draft mode, vampire/chronos/ghost, the co-op
-  item-cap repair. All verified (196 vitest, both harness scenarios, monotone
-  h2h ladder). They were held back because Remi was **mid-playtest** and pushing
-  mid-session invites a confusing pull+restart. Confirm with him, then
-  `git push origin main`.
+- **Round 12 is pushed** (`3024b3f`). **Round 13 is UNCOMMITTED working-tree
+  changes**: the gale stack-and-burst rework (`constants.js`, `sim.js`,
+  `render.js`, `main.js`, `sfx.js`, 4 new tests), the `dmgTakenLava` /
+  `dmgTakenDirect` accounting counters, and the Blood Sword investigation
+  written up in `constants.js` + BALANCE 13A/13B (**no number was changed for
+  the sword — read the block before "fixing" it**). Verified: 199 vitest, both
+  harness scenarios, `--mode=elemental --games=1000`, `--games=60 --players=4`,
+  co-op `--levels` bit-identical, client rendered in a headless browser with
+  zero console errors. Not committed and not pushed by instruction.
 - **Remi may still be playing.** Do not `pkill` anything matching
   `server/index.js` and do not run `test/client-robustness.js` or
   `tools/reconnect-test.js` without checking first — they spawn and kill
   servers, and a stray kill takes down his live game. `npx vitest run` and the
   `tools/arena.js` / `tools/coop.js` / `tools/h2h.js` labs are pure and always
   safe.
-- **Round 12 shipped; his feel report has not arrived.** That report is debt
-  item #0 below, and it outranks every table in BALANCE.md.
+- **Round 12's feel report arrived and drove round 13** (the gale rework and
+  the sword study). What round 13 could NOT settle is listed in debt item #0:
+  gale's burst in human hands, and whether the Blood Sword still feels weak now
+  that we know it is the 2nd-strongest item in the shop.
 
 ## What this is
 
@@ -64,7 +67,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=`), crash dumps, `/health`, static serving, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel → public URL (verified end-to-end incl. websockets) |
 | `client/` | canvas client: main.js (net/input/HUD/shop/draft banner/floaters), render.js (full-res art + 1/3-res blob layer), music.js, sfx.js (synthesized) |
-| `test/sim.test.js` | 196 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 199 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`, and `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
 | `tools/arena.js` | balance lab: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
@@ -73,12 +76,12 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `tools/coop.js` | co-op lab: `--levels` (isolated per-level clear rates, the tuning view), no flag (full campaign runs), `--roster` |
 | `client/coop.js` | co-op client: level card, battle status strip, the 3-way rules toggle. Self-contained on purpose |
 | `tools/reconnect-test.js` | e2e reconnect-persistence test (spawns a real server + ws clients) |
-| `BALANCE.md` | **round-12 addendum on top of the round-11 one and report #4 (round 10) — current**; #3/#2 in git history at `ab48932` / `9a96b47`. Round-12 findings are labelled `12A`-`12H` |
+| `BALANCE.md` | **round-13 addendum on top of the round-12 one, the round-11 one and report #4 (round 10) — current**; #3/#2 in git history at `ab48932` / `9a96b47`. Findings are labelled `13A`-`13C`, `12A`-`12H` |
 | `STRATEGIES.md` | bot difficulty × build chart + how to read arena reports |
 | `REMI_NOTES.md` | per-round changelog Remi actually reads (newest on top; round 12 onward in English) |
 | `docs/` | **design + decision docs, all current**: `ROUND12.md` (the round-12 work order as dictated, with every correction applied inline — read it for *why*, not for numbers), `VERSIONING.md` (**revision 2**: a version is **arbitrary code** with **distributed maintenance** — rev 1's "a version is a data patch" was OVERRULED by Remi and the reasoning is on the page), `HOSTING.md` (player-hosting plan: named tunnel + domain, one-button "Create game", chat box → Worker → GitHub issue), `NAMING.md` + `CONTRIBUTING-LEGAL.md` (name/licence/contributor answers), `archive/` |
 
-## Game rules snapshot (v10, post-round-12)
+## Game rules snapshot (v10, post-round-13)
 
 - First to **15 kills**, 25-round cap. countdown → battle → roundEnd (banner,
   art reveal, itemized income) → shop (full roster w/ kits; Ready skips).
@@ -140,6 +143,24 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   kill (venom measured 75–86% before the fix, ~15% after, same numbers).
 - **Lifesteal** heals on damage *actually dealt* (overkill excluded), from
   every sourced hit including DoT ticks and trails, never from lava. 5 tests.
+  **The Blood Sword is the 2nd-strongest item in the game** (round 13, measured
+  against a price-matched do-nothing control item: +36.5 points at lv1, beaten
+  only by the amulet) — do not "fix" it. Remi's read that it was weak had a real
+  cause and it is the SCOREBOARD: the standings print Lifesteal (349 hp/game at
+  lv1) beside Regen (357 hp/game, free), so a 15 g item looks like it lost to
+  passive regen. It didn't — lifesteal lands mid-fight, regen is throttled to
+  25% for 2.5 s after every hit. BALANCE 13B.
+- **Damage split: the lava is 8.5% of the damage and ~30% of the kills**
+  (round 13, measured — `dmgTakenLava` / `dmgTakenDirect` on every player exist
+  to answer this and nothing had recorded uncredited burn before). Flat at ~8%
+  in every round from 2 to 18; it does NOT rise as the ring closes. **The lava
+  is the executioner, not the damage dealer** — any argument of the form "most
+  damage is lava, therefore X" is wrong. BALANCE 13A.
+- **Item levels 2-3 are near-worthless across the whole roster** (round 13):
+  lv1→lv3 is −29 to −33 points for ring/boots/cape/treads, −3.6 for the sword,
+  and **+43.3 for the amulet, the one outlier**. The amulet at lv3 scores +83
+  against a do-nothing control while nothing else clears +11. It has never had
+  a ruling from Remi and it is now the open item question. BALANCE 13B.
 - **Elemental mode** ⚗️ (lobby toggle): **12 elements**, each 3 levels
   (10+8+8 g), **stackable with each other** (frost+ember works). Stacks (frost,
   mosquito) are **PRIVATE to the attacker who applied them** since round 12 (S2)
@@ -170,10 +191,18 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   half-catalogue pool (see the scar about studies that can't express a variable).
 - **Current 12-element standings** (`tools/arena.js --mode=elemental
   --games=1000`, seed 1, Hard berserker/bruiser, baseline 25%, 2026-08-07):
-  venom 38.8 · vampire 38.7 · ember 35.8 · arcane 32.4 · terra 29.3 ·
-  mosquito 28.9 · momentum 24.2 · gale 23.5 · chronos 21.0 · frost 19.4 ·
-  ghost 8.3 · midas 0.0. **Read this as a ranking, not a strength meter** — the
+  venom 39.2 · vampire 37.4 · ember 34.4 · arcane 33.2 · mosquito 31.8 ·
+  terra 28.7 · momentum 24.8 · gale 23.5 · chronos 20.1 · frost 18.6 ·
+  ghost 8.6 · midas 0.0. **Read this as a ranking, not a strength meter** — the
   do-nothing floor in the scars below explains why 25% is not the floor.
+- **Gale 🌪️ is stack-and-burst since round 13**, not a flat push multiplier:
+  one PRIVATE stack per landed gale fireball, **normal knockback while
+  stacking**, 3rd stack spent on `burstKbMult` [1.84, 2.38, 2.95]. It resolves
+  in `galeHit()` and NOT in `applyElementsHit` with frost and venom, because
+  its payload is knockback and knockback is applied before the riders run —
+  same position in the pipeline as mosquito's mark. Frost's branch is keyed on
+  `ek === 'frost'` for exactly this reason: both elements declare
+  `stacksToTrigger` now. Measured 23.5% before and after (see BALANCE 13C).
 - Bots: **four named tiers** (round 12, S6) — `grunt`/**Easy**,
   `brawler`/**Normal**, `berserker`/**Hard**, `stalker`/**Extreme**. Normal is
   the berserker brain with a longer reaction window and a bigger aim-error floor
@@ -288,7 +317,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 196 green
+npx vitest run                                   # 199 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
@@ -302,15 +331,25 @@ takes his session down with it.
 
 ## Known debt / next candidates (rough priority)
 
-0. **START HERE: round 12 shipped and Remi's feel report has not been
-   collected.** Ask him before touching numbers. The six things the lab
-   explicitly cannot judge, all listed at the end of his round-12 REMI_NOTES
-   entry: **mosquito in human hands** (bots cash the mark for free, so 24-29% is
-   an upper bound on how easy the setup is), **momentum's ramp speed** and
-   whether the white bonus number fixes "I can't see it working", **ghost's
-   trigger frequency** (3.07% in bot hands because bots never line targets up),
-   **whether constant knockback feels better**, **whether draft mode is fun**
-   (entirely unmeasured, by design), and the **lava kill share**. His feel
+0. **START HERE: round 13 needs a feel report, and two of its questions can
+   ONLY be answered by playing.** Ask him before touching numbers.
+   - **Gale's burst in human hands.** The lab says the rework was
+     impulse-neutral (23.5% before and after) but the lab's bots never bait,
+     hold a shot, or notice they are on 2 stacks with the lava behind them —
+     so that number is a floor. `burstKbMult` is a violently steep lever
+     (+20% = +14 points): move it a little, never a lot.
+   - **Whether the Blood Sword still FEELS weak** now that it measures as the
+     2nd-strongest item in the shop. If it does, the fix is the recommended
+     in-fight feedback (BALANCE 13B(ii)), not a bigger percentage — and that
+     recommendation is deliberately not implemented, because it is a feel change.
+   - **The Amulet.** New this round and never ruled on: +83 points at lv3
+     against a do-nothing control while no other item clears +11.
+   Still open from round 12 and still unjudgeable by the lab: **mosquito in
+   human hands** (bots cash the mark for free, so 24-29% is an upper bound),
+   **momentum's ramp speed** and whether the white bonus number fixes "I can't
+   see it working", **ghost's trigger frequency** (3.07% because bots never line
+   targets up), **whether constant knockback feels better**, **whether draft
+   mode is fun** (unmeasured by design), and the **lava kill share**. His feel
    report outranks every table in BALANCE.md.
 1. **Teach bots the power tier** — meteor/hook/repulse/wall are still
    unmeasurable (bots pilot none), so all their numbers are design guesses.
@@ -373,6 +412,12 @@ takes his session down with it.
   Round 12's item cap brought it back (0.0% on 49 g unspent); attacked from
   three sides (longer build orders, scarcer gold, both) it climbs monotonically
   to 17-19%, so 0.0% is a floor. Sweep in `constants.js` next to `midas`.
+- **A pip the HP bar covers is a pip nobody sees.** Round 13's gale stacks were
+  first drawn at 1.9-2.2r above the body — which is precisely where the HP bar
+  is (`y - r - 12`, an ABSOLUTE offset, so it covers that band at every zoom).
+  They were completely invisible, and the code looked perfectly correct. Caught
+  by screenshotting the renderer in a headless browser, not by reading it. The
+  free bands are ~1.6r above (frost) and below the body (gale, mosquito).
 - **A correct mechanic with imperceptible numbers is a bug in practice.**
   Critical ramped exactly as designed and Remi still reported it broken,
   because +0.45 dmg/hit is invisible. Momentum's answer was to change what the

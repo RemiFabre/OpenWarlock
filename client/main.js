@@ -237,6 +237,9 @@ function onEvent(e) {
       break;
     }
     case 'frost': pushFloater(e, 'frost', 0.7, now); break;
+    // gale: a gust stacked. Silent on purpose — it fires on every gale hit, and
+    // a sound on each one would drown the burst it is counting down to.
+    case 'gale': pushFloater(e, 'gale', 0.7, now); break;
     // mosquito: the trap just sprang. One cue for the CAUSE, then the doubled
     // on-hit indicators (two damage numbers, two +1 g…) show the effect — without
     // this you see the payoff and never learn what triggered it.
@@ -263,6 +266,12 @@ function onEvent(e) {
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
       playSfx('freeze');
+      break;
+    // gale: the 3rd stack detonated. The one loud cue this element gets, and the
+    // reason the huge shove that follows is readable instead of random.
+    case 'galeBurst':
+      fx.push({ ...e, type: 'galeBurst', at: now, dur: 0.8 });
+      playSfx('gust');
       break;
   }
   while (fx.length > 200) fx.shift();
@@ -1461,6 +1470,11 @@ function updateUi(s) {
     if (onMe && onMe.frost > 0)
       buffs.push(`<span class="buff frost">${ELEMENTS.frost.icon} ` +
         `${onMe.frost}/${ELEMENTS.frost.fx.stacksToTrigger}</span>`);
+    // gale rides the same countdown as frost, and the thing it is counting down
+    // to is being launched off the platform — so it gets the same chip
+    if (onMe && onMe.gale > 0)
+      buffs.push(`<span class="buff frost">${ELEMENTS.gale.icon} ` +
+        `${onMe.gale}/${ELEMENTS.gale.fx.stacksToTrigger}</span>`);
     if (onMe && onMe.mosquito > 0)
       buffs.push(`<span class="buff venom">${ELEMENTS.mosquito.icon} marked</span>`);
     // vampire: count the casts down, so "the next one is the big one" is a thing

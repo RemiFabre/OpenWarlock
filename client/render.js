@@ -415,11 +415,36 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         ctx.fill();
       }
     }
+    // Gale pips: the same "N of 3 and then it pops" reading as frost, drawn as
+    // short radial DASHES so a body carrying both is still legible (frost+gale
+    // is a legal build — every element stacks with every other).
+    //
+    // ⚠ They arc BELOW the body, not above with frost's. The band from
+    // ~1.65r to ~2.15r above the centre is where the HP bar is (`y - r - 12`,
+    // 5 px tall — an ABSOLUTE offset, so it covers that band at every zoom), and
+    // the first version of these pips was drawn at 1.9-2.2r and was completely
+    // hidden behind it. That is the mosquito scar exactly: computed, on the
+    // wire, never visible. Verified by screenshot, not by reading the code.
+    if (mine && mine.gale > 0) {
+      const ofG = ELEMENTS.gale.fx.stacksToTrigger;
+      ctx.strokeStyle = 'rgba(230, 242, 255, 0.95)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < Math.min(mine.gale, ofG); i++) {
+        const ang = Math.PI / 2 + (i - (ofG - 1) / 2) * 0.5;
+        const r0 = r * 1.45, r1 = r * 1.85;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(ang) * r0, y + Math.sin(ang) * r0);
+        ctx.lineTo(x + Math.cos(ang) * r1, y + Math.sin(ang) * r1);
+        ctx.stroke();
+      }
+    }
     if (mine && mine.mosquito > 0) {
-      // the trap is armed: your next fireball on this body doubles
+      // the trap is armed: your next fireball on this body doubles.
+      // Sits BELOW the gale dashes' outer end (1.85r) rather than at 1.6r, where
+      // it used to be — the middle gale dash would otherwise land on top of it.
       ctx.fillStyle = 'rgba(198, 150, 255, 0.95)';
       ctx.beginPath();
-      ctx.arc(x, y + r * 1.6, 3.1, 0, Math.PI * 2);
+      ctx.arc(x, y + r * 2.15, 3.1, 0, Math.PI * 2);
       ctx.fill();
     }
     if (pl.charging) {
@@ -797,6 +822,49 @@ function drawFx(view, fx, now, baseAlpha = 1) {
           ctx.fillStyle = `rgba(168, 216, 255, ${a})`;
           ctx.fillText(`❄ ${+f.stacks}/${+f.of}`, x, y - 30 - 14 * k);
         }
+        ctx.restore();
+        break;
+      }
+      case 'gale': {
+        // one more gust stacked: a thin pale ring and the count toward the burst.
+        // Deliberately quieter than frost's — this one fires on EVERY gale hit
+        // and the loud cue belongs to the detonation.
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(230, 242, 255, ${a * 0.85})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, (2.6 - 1.3 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        if (fin(+f.stacks) && fin(+f.of)) {
+          ctx.textAlign = 'center';
+          ctx.font = '700 12px ui-monospace, Menlo, monospace';
+          ctx.fillStyle = `rgba(230, 242, 255, ${a})`;
+          ctx.fillText(`🌪 ${+f.stacks}/${+f.of}`, x, y - 30 - 14 * k);
+        }
+        ctx.restore();
+        break;
+      }
+      case 'galeBurst': {
+        // the 3rd stack spent: a hard expanding shockwave with swept streaks
+        // curling off it, plus the word. This is the whole point of the rework —
+        // an enormous shove must never arrive without an explanation on screen.
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(235, 246, 255, ${a})`;
+        ctx.lineWidth = 4 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, (1 + 7 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 2 * a + 0.5;
+        for (let i = 0; i < 7; i++) {
+          const ang = (i / 7) * Math.PI * 2 + f.at * 3;
+          const r0 = (1.5 + 4.5 * k) * scale, r1 = r0 + 2.2 * scale;
+          ctx.beginPath();
+          ctx.arc(x, y, (r0 + r1) / 2, ang, ang + 0.7 + 0.6 * k);
+          ctx.stroke();
+        }
+        ctx.textAlign = 'center';
+        ctx.font = 'small-caps 700 20px Georgia, serif';
+        ctx.fillStyle = `rgba(235, 246, 255, ${a})`;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 10;
+        ctx.fillText('gust!', x, y - 40 - 16 * k);
         ctx.restore();
         break;
       }
