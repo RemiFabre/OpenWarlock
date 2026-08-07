@@ -196,12 +196,12 @@ describe('lava', () => {
   it('lava treads reduce lava damage', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
-    a.items = ['treads'];
+    a.items = { treads: 1 };
     a.x = ARENA.START_RADIUS + 5; a.y = 0;
     b.x = -(ARENA.START_RADIUS + 5); b.y = 0;
     run(state, 1);
     const lossA = a.maxHp - a.hp, lossB = b.maxHp - b.hp;
-    // treads lavaMult 0.8: net-of-regen loss ratio ≈ (14·0.8−1.2)/(14−1.2) ≈ 0.78
+    // lv1 treads lavaMult 0.85: net-of-regen loss ratio ≈ (14·0.85−1.2)/(14−1.2) ≈ 0.84
     expect(lossA).toBeLessThan(lossB * 0.88);
     expect(lossA).toBeGreaterThan(lossB * 0.6); // and it's a trim, not immunity
   });
@@ -490,50 +490,98 @@ describe('shop & economy', () => {
     expect(buy(state, 'a', 'fireball').ok).toBe(false);
   });
 
-  it('items stack, and each extra copy costs 20% more (rounded up)', () => {
+  // ---- items are LEVELLED (round 12) ------------------------------------
+  // Every number below is read out of the spec on purpose (AGENTS.md scar:
+  // round-11 tests broke on intended retunes purely because they pinned old
+  // constants). What is asserted is the RULE, not the tuning.
+
+  it('items level 1..maxLevel at a flat cost per level', () => {
     const state = shopState();
     const a = state.players.a;
     a.gold = 999;
-    const base = ITEMS.boots.cost;                       // 10
-    expect(itemCost('boots', 0)).toBe(base);             // 10
-    expect(itemCost('boots', 1)).toBe(Math.ceil(base * 1.2));      // 12
-    expect(itemCost('boots', 2)).toBe(Math.ceil(base * 1.2 ** 2)); // 15
+    const each = ITEMS.boots.cost;
+    expect(itemCost('boots')).toBe(each);   // flat: no owned-count argument
     let spent = 0;
-    for (let i = 0; i < 3; i++) {
+    for (let lv = 1; lv <= ITEMS.boots.maxLevel; lv++) {
       const before = a.gold;
       expect(buy(state, 'a', 'boots').ok).toBe(true);
+      expect(a.items.boots).toBe(lv);
       spent += before - a.gold;
     }
-    expect(a.items.filter(i => i === 'boots').length).toBe(3);
-    expect(spent).toBe(itemCost('boots', 0) + itemCost('boots', 1) + itemCost('boots', 2));
-    // the effects really do pile up: 1.2^3 speed
-    expect(playerStats(a).speed).toBeCloseTo(PLAYER.SPEED * ITEM_FX.boots.speedMult ** 3, 4);
-    // ...and a poor player can't afford the escalated price
-    a.gold = itemCost('boots', 3) - 1;
-    expect(buy(state, 'a', 'boots').err).toBe('not enough gold');
+    expect(spent).toBe(each * ITEMS.boots.maxLevel);
   });
 
-  it('stacked amulets each add max hp; unique items still reject a 2nd copy', () => {
+  it('an item cannot exceed maxLevel', () => {
     const state = shopState();
     const a = state.players.a;
     a.gold = 999;
-    buy(state, 'a', 'amulet');
-    buy(state, 'a', 'amulet');
-    expect(a.maxHp).toBe(PLAYER.MAX_HP + 2 * ITEM_FX.amulet.maxHp);
-    // echo/crown are one-per-customer (elemental mode only)
+    for (let i = 0; i < ITEMS.boots.maxLevel + 3; i++) buy(state, 'a', 'boots');
+    expect(a.items.boots).toBe(ITEMS.boots.maxLevel);
+    expect(buy(state, 'a', 'boots').err).toBe('max level');
+    // echo/crown are maxLevel 1 — that is what the old `unique` flag meant
     const el = createGame({ seed: 3, mode: 'elemental' });
     addPlayer(el, 'a', 'A');
     el.phase = 'shop';
     el.players.a.gold = 999;
+    expect(ITEMS.echo.maxLevel).toBe(1);
     expect(buy(el, 'a', 'echo').ok).toBe(true);
-    expect(buy(el, 'a', 'echo').err).toBe('already owned');
+    expect(el.players.a.items.echo).toBe(1);
+    expect(buy(el, 'a', 'echo').err).toBe('max level');
   });
 
-  it('amulet raises max hp immediately', () => {
+  it('a poor player cannot buy the next level', () => {
     const state = shopState();
-    state.players.a.gold = 99;
+    const a = state.players.a;
+    a.gold = itemCost('boots') - 1;
+    expect(buy(state, 'a', 'boots').err).toBe('not enough gold');
+    expect(a.items.boots).toBeUndefined();
+  });
+
+  it('level-2 boots give exactly the level-2 total, not level 1 twice', () => {
+    const state = shopState();
+    const a = state.players.a;
+    a.gold = 999;
+    buy(state, 'a', 'boots');
+    expect(playerStats(a).speed).toBeCloseTo(PLAYER.SPEED * ITEM_FX.boots.speedMult[0], 6);
+    buy(state, 'a', 'boots');
+    expect(a.items.boots).toBe(2);
+    // ITEM_FX arrays are ABSOLUTE CUMULATIVE totals: lv2 is ×[1], NOT ×[0]×[1]
+    expect(playerStats(a).speed).toBeCloseTo(PLAYER.SPEED * ITEM_FX.boots.speedMult[1], 6);
+    expect(playerStats(a).speed).not.toBeCloseTo(
+      PLAYER.SPEED * ITEM_FX.boots.speedMult[0] * ITEM_FX.boots.speedMult[1], 4);
+    buy(state, 'a', 'boots');
+    expect(playerStats(a).speed).toBeCloseTo(PLAYER.SPEED * ITEM_FX.boots.speedMult[2], 6);
+  });
+
+  it('every levelled item stat reads the owned level out of ITEM_FX', () => {
+    const state = shopState();
+    const a = state.players.a;
+    a.gold = 999;
+    for (const key of ['boots', 'treads', 'amulet', 'ring', 'cape', 'sword'])
+      for (let i = 0; i < 3; i++) buy(state, 'a', key);
+    const s = playerStats(a);
+    const last = (k, f) => ITEM_FX[k][f][ITEMS[k].maxLevel - 1];
+    expect(s.speed).toBeCloseTo(PLAYER.SPEED * last('boots', 'speedMult'), 6);
+    expect(s.lavaMult).toBeCloseTo(last('treads', 'lavaMult'), 6);
+    expect(s.kbMult).toBeCloseTo(last('cape', 'kbMult'), 6);
+    expect(s.regen).toBeCloseTo(PLAYER.REGEN + last('ring', 'regen'), 6);
+    expect(s.lifesteal).toBeCloseTo(last('sword', 'lifesteal'), 6);
+    expect(s.maxHp).toBe(PLAYER.MAX_HP + last('amulet', 'maxHp'));
+  });
+
+  it('amulet levels raise the live max hp by the cumulative difference', () => {
+    const state = shopState();
+    const a = state.players.a;
+    a.gold = 999;
+    const hp = ITEM_FX.amulet.maxHp;
     buy(state, 'a', 'amulet');
-    expect(state.players.a.maxHp).toBe(PLAYER.MAX_HP + ITEM_FX.amulet.maxHp);
+    expect(a.maxHp).toBe(PLAYER.MAX_HP + hp[0]);   // immediately, not next round
+    buy(state, 'a', 'amulet');
+    expect(a.maxHp).toBe(PLAYER.MAX_HP + hp[1]);   // total, not hp[0] + hp[1]
+    buy(state, 'a', 'amulet');
+    expect(a.maxHp).toBe(PLAYER.MAX_HP + hp[2]);
+    // the live field and the derived stat must never disagree
+    expect(playerStats(a).maxHp).toBe(a.maxHp);
   });
 
   it('rejects prototype-chain names as purchases and casts', () => {
@@ -555,7 +603,7 @@ describe('shop & economy', () => {
   it('boots increase movement speed', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
-    a.items = ['boots'];
+    a.items = { boots: 1 };
     a.x = 0; a.y = 0; b.x = 0; b.y = 30;
     setMoveTarget(state, 'p0', 40, 0);
     setMoveTarget(state, 'p1', 40, 30);
@@ -1387,7 +1435,7 @@ describe('elemental mode', () => {
     state.players.p1.x = 0; state.players.p1.y = 45;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
-    a.items.push('echo');
+    a.items.echo = 1;
     a.x = 0; a.y = 0;
     for (let i = 0; i < 4; i++) {
       a.cooldowns.fireball = 0;
@@ -1441,8 +1489,8 @@ describe('elemental mode', () => {
     expect(state.phase).toBe('gameover');
     for (const p of Object.values(state.players)) {
       expect(Object.keys(p.elements).length).toBe(0);
-      expect(p.items).not.toContain('echo');
-      expect(p.items).not.toContain('crown');
+      expect(p.items.echo).toBeFalsy();
+      expect(p.items.crown).toBeFalsy();
       expect(p.spells.fireball).toBeLessThanOrEqual(SPELLS.fireball.maxLevel);
     }
     // and the classic wire never mentions elemental fields
@@ -1924,7 +1972,7 @@ describe('lifesteal (Blood Sword)', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
-    a.items = ['sword'];
+    a.items = { sword: 1 };
     a.x = 0; a.y = 0; a.vx = 0; a.moveTarget = null;
     b.x = 8; b.y = 0; b.vx = 0; b.moveTarget = null;
     c.x = 0; c.y = -40; c.vx = 0; c.moveTarget = null;
@@ -1937,7 +1985,7 @@ describe('lifesteal (Blood Sword)', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     const a = state.players.p0, c = state.players.p2;
-    expect(a.hp - c.hp).toBeCloseTo(SPELLS.fireball.damage[0] * ITEM_FX.sword.lifesteal, 1);
+    expect(a.hp - c.hp).toBeCloseTo(SPELLS.fireball.damage[0] * ITEM_FX.sword.lifesteal[0], 1);
   });
 
   it('heals from your poison ticks — DoT damage counts', () => {
@@ -1945,7 +1993,7 @@ describe('lifesteal (Blood Sword)', () => {
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     b.poisonT = 3; b.poisonTick = 2; b._poisonNext = 0.1; b.poisonBy = 'p0';
     run(state, 0.5); // exactly one tick of 2
-    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal[0], 1);
   });
 
   it('heals from your ground trails', () => {
@@ -1953,7 +2001,7 @@ describe('lifesteal (Blood Sword)', () => {
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.hazards.push({ x: b.x, y: b.y, r: 1.3, owner: 'p0', dps: 2, until: state.time + 5 });
     run(state, 1);
-    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal[0], 1);
   });
 
   it('never heals from lava burn, even when the burn is credited to you', () => {
@@ -1975,7 +2023,7 @@ describe('lifesteal (Blood Sword)', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     expect(b.alive).toBe(false);
-    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal, 1);
+    expect(a.hp - c.hp).toBeCloseTo(2 * ITEM_FX.sword.lifesteal[0], 1);
   });
 });
 
@@ -2192,7 +2240,11 @@ describe('co-op: campaign scaling rule', () => {
         for (const u of units) {
           expect(Object.keys(BOTS)).toContain(u.kind); // an EXISTING bot kind
           expect(u.maxHp).toBeGreaterThan(0);
-          for (const it of u.items) expect(ITEMS[it]).toBeTruthy();
+          for (const [it, lv] of Object.entries(u.items)) {
+            expect(ITEMS[it]).toBeTruthy();
+            expect(lv).toBeGreaterThanOrEqual(1);
+            expect(lv).toBeLessThanOrEqual(ITEMS[it].maxLevel);
+          }
         }
       }
       // a bigger party never gets an EASIER level (the scaling rule's promise;

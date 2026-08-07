@@ -264,8 +264,10 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = con
 
     // item/spell attribution: winner's inventory vs everyone's
     res.ranking.forEach((r, place) => {
-      const owned = [...r.items, ...Object.entries(r.spells)
-        .filter(([k, v]) => v > 0 && k !== 'fireball').map(([k]) => k)];
+      // items and spells are both {key: level}; "owned at all" is the signal
+      const owned = [...Object.entries(r.items).filter(([, v]) => v > 0).map(([k]) => k),
+        ...Object.entries(r.spells)
+          .filter(([k, v]) => v > 0 && k !== 'fireball').map(([k]) => k)];
       for (const it of new Set(owned)) {
         itemGames[it] = (itemGames[it] || 0) + 1;
         if (place === 0) itemWins[it] = (itemWins[it] || 0) + 1;

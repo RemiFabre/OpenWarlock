@@ -390,7 +390,7 @@ wss.on('connection', (ws, req) => {
         at: Date.now(), color: pl.color, avatar: pl.avatar,
         gold: pl.gold, goldEarned: pl.goldEarned, kills: pl.kills,
         deaths: pl.deaths, dmgDealt: pl.dmgDealt, maxHp: pl.maxHp,
-        spells: { ...pl.spells }, items: [...pl.items],
+        spells: { ...pl.spells }, items: { ...pl.items },
         elements: { ...(pl.elements || {}) },
       });
       journal('reconnect-stash', { id, name: pl.name, kills: pl.kills, gold: pl.gold });

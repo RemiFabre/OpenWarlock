@@ -105,7 +105,7 @@ const SHADE = {         // ★★★ skirmisher: dodges and blinks — but made 
 };
 const BRUTE = {         // a wall you shove into the lava, not one you burn down
   name: 'Brute', avatar: '👹', kind: 'berserker', maxHp: 210, sizeMult: 1.5,
-  spells: { fireball: 2, rush: 1 }, items: ['cape'],
+  spells: { fireball: 2, rush: 1 }, items: { cape: 1 },
 };
 // (There is deliberately no second ★★★ template. An early draft had a tankier
 // "Warden" with a lightning finisher: enemy LIGHTNING is hitscan, so a solo
@@ -118,7 +118,7 @@ const GOLEM = {         // the Brute's big brother: a siege engine, not a skirmi
   // never override it. Measured 2026-08-07: at level-8 gear a 210 hp Brute is a
   // 97% clear — the tank has to start where the Brute's party-scaled HP ends.
   name: 'Golem', avatar: '🗿', kind: 'berserker', maxHp: 380, sizeMult: 1.6,
-  spells: { fireball: 2, rush: 1 }, items: ['cape', 'treads'],
+  spells: { fireball: 2, rush: 1 }, items: { cape: 1, treads: 1 },
 };
 const CHAMPION = {
   // The finale, and the answer to Remi's "3 against one very strong player who
@@ -133,7 +133,11 @@ const CHAMPION = {
   // level 10 has (every 7 hp is worth ~4 clear points at every party size).
   name: 'Sargeras', avatar: '😈', kind: 'berserker', maxHp: 130, sizeMult: 1.8,
   spells: { fireball: 3, lightning: 3, teleport: 2, shield: 2, rush: 2, pillar: 2 },
-  items: ['boots', 'cape', 'ring', 'sword', 'treads'],
+  // One LEVEL of each, which is the faithful translation of the old "one copy
+  // of each" — deliberately NOT lv 3. Level 10 is tuned to 38/36/38% clear and
+  // the boss's gear is a live lever there; raising these is a balance decision
+  // for a measured commit, not a side effect of the levelling refactor.
+  items: { boots: 1, cape: 1, ring: 1, sword: 1, treads: 1 },
 };
 
 // ---- the 10 levels ---------------------------------------------------------
@@ -291,7 +295,7 @@ export function waveUnits(level, partySize) {
         build: w.unit.build || null,
         maxHp, sizeMult: w.unit.sizeMult || 1,
         spells: { ...w.unit.spells },
-        items: [...(w.unit.items || [])],
+        items: { ...(w.unit.items || {}) },
       });
     }
   }

@@ -5,6 +5,7 @@ import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BUILDS, MULTIKILL_NAMES, itemCost,
 } from './constants.js';
+import { itemBonuses, itemFxDelta } from './items.js';
 import {
   TEAM, ENEMY_COLOR, CAMPAIGN, MAX_LEVEL, levelFor, waveUnits, levelRoster,
 } from './campaign.js';
@@ -99,7 +100,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     spectator: false,
     radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
-    items: [],
+    items: {},           // owned item levels, e.g. {boots: 2, cape: 1}
     cooldowns: {},
     shieldT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
@@ -198,16 +199,15 @@ function stats(pl) {
   // everyone regenerates a little: spells only tickle — the lava is the killer
   let speed = PLAYER.SPEED, lavaMult = 1, kbMult = 1, regen = PLAYER.REGEN, lifesteal = 0;
   let maxHp = PLAYER.MAX_HP;
-  for (const it of pl.items) {
-    const fx = ITEM_FX[it];
-    if (!fx) continue;
-    if (fx.speedMult) speed *= fx.speedMult;
-    if (fx.lavaMult != null) lavaMult *= fx.lavaMult;
-    if (fx.kbMult) kbMult *= fx.kbMult;
-    if (fx.regen) regen += fx.regen;
-    if (fx.lifesteal) lifesteal += fx.lifesteal;
-    if (fx.maxHp) maxHp += fx.maxHp;
-  }
+  // items are levelled: itemBonuses() reads each owned level's ABSOLUTE total
+  // out of ITEM_FX (see shared/items.js) — no compounding happens here.
+  const { mult, add } = itemBonuses(pl.items);
+  if (mult.speedMult != null) speed *= mult.speedMult;
+  if (mult.lavaMult != null) lavaMult *= mult.lavaMult;
+  if (mult.kbMult != null) kbMult *= mult.kbMult;
+  regen += add.regen || 0;
+  lifesteal += add.lifesteal || 0;
+  maxHp += add.maxHp || 0;
   if (pl.inLava) speed *= LAVA.SPEED_MULT; // lava is fast — and it burns
   if (pl.slowT > 0) speed *= (pl.slowMultHit || 0.6); // frost chill (elemental)
   if (pl.stunT > 0) speed = 0;                        // frost stun (elemental)
@@ -293,7 +293,7 @@ export function castSpell(state, id, key, tx, ty) {
       spawnFireball(state, pl, level, dx, dy);
       // Echo Stone (elemental): every Nth fireball fires a second one shortly
       // after, along the same aim direction
-      if (state.mode === 'elemental' && pl.items.includes('echo')) {
+      if (state.mode === 'elemental' && (pl.items.echo || 0) > 0) {
         pl.echoN = (pl.echoN || 0) + 1;
         if (pl.echoN % ITEM_FX.echo.every === 0)
           state.delayedShots.push({ t: ITEM_FX.echo.delay, owner: id, level, dx, dy });
@@ -485,7 +485,7 @@ export function buy(state, id, thing) {
     const level = pl.spells[thing] || 0;
     // Cinder Crown (elemental) raises the fireball cap by one
     let maxLevel = spec.maxLevel;
-    if (thing === 'fireball' && state.mode === 'elemental' && pl.items.includes('crown'))
+    if (thing === 'fireball' && state.mode === 'elemental' && (pl.items.crown || 0) > 0)
       maxLevel += ITEM_FX.crown.fireballMax;
     if (level >= maxLevel) return { ok: false, err: 'max level' };
     const cost = spec.costs[level];
@@ -512,15 +512,21 @@ export function buy(state, id, thing) {
   if (Object.hasOwn(ITEMS, thing)) {
     if (ITEMS[thing].mode === 'elemental' && state.mode !== 'elemental')
       return { ok: false, err: 'elemental mode only' };
-    // items stack; each extra copy costs 20% more than the last (itemCost).
-    // A couple of special items stay one-per-customer.
-    const owned = pl.items.filter(i => i === thing).length;
-    if (owned > 0 && ITEMS[thing].unique) return { ok: false, err: 'already owned' };
-    const cost = itemCost(thing, owned);
+    // items are LEVELLED like spells: 1..maxLevel, the same flat cost every
+    // level, each level worth less than the last (echo/crown are maxLevel 1,
+    // which is what used to be the `unique` flag).
+    const level = pl.items[thing] || 0;
+    if (level >= ITEMS[thing].maxLevel) return { ok: false, err: 'max level' };
+    const cost = itemCost(thing);
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
     pl.gold -= cost;
-    pl.items.push(thing);
-    if (thing === 'amulet') { pl.maxHp += ITEM_FX.amulet.maxHp; pl.hp += ITEM_FX.amulet.maxHp; }
+    pl.items[thing] = level + 1;
+    // max HP is a live field, not derived, so the upgrade grants the DIFFERENCE
+    // between the two cumulative totals.
+    if (thing === 'amulet') {
+      const gain = itemFxDelta('amulet', 'maxHp', level + 1);
+      pl.maxHp += gain; pl.hp += gain;
+    }
     return { ok: true };
   }
   return { ok: false, err: 'unknown' };
@@ -757,7 +763,7 @@ function coopSpawnWave(state, time) {
     pl.maxHp = u.maxHp;
     pl.hp = u.maxHp;
     pl.spells = { ...u.spells };
-    pl.items = [...u.items];
+    pl.items = { ...u.items };
     pl.gold = 0; pl.goldEarned = 0;   // monsters never shop (see botShop)
     pl.ready = true;
     pl.alive = true;
@@ -1532,8 +1538,8 @@ export function snapshot(state) {
       againReady: !!p.againReady,
       spells: p.spells, items: p.items,
       cooldowns: mapRound(p.cooldowns),
-      // effective stats after every item copy — the shop/stats panel shows
-      // these so "what did stacking 3 rings actually buy me" is answerable
+      // effective stats at your current item levels — the shop/stats panel
+      // shows these so "what did lv 3 rings actually buy me" is answerable
       stats: (() => {
         const s = stats(p);
         return {

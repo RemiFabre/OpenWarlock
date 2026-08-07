@@ -1,9 +1,10 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
 import {
-  SPELLS, ITEMS, ITEM_FX, ITEM_COST_STEP, ELEMENTS, BOTS, BUILDS,
+  SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS,
   SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, itemCost,
 } from '../shared/constants.js';
+import { itemFxAt } from '../shared/items.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -627,32 +628,34 @@ const FX_FIELDS = {
   selfCashFullCd: ['stinging your own bite', (v) => (v ? 'costs the fire-rate bonus' : '—')],
 };
 
-// how a second, third… copy of an item compounds: 'mult' multiplies, 'add'
-// sums, 'flat' does neither (a unique item's one-off effect).
+// Item fx fields — same shape as SPELL_FIELDS/FX_FIELDS. There is no
+// "how do copies compound" column any more: ITEM_FX holds ABSOLUTE CUMULATIVE
+// totals per level, so the array IS the row (see shared/items.js).
 const ITEM_FIELDS = {
-  speedMult: ['move speed', 'mult', fmtMult],
-  lavaMult: ['lava damage taken', 'mult', fmtMult],
-  kbMult: ['knockback taken', 'mult', fmtMult],
-  maxHp: ['max HP', 'add', (v) => `+${fmtNum(v)}`],
-  regen: ['regeneration', 'add', (v) => `+${fmtNum(v)} hp/s`],
-  lifesteal: ['lifesteal', 'add', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
-  every: ['echo cadence', 'flat', (v) => `every ${fmtNum(v)}th fireball`],
-  delay: ['echo delay', 'flat', fmtSec],
-  fireballMax: ['fireball level cap', 'flat', (v) => `+${fmtNum(v)}`],
+  speedMult: ['move speed', fmtMult],
+  lavaMult: ['lava damage taken', fmtMult],
+  kbMult: ['knockback taken', fmtMult],
+  maxHp: ['max HP', (v) => `+${fmtNum(v)}`],
+  regen: ['regeneration', (v) => `+${fmtNum(v)} hp/s`],
+  lifesteal: ['lifesteal', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
+  every: ['echo cadence', (v) => `every ${fmtNum(v)}th fireball`],
+  delay: ['echo delay', fmtSec],
+  fireballMax: ['fireball level cap', (v) => `+${fmtNum(v)}`],
 };
 
-// What the copies you own actually bought, as a plain sentence. Deliberately
-// recomputed from ITEM_FX instead of read off the snapshot's effective stats:
-// those also carry the transient modifiers (the shop opens while you are still
-// standing in lava at double speed, with regen still locked), which would read
-// as a lie on a shop button.
+// What the level you own actually bought, as a plain sentence. The maths lives
+// in itemFxAt(); only the wording is here. Deliberately recomputed from ITEM_FX
+// instead of read off the snapshot's effective stats: those also carry the
+// transient modifiers (the shop opens while you are still standing in lava at
+// double speed, with regen still locked), which would read as a lie on a shop
+// button.
 const ITEM_LIVE = {
-  boots: (n) => `you move at ${fmtNum(PLAYER.SPEED * ITEM_FX.boots.speedMult ** n)} u/s (base ${fmtNum(PLAYER.SPEED)})`,
-  treads: (n) => `lava burns you for ${fmtNum(LAVA.DPS * ITEM_FX.treads.lavaMult ** n)} hp/s (base ${fmtNum(LAVA.DPS)})`,
-  amulet: (n) => `you have ${fmtNum(PLAYER.MAX_HP + ITEM_FX.amulet.maxHp * n)} max HP (base ${fmtNum(PLAYER.MAX_HP)})`,
-  ring: (n) => `you regenerate ${fmtNum(PLAYER.REGEN + ITEM_FX.ring.regen * n)} hp/s (base ${fmtNum(PLAYER.REGEN)})`,
-  cape: (n) => `you take ×${fmtNum(ITEM_FX.cape.kbMult ** n)} knockback`,
-  sword: (n) => `you heal ${fmtNum(Math.round(ITEM_FX.sword.lifesteal * n * 1000) / 10)}% of the damage you deal`,
+  boots: (lv) => `you move at ${fmtNum(PLAYER.SPEED * itemFxAt('boots', 'speedMult', lv))} u/s (base ${fmtNum(PLAYER.SPEED)})`,
+  treads: (lv) => `lava burns you for ${fmtNum(LAVA.DPS * itemFxAt('treads', 'lavaMult', lv))} hp/s (base ${fmtNum(LAVA.DPS)})`,
+  amulet: (lv) => `you have ${fmtNum(PLAYER.MAX_HP + itemFxAt('amulet', 'maxHp', lv))} max HP (base ${fmtNum(PLAYER.MAX_HP)})`,
+  ring: (lv) => `you regenerate ${fmtNum(PLAYER.REGEN + itemFxAt('ring', 'regen', lv))} hp/s (base ${fmtNum(PLAYER.REGEN)})`,
+  cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
+  sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
 };
 
 // One row of the per-level table. A scalar spans every column — that IS what
@@ -725,32 +728,32 @@ function elementTip(key, spec, level) {
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
-// Items stack, so the columns are COPIES, not levels: what 1/2/3 of them do and
-// what each next one costs (every copy is ITEM_COST_STEP dearer than the last).
-function itemTip(key, spec, owned) {
-  const cols = spec.unique ? 1 : 3;
+// Items are LEVELLED like spells (round 12): the columns are levels 1..maxLevel
+// and the ITEM_FX arrays are absolute totals, so each cell is read straight out
+// of the spec — no per-copy arithmetic, and nothing here can drift from what
+// stats() computes on the server. Cost is flat at every level.
+function itemTip(key, spec, level) {
+  const cols = spec.maxLevel;
+  const cur = Math.min(level, cols);
   const fxSpec = ITEM_FX[key] || {};
   let rows = '';
   for (const field of orderedFields(fxSpec, ITEM_FIELDS)) {
-    const base = fxSpec[field];
-    const [label, mode, fmt] = ITEM_FIELDS[field] || [field, 'flat', fmtNum];
-    const vals = [];
-    for (let n = 1; n <= cols; n++)
-      vals.push(mode === 'mult' ? base ** n : mode === 'add' ? base * n : base);
-    rows += tipRow(label, mode === 'flat' ? base : vals, cols, fmt, Math.min(owned, cols));
+    const [label, fmt] = ITEM_FIELDS[field] || [field, fmtNum];
+    rows += tipRow(label, fxSpec[field], cols, fmt, cur);
   }
-  const prices = [];
-  for (let n = 0; n < cols; n++) prices.push(itemCost(key, n));
-  rows += tipRow('cost of that copy', prices, cols, fmtGold, Math.min(owned + 1, cols), 'cost');
-  const live = owned > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](owned);
+  const each = itemCost(key);
+  rows += tipRow('cost', Array.from({ length: cols }, () => each), cols, fmtGold,
+    Math.min(level + 1, cols), 'cost');
+  const live = level > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](cur);
   const foot = [
-    owned > 0 ? `You own <b>×${owned}</b>.` : '',
-    live ? `With those, ${live}.` : '',
-    spec.unique ? 'Unique — one copy only.'
-      : `Each extra copy costs <b>+${Math.round((ITEM_COST_STEP - 1) * 100)}%</b>, rounded up.`,
+    level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
+    live ? `With that, ${live}.` : '',
+    cols > 1
+      ? `Every level costs the same <b>${each} g</b> — full path <b>${each * cols} g</b>. Each level gives less than the last.`
+      : 'Single level — one purchase and it is maxed.',
   ].filter(Boolean).join(' ');
   return tipShell(ICONS[key], spec.name, spec.desc,
-    `<table>${tipHead(cols, Math.min(owned, cols), '×')}<tbody>${rows}</tbody></table>`, foot);
+    `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
 }
 
 // ---- hover tooltip -------------------------------------------------------------
@@ -907,27 +910,29 @@ function buildShop(container, mode = 'classic') {
       wares.push(w);
     }
   }
-  mkLabel('Items (buy as many copies as you like — each one costs more)');
+  mkLabel('Items (3 levels each — same price every level, each level gives less)');
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="info"><span class="name">${spec.name} <span class="stack"></span></span>
+      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
       <span class="desc">${spec.desc}</span>
       <span class="stats"></span></span><span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     container.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
-    attachTip(b, () => itemTip(key, spec, w.owned || 0));
+    attachTip(b, () => itemTip(key, spec, w.level || 0));
     wares.push(w);
   }
   return function refresh(m, round = 0) {
     if (!m) return;
     const gold = fin(+m.gold) ? +m.gold : 0;
     const spells = m.spells || {};
-    const items = Array.isArray(m.items) ? m.items : [];
+    // {key: level} since round 12; a stale snapshot (or an old array) reads as
+    // "nothing owned" rather than throwing.
+    const items = (m.items && !Array.isArray(m.items)) ? m.items : {};
     for (const w of wares) {
       const cost = w.el.querySelector('.cost');
       if (w.kind === 'spell') {
@@ -940,7 +945,7 @@ function buildShop(container, mode = 'classic') {
         const level = spells[w.key] || 0;
         // the Cinder Crown raises the fireball cap by one (elemental only)
         const maxLevel = w.spec.maxLevel +
-          (elemental && w.key === 'fireball' && items.includes('crown') ? 1 : 0);
+          (elemental && w.key === 'fireball' && (items.crown || 0) > 0 ? 1 : 0);
         w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
         const lv = w.el.querySelector('.lv');
         lv.textContent = level ? `lv ${level}` : '';
@@ -970,20 +975,19 @@ function buildShop(container, mode = 'classic') {
             (w.key !== 'arcane' && (spells.fireball || 0) < 1);
         }
       } else {
-        // items stack: the count you own goes next to the name, the price tag
-        // is always the NEXT copy (every extra one is dearer by ITEM_COST_STEP).
-        // Unique items still cap at one.
-        const owned = items.filter(i => i === w.key).length;
-        w.owned = owned;
-        w.el.querySelector('.stack').textContent = owned > 0 ? `×${owned}` : '';
-        w.el.classList.toggle('sel', owned > 0);
+        // items are levelled like spells: the level you own sits next to the
+        // name, the price is flat, and maxLevel is the wall (1 for echo/crown).
+        const level = Math.min(items[w.key] || 0, w.spec.maxLevel);
+        w.level = level;
+        w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
+        w.el.classList.toggle('sel', level > 0);
         w.el.querySelector('.stats').textContent =
-          owned > 0 && ITEM_LIVE[w.key] ? ITEM_LIVE[w.key](owned) : '';
-        if (owned > 0 && w.spec.unique) {
-          cost.innerHTML = 'owned'; cost.className = 'cost owned'; w.el.disabled = true;
+          level > 0 && ITEM_LIVE[w.key] ? ITEM_LIVE[w.key](level) : '';
+        if (level >= w.spec.maxLevel) {
+          cost.innerHTML = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
-          const c = itemCost(w.key, owned);
-          cost.innerHTML = `${c} g${owned > 0 ? `<span class="nth">copy #${owned + 1}</span>` : ''}`;
+          const c = itemCost(w.key);
+          cost.innerHTML = `${c} g${level > 0 ? `<span class="nth">→ lv ${level + 1}</span>` : ''}`;
           cost.className = 'cost';
           w.el.disabled = gold < c;
         }
@@ -1018,14 +1022,17 @@ function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
 const byRank = (a, b) =>
   (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0);
 
-// A player's full kit as icons: spells (with level) then items, plus the
-// chosen element in elemental mode. Shown in the shop roster and standings.
+// A player's full kit as icons: spells then items then elements, each ONE icon
+// carrying its level. Shown in the shop roster and standings.
 function kitIcons(p) {
   const parts = [];
   for (const [k, lv] of Object.entries(p.spells || {}))
     if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
-  for (const it of (Array.isArray(p.items) ? p.items : []))
-    if (ICONS[it]) parts.push(ICONS[it]);
+  // ONE icon per item with its level on it — never N identical icons in a row
+  // (that is what freely-stackable items used to render, and five pairs of boots
+  // made the inventory unreadable). Same treatment as spells and elements.
+  for (const [k, lv] of Object.entries(p.items || {}))
+    if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
   for (const [k, v] of Object.entries(p.elements || {}))
     if (v > 0 && ELEMENTS[k]) parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}`);
   return parts.join(' ');

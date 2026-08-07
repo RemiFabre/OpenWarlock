@@ -91,7 +91,7 @@ console.log('gold:', killer.gold, 'score:', killer.score, 'kills:', killer.kills
 if (a.snap.phase === 'shop') {
   const goldBefore = a.me().gold;
   a.send({ t: 'buy', id: 'boots' });
-  await waitFor(() => a.me().items.includes('boots'), 'boots purchase', 10_000);
+  await waitFor(() => (a.me().items.boots || 0) > 0, 'boots purchase', 10_000);
   console.log(`bought boots (${goldBefore} -> ${a.me().gold} gold)`);
 }
 
