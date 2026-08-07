@@ -102,6 +102,49 @@ there's no default-version competition to feed, their job is narrower: helping
 people on Discord decide what to try next. Keep them cheap — a rating after a
 finished game, one per player per version, always shown with N.
 
+### The two metrics that actually matter
+
+Stars are opinions. Two measurements beat them, and Remi named the important one:
+
+**1. Human-hours played (the real signal).** A lobby of 4 humans for one hour is
+**4 human-hours**. Sum per version. This measures whether people wanted to keep
+playing, which is the only question worth asking. Details that make it honest:
+
+- **Count humans only, and only in battle** — never bots, never lobby idling.
+  This is easy because the host *is* the authoritative server: it already knows
+  exactly who is connected, which seats are bots, and for how long. AGENTS.md's
+  JSONL journal (`JOURNAL=`) already carries the raw material.
+- **Report at game end, plus a periodic heartbeat**, so a long session or a
+  crashed host still counts something rather than nothing.
+- **Buffer and retry** when the host has no connectivity at that moment.
+- **Send the minimum**: version id, human count, duration. No names, no chat,
+  no IPs. That is genuinely all that's needed, and sending nothing more is what
+  makes "on by default" defensible.
+- **On by default, visibly, and switchable off.** These are private games among
+  friends; automatic collection is fine if it's stated plainly and the payload
+  is boring. Hiding it would not be.
+
+⚠ **Be honest that these numbers are unverifiable.** There are no accounts and
+no central authority, so a host can claim 8 humans for 10 hours. Rate limits and
+a per-report cap raise the effort slightly; nothing short of identity actually
+fixes it, and identity costs more than this is worth. So treat human-hours as a
+signal for people choosing what to try on Discord — never as a leaderboard worth
+defending. If it ever needs defending, that is a much bigger conversation.
+
+**2. Download / launch count (the free fallback).** Whoever serves a version
+counts requests for it at zero cost, with no client work and no privacy question
+at all. It's also the *only* thing knowable about a version played offline — a
+LAN party reports nothing else.
+
+**The ratio is the interesting number, not either count alone.** High downloads
+with low human-hours is a version that *sounded* great and wasn't — which is
+precisely the "ideas that seemed good and turned out not to be" data this whole
+project was meant to surface. Low downloads with high hours is a small group who
+found something real, and that is worth reading before any star average.
+
+Normalise by age when comparing (hours per week, not lifetime hours), or a
+three-month-old version will always beat yesterday's.
+
 **Moderation and abuse remain**: version names and descriptions are
 user-generated content, and the suggestion box is an internet-facing text input
 feeding an agent. Rate limits, a name filter, and a kill switch per version. See
