@@ -215,7 +215,7 @@ if (process.argv[1] && process.argv[1].endsWith('coop.js')) {
   if (!Object.hasOwn(BOTS, kind)) { console.error(`unknown kind: ${kind}`); process.exit(1); }
   if (!Object.hasOwn(BUILDS, build)) { console.error(`unknown build: ${build}`); process.exit(1); }
 
-  const stars = '★'.repeat(BOTS[kind].difficulty);
+  const stars = BOTS[kind].label;   // Easy / Normal / Hard / Extreme (round 12)
 
   if (process.argv.includes('--levels')) {
     const income = argOf('income', null) == null ? null : Number(argOf('income', 0));

@@ -25,7 +25,8 @@ const seed = Number(argOf('seed', 500000));
 
 for (const k of [kindA, kindB]) {
   if (!Object.hasOwn(BOTS, k)) {
-    console.error(`unknown difficulty: ${k} (have: ${Object.keys(BOTS).join(', ')})`);
+    console.error(`unknown tier: ${k} (have: ${Object.entries(BOTS)
+      .map(([key, b]) => `${key}=${b.label}`).join(', ')})`);
     process.exit(1);
   }
 }
@@ -54,8 +55,9 @@ for (let g = 0; g < games; g++) {
 }
 
 console.log(`${finished}/${games} games finished · ${build} build · 2 seats each`);
-console.log('win%   avg-place  difficulty   (each side is 2 of 4 seats: 50% is parity)');
+console.log('win%   avg-place  tier                (each side is 2 of 4 seats: 50% is parity)');
 for (const k of [kindA, kindB]) {
   const s = stat[k];
-  console.log(`${(100 * s.wins / finished).toFixed(1).padStart(5)}  ${(s.place / finished / 2).toFixed(2).padStart(9)}  ${k}`);
+  const tier = `${BOTS[k].label} (${k})`;
+  console.log(`${(100 * s.wins / finished).toFixed(1).padStart(5)}  ${(s.place / finished / 2).toFixed(2).padStart(9)}  ${tier}`);
 }

@@ -421,10 +421,40 @@ export const COLORS = [
 // ---- Bots ----------------------------------------------------------------
 // Behavior lives in shared/sim.js (stepBot); this is the roster contract
 // shared by server (spawning) and client (lobby UI).
+// 2026-08-07 (Remi, round 12): FOUR named tiers — Easy / Normal / Hard /
+// Extreme. The old ★ was never meant to be the entry level: it wanders and
+// shoots at nothing, which is Easy, and Remi asked for a real Normal between
+// that and the old ★★. `label` is what the UI shows; `difficulty` is only the
+// rank used for sorting. The `kind` KEYS are unchanged on purpose — they are
+// combat profiles referenced by shared/campaign.js and the labs, and renaming
+// them would break the co-op templates for no gain.
+//
+// `brain` says which step function pilots it, so Normal is NOT new AI: it is
+// the berserker brain with two numbers made worse, which is the whole reason it
+// can be trusted. `react: [base, jitter]` is the decision interval in seconds
+// (`_botT = base + rng*jitter`) and `aimErr: [floor, perUnit]` is the aim error
+// (`(rng-0.5) * (floor + dist*perUnit)`).
+// The 2026-08-05 lesson these numbers encode: a reaction time is a PERCEPTION
+// delay, not a handicap — the bot aims from a stale observation extrapolated
+// across the lag, so it leads you correctly and only loses to genuine direction
+// changes. Aiming at where you *were* under-leads forever and dropped the ★★
+// BELOW the ★.
+// ⚠ Verify the ladder with `tools/h2h.js` (2 seats vs 2 seats, 50% = parity),
+// NOT the mixed Elo table, which demonstrably hides tier gaps: it once read the
+// ★★ as ~80 Elo above the ★ while it actually won 99.6% of head-to-heads.
+// Required: extreme > hard > normal > easy, monotonically.
 export const BOTS = {
-  grunt:     { name: 'Grunt',     difficulty: 1, desc: 'Wanders and throws. Cannon fodder.' },
-  berserker: { name: 'Berserker', difficulty: 2, desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats.' },
-  stalker:   { name: 'Stalker',   difficulty: 3, desc: 'Dodges, leads its shots, saves itself with teleport and shield.' },
+  grunt:     { name: 'Grunt', label: 'Easy', difficulty: 1, brain: 'grunt',
+               desc: 'Wanders and throws at nothing in particular. Cannon fodder.' },
+  brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
+               react: [0.30, 0.16], aimErr: [0.9, 0.16],
+               desc: 'Hunts you and trades, but it reads you slowly and its aim is loose. A fair fight.' },
+  berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
+               react: [0.16, 0.10], aimErr: [0.35, 0.10],
+               desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well.' },
+  stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
+               react: [0.12, 0.08], aimErr: [0.35, 0.10],
+               desc: 'Dodges your projectiles, leads its shots, and saves itself with teleport and shield.' },
 };
 
 // ---- Bot build strategies -------------------------------------------------
