@@ -3092,6 +3092,8 @@ const BOT_BUILDS = {
 // per-bot, it is the lobby dropdown, and 🎲 random varies it. Each build gets a
 // small themed list, indexed by seat, so even four bots on the SAME build spread
 // across different elements instead of stacking one.
+// ⚠ These lists are quoted in the BUILDS descs (shared/constants.js) — the
+// in-game strategy chart is generated from those, so change both together.
 const BUILD_ELEMENTS = {
   bruiser: ['vampire', 'ember', 'momentum'],   // stands and trades: sustain + raw damage
   sniper:  ['venom', 'ghost', 'momentum'],     // pokes from range: DoT and line shots

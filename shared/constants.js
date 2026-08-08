@@ -435,23 +435,23 @@ export const COLORS = [
 // history: docs/history/2026-08-08-constants-sweeps.md#bots
 export const BOTS = {
   grunt:     { name: 'Grunt', label: 'Easy', difficulty: 1, brain: 'grunt',
-               desc: 'Wanders and throws at nothing in particular. Cannon fodder.' },
+               desc: 'Wanders and throws at nothing in particular. Never dodges anything. Cannon fodder.' },
   // boltDodge (round 17, Remi: "Hard dodging 100% of lightnings is a bit
   // tough"): the chance a bot bothers stepping out of a sky-bolt telegraph,
   // committed ONCE per bolt. Missing = always dodges.
   brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
                react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35,
-               desc: 'Hunts you and trades, but it reads you slowly and its aim is loose. A fair fight.' },
+               desc: 'Hunts you and trades, but it reads you slowly and its aim is loose. Walks out of a lightning mark only a third of the time. A fair fight.' },
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
                react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5,
-               desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well.' },
+               desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well. Dodges your lightning half the time — a coin flip, not an oracle.' },
   // ⚠ stalker aimErr is [0.4, 0.05] on purpose (bigger floor, much flatter
   // distance term = accurate at range) — NOT the berserker's pair; 65f5597
   // copied that in by mistake. Corrected with no behaviour change (h2h verified).
   // history: docs/history/2026-08-08-constants-sweeps.md#bots-stalker-aimerr
   stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
                react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 0.85,
-               desc: 'Dodges your projectiles, leads its shots, and saves itself with teleport and shield.' },
+               desc: 'Dodges your projectiles AND nearly every lightning mark, leads its shots with a real intercept, and saves itself with teleport and shield.' },
 };
 
 // Seconds a bot keeps aiming at an enemy's last SEEN position (Vanish masking,
@@ -487,23 +487,27 @@ export const BOT_TARGETING = {
 // affordable next step, skipping what's owned/maxed. Selectable per bot in
 // the lobby ('random' picks one at seat time); the balance lab (tools/
 // arena.js) rates every kind × build pairing.
+// desc format (round 17, Remi: "rewrite the strategy texts"): what it buys +
+// how that feels to fight + the elements it actually picks in elemental —
+// ⚠ the element lists MUST match BUILD_ELEMENTS in shared/sim.js, which is
+// where the shopping really happens.
 export const BUILDS = {
   bruiser: { name: 'Bruiser',
-    desc: 'Max fireball, then HP and lifesteal. Stands its ground and trades.',
+    desc: 'Stands its ground and trades: HP and lifesteal under the fireball. Elemental picks: vampire, ember, momentum — it heals through you now and out-damages you later.',
     order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'ring', 'cape', 'treads'] },
   sniper:  { name: 'Sniper',
-    desc: 'Lightning first. Pokes from long range and finishes low targets.',
+    desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: venom, ghost, momentum — the poison keeps working while it repositions.',
     order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape', 'ring'] },
   escape:  { name: 'Escape artist',
-    desc: 'Max fireball with an escape button. Slippery, still dangerous.',
+    desc: 'A fireball with an escape button: slippery, never where you aimed. Elemental picks: arcane, ghost, mosquito — fast, faster, and a trap on your body.',
     order: ['boots', 'fireball', 'teleport', 'fireball', 'fireball', 'cape', 'teleport', 'ring'] },
   turtle:  { name: 'Turtle',
-    desc: 'Shield, regen and HP. Outlasts you and lets the lava do the work.',
+    desc: 'Shield, regen and HP: outlasts you and lets the lava do the work. Elemental picks: frost, terra, venom — slow you, hit big, and bleed you out.',
     order: ['shield', 'amulet', 'ring', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
   rusher:  { name: 'Rusher',
-    desc: 'Rush and lifesteal. Dives in and shoves you off the platform.',
+    desc: 'Rush and lifesteal: dives in and shoves you toward the lava. Elemental picks: gale, terra, ember — every hit pushes, and the big ones push HARD.',
     order: ['rush', 'fireball', 'boots', 'sword', 'fireball', 'rush', 'amulet', 'cape'] },
   boomer:  { name: 'Boomer',
-    desc: 'Boomerang stacking. Wide throws that hit on the way out and back.',
+    desc: 'Boomerang stacking: wide throws that hit going out AND coming back. Elemental picks: arcane, midas, ember — volume, income, damage.',
     order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'ring', 'sword'] },
 };

@@ -21,10 +21,10 @@ brain with a slower read and looser aim, not new AI.*
 
 | Tier | Name | How it plays |
 |---|---|---|
-| Easy | **Grunt** | Wanders the safe ring and fires at a **random bearing** — it does not aim at anybody at all. Cannon fodder, and the only instinct it keeps is not drowning. |
-| Normal | **Brawler** | The Hard brain with worse numbers: it decides every ~0.30–0.46 s (vs ~0.16–0.26 s) and carries a much bigger absolute aim error. It hunts you and trades, but it reads you slowly and sprays. |
-| Hard | **Berserker** | Hunts the nearest wounded/isolated prey, rushes in, herds rim-standers into the lava, never retreats (except from the lava's edge). Since round 10 it has a **human-ish reaction time** (~0.2 s): it aims from a slightly stale picture of you and its point-blank aim has real scatter — juking it in a duel works now. |
-| Extreme | **Stalker** | Sidesteps incoming projectiles (or shields late ones), leads its shots with a real intercept solve, finishes with lightning, teleports out of lava and point-blank pressure, kites harder when hurt. |
+| Easy | **Grunt** | Wanders the safe ring and fires at a **random bearing** — it does not aim at anybody at all. Never leaves a lightning mark. Cannon fodder, and the only instinct it keeps is not drowning. |
+| Normal | **Brawler** | The Hard brain with worse numbers: it decides every ~0.30–0.46 s (vs ~0.16–0.26 s) and carries a much bigger absolute aim error. It hunts you and trades, but it reads you slowly and sprays. Walks out of a lightning telegraph **35%** of the time. |
+| Hard | **Berserker** | Hunts wounded/isolated/rim-standing prey — since round 17 the pick is a **weighted draw**, not a lock-on, so four of them no longer pile onto one victim. Rushes in, never retreats (except from the lava's edge), aims from a slightly stale, human-ish (~0.2 s) picture of you. Dodges a lightning telegraph **50%** of the time — a committed coin flip per bolt (`boltDodge`, Remi's round-17 call). |
+| Extreme | **Stalker** | Sidesteps incoming projectiles (or shields late ones), steps out of **85%** of lightning marks, leads its shots with a real intercept solve, drops its own lightning where you are ABOUT to be, teleports out of lava and point-blank pressure, kites harder when hurt. |
 
 Measured ladder (`tools/h2h.js`, 2 seats vs 2 seats, 400 games, bruiser, 50% =
 parity): Normal beats Easy **100%**, Hard beats Normal **99.5%**, Extreme beats
