@@ -3257,7 +3257,10 @@ describe('bot reaction time', () => {
     // ceiling clearly; anything at or under 0.06 means the floor is gone.
     const OLD_CEILING = (3 * 0.12 / 2) / 3;
     const spreads = [];
-    for (let seed = 1; seed <= 16; seed++) {
+    // 32 seeds, one shot each: at 16 the max-spread draw sat close enough to
+    // the threshold that any change in rng-stream consumption (e.g. the round
+    // 18 spawn-shuffle draws) could flip it. More samples, same bar.
+    for (let seed = 1; seed <= 32; seed++) {
       const state = createGame({ seed });
       addPlayer(state, 'h', 'Human');
       addPlayer(state, 'b', 'Bot', { bot: true, kind: 'berserker' });
@@ -4489,5 +4492,51 @@ describe('live spectator standings', () => {
     expect(wire.vanishT).toBeUndefined();
     // and the dead viewer is told no more than a living opponent is
     expect(JSON.stringify(wire)).toBe(JSON.stringify(snapshot(state, 'b').players.a));
+  });
+});
+
+describe('spawn shuffle (round 18)', () => {
+  // Drive a running battle through roundEnd -> shop -> next countdown, so
+  // startRound re-seats everyone. Kills all but p0 in lava (no kill credit).
+  function nextRound(state) {
+    for (const pl of Object.values(state.players)) {
+      if (pl.id === 'p0') continue;
+      pl.hp = 0.01;
+      pl.x = ARENA.START_RADIUS + 5; pl.y = 0;
+    }
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
+    expect(state.phase).toBe('shop');
+    run(state, ROUND.SHOP_TIME + 0.5);
+    expect(state.phase).toBe('countdown');
+  }
+  const seats = (state) => Object.values(state.players)
+    .map(p => `${p.id}:${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+
+  it('deals the spawn seats fresh each round (same slots, new owners)', () => {
+    const state = freshBattle(4);
+    const slotSet = (s) => Object.values(s.players)
+      .map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).sort().join(' ');
+    const before = seats(state), slotsBefore = slotSet(state);
+    // one reshuffle can deal the identity permutation; across three rounds
+    // (seed 42) at least one deal must differ or the shuffle does not exist
+    let changed = false;
+    for (let r = 0; r < 3 && !changed; r++) {
+      nextRound(state);
+      changed = seats(state) !== before;
+      expect(slotSet(state)).toBe(slotsBefore); // the circle itself never moves
+    }
+    expect(changed).toBe(true);
+  });
+
+  it('is seeded: two games with the same seed deal identically', () => {
+    const mk = () => {
+      const s = createGame({ seed: 7, mode: 'classic' });
+      for (let i = 0; i < 4; i++) addPlayer(s, `p${i}`, `P${i}`);
+      startGame(s);
+      run(s, ROUND.COUNTDOWN + DT);
+      nextRound(s);
+      return seats(s);
+    };
+    expect(mk()).toBe(mk());
   });
 });

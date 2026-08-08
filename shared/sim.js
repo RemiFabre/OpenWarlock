@@ -1044,7 +1044,18 @@ function startRound(state) {
   // wave would rush the lava in as a punishment for winning
   state.roundFighters = coop ? partyOf(state).length : fs.length;
   const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
-  fs.forEach((pl, i) => {
+  // Round 18 (Remi): versus seats are DEALT FRESH each round — a fixed wheel
+  // made your neighbours a game-long constant. Seeded rng: same seed, same
+  // deals. Co-op keeps its stable party arc (the waves aim at it).
+  const seat = fs.map((_, i) => i);
+  if (!coop) {
+    for (let i = seat.length - 1; i > 0; i--) {
+      const j = Math.floor(rng(state) * (i + 1));
+      [seat[i], seat[j]] = [seat[j], seat[i]];
+    }
+  }
+  fs.forEach((pl, k) => {
+    const i = seat[k];
     // co-op parties spawn together on one side (the waves come from the other)
     const a = coop
       ? -Math.PI / 2 + (fs.length > 1 ? (i / (fs.length - 1) - 0.5) * (Math.PI / 3) : 0)
