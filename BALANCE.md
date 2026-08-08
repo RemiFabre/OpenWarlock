@@ -165,8 +165,11 @@ lobby; the Extreme column is the direction skilled play bends it.
 
 *These need Remi, not more games. Ordered by how much rides on them.*
 
-**A. The Amulet and the Blood Sword return 3-6× more per gold than anything
-else, and no one has ruled on it.** Amulet lv1 +64.1 and Sword lv1 +41.2, against
+**A. ~~The Amulet and the Blood Sword return 3-6× more per gold than anything
+else, and no one has ruled on it.~~ RULED 2026-08-08 (docs/ROUND17.md §9):
+"no item should be mandatory by win rate" — the nerf pass is authorized, with
+suggested first values and a measured target (ladder lv0 ≥ ~15%) in ROUND17.**
+Original question for context: Amulet lv1 +64.1 and Sword lv1 +41.2, against
 +14.6 for the next item down; on the ladder a seat that skips the Amulet wins
 **0.4%** of its games. This is the actual cause of "item levels 2-3 feel like a
 trap" (§4) — every other level is competing with those two. Raised in round 13,
@@ -178,7 +181,9 @@ is a design decision.
 the round-13 table was reading a berserker's mistake and the item is already
 correct; if it feels weak, `ITEM_FX.cape.kbMult` is the one-line lever.
 
-**C. The lava kill share still has no ruling.** 86% at launch → 68% → 47% → ~38%
+**C. ~~The lava kill share still has no ruling.~~ RULED 2026-08-08
+(docs/ROUND17.md §10): the falling share is NOT a problem per se — keep
+reporting the metric every round, no target value. Original context:** 86% at launch → 68% → 47% → ~38%
 → 30% → **30.0%** now. Two deaths in three are people being shot on the platform
 rather than shoved in. It has been open question #1 since round 10 and every round
 retunes on top of it. One-line levers: `PLAYER.KB_HP_FACTOR`,

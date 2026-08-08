@@ -34,9 +34,14 @@ Agent context usage on this project is **CRITICAL**. The rules:
   measured retunes (momentum `rampDmg 0.022`, arcane refund excludes its own
   fireball); two regression fixes (`NEVER_STOPS` scoped to versus, mirror-wall
   tunneling). Full story: REMI_NOTES.md; numbers: BALANCE.md.
-- **Waiting on Remi**: the `midas-cdr` auto-win ruling (BALANCE.md open
-  question J — 86% Hard / 95% Extreme, no polite nerf works), the venom nerf
-  (G), the offense-first meta question (H), and the round-13/16 feel items.
+- **THE NEXT WORK ORDER IS `docs/ROUND17.md`** (dictated 2026-08-08):
+  lightning → telegraphed sky-bolt, hook → position swap, CDR → Ability
+  Haste, midas/momentum stacking reshapes, sustain-item pass ("no mandatory
+  items" is now a ruling), co-op mothballed, bot stochastic focus (own
+  session). It suggests a session split — follow it.
+- **Still waiting on Remi**: the venom nerf shape (open question G) and the
+  round-13/16 feel items. Open questions A and C were RULED in ROUND17;
+  J (midas-cdr) is expected to be resolved by ROUND17 §4+§5 — verify.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -93,7 +98,7 @@ build step, Node ESM, only dep is `ws`.
 - **Lava** 14 DPS, ×2 swim speed; versus ring **never stops** (`NEVER_STOPS`);
   **co-op keeps the classic ring** at `COOP_SHRINK_TIME` 65 s (campaign is
   priced on it). Lava kill share has fallen every round (now ~19% Hard / 44%
-  Extreme) and **has never had a ruling** (BALANCE open question C).
+  Extreme) — RULED 2026-08-08: not a problem per se, keep reporting it.
 - **Knockback is CONSTANT** (`KB_CONSTANT_MISSING 0.30`; set `null` to restore
   HP-scaling — that one line is the revert). No size term, ever.
 - **Anti-snowball economy**: 8 g/round + 2/kill + 2 round win + 1 first death;
