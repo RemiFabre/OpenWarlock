@@ -410,6 +410,11 @@ export function castSpell(state, id, key, tx, ty) {
   const cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
   pl.cooldowns[key] = cd;
 
+  // Round 18.1 (Remi): a cast REVEALS an invisible caster — re-casting vanish
+  // refreshes instead (its case below). The auto repulse burst in stepBattle
+  // is a charge completing, NOT a cast: it never reveals.
+  if (pl.vanishT > 0 && key !== 'vanish') pl.vanishT = 0;
+
   switch (key) {
     case 'fireball': {
       // Vampire (elemental): the counter runs on YOUR CASTS, so unlike mosquito
@@ -482,9 +487,9 @@ export function castSpell(state, id, key, tx, ty) {
       break;
     }
     case 'vanish': {
-      // No restrictions at all (Remi, docs/ROUND12.md N4): you keep casting,
-      // hitting and being hit — the level buys duration only. Re-casting
-      // refreshes rather than stacking.
+      // You keep moving and can still be hit — the level buys duration only,
+      // and re-casting refreshes rather than stacking. Round 18.1: any OTHER
+      // cast reveals you (the gate above the switch).
       pl.vanishT = Math.max(pl.vanishT || 0, lvl(spec, 'duration', level));
       // Both this and the generic 'cast' event below carry a position, which for
       // an invisible player is exactly what must not leak — viewEvents drops
@@ -1492,6 +1497,10 @@ function stepBattle(state, dt) {
       }
     }
 
+    // pre-move position: wall collision keeps a body on the side of the wall
+    // it STARTED the tick on (a fast knockback tick must not tunnel across)
+    const mx0 = pl.x, my0 = pl.y;
+
     // dash movement (overrides normal control)
     if (pl.dash) {
       const spec = SPELLS.rush;
@@ -1538,6 +1547,9 @@ function stepBattle(state, dt) {
     // pillars: push the player out along the normal and kill the velocity
     // component INTO the pillar — knockback slams you against cover and stops
     collidePillars(state, pl);
+
+    // mirror walls block BODIES too (round 18.1), the owner's included
+    collideWalls(state, pl, mx0, my0);
 
     // Lava portals (round 18, versus only): touch one and you are home at the
     // center — dead stop, intent cleared. The event carries `id`, so a
@@ -1650,6 +1662,31 @@ function collidePillars(state, pl) {
     pl.y = pil.y + ny * min;
     const vn = pl.vx * nx + pl.vy * ny;
     if (vn < 0) { pl.vx -= vn * nx; pl.vy -= vn * ny; }
+  }
+}
+
+// Mirror walls are solid for BODIES (round 18.1): nobody walks or is knocked
+// through one — the owner included, like pillars. Circle-vs-segment: push the
+// player back to the face on the side of the tick's STARTING position (x0,y0),
+// so a fast knockback tick cannot tunnel across the plane, and kill the
+// velocity component into the wall.
+function collideWalls(state, pl, x0, y0) {
+  if (!state.walls.length) return;
+  for (const w of state.walls) {
+    const near = segmentPointDist(w.x1, w.y1, w.x2, w.y2, pl.x, pl.y) < pl.radius;
+    const crossed = segSegDist(x0, y0, pl.x, pl.y, w.x1, w.y1, w.x2, w.y2) < pl.radius;
+    if (!near && !crossed) continue;
+    const s0 = (x0 - w.x1) * w.nx + (y0 - w.y1) * w.ny;
+    const s1 = (pl.x - w.x1) * w.nx + (pl.y - w.y1) * w.ny;
+    const side = Math.sign(s0) || Math.sign(s1) || 1;
+    // the segment's closest point to the player anchors the push-out
+    const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+    const len2 = dx * dx + dy * dy || 1;
+    const t = clamp(((pl.x - w.x1) * dx + (pl.y - w.y1) * dy) / len2, 0, 1);
+    pl.x = w.x1 + dx * t + side * w.nx * pl.radius;
+    pl.y = w.y1 + dy * t + side * w.ny * pl.radius;
+    const vn = pl.vx * w.nx + pl.vy * w.ny;
+    if (vn * side < 0) { pl.vx -= vn * w.nx; pl.vy -= vn * w.ny; }
   }
 }
 

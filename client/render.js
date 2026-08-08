@@ -971,12 +971,16 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         // this — Blood Sword included — not just vampire's engorged ball. The
         // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
+        const amt = Math.round(+f.amount || 0);
+        // round 18.1 (Remi): the SIZE carries the magnitude — +1 hp whispers
+        // at 10px, +50 hp (and anything bigger) shouts at 26px
+        const px = Math.round(10 + 16 * Math.min(Math.max(amt, 0), 50) / 50);
         ctx.save();
         ctx.textAlign = 'center';
-        ctx.font = '700 19px ui-monospace, Menlo, monospace';
+        ctx.font = `700 ${px}px ui-monospace, Menlo, monospace`;
         ctx.fillStyle = `rgba(120, 235, 140, ${a})`;
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 8;
-        ctx.fillText(`+${Math.round(+f.amount || 0)} hp`, x, y);
+        ctx.fillText(`+${amt} hp`, x, y);
         ctx.shadowBlur = 0;
         ctx.strokeStyle = `rgba(224, 64, 90, ${a * 0.9})`;
         ctx.lineWidth = 3 * a + 1;

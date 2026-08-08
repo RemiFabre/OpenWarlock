@@ -2911,6 +2911,33 @@ describe('power spells & pillar', () => {
     expect(Math.abs(b.vx)).toBeLessThan(1); // no knockback: b got a's rest state
   });
 
+  it('swap: range and cooldown come from the spec at lv1 and lv3 (round 18.1)', () => {
+    const spec = SPELLS.swap;
+    expect(spec.maxLevel).toBe(3);
+    for (const level of [1, spec.maxLevel]) {
+      const state = freshBattle(3);
+      const a = state.players.p0;
+      state.pillars = [];
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+      // park the others OFF the flight path so the bolt expires on range
+      state.players.p1.x = 0; state.players.p1.y = 45; state.players.p1.moveTarget = null;
+      state.players.p2.x = 0; state.players.p2.y = -45; state.players.p2.moveTarget = null;
+      a.spells.swap = level; a.cooldowns = {};
+      expect(castSpell(state, 'p0', 'swap', 20, 0)).toBe(true);
+      expect(a.cooldowns.swap).toBeCloseTo(spec.cooldown[level - 1], 5);
+      let traveled = 0, flying = true;
+      for (let i = 0; i < 200 && flying; i++) {
+        step(state, DT);
+        const pr = state.projectiles.find(p => p.type === 'swap');
+        if (pr) traveled = pr.traveled; else flying = false;
+      }
+      const range = spec.range[level - 1];
+      expect(flying).toBe(false);                  // expired on range, not the loop cap
+      expect(traveled).toBeLessThan(range);        // culled the tick it crossed
+      expect(traveled).toBeGreaterThan(range - spec.speed * DT * 2);
+    }
+  });
+
   it('repulse: 2 s visible charge (spell-locked), then a radial blast', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -3001,6 +3028,37 @@ describe('power spells & pillar', () => {
     // walls expire
     run(state, SPELLS.wall.duration + 0.5);
     expect(state.walls.length).toBe(0);
+  });
+
+  it('mirror wall is tangible: walking into it stops at the face (owner too)', () => {
+    const state = freshBattle(3);
+    state.pillars = [];
+    const a = state.players.p0;
+    a.x = -6; a.y = 0; a.vx = a.vy = 0;
+    // wall on the y axis, normal facing a (the side a is on); a owns it —
+    // round 18.1: walls block EVERY body, the owner included
+    state.walls = [{ x1: 0, y1: -5, x2: 0, y2: 5, nx: -1, ny: 0,
+      owner: 'p0', until: state.time + 60 }];
+    setMoveTarget(state, 'p0', 10, 0);
+    run(state, 2);
+    expect(a.x).toBeLessThanOrEqual(-a.radius + 1e-6); // never crossed the plane
+    expect(a.x).toBeGreaterThan(-a.radius - 0.5);      // pressed against it, not repelled
+    expect(Math.abs(a.y)).toBeLessThan(1);
+  });
+
+  it('mirror wall is tangible: knockback cannot punch you through it', () => {
+    const state = freshBattle(3);
+    state.pillars = [];
+    const a = state.players.p0;
+    a.x = -4; a.y = 0; a.moveTarget = null;
+    state.walls = [{ x1: 0, y1: -6, x2: 0, y2: 6, nx: -1, ny: 0,
+      owner: 'p1', until: state.time + 60 }];
+    a.vx = 90; a.vy = 0;   // a monster shove: 3 units per tick, > player radius
+    for (let i = 0; i < 45; i++) {
+      step(state, DT);
+      expect(a.x).toBeLessThanOrEqual(-a.radius + 1e-6);
+    }
+    expect(a.vx).toBeLessThanOrEqual(0.01); // the wall killed the inbound velocity
   });
 });
 
@@ -3530,18 +3588,52 @@ describe('vanish 👁️ (invisibility)', () => {
     const state = vanishBattle();
     const a = state.players.a;
     a.spells.fireball = 1;
-    castSpell(state, 'a', 'vanish', 5, 5);
     state.events = [];
-    castSpell(state, 'a', 'fireball', 20, 0);   // casting while invisible is legal
+    castSpell(state, 'a', 'vanish', 5, 5);
     const forB = viewEvents(state, state.events, 'b');
     const forA = viewEvents(state, state.events, 'a');
-    expect(forA.some(e => e.t === 'cast' && e.id === 'a')).toBe(true);
+    expect(forA.some(e => e.t === 'vanish' && e.id === 'a')).toBe(true);
     expect(forB.some(e => e.id === 'a')).toBe(false);
-    // the projectile itself STAYS visible: you are invisible, your spells are not
+    // round 18.1: casting anything ELSE reveals you, so its events are public
+    // (before this, the fireball cast was the masked event in this test)
+    state.events = [];
+    castSpell(state, 'a', 'fireball', 20, 0);
+    expect(a.vanishT).toBe(0);
     expect(snapshot(state, 'b').projectiles.length).toBe(1);
-    // and once you are visible again the stream is untouched (no copy at all)
-    a.vanishT = 0;
+    // visible again: the stream is untouched (no copy at all)
     expect(viewEvents(state, state.events, 'b')).toBe(state.events);
+  });
+
+  it('casting anything else while invisible REVEALS you; re-casting vanish refreshes', () => {
+    const state = vanishBattle();
+    const a = state.players.a;
+    a.spells.fireball = 1;
+    castSpell(state, 'a', 'vanish', 5, 5);
+    run(state, 0.3);
+    expect(a.vanishT).toBeGreaterThan(0);
+    // re-casting vanish refreshes the timer, never reveals
+    a.cooldowns = {};
+    expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
+    expect(a.vanishT).toBeCloseTo(spec.duration[0], 5);
+    // any other cast: revealed on the spot, the snapshot position returns
+    expect(castSpell(state, 'a', 'fireball', 20, 0)).toBe(true);
+    expect(a.vanishT).toBe(0);
+    expect(snapshot(state, 'b').players.a.x).toBeDefined();
+  });
+
+  it('an auto-completing repulse burst is NOT a cast: it does not reveal', () => {
+    const state = vanishBattle();
+    const a = state.players.a;
+    a.spells.repulse = 1;
+    expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
+    // vanish is spell-locked mid-charge, so grant the invisibility by hand:
+    // the point under test is the BURST (stepBattle), not the cast path
+    a.vanishT = 5;
+    state.events = [];
+    run(state, SPELLS.repulse.charge + 0.2);
+    expect(a.charging).toBeFalsy();
+    expect(state.events.some(e => e.t === 'repulse')).toBe(true);
+    expect(a.vanishT).toBeGreaterThan(0);   // the burst kept you hidden
   });
 
   it('a death is public even if you died invisible', () => {
@@ -3580,13 +3672,15 @@ describe('vanish 👁️ (invisibility)', () => {
     expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
     expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(false);
     a.charging = null;
-    // vanishing first: the charge still works, and stays hidden while it winds up
+    // vanishing first: the repulse cast still works, but since round 18.1 the
+    // cast itself REVEALS you (it used to stay hidden through the wind-up)
     a.cooldowns = {};
     expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
     expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
     expect(a.charging).toBeTruthy();
+    expect(a.vanishT).toBe(0);
     expect(snapshot(state, 'b').players.a.charging).toBe(true);
-    expect(snapshot(state, 'b').players.a.x).toBeUndefined(); // …but not WHERE
+    expect(snapshot(state, 'b').players.a.x).toBeDefined();
   });
 
   it('bots lose sight of a vanished player and shoot the last place they saw them', () => {

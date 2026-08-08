@@ -1563,7 +1563,7 @@ function updateUi(s) {
       const rg = fin(+p.roundGold) ? +p.roundGold : null;
       return `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
+        <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">${p.kills || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
         <span class="rgold num ${rg ? '' : 'zero'}">${rg == null ? '' : `+${rg}`}</span>
@@ -1571,7 +1571,7 @@ function updateUi(s) {
     }).concat(specs.map(p =>
       `<div class="r spec ${p.id === myId ? 'me' : ''}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">👁</span>
         <span class="gold num"></span><span class="rgold num"></span>
       </div>`)).join('');

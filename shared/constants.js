@@ -181,8 +181,10 @@ export const SPELLS = {
     desc: 'Out and back. Tap again to recall it early; catch it to halve the cooldown.',
   },
   teleport: {
-    name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [12, 8],
-    cooldown: [16, 12], range: [18, 26],
+    // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
+    // Revert path: costs [12, 8], range [18, 26].
+    name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [8, 6],
+    cooldown: [16, 12], range: [22, 22],
     desc: 'Blink to cursor. Cancels your momentum — the lava save.',
   },
   shield: {
@@ -213,10 +215,11 @@ export const SPELLS = {
   },
   swap: {
     // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
-    // exchange; 1 dmg stamps the last-hitter (lava credit). ONE level since
-    // round 17.2, range doubled — the lava-save fantasy needs the reach.
-    name: 'Swap', hotkey: 'G', tier: 'power', maxLevel: 1, costs: [12],
-    cooldown: 13, speed: 38, radius: 0.9, range: 68,
+    // exchange; 1 dmg stamps the last-hitter (lava credit). Round 18.1: back
+    // to 3 levels (they buy range + CDR), bolt sped up 38 -> 50.
+    // Revert path (17.2): maxLevel 1, costs [12], cooldown 13, speed 38, range 68.
+    name: 'Swap', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 6, 6],
+    cooldown: [13, 12, 11], speed: 50, radius: 0.9, range: [40, 55, 70],
     damage: 1,
     desc: '🔀 Hit an enemy to TRADE PLACES — position and momentum both.',
   },
@@ -237,9 +240,10 @@ export const SPELLS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#spells-vanish
   vanish: {
     // round 17 (Remi): 1/2/3 s at a flat 10 g per level (was 0.75/1.5/2.25 at 12+8+8)
+    // round 18.1 (Remi): casting anything else REVEALS you (see castSpell)
     name: 'Vanish', hotkey: 'V', maxLevel: 3, costs: [10, 10, 10],
     cooldown: [14, 13, 12], duration: [1, 2, 3],
-    desc: '👁️ Invisible for a moment. You can still cast — and still be hit.',
+    desc: '👁️ Invisible for a moment. Casting reveals you — and you can still be hit.',
   },
 };
 
