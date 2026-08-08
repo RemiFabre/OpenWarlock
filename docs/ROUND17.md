@@ -11,9 +11,34 @@ Treat them as informed guesses to verify, never as rulings.*
 Suggested split at the bottom. Read AGENTS.md first; grep `docs/history/`
 only when a specific number is needed.*
 
+## ⚑ STATUS UPDATE (same day, second dictation): APPROVED
+
+Remi reviewed this document and **approved every “Outgoing agent’s opinion”
+below** — read those blocks as the chosen direction and their first values as
+the values to implement first (still: measure, don’t trust). The second
+dictation also added three things, folded in below:
+
+- **§5b — the venom redesign** (his ruling on the element this doc had left
+  open);
+- **§11 — a projectile identity & visual-evolution pass** (a full work item,
+  its own agent);
+- **ember nerf approved**: `dmgAdd [2, 4, 6] → [2, 3, 5]` as the first try —
+  and “per-fireball damage evolving a bit less overall” is acceptable to him.
+
+### Delegation rules (Remi)
+
+Each section is tagged **MAIN** (the principal agent does it — interdependent
+judgment) or **DELEGABLE** (may go to a subagent). Subagent constraints:
+
+- **Opus-class model or better, always.**
+- Subagents obey the same anti-bloat law as everyone: **no flood of useless
+  comments, no exaggerated/over-engineered code** — match the codebase’s
+  existing density and idiom; the CONTEXT POLICY in AGENTS.md binds them too.
+- The principal agent reviews every subagent diff before committing.
+
 ---
 
-## 1. Co-op: mothball it (P0, trivial)
+## 1. Co-op: mothball it (P0, trivial) — DELEGABLE
 
 Every agent keeps sinking energy into co-op even though, as it stands, **it is
 not fun to play**. Remi will redesign it properly himself someday. Until then:
@@ -30,7 +55,7 @@ not fun to play**. Remi will redesign it properly himself someday. Until then:
 > for the future redesign); drop the “re-run coop --levels in the same commit”
 > rule down to “only if its tests break”, and note that in AGENTS.md.
 
-## 2. Lightning rework: a telegraphed bolt from the sky (P0, the big one)
+## 2. Lightning rework: a telegraphed bolt from the sky (P0, the big one) — MAIN
 
 Replace the instant short-range hitscan entirely. New design:
 
@@ -86,7 +111,7 @@ Replace the instant short-range hitscan entirely. New design:
 >   strategy-study cores) and in `pilotOwnedSpells`. Rewrite the pilot logic
 >   in the same commit or those builds crater in the tables for a fake reason.
 
-## 3. Hook rework: the position swap (P0, small and delicious)
+## 3. Hook rework: the position swap (P0, small and delicious) — MAIN
 
 Replace the yank with an **inversion**: a projectile; on impact, **the caster
 and the victim swap positions at that instant**.
@@ -114,7 +139,7 @@ and the victim swap positions at that instant**.
 >   vanished player (position reveal is fine — dying reveals too), swap must
 >   not trigger knockback or on-hit riders (it is not a fireball).
 
-## 4. CDR → Ability Haste (P0, systemic fix)
+## 4. CDR → Ability Haste (P0, systemic fix) — MAIN
 
 The measured CDR degeneracy (multiplicative stacking; cast frequency explodes
 as cooldowns approach zero) gets the League of Legends fix: **replace
@@ -138,7 +163,7 @@ so cast FREQUENCY grows linearly and the knob becomes balanceable.
 >   `double-cdr` from 49% to ~35-40% and is half the fix for `midas-cdr`
 >   (86%). Re-run the strategy study after; open question J may close itself.
 
-## 5. Stacking mechanics — midas & momentum (P0, needs the most judgment)
+## 5. Stacking mechanics — midas & momentum (P0, needs the most judgment) — MAIN
 
 Remi’s diagnosis, systemic: **linear per-hit scaling turns super-linear when
 the scaled resource has second-order effects** (enough gold → buy everything;
@@ -193,7 +218,29 @@ Ideas he put on the table (pick/measure, he has no fixed ruling):
 >   the stacking is the lever — consecutive-hit gating à la midas would fit
 >   venom too and would unify the design language).
 
-## 6. Two element categories? (P1, design question — Remi undecided)
+## 5b. Venom redesign (RULED, second dictation) — MAIN
+
+The stacking tick (re-hits refresh the clock AND grow the tick toward
+`stackCap`) is the problem: land 4 hits in a row and the DoT is monstrous,
+land one and it is negligible — inherently hard to balance, and it is what
+kept venom at 92% through every tick-size nerf.
+
+**The new identity: the kill-stealer.** A sneaky build — less raw damage than
+the pure-damage axes, but its DoT keeps ticking after you disengage, and the
+existing credit rule (a lethal poison tick takes the kill, even in lava) means
+venom collects kills other people set up. Remi: “essayons ça”.
+
+- **Remove tick stacking entirely** (`stackAdd`/`stackCap` are deleted):
+  re-hits only REFRESH the duration.
+- Since stacking is gone, **buff the tick**: first try
+  `tickDmg [1, 1.5, 2] → [2, 3, 4]`. Keep the −15% direct-damage penalty and
+  the ground trail as they are.
+- **Verification pass required**: mixed table + strategy study. Target: venom
+  leaves the 90s and lands in the top third without being #1. The lethal-tick
+  credit rule and the “DoT never stamps last-hitter” rule are test-locked —
+  do not touch them, they ARE the identity now.
+
+## 6. Element / Mutation split (P1) — DELEGABLE (approved: presentational only)
 
 The roster is drifting into two natures: **basic axes** (ember/terra/gale/
 arcane/ghost — one ball stat, lv3 special) vs **gameplay changers** (mosquito,
@@ -215,7 +262,7 @@ instead of a fireball).
 >   interrupt anything and will feel dead). ⚠ It stacks with momentum (both
 >   damage-only) — measure that pair explicitly before shipping.
 
-## 7. Bots: stochastic focus + pilot the kit (P1, delegable to its own agent)
+## 7. Bots: stochastic focus + pilot the kit (P1) — DELEGABLE (its own session/agent)
 
 Two pains: **being rushed by 1-2 AIs from the first second is miserable**
 (near-unplayable at 2), while leader-focus as a comeback force is good and
@@ -244,7 +291,7 @@ lightning (including dodging telegraphs), and any other cheap wins.
 > - This is AGENTS.md debt #1 finally becoming tractable — one dedicated
 >   session, clean context, its own commit.
 
-## 8. Map / anti-focus brainstorm (P2, ideas only — no commitment)
+## 8. Map / anti-focus brainstorm (P2, ideas only — no commitment) — PARKED
 
 Teleporter pads? Lava that carves non-circular shapes as it shrinks? Both are
 just brainstorm; the underlying desire is **give the focused player
@@ -256,7 +303,7 @@ counterplay** (the swap spell is one answer; pillars and shield are others).
 > fixed pair, blink-with-cooldown, bots can learn “focused & near pad → take
 > it”), but I’d ship §3 + §7 first and re-ask whether the pain persists.
 
-## 9. Transparency & sustain items (P1, part of Remi’s balance pass)
+## 9. Transparency & sustain items (P1, part of Remi’s balance pass) — MAIN
 
 - **No hidden mechanics.** The regen lock (regen ×0.25 for 2.5 s after taking
   damage — and yes, lava damage triggers it too) must be stated in-game,
@@ -298,12 +345,44 @@ counterplay** (the swap spell is one answer; pillars and shield are others).
 - Strong late-game combos (e.g. near-certain fireball reset on hit) are
   desired fantasies, balanced not banned (§4).
 
+## 11. Projectile identity & visual-evolution pass (P1) — DELEGABLE (its own agent)
+
+Many things now modify the fireball and the combinations are getting hard to
+read. A full visual pass, with one core principle:
+
+- **Modifications must be visually ADDITIVE and stackable.** Each modifier
+  contributes its own layer — particles, trails, tint accents — rather than
+  replacing the ball’s look, so two effects mixed stay legible and the player
+  can SEE the impact of each choice they made.
+- **Momentum’s quest must be visible on the ball itself**: each evolution
+  tier adds something countable — extra flame-trails / more particles — so the
+  trail literally shows your tier. (Find one nice, unique representation.)
+- **Punctual event-balls take priority when layers conflict** (a color can’t
+  be two colors): vampire’s engorged ball should be unmissable — an intense
+  red — and mosquito’s near-harmless sting must look clearly different from a
+  real fireball. Ideally an event-ball carries the other layers with it;
+  when stuck, the event wins the base color.
+- Two goals, both first-class: **(a) the owner’s satisfaction** — you watch
+  your spells evolve in the direction you chose; **(b) the defender’s
+  clarity** — you understand what an incoming projectile will do to you.
+
+> **Outgoing agent’s note**: `client/render.js` already tints per element and
+> draws vampire 🧛 / ghost rings — the pass should unify those one-offs into
+> one layered system (base ball → element accents → evolution particles →
+> event override). Screenshot-verify in a headless browser: the “pip under
+> the HP bar” scar says renderer changes are only real once seen.
+
 ## Suggested session split (context policy)
 
-1. **Session A (mechanics)**: §1 co-op mothball → §4 haste → §3 swap → §2
-   lightning (biggest last, with its minimal bot support). Tests + ritual.
-2. **Session B (balance)**: §5 midas/momentum shapes + §9 sustain values +
-   venom, then ONE strategy-study battery at the end, not per-change.
-3. **Session C (bots, separate agent)**: §7 stochastic focus + kit piloting,
-   verified against the ladder and the new focus metric.
-4. §6 shop grouping/naming and §8 stay parked until Remi reacts to A+B.
+1. **Session A (mechanics, MAIN)**: §1 co-op mothball (delegate) → §4 haste →
+   §3 swap → §2 lightning (biggest last, with its minimal bot support).
+   Tests + ritual.
+2. **Session B (balance, MAIN)**: §5 midas/momentum shapes + §5b venom +
+   ember `[2,3,5]` + §9 sustain values — then ONE strategy-study battery at
+   the end, not per-change.
+3. **Session C (bots, DELEGATE — own agent)**: §7 stochastic focus + kit
+   piloting, verified against the ladder and the new focus metric.
+4. **Session D (visuals, DELEGATE — own agent)**: §11 projectile identity
+   pass, screenshot-verified.
+5. §6 shop grouping (small, delegate anytime) and §8 stay parked until Remi
+   reacts to A+B.

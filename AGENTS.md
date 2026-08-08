@@ -23,7 +23,8 @@ Agent context usage on this project is **CRITICAL**. The rules:
   **Never paste a sweep table into code.**
 - **Work style**: prefer one-commit-sized briefs; delegate mechanical grinds
   (reference hunts, test fixes after a spec change, doc propagation, archive
-  moves) to clean-context subagents and review their diffs; the labs stay
+  moves) to clean-context subagents — **Opus-class or better, bound by the
+  same anti-bloat rules** — and review their diffs; the labs stay
   quiet when stderr is not a TTY. Do not add a fourth living doc — extend
   these.
 
