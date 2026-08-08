@@ -828,10 +828,8 @@ function spellTip(key, spec, level, maxLevel) {
     rows += tipRow(label, spec[field], maxLevel, fmt, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
-  const total = spec.costs.slice(0, maxLevel).reduce((a, b) => a + b, 0);
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
-    `Full path costs <b>${total} g</b>.`,
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
   return tipShell(ICONS[key], spec.name, spec.desc,
@@ -957,7 +955,9 @@ function spellStatLine(spec, level) {
   const parts = [];
   for (const [field, label, unit] of SPELL_STAT_FIELDS) {
     if (spec[field] == null) continue;
-    parts.push(`${label} ${fmtNum(statAt(spec[field], level))}${unit}`);
+    const v = statAt(spec[field], level);
+    if (v === Infinity) continue; // infinite range is the norm — say nothing
+    parts.push(`${label} ${fmtNum(v)}${unit}`);
   }
   return parts.join(' · ');
 }
@@ -982,8 +982,10 @@ function nextLevelLine(fxSpec, dict, level) {
   for (const field of orderedFields(fxSpec || {}, dict)) {
     const v = fxSpec[field];
     if (!Array.isArray(v)) continue;
+    const next = statAt(v, level + 1);
+    if (!next) continue;  // 0 = the level you're buying doesn't grant it yet
     const [label, fmt] = dict[field] || [field, fmtNum];
-    parts.push(`${label} ${fmt(statAt(v, level + 1))}`);
+    parts.push(`${label} ${fmt(next)}`);
   }
   return parts.join(' · ');
 }
