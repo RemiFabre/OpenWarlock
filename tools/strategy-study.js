@@ -80,7 +80,7 @@ export const STRATEGIES = {
       'amulet', 'amulet'],
   },
   'mosquito-combo': {
-    desc: 'Trap setup: max mosquito, then venom so every cashed sting doubles the poison, then arcane cadence for more stings per fight.',
+    desc: 'Trap setup: max mosquito (lv3 clears the damage penalty), then venom so every cashed trap re-applies the poison, then arcane cadence for more casts per fight.',
     core: ['mosquito', 'mosquito', 'mosquito', 'venom', 'venom', 'arcane',
       'venom', 'arcane', 'amulet'],
   },
@@ -153,7 +153,7 @@ export const STRATEGIES = {
       'hourglass', 'arcane', 'hourglass'],
   },
   'mosquito-midas': {
-    desc: 'Gold machine: every cashed sting procs midas TWICE (+2 g a hit), and the sting itself is cheap to land.',
+    desc: 'Gold machine: a cashed trap lands 3 hits at once, so midas marks cash twice per armed+cashed pair (+2 g).',
     core: ['mosquito', 'midas', 'mosquito', 'midas', 'mosquito', 'midas',
       'amulet', 'sword', 'amulet'],
   },

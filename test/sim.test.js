@@ -1462,28 +1462,34 @@ describe('elemental mode', () => {
     expect(state.players.p0.momentumHits).toBe(1);
   });
 
-  // ---- mosquito 🦟 (simplified: stacks, no geometry) ----------------------
-  it('mosquito 🦟: stings for 1, no push, on a shortened cooldown', () => {
+  // ---- mosquito 🦟 (round 18.2: normal balls, penalty + trap) --------------
+  it('mosquito 🦟: NORMAL fireball paying the penalty — spec dmg/kb mult, plain cooldown', () => {
     const f = ELEMENTS.mosquito.fx;
+    // control: the identical point-blank hit with no elements at all
+    const ctrl = hitWith({});
+    const ctrlDmg = ctrl.players.p1.maxHp - ctrl.players.p1.hp;
+    const ctrlVx = Math.abs(ctrl.players.p1.vx);
+    expect(ctrlDmg).toBeCloseTo(SPELLS.fireball.damage[0], 1);
     const state = hitWith('mosquito');
     const a = state.players.p0, b = state.players.p1;
-    expect(b.maxHp - b.hp).toBeCloseTo(f.stingDmg, 0);
-    expect(Math.abs(b.vx)).toBeLessThan(0.5);   // no knockback at all
-    // round 18: the levels are fireball HASTE (additive, like arcane's)
-    const full = SPELLS.fireball.cooldown[0];
+    expect(b.maxHp - b.hp).toBeCloseTo(ctrlDmg * f.dmgMult[0], 3);
+    expect(Math.abs(b.vx)).toBeCloseTo(ctrlVx * f.kbMult[0], 3);
+    // lv3 buys the penalty back entirely: a clean full fireball
+    const s3 = hitWith({ mosquito: 3 });
+    expect(s3.players.p1.maxHp - s3.players.p1.hp)
+      .toBeCloseTo(ctrlDmg * f.dmgMult[2], 3);
+    // no haste any more (round 18's levels are gone): plain fireball cooldown
     a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(a.cooldowns.fireball).toBeCloseTo(full / (1 + f.haste[0] / 100), 5);
+    expect(a.cooldowns.fireball).toBeCloseTo(SPELLS.fireball.cooldown[0], 5);
   });
 
-  it('mosquito haste SUMS with arcane haste (one additive pool, question J)', () => {
-    const state = hitWith({ mosquito: 1, arcane: 1 });
-    const a = state.players.p0;
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    const haste = ELEMENTS.mosquito.fx.haste[0] + ELEMENTS.arcane.fx.haste[0];
-    expect(a.cooldowns.fireball).toBeCloseTo(
-      SPELLS.fireball.cooldown[0] / (1 + haste / 100), 5);
+  it('the penalty stacks MULTIPLICATIVELY with midas, like every other multiplier', () => {
+    const state = hitWith({ mosquito: 1, midas: 1 });
+    const b = state.players.p1;
+    expect(b.maxHp - b.hp).toBeCloseTo(
+      SPELLS.fireball.damage[0]
+        * ELEMENTS.mosquito.fx.dmgMult[0] * ELEMENTS.midas.fx.dmgMult[0], 3);
   });
 
   it('a mosquito stack is PRIVATE to its attacker, and lasts the round', () => {
@@ -1494,7 +1500,7 @@ describe('elemental mode', () => {
     run(state, 8);
     expect(mosqOn(b, 'p0')).toBe(1);   // no expiry: the trap is setup
     expect(state.events.some(e => e.t === 'bite')).toBe(true);
-    // a SECOND mosquito player's sting builds their own separate trap
+    // a SECOND mosquito player's hit builds their own separate trap
     const c = state.players.p2;
     c.elements = { mosquito: 1 };
     state.players.p0.x = 0; state.players.p0.y = -40;
@@ -1507,29 +1513,29 @@ describe('elemental mode', () => {
     expect(mosqOn(b, 'p2')).toBe(1);
   });
 
-  it('round 18: the ARMING sting applies every on-hit rider (1 dmg, no push)', () => {
-    // Reverses the round-12 "carries NO other riders" rule (Remi, 2026-08-08:
-    // on-hit amp identity). Damage stays the 1-point sting, knockback stays
-    // zero — but venom/midas/momentum land as if a real fireball had hit.
+  it("round 18.2: a mosquito owner's ball is a normal fireball — every rider rides", () => {
+    // No sting any more: the same hit that arms the trap applies the full
+    // rider set (venom/midas/momentum...), stamps lastHitBy, the works.
     const state = hitWith({ mosquito: 1, midas: 3, venom: 3, momentum: 3 });
     const a = state.players.p0, b = state.players.p1;
     expect(b.poisonT).toBeGreaterThan(0);            // venom applied
     expect(stacksOf(b, 'midas', 'p0')).toBe(1);      // mark planted...
     expect(a.gold).toBe(GOLD.START);                 // ...but not yet cashed
-    expect(a.momentumHits).toBe(3);                  // lv3 banks 3 points
-    expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
-    expect(Math.abs(b.vx)).toBeLessThan(0.5);        // still no push
+    expect(a.momentumHits).toBe(ELEMENTS.momentum.fx.pointsPerHit[2]);
+    expect(mosqOn(b, 'p0')).toBe(1);                 // and the trap is armed
+    expect(b.lastHitBy && b.lastHitBy.id).toBe('p0');
   });
 
-  it('round 18: one armed+cashed pair = exactly 3 on-hit procs (2 landed casts)', () => {
-    // The arming sting applies riders once; the CASHING sting does not (its
-    // two proc balls carry them instead). Momentum lv1 banks 1 point per
-    // on-hit application, so the whole pair must bank exactly 3.
+  it('round 18.2: one armed+cashed pair = exactly 4 on-hit procs (2 landed casts)', () => {
+    // Every ball applies riders now: arm hit (1) + trigger hit (1) + procBalls
+    // (2) = 4 applications, vs 2 for two plain casts. Momentum lv1 banks 1
+    // point per application, so the pair must bank exactly 4.
     const state = mosquitoProc({ mosquito: 1, momentum: 1 }, { hp: 9999 });
-    expect(state.players.p0.momentumHits).toBe(3);
+    expect(state.players.p0.momentumHits)
+      .toBe(2 + ELEMENTS.mosquito.fx.procBalls);
   });
 
-  // Sting `b` twice from `a`: the first arms the trap, the second spends it.
+  // Hit `b` twice from `a`: the first ball arms the trap, the second spends it.
   // Runs to the frame the stack is cashed. Since 2026-08-07 the proc's balls all
   // leave the same muzzle with the same vector and connect immediately, so that
   // frame is also the frame they land — `procHits()` reads them off the events.
@@ -1540,7 +1546,7 @@ describe('elemental mode', () => {
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
     a.elements = { ...elements };
-    const sting = () => {
+    const shoot = () => {
       a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
       b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
       if (hp != null) { b.hp = hp; b.maxHp = Math.max(b.maxHp, hp); }
@@ -1548,9 +1554,9 @@ describe('elemental mode', () => {
       state.events = [];
       castSpell(state, 'p0', 'fireball', 20, 0);
     };
-    sting();
+    shoot();
     run(state, 0.4);       // arms the trap
-    sting();
+    shoot();
     for (let i = 0; i < 20; i++) {
       state.events = [];
       step(state, DT);
@@ -1558,10 +1564,14 @@ describe('elemental mode', () => {
     }
     return state;
   }
-  // the payoff hits of THIS frame: real fireballs, not the 1-damage sting
-  const procHits = (state, id = 'p1') => state.events.filter(
-    e => e.t === 'hit' && e.id === id &&
-         e.amount > ELEMENTS.mosquito.fx.stingDmg + 1e-9);
+  // the payoff hits of THIS frame: everything landing on the victim AFTER the
+  // biteHit (the trigger ball's own hit is pushed just before the trap springs,
+  // and all proc balls connect in that same frame — co-located, same muzzle)
+  const procHits = (state, id = 'p1') => {
+    const i = state.events.findIndex(e => e.t === 'biteHit');
+    return i < 0 ? [] : state.events.slice(i + 1)
+      .filter(e => e.t === 'hit' && e.id === id);
+  };
 
   it('spending a mosquito stack fires exactly procBalls NORMAL fireballs', () => {
     const f = ELEMENTS.mosquito.fx;
@@ -1570,14 +1580,16 @@ describe('elemental mode', () => {
     // the stack is spent, and NOT re-armed by the hit that cashed it in
     expect(mosqOn(b, 'p0')).toBe(0);
     expect(state.events.some(e => e.t === 'biteHit')).toBe(true);
-    // procBalls of them, and they are NORMAL fireballs: full damage, full
-    // knockback, no sting rider, and the Echo Stone's queue is not involved
+    // procBalls of them, and they are the owner's NORMAL fireballs — which
+    // means they pay the mosquito penalty like every other ball the owner
+    // casts. The Echo Stone's queue is not involved.
     const hits = procHits(state);
     expect(hits.length).toBe(f.procBalls);
     for (const h of hits)
-      expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0], 5);
+      expect(h.amount).toBeCloseTo(
+        SPELLS.fireball.damage[0] * f.dmgMult[0], 5);
     expect(state.delayedShots.length).toBe(0);
-    expect(Math.abs(b.vx)).toBeGreaterThan(50); // and they PUSH, unlike a sting
+    expect(Math.abs(b.vx)).toBeGreaterThan(1); // and the volley pushes
   });
 
   it('the proc balls are CO-LOCATED: same muzzle, same vector, same frame', () => {
@@ -1586,7 +1598,7 @@ describe('elemental mode', () => {
     const f = ELEMENTS.mosquito.fx;
     const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
     const casts = state.events.filter(e => e.t === 'cast' && e.spell === 'fireball');
-    expect(casts.length).toBe(f.procBalls);      // the sting's own cast was earlier
+    expect(casts.length).toBe(f.procBalls);      // the trigger's own cast was earlier
     for (const c of casts) {
       expect(c.x).toBeCloseTo(casts[0].x, 10);
       expect(c.y).toBeCloseTo(casts[0].y, 10);
@@ -1598,10 +1610,10 @@ describe('elemental mode', () => {
     expect(state.projectiles.length).toBe(0);    // nothing left flying
   });
 
-  it('the proc connects even on a GRAZING sting (contact point, not tick end)', () => {
-    // the sting can sweep past the body inside one tick; balls released from the
-    // end of that travel would fly on and miss. Offset the victim to the edge of
-    // the hitbox so the sting only just clips it.
+  it('the proc connects even on a GRAZING trigger (contact point, not tick end)', () => {
+    // the trigger ball can sweep past the body inside one tick; balls released
+    // from the end of that travel would fly on and miss. Offset the victim to
+    // the edge of the hitbox so the ball only just clips it.
     const f = ELEMENTS.mosquito.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -1618,7 +1630,7 @@ describe('elemental mode', () => {
     };
     graze();
     run(state, 0.4);
-    expect(mosqOn(b, 'p0')).toBe(1);   // armed by a clipping sting
+    expect(mosqOn(b, 'p0')).toBe(1);   // armed by a clipping hit
     graze();
     let hits = 0;
     for (let i = 0; i < 20; i++) {
@@ -1644,11 +1656,11 @@ describe('elemental mode', () => {
     expect(f.procBalls).toBeGreaterThan(1);     // the spec still wants a double
   });
 
-  it('HARD RULE, the case that can actually chain: a PIERCING proc ball may not cash a second mark', () => {
-    // With ghost lv3 (round 16: the passthrough unlocks at pierceAtLevel) the
-    // proc balls fly THROUGH the first victim, so they can reach a second body
-    // that also carries your mark. That is the real infinite-loop shape (each
-    // cash spawns balls that cash again), and `noStacks` is the guard.
+  it('HARD RULE, the case that can actually chain: piercing PROC balls may neither cash nor plant', () => {
+    // With ghost lv3 (passthrough at pierceAtLevel) the proc balls fly THROUGH
+    // the first victim and sweep over a second body. That is the infinite-loop
+    // shape (each cash spawns balls that cash again), and `noStacks` is the
+    // guard. Real CASTS are exempt: a piercing cast may plant/cash per victim.
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
@@ -1658,30 +1670,30 @@ describe('elemental mode', () => {
       v.maxHp = 9999; v.hp = 9999; v.vx = v.vy = 0; v.moveTarget = null;
     }
     b.x = 8; b.y = 0; c.x = 16; c.y = 0;
-    // arm BOTH of them (stings do not pierce, so one sting each)
-    for (const v of [b, c]) {
-      a.cooldowns = {};
-      v.x = 8; // sting whoever is parked in front
-      const other = v === b ? c : b;
-      other.x = 60;
-      castSpell(state, 'p0', 'fireball', 20, 0);
-      run(state, 0.4);
-      v.x = v === b ? 8 : 16;
-    }
-    b.x = 8; c.x = 16;
-    b.vx = b.vy = c.vx = c.vy = 0; b.moveTarget = c.moveTarget = null;
+    // ONE piercing cast arms BOTH: a normal ball plants on every body it hits
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.6);
     expect(mosqOn(b, 'p0')).toBe(1);
     expect(mosqOn(c, 'p0')).toBe(1);
-    // now cash b's mark: the balls pierce b and reach c, who is also marked
+    // reset the line and cash: the trigger CAST pierces b and reaches c, so it
+    // legitimately cashes both marks (2 biteHits). Its proc balls also sweep
+    // both bodies — noStacks means they re-plant and re-cash NOTHING.
+    b.x = 8; b.y = 0; c.x = 16; c.y = 0;
+    b.vx = b.vy = c.vx = c.vy = 0; b.moveTarget = c.moveTarget = null;
     a.cooldowns = {};
+    state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 1.5);
-    expect(state.events.filter(e => e.t === 'biteHit').length).toBe(1); // ONE cash
-    expect(mosqOn(c, 'p0')).toBe(1);          // c's mark is untouched...
-    // ...and the piercing balls still in flight all carry the guard flag
-    expect(state.projectiles.length).toBe(ELEMENTS.mosquito.fx.procBalls);
-    expect(state.projectiles.every(p => p.noStacks === true)).toBe(true);
-    expect(state.projectiles.every(p => p.mosquito === 0)).toBe(true);
+    expect(state.events.filter(e => e.t === 'biteHit').length).toBe(2);
+    expect(mosqOn(b, 'p0')).toBe(0);   // swept by 4 proc balls: nothing planted
+    expect(mosqOn(c, 'p0')).toBe(0);
+    // both volleys' balls carry the guard flag AND the full element set
+    const procs = state.projectiles.filter(p => p.noStacks);
+    expect(procs.length).toBe(ELEMENTS.mosquito.fx.procBalls * 2);
+    expect(procs.every(p => (p.elements || {}).mosquito === 1)).toBe(true);
+    // and no chain ever fires: a longer run adds no third cash
+    run(state, 3);
+    expect(state.events.filter(e => e.t === 'biteHit').length).toBe(2);
   });
 
   it('only your FIREBALL spends the mark — no cross-spell doubling', () => {
@@ -1708,15 +1720,15 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'biteHit')).toBe(false);
   });
 
-  it('the pair totals 3 rider procs: mosquito+frost DETONATES every cycle', () => {
-    // Round 18 arithmetic: arming sting applies frost once, the two proc balls
-    // twice more — 3 stacks = exactly frost's trigger, so the cycle ends in a
-    // break, not a pile of 2 (the old "sting carries nothing" count).
+  it('the pair totals 4 rider procs: mosquito+frost DETONATES with 1 stack left over', () => {
+    // Round 18.2 arithmetic: arm hit + trigger hit + 2 proc balls = 4 frost
+    // applications. The 3rd detonates (break + slow), the 4th starts the next
+    // pile — exactly 1 stack remains after the cycle.
     expect(ELEMENTS.frost.fx.stacksToTrigger).toBe(3); // the premise
     const state = mosquitoProc({ mosquito: 1, frost: 1 }, { hp: 9999 });
     const b = state.players.p1;
     expect(state.events.some(e => e.t === 'frostBreak')).toBe(true);
-    expect(frostOn(b, 'p0')).toBe(0);       // spent by the detonation
+    expect(frostOn(b, 'p0')).toBe(1);       // the 4th application, banked
     expect(b.slowT).toBeGreaterThan(0);     // lv1 break = the slow
   });
 
@@ -2006,7 +2018,7 @@ describe('elemental mode', () => {
 
   // ---- the proc's balls are co-located, and the SHOVE happens ONCE ---------
   // Two hits in one frame used to mean two impulses (impulses add linearly), so a
-  // cashed sting launched for exactly procBalls × a fireball — 72.5 → 145.0 u/s,
+  // cashed trap launched for exactly procBalls × a fireball — 72.5 → 145.0 u/s,
   // 239 with gale lv3. Remi's ruling 2026-08-07: "I see the mosquito as drawing
   // its strength from DAMAGE rather than from knockback — otherwise I can imagine
   // a monstrous win rate." So each proc ball carries kbScale = 1/procBalls and
@@ -2034,29 +2046,33 @@ describe('elemental mode', () => {
     return 0;
   }
 
-  it('a cashed sting launches the victim exactly as hard as ONE fireball', () => {
+  it('the cash frame shoves for trigger + ONE volley, both paying the penalty', () => {
     const f = ELEMENTS.mosquito.fx;
     const soloV = plainFireballLaunch();
     expect(soloV).toBeGreaterThan(1);
-    // the proc, on the frame it lands (both balls in that one frame). The sting
-    // itself pushes for nothing, so all of this velocity is the payoff balls —
-    // and it must equal ONE fireball's launch, not procBalls of them.
+    // On the frame the trap springs everything lands at once: the trigger ball
+    // (a normal fireball, one penalized shove) plus the volley, whose kbScale
+    // 1/procBalls sums it to exactly one more penalized shove. Impulses add:
+    // total = 2 × kbMult[lv1] × a plain fireball's launch.
     const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
     const procV = Math.abs(state.players.p1.vx);
-    expect(procV).toBeCloseTo(soloV, 4);
+    expect(procV).toBeCloseTo(soloV * f.kbMult[0] * 2, 4);
     expect(f.procBalls).toBeGreaterThan(1);   // ...and that is NOT trivially true
-    expect(procV).toBeLessThan(soloV * f.procBalls * 0.9);
-    // meanwhile the DAMAGE is procBalls × a fireball: the split is push-only
-    const hits = procHits(state);
-    expect(hits.length).toBe(f.procBalls);
-    const total = hits.reduce((s, h) => s + h.amount, 0);
-    expect(total).toBeCloseTo(SPELLS.fireball.damage[0] * f.procBalls, 4);
+    expect(procV).toBeLessThan(soloV * f.kbMult[0] * (1 + f.procBalls) * 0.9);
+    // meanwhile the frame's DAMAGE is (1 + procBalls) penalized fireballs:
+    // the trigger hit plus the volley — the tax is push-and-damage symmetric
+    const all = state.events.filter(e => e.t === 'hit' && e.id === 'p1');
+    expect(all.length).toBe(1 + f.procBalls);
+    const total = all.reduce((s, h) => s + h.amount, 0);
+    expect(total).toBeCloseTo(
+      SPELLS.fireball.damage[0] * f.dmgMult[0] * (1 + f.procBalls), 4);
   });
 
   it('knockback-once is DERIVED from procBalls, not "ball 2 pushes for nothing"', () => {
     // The lazy implementation (first ball pushes, the rest are free) passes the
     // test above and breaks the moment procBalls changes. Prove the rule is
-    // 1/procBalls by moving the spec to 3 balls: 3× the damage, still 1× the push.
+    // 1/procBalls by moving the spec to 3 balls: 3× the volley damage, still
+    // trigger + ONE volley of push.
     const f = ELEMENTS.mosquito.fx;
     const soloV = plainFireballLaunch();
     const orig = f.procBalls;
@@ -2065,16 +2081,17 @@ describe('elemental mode', () => {
       const state = mosquitoProc({ mosquito: 1 }, { hp: 9999 });
       const hits = procHits(state);
       expect(hits.length).toBe(3);                                  // 3 balls
-      expect(Math.abs(state.players.p1.vx)).toBeCloseTo(soloV, 4);  // 1 shove
+      expect(Math.abs(state.players.p1.vx))
+        .toBeCloseTo(soloV * f.kbMult[0] * 2, 4);                   // same shove
     } finally {
       f.procBalls = orig;
     }
   });
 
   it('the optional procDmgMult lever taxes damage only, never the effect count', () => {
-    // docs/ROUND12.md S3 option (b): keep the fast sting, make each proc ball hit
-    // for a fraction. Absent from the spec by default — this locks the lever so it
-    // still works if Remi asks for it.
+    // docs/ROUND12.md S3 option (b): make each proc ball hit for a fraction.
+    // Absent from the spec by default — this locks the lever so it still works
+    // if Remi asks for it. It scales ON TOP of the mosquito penalty.
     const f = ELEMENTS.mosquito.fx;
     const k = 0.6;
     try {
@@ -2083,9 +2100,10 @@ describe('elemental mode', () => {
       const hits = procHits(state);
       expect(hits.length).toBe(f.procBalls);          // still procBalls events
       for (const h of hits)
-        expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0] * k, 5);
-      // and the on-hit effects are untouched: arm + 2 balls = 3 frost
-      // applications, which is exactly a detonation (round 18 arithmetic)
+        expect(h.amount).toBeCloseTo(
+          SPELLS.fireball.damage[0] * f.dmgMult[0] * k, 5);
+      // and the on-hit effects are untouched: arm + trigger + 2 balls = 4
+      // frost applications — past the detonation (round 18.2 arithmetic)
       expect(state.events.some(e => e.t === 'frostBreak')).toBe(true);
       expect(state.players.p1.slowT).toBeGreaterThan(0);
     } finally {
@@ -2186,7 +2204,9 @@ describe('elemental mode', () => {
     expect(a.healLifesteal).toBe(0);
   });
 
-  it('vampire + mosquito: an engorged STING heals off 1 damage, not a fireball', () => {
+  it('vampire + mosquito: the engorged ball heals off the PENALIZED damage', () => {
+    // Round 18.2: no sting — the ball is a normal fireball paying the mosquito
+    // dmgMult, and the lifesteal pays on the damage actually dealt.
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2198,11 +2218,9 @@ describe('elemental mode', () => {
     a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
-    // the sting deals stingDmg, so the engorged payout is bounded by that —
-    // 1 damage × 350% is 3.5 hp, not a full heal
-    expect(a.healLifesteal).toBeLessThan(
-      ELEMENTS.mosquito.fx.stingDmg * f.chargeLifesteal[2] + 0.01);
-    expect(a.healLifesteal).toBeGreaterThan(0);
+    expect(a.healLifesteal).toBeCloseTo(
+      SPELLS.fireball.damage[0] * ELEMENTS.mosquito.fx.dmgMult[0]
+        * f.chargeLifesteal[2], 1);
   });
 
   it('the vampire charge counter RESETS on a round boundary (unlike momentum)', () => {
@@ -2579,7 +2597,9 @@ describe('elemental mode', () => {
     expect(taken).toBeLessThan(SPELLS.fireball.damage[0] + 1);
   });
 
-  it('ghost + mosquito: the STING does not pierce, the proc balls do', () => {
+  it('ghost + mosquito: EVERY ball pierces — the arming cast and the proc balls alike', () => {
+    // Round 18.2: no sting. The arming ball is a normal fireball, so ghost
+    // rides it (pierce) and mosquito rides it too (the penalty).
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
@@ -2589,14 +2609,13 @@ describe('elemental mode', () => {
     b.maxHp = 500; b.hp = 500;
     c.x = 0; c.y = -45;
     castSpell(state, 'p0', 'fireball', 20, 0);
-    // the sting is the mosquito's own ball: it carries no riders at all, so it
-    // cannot pierce (the pest REPLACES your fireball — existing rule)
-    const sting = state.projectiles[0];
-    expect(sting.mosquito).toBe(1);
-    expect(sting.pierce).toBe(false);
+    const ball = state.projectiles[0];
+    expect(ball.pierce).toBe(true);
+    expect(ball.elements.mosquito).toBe(1);
+    expect(ball.elements.ghost).toBe(ELEMENTS.ghost.fx.pierceAtLevel);
     run(state, 0.4);
-    expect(state.projectiles.length).toBe(0);     // it popped on the body
-    // the proc's balls ARE your normal fireballs, so they carry ghost and pierce
+    expect(mosqOn(b, 'p0')).toBe(1);   // armed by the pierced hit; the ball flew on
+    // the proc's balls are normal fireballs too: ghost AND the penalty ride
     a.cooldowns = {};
     b.x = 8; b.y = 0; b.vx = b.vy = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
@@ -2605,9 +2624,10 @@ describe('elemental mode', () => {
       step(state, DT);
       if (state.events.some(e => e.t === 'biteHit')) break;
     }
-    const proc = state.projectiles.find(p => p.type === 'fireball');
+    const proc = state.projectiles.find(p => p.noStacks);
     expect(proc.pierce).toBe(true);
     expect(proc.elements.ghost).toBe(ELEMENTS.ghost.fx.pierceAtLevel);
+    expect(proc.elements.mosquito).toBe(1);   // proc balls pay the penalty too
   });
 
   it('every element requires a fireball, and every element rides on the ball (round 16)', () => {

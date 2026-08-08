@@ -389,15 +389,16 @@ export const ELEMENTS = {
            long: 'Every landed fireball banks evolution points — 1, 2 or 3 per hit by level. Every 50 points your fireball permanently EVOLVES: +3 damage, forever.',
            fx: { pointsPerHit: [1, 2, 3], evolveEvery: 50, evolveDmg: 3,
                  rampPermanent: true } },
-  // Round 18 (Remi): the ARMING sting now APPLIES on-hit riders (1 dmg, no
-  // push); the cashing sting doesn't — its 2 proc balls do. 3 on-hit procs per
-  // armed+cashed pair. Levels are fireball haste (ex-cdMult [0.80,0.70,0.59]).
-  // ⚠ Proc balls must NOT place stacks (chains forever) — test-locked, ROUND12 S3.
+  // Round 18.2 (Remi): NO sting — every ball is a NORMAL fireball; the penalty
+  // is dmg AND kb × [0.5,0.75,1], multiplicative with midas like any multiplier.
+  // Trap: a stackless hit arms, the next hit cashes procBalls co-located normal
+  // balls (kbScale 1/N; noStacks = the anti-chain rule, test-locked ROUND12 S3).
+  // revert (round 18): fx { mosquito: true, haste: [20,40,60], stingDmg: 1, procBalls: 2 }
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
            desc: 'On-hit amplification.',
-           long: 'Your fireball becomes a fast 1-damage sting that applies your on-hit effects and arms a trap: sting them again and TWO real fireballs land at once — 3 on-hit procs per pair. Levels speed up your fireball.',
-           fx: { mosquito: true, haste: [20, 40, 60], stingDmg: 1,
+           long: 'Your fireballs hit softer (−50/−25/−0% by level) but sting: hit a stung enemy and TWO extra fireballs land at once — every on-hit effect pays again.',
+           fx: { dmgMult: [0.5, 0.75, 1], kbMult: [0.5, 0.75, 1],
                  procBalls: 2 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive

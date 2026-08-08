@@ -742,9 +742,7 @@ const FX_FIELDS = {
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
   pierce: ['your fireball (at lv 3)', (v) => (v ? 'passes THROUGH bodies' : 'pops on the first body')],
-  mosquito: ['fireball becomes a mosquito', fmtNum],
-  stingDmg: ['sting damage', fmtNum],
-  procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} of your fireballs, together`],
+  procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} extra fireballs, together`],
   // only present when the optional nerf lever is set (ELEMENTS.mosquito)
   procDmgMult: ['each of those balls hits for', fmtMult],
 };

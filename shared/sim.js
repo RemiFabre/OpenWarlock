@@ -309,12 +309,6 @@ function worstStack(target, kind) {
   return max;
 }
 
-// Mosquito level a player is flying with, or 0 (elemental mode only).
-function mosquitoLevel(state, pl) {
-  if (state.mode !== 'elemental') return 0;
-  return (pl.elements && pl.elements.mosquito) || 0;
-}
-
 // Ability Haste (round 17, ex-CDR percentages): cd = base / (1 + haste/100),
 // haste SUMS across sources. Additive stacking is the point — hourglass ×
 // arcane used to COMPOUND (midas-cdr 86%, BALANCE.md question J).
@@ -324,14 +318,14 @@ function hasteOf(state, pl) {
   return add.haste || 0;
 }
 
-// Extra haste on the fireball only: arcane (round 16) + mosquito (round 18,
-// ex-cdMult — one additive pool, so it can never re-open question J's
-// compounding).
+// Extra haste on the fireball only: arcane (round 16). Additive with the
+// hourglass pool, so it can never re-open question J's compounding.
+// (Mosquito's round-18 haste levels were removed in 18.2 — its levels buy
+// back the dmg/kb penalty instead, plain fx multipliers in the hit code.)
 function fireballHasteOf(state, pl) {
   if (state.mode !== 'elemental' || !pl.elements) return 0;
   let h = 0;
   if (pl.elements.arcane) h += efxV(ELEMENTS.arcane.fx.haste, pl.elements.arcane);
-  if (pl.elements.mosquito) h += efxV(ELEMENTS.mosquito.fx.haste, pl.elements.mosquito);
   return h;
 }
 
@@ -565,14 +559,14 @@ export function castSpell(state, id, key, tx, ty) {
 // Fireball factory shared by castSpell, the Echo Stone delayed shot and the
 // mosquito proc. Spawns at the caster (owner is excluded from collisions;
 // point-blank shots connect). In elemental mode ALL the caster's rider elements
-// (everything but arcane) ride on the projectile at their current levels.
+// ride on the projectile at their current levels — mosquito included since
+// round 18.2: it is an ordinary rider now (dmgMult/kbMult penalty in the hit
+// code, plus the arm/cash trap keyed on elements.mosquito there).
 //
 // opts, all used by the mosquito proc (ELEMENTS.mosquito):
-//   plain    — never turn this into a sting: it is one of your NORMAL
-//              fireballs, carrying every rider you own EXCEPT mosquito
 //   noStacks — HARD RULE: this ball can neither place nor spend a mosquito
 //              stack. Without it the proc chains forever (test-locked).
-//   x, y     — spawn origin override (the proc fires from the sting's contact point)
+//   x, y     — spawn origin override (the proc fires from the trigger's contact point)
 //   dmgMult  — scales this ball's damage only (the mosquito proc's optional
 //              nerf lever, ELEMENTS.mosquito.fx.procDmgMult; unset = 1)
 //   kbScale  — scales this ball's KNOCKBACK only (unset = 1). The proc passes
@@ -585,24 +579,9 @@ export function castSpell(state, id, key, tx, ty) {
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
-  let stingRiders = null;
-  const mosq = opts.plain ? 0 : mosquitoLevel(state, pl);
-  if (mosq) {
-    // The mosquito REPLACES the fireball: the projectile itself stays a plain
-    // 1-damage pellet (no terra size, ghost speed or pierce). Round 18 (Remi):
-    // it now CARRIES the owner's riders separately, to apply as on-hit effects
-    // when the sting ARMS — the on-hit amp identity. The old "carries nothing,
-    // no midas/venom farming" rule is deliberately reversed; the anti-farm
-    // guard is that the cashing sting applies nothing (see the hit code).
-    elements = { mosquito: mosq };
-    for (const [k, v] of Object.entries(pl.elements)) {
-      if (!(v > 0) || k === 'mosquito') continue;
-      (stingRiders = stingRiders || {})[k] = v;
-    }
-  } else if (state.mode === 'elemental' && pl.elements) {
+  if (state.mode === 'elemental' && pl.elements) {
     for (const [k, v] of Object.entries(pl.elements)) {
       if (!(v > 0)) continue;
-      if (k === 'mosquito') continue; // the pest is the setup, never a rider
       (elements = elements || {})[k] = v;
     }
   }
@@ -632,8 +611,7 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     pierce: !!(elements && Object.entries(elements).some(([k, v]) =>
       ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
     pierced: 0,
-    elements, radius, mosquito: mosq || 0,
-    ...(stingRiders ? { stingRiders } : {}),
+    elements, radius,
     ...(opts.noStacks ? { noStacks: true } : {}),
     ...(opts.dmgMult != null ? { dmgMult: opts.dmgMult } : {}),
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
@@ -1818,19 +1796,16 @@ function stepProjectiles(state, dt) {
       // does not depend on which order the riders happen to be iterated in.
       let ramp = 0;
       // Mosquito payoff: does this hit land on a victim already carrying THIS
-      // owner's stack? Decided BEFORE the sting plants its own, or a single
-      // sting would arm and cash itself in the same frame. A proccing hit does
-      // not re-arm — you have to sting again to set the next one up.
+      // owner's stack? Decided BEFORE this hit plants its own, or a single
+      // ball would arm and cash itself in the same frame. A proccing hit does
+      // not re-arm — you have to land another ball to set the next one up.
       // FIREBALLS ONLY: the 2026-08-06 version let any other spell cash the mark
       // in, and the owner killed that outright ("mosquito+lightning becomes THE
       // meta"). A boomerang must not spend the stack either.
       const procMosq = pr.type === 'fireball' && !pr.noStacks && pr.owner != null &&
         stackCount(other, 'mosquito', pr.owner) > 0;
       if (procMosq) clearStacks(other, 'mosquito', pr.owner);
-      if (pr.mosquito) {
-        // the sting: 1 damage, zero knockback, no geometry
-        dmg = ELEMENTS.mosquito.fx.stingDmg; kb = 0;
-      } else if (pr.elements) { // every rider element bends the numbers, stacking
+      if (pr.elements) { // every rider element bends the numbers, stacking
         for (const [ek, el] of Object.entries(pr.elements)) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
@@ -1879,17 +1854,13 @@ function stepProjectiles(state, dt) {
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
-      // Round 18 (Remi): the sting is an on-hit APPLICATOR — 1 damage, no
-      // push, but the owner's riders land like a real fireball's. Only the
-      // ARMING sting applies them; the cashing sting hands that job to its
-      // proc balls, so one armed+cashed pair = exactly 3 on-hit procs for 2
-      // landed casts (and a sting stream can never double-farm midas/venom).
-      if (pr.stingRiders && !procMosq)
-        applyElementsHit(state, { ...pr, elements: pr.stingRiders }, other);
-      // the sting arms the trap: one mosquito stack of this attacker only.
+      // Round 18.2 (Remi): every mosquito ball is a NORMAL fireball (riders,
+      // knockback, lastHitBy — the penalty above is the whole tax). A hit that
+      // did not cash arms the trap: one private stack of this attacker.
       // `noStacks` balls (the proc's own fireballs) can never arm anything —
-      // that is the hard rule that stops the effect chaining forever.
-      if (pr.mosquito && !pr.noStacks && !procMosq)
+      // that is the hard rule that stops the effect chaining forever. One
+      // armed+cashed pair = 4 on-hit rider applications for 2 landed casts.
+      if (pr.elements && pr.elements.mosquito && !pr.noStacks && !procMosq)
         plantMosquitoStack(state, other, pr.owner);
       if (procMosq) fireMosquitoProc(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
@@ -1932,11 +1903,11 @@ function stepProjectiles(state, dt) {
 }
 
 // ---- mosquito (elemental) -------------------------------------------------
-// 2026-08-07 rework: no geometry at all. A sting leaves ONE stack of its owner
-// on the victim (the same private store frost uses); the owner's next hit on
-// that victim spends it and buys them TWO of their own normal fireballs,
-// slightly staggered in time. Every on-hit effect the owner has therefore fires
-// twice — and a well-timed teleport can still dodge the second ball.
+// Round 18.2: a landed fireball leaves ONE stack of its owner on the victim
+// (the same private store frost uses); the owner's next fireball on that
+// victim spends it and buys them procBalls of their own normal fireballs,
+// co-located at the contact point. Every on-hit effect the owner has fires
+// once per ball — 4 applications per armed+cashed pair.
 
 function plantMosquitoStack(state, target, ownerId) {
   if (ownerId == null) return;
@@ -1960,12 +1931,12 @@ function plantMosquitoStack(state, target, ownerId) {
 // client: co-located popups fan out and stagger there — see pushFloater in
 // client/main.js — and the sim just fires N identical balls.)
 //
-// The muzzle is the CONTACT point of the sting, not the end of its tick's
-// travel: the ball that cashed the mark may have swept a little past the body
-// this frame, and a grazing hit released from there would fly on and miss. Every
-// ball therefore starts exactly where the sting touched, which puts the victim
-// on its path by construction. All of them carry `noStacks`, the hard rule that
-// stops the proc triggering itself.
+// The muzzle is the CONTACT point of the trigger hit, not the end of its
+// tick's travel: the ball that cashed the mark may have swept a little past the
+// body this frame, and a grazing hit released from there would fly on and miss.
+// Every ball therefore starts exactly where the trigger touched, which puts the
+// victim on its path by construction. All of them carry `noStacks`, the hard
+// rule that stops the proc triggering itself.
 function fireMosquitoProc(state, pr, target) {
   const owner = state.players[pr.owner];
   if (!owner) return;
@@ -1979,7 +1950,9 @@ function fireMosquitoProc(state, pr, target) {
   state.events.push({ t: 'biteHit', id: target.id, by: pr.owner, x, y });
   for (let i = 0; i < f.procBalls; i++) {
     spawnFireball(state, owner, level, dx, dy, {
-      x, y, plain: true, noStacks: true,
+      // full element set rides (round 18.2: mosquito's penalty included) —
+      // noStacks alone is the chain guard
+      x, y, noStacks: true,
       // OPTIONAL nerf lever, absent from the spec by default (see ELEMENTS
       // .mosquito): scales the proc balls' damage only, leaving every on-hit
       // effect procing `procBalls` times.
@@ -2110,8 +2083,8 @@ function applyElementsHit(state, pr, target) {
         // cashes +1 g (still capped there forever) and clears it. Halves the
         // income RATE — the midas-cdr engine (question J). Deliberately not
         // gated on `noStacks`: that flag is mosquito's anti-chain rule, and
-        // the ruling says proc balls are real fireballs to midas — a cashed
-        // sting may plant and/or cash marks like any other pair of hits.
+        // the ruling says proc balls are real fireballs to midas — they may
+        // plant and/or cash 🪙 marks like any other pair of hits.
         if (stackCount(target, 'midas', pr.owner) > 0) {
           clearStacks(target, 'midas', pr.owner);
           const pay = efxV(f.goldOnHit, el);

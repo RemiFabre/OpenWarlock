@@ -61,7 +61,7 @@ const ELEM_CORE = {
 //   base ball (terra sizes it, the strongest rider tints it)
 //   → element accents (one per element the ball carries, they compose)
 //   → momentum evolution (extra flame wings + motes = the tier)
-//   → event overlay (engorged / sting, which also own the BASE color).
+//   → event overlay (engorged, which also owns the BASE color).
 // Both readings matter: the owner sees the build they bought fly, a defender
 // reads what is coming at them. Accents are cheap strokes on purpose — this
 // runs per projectile per frame, so no gradients and no allocations here.
@@ -211,42 +211,6 @@ function drawEvolution(ctx, x, y, r, ang, t, tier) {
     ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.2, 0, TAU);
     ctx.fill();
   }
-}
-
-// The mosquito's sting (ELEMENTS.mosquito): 1 damage, no push. It must NOT read
-// as an incoming fireball — no flame: a small dark body with beating wings, a
-// dotted wake and a sickly green pinprick, all in the pest's palette. Still
-// trackable (a defender has to see the trap being armed), just visibly harmless.
-// The event owns the base here; a sting carries no other element to stack.
-function drawSting(ctx, x, y, r, ang, t) {
-  const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 2);
-  halo.addColorStop(0, 'rgba(180, 226, 150, 0.5)');
-  halo.addColorStop(1, 'rgba(120, 170, 100, 0)');
-  ctx.fillStyle = halo;
-  ctx.beginPath(); ctx.arc(x, y, r * 2, 0, TAU); ctx.fill();
-  ctx.strokeStyle = 'rgba(200, 220, 190, 0.5)';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  for (let i = 1; i <= 4; i++) {
-    const d = r * i * 1.7 + r * 0.4 * Math.sin(t * 30 - i);
-    ctx.moveTo(x - Math.cos(ang) * d, y - Math.sin(ang) * d);
-    ctx.lineTo(x - Math.cos(ang) * (d + r * 0.6), y - Math.sin(ang) * (d + r * 0.6));
-  }
-  ctx.stroke();
-  const flap = 0.45 * Math.sin(t * 45);
-  ctx.strokeStyle = 'rgba(225, 240, 255, 0.8)';
-  ctx.lineWidth = 1.3;
-  for (let s = -1; s <= 1; s += 2) {
-    ctx.beginPath();
-    ctx.ellipse(x, y, r * 1.7, r * 0.55, ang + s * (1.0 + flap), 0, TAU);
-    ctx.stroke();
-  }
-  ctx.fillStyle = '#2f3a26';
-  ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, TAU); ctx.fill();
-  ctx.fillStyle = 'rgba(190, 240, 150, 0.95)';
-  ctx.beginPath();
-  ctx.arc(x + Math.cos(ang) * r, y + Math.sin(ang) * r, r * 0.35, 0, TAU);
-  ctx.fill();
 }
 
 // Vampire's engorged ball (every chargeEvery'th cast — 5 since round 16): an
@@ -495,13 +459,12 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
       // §12: the layered stack — base → element accents → evolution → event.
-      // `elements` carries mosquito ONLY on a sting (a normal ball strips the
-      // key, shared/sim.js spawnFireball), so it is the event flag on the wire.
+      // Round 18.2: a mosquito owner's ball is a NORMAL fireball (no sting
+      // visual) — the trap's feedback is the bite/biteHit FX and the mark pip.
       const el = pr.elements || null;
-      const sting = !!(el && el.mosquito > 0);
       const terraMult = el && el.terra
         ? ELEMENTS.terra.fx.projRadiusMult[Math.min(el.terra, 3) - 1] : 1;
-      const r = SPELLS.fireball.radius * terraMult * scale * (sting ? 0.7 : 1);
+      const r = SPELLS.fireball.radius * terraMult * scale;
       const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
       // base tint: the strongest rider element, unless an event takes it over
       let core = '#ffab40', coreLv = 0;
@@ -513,26 +476,22 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         const own = players.find(p => p && p.id === pr.owner);
         tier = momentumTier((own && own.momentumHits) || 0);
       }
-      if (sting) {
-        drawSting(ctx, x, y, r, ang, t);
-      } else {
-        // base ball: trail + core glow, both tinted
-        const tail = 4 + tier;   // the evolved ball throws a longer wake
-        const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
-        g.addColorStop(0, 'rgba(255, 120, 30, 0)');
-        g.addColorStop(1, 'rgba(255, 150, 60, 0.6)');
-        ctx.strokeStyle = g; ctx.lineWidth = r * 1.4; ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
-        ctx.lineTo(x, y); ctx.stroke();
-        if (tier > 0) drawEvolution(ctx, x, y, r, ang, t, tier);
-        const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
-        glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
-        glow.addColorStop(0.35, core);
-        glow.addColorStop(1, pr.engorged ? 'rgba(200, 0, 30, 0)' : 'rgba(255, 90, 20, 0)');
-        ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
-      }
+      // base ball: trail + core glow, both tinted
+      const tail = 4 + tier;   // the evolved ball throws a longer wake
+      const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
+      g.addColorStop(0, 'rgba(255, 120, 30, 0)');
+      g.addColorStop(1, 'rgba(255, 150, 60, 0.6)');
+      ctx.strokeStyle = g; ctx.lineWidth = r * 1.4; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
+      ctx.lineTo(x, y); ctx.stroke();
+      if (tier > 0) drawEvolution(ctx, x, y, r, ang, t, tier);
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+      glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
+      glow.addColorStop(0.35, core);
+      glow.addColorStop(1, pr.engorged ? 'rgba(200, 0, 30, 0)' : 'rgba(255, 90, 20, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
       // accents stack: every element the ball carries paints its own tell
       if (el) for (const k in el) {
         const accent = ACCENTS[k];
