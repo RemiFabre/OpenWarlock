@@ -682,7 +682,7 @@ const FX_FIELDS = {
   kbAdd: ['fireball push', (v) => `+${fmtNum(v)}`],
   dmgMult: ['fireball damage', fmtMult],
   kbMult: ['fireball push', fmtMult],
-  cdrMult: ['fireball cooldown', fmtMult],
+  haste: ['fireball haste', (v) => `+${fmtNum(v)}`],
   cdMult: ['fireball cooldown', fmtMult],
   projRadiusMult: ['fireball size', fmtMult],
   projSpeedMult: ['fireball speed', fmtMult],
@@ -729,7 +729,7 @@ const ITEM_FIELDS = {
   lifesteal: ['lifesteal', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
   every: ['echo cadence', (v) => `every ${fmtNum(v)}th fireball`],
   delay: ['echo delay', fmtSec],
-  cdrMult: ['every cooldown', fmtMult],
+  haste: ['ability haste', (v) => `+${fmtNum(v)}`],
 };
 
 // What the level you own actually bought, as a plain sentence. The maths lives
@@ -745,7 +745,7 @@ const ITEM_LIVE = {
   ring: (lv) => `you regenerate ${fmtNum(PLAYER.REGEN + itemFxAt('ring', 'regen', lv))} hp/s (base ${fmtNum(PLAYER.REGEN)})`,
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
-  hourglass: (lv) => `all your cooldowns run at ×${fmtNum(itemFxAt('hourglass', 'cdrMult', lv))}`,
+  hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
 };
 
 // One row of the per-level table. A scalar spans every column — that IS what

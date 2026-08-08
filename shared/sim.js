@@ -313,19 +313,20 @@ function mosquitoLevel(state, pl) {
   return (pl.elements && pl.elements.mosquito) || 0;
 }
 
-// Hourglass of Haste (item, any mode): global cooldown multiplier for
-// everything you cast. This was the arcane ELEMENT's effect until round 16;
-// the element's cdrMult now touches the fireball only (see castSpell).
-function cdrOf(state, pl) {
-  const { mult } = itemBonuses(pl.items);
-  return mult.cdrMult != null ? mult.cdrMult : 1;
+// Ability Haste (round 17, ex-CDR percentages): cd = base / (1 + haste/100),
+// haste SUMS across sources. Additive stacking is the point — hourglass ×
+// arcane used to COMPOUND (midas-cdr 86%, BALANCE.md question J).
+// Hourglass (item, any mode): haste on everything you cast.
+function hasteOf(state, pl) {
+  const { add } = itemBonuses(pl.items);
+  return add.haste || 0;
 }
 
-// Arcane (elemental, round 16): the fireball's own cooldown runs faster.
-function fireballCdrOf(state, pl) {
-  if (state.mode !== 'elemental') return 1;
+// Arcane (elemental, round 16): extra haste on the fireball only.
+function fireballHasteOf(state, pl) {
+  if (state.mode !== 'elemental') return 0;
   const el = pl.elements && pl.elements.arcane;
-  return el ? efxV(ELEMENTS.arcane.fx.cdrMult, el) : 1;
+  return el ? efxV(ELEMENTS.arcane.fx.haste, el) : 0;
 }
 
 // Arcane lv3 (elemental, round 16 — chronos's old effect, narrowed to fireball
@@ -397,9 +398,10 @@ export function castSpell(state, id, key, tx, ty) {
   let dx = tx - pl.x, dy = ty - pl.y;
   const d = Math.hypot(dx, dy) || 1;
   dx /= d; dy /= d;
-  let cd = lvl(spec, 'cooldown', level) * cdrOf(state, pl);
+  let haste = hasteOf(state, pl);
   // arcane (round 16): the fireball's own cadence axis
-  if (key === 'fireball') cd *= fireballCdrOf(state, pl);
+  if (key === 'fireball') haste += fireballHasteOf(state, pl);
+  let cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
   // the mosquito is a pest, not a cannon: it stings for 1 at double the rate
   if (key === 'fireball' && mosquitoLevel(state, pl))
     cd *= efxV(ELEMENTS.mosquito.fx.cdMult, mosquitoLevel(state, pl));

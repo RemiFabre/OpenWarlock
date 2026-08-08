@@ -248,7 +248,7 @@ export const ITEMS = {
   // affects ALL spells is thematically an item. `costs` is a per-level price
   // array (itemCost reads it); items without one keep their flat cost.
   hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
-            desc: 'ALL your cooldowns run faster: −10%, then −19% and −28%' },
+            desc: 'ALL your cooldowns run faster: +10 Ability Haste, then +22 and +38' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -275,9 +275,11 @@ export const ITEM_FX = {
   cape: { kbMult: [0.92, 0.85, 0.80] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
-  // global CDR (round 16, ex-element arcane). castSpell multiplies EVERY
-  // cooldown by it; the arcane ELEMENT's cdrMult touches the fireball only.
-  hourglass: { cdrMult: [0.9, 0.81, 0.72] },
+  // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
+  // haste SUMS across sources — so stacking it with arcane's fireball haste
+  // has diminishing returns where the old multipliers compounded (midas-cdr
+  // 86% — BALANCE.md question J). Converted value-neutral from [0.9,0.81,0.72].
+  hourglass: { haste: [10, 22, 38] },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------
@@ -348,14 +350,15 @@ export const ELEMENTS = {
            desc: 'Your fireball becomes a mosquito: 1 damage, no push, and a much faster sting that leaves a mosquito stack on whoever it hits. Sting someone who already carries YOUR stack and it spends it: two of your normal fireballs land at once, so every effect you own procs twice — double damage, double frost, double gold. The push, though, is only ever a single fireball.',
            fx: { mosquito: true, cdMult: [0.80, 0.70, 0.59], stingDmg: 1,
                  procBalls: 2 } },
-  // Round 16: arcane is the fireball's CADENCE axis — cdrMult hits the FIREBALL
-  // cooldown only (global CDR moved to the Hourglass item). Lv3 = ex-chronos
-  // refund on fireball hits, never the fireball's own CD (self-refund = 74%
-  // feedback loop; sweep + revert on arcaneRefund in sim.js). cdFloor stops re-cast loops.
+  // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
+  // (global haste is the Hourglass item). Round 17: percentages → additive
+  // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).
+  // Lv3 = ex-chronos refund on fireball hits, never the fireball's own CD
+  // (self-refund = 74% feedback loop; revert on arcaneRefund in sim.js).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-arcane
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 5, 12],
-           desc: 'Your fireball cools down faster: −15%, then −28%. Lv3 unlocks: every fireball HIT refunds 1 s off all your OTHER cooldowns (per enemy hit).',
-           fx: { cdrMult: [0.85, 0.72, 0.72], hitRefund: [0, 0, 1],
+           desc: 'Your fireball cools down faster: +18 Ability Haste, then +39 (fireball only). Lv3 unlocks: every fireball HIT refunds 1 s off all your OTHER cooldowns (per enemy hit).',
+           fx: { haste: [18, 39, 39], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
   // Every 5th fireball engorged: heals >100% of damage dealt — an EVENT, not a
   // trickle. As specced it won 74.7%; retuned across BOTH knobs (every 5 × 0.7).

@@ -1053,15 +1053,16 @@ describe('elemental mode', () => {
     expect(b.maxHp - b.hp).toBeLessThan(9.5);
   });
 
-  it('arcane shortens every cooldown', () => {
+  it('arcane hastens the fireball', () => {
     const state = elementalBattle(3);
     const a = state.players.p0;
     state.players.p1.x = 0; state.players.p1.y = 45;
     state.players.p2.x = 0; state.players.p2.y = -45;
-    a.elements = { arcane: 3 }; // -25%
+    a.elements = { arcane: 3 };
     castSpell(state, 'p0', 'fireball', 20, 0);
     const cdArc = a.cooldowns.fireball;
-    expect(cdArc).toBeCloseTo(SPELLS.fireball.cooldown[0] * ELEMENTS.arcane.fx.cdrMult[2], 3);
+    expect(cdArc).toBeCloseTo(
+      SPELLS.fireball.cooldown[0] / (1 + ELEMENTS.arcane.fx.haste[2] / 100), 3);
   });
 
   // Land `n` frost fireballs of level `el` on p1 and return the state.
@@ -2085,8 +2086,10 @@ describe('elemental mode', () => {
   });
 
   // ---- arcane 🔮 (round 16: cadence lv1/2, on-hit refund lv3) --------------
-  // The hourglass ITEM carries the old global CDR; arcane touches the fireball
-  // only, and its lv3 special is chronos's old refund narrowed to fireball hits.
+  // Round 17: CDR percentages became additive Ability Haste —
+  // cd = base / (1 + haste/100), haste sums across sources. The hourglass ITEM
+  // hastens everything; arcane touches the fireball only, and its lv3 special
+  // is chronos's old refund narrowed to fireball hits.
 
   it('arcane lv1/2: the FIREBALL cools down faster; nothing else does', () => {
     const f = ELEMENTS.arcane.fx;
@@ -2098,26 +2101,30 @@ describe('elemental mode', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     castSpell(state, 'p0', 'lightning', 20, 10);
     expect(a.cooldowns.fireball).toBeCloseTo(
-      SPELLS.fireball.cooldown[0] * f.cdrMult[0], 3);
+      SPELLS.fireball.cooldown[0] / (1 + f.haste[0] / 100), 3);
     expect(a.cooldowns.lightning).toBeCloseTo(SPELLS.lightning.cooldown, 3);
   });
 
-  it('the hourglass speeds up EVERY cooldown, and stacks with arcane on the fireball', () => {
+  it('the hourglass hastens EVERY cooldown, and SUMS with arcane on the fireball', () => {
     const state = elementalBattle(2);
     const a = state.players.p0;
     a.items = { hourglass: 2 };
     a.spells.lightning = 1;
     a.cooldowns = {};
-    const hg = ITEM_FX.hourglass.cdrMult[1];
+    const hg = ITEM_FX.hourglass.haste[1];
     castSpell(state, 'p0', 'fireball', 20, 0);
     castSpell(state, 'p0', 'lightning', 20, 10);
-    expect(a.cooldowns.fireball).toBeCloseTo(SPELLS.fireball.cooldown[0] * hg, 3);
-    expect(a.cooldowns.lightning).toBeCloseTo(SPELLS.lightning.cooldown * hg, 3);
+    expect(a.cooldowns.fireball).toBeCloseTo(
+      SPELLS.fireball.cooldown[0] / (1 + hg / 100), 3);
+    expect(a.cooldowns.lightning).toBeCloseTo(
+      SPELLS.lightning.cooldown / (1 + hg / 100), 3);
     a.elements = { arcane: 2 };
     a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 20, 0);
+    // additive, not compounding: one divisor over the summed haste
     expect(a.cooldowns.fireball).toBeCloseTo(
-      SPELLS.fireball.cooldown[0] * hg * ELEMENTS.arcane.fx.cdrMult[1], 3);
+      SPELLS.fireball.cooldown[0] /
+        (1 + (hg + ELEMENTS.arcane.fx.haste[1]) / 100), 3);
   });
 
   it('arcane lv3: a landed FIREBALL refunds every OTHER running cooldown — never its own', () => {
