@@ -30,23 +30,19 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **ROUND17 shipped IN FULL** (2026-08-08, all four sessions + battery,
-  pushed): haste, Swap, sky-bolt, midas mark, momentum tiers, venom
-  de-stacked, ember trim, sustain pass + full-stop regen lock, softmax bot
-  targeting, layered projectile visuals, shop rows, co-op mothballed. Plus
-  Remi's live requests: the 🧪 testing sandbox (lobby flag: chosen gold,
-  untimed first shop), `boltDodge` (Hard dodges 50% of sky-bolts, committed
-  per bolt), and rewritten AI strategy texts. Two measured retunes beyond the
-  plan: venom `tickDmg [0.5,1,1.5]` and hourglass `haste [8,18,28]`.
-- **Question J (midas-cdr) is CLOSED** — 86% → 24.3% (baseline). Question G
-  closed by §7 + the retune. Full evidence:
-  `docs/history/2026-08-08-round17-battery.md`.
-- **Waiting on Remi — new questions K/L/M in BALANCE.md**: momentum #1 on bot
-  tables (bot-inflation shape, lever measured), the Blood Sword mandatory by
-  STRUCTURE under the full-stop lock (knob measured, doesn't fix), CDR builds
-  now bottom-third. Plus the standing feel items (B, E, F, H).
-- ⚠ STRATEGIES.md's 25-row table predates the softmax bots + venom retune —
-  re-run `tools/strategy-study.js` before quoting it.
+- **ROUND17 shipped IN FULL and pushed** (2026-08-08): all four sessions, the
+  battery, Remi's live-playtest batch (testing sandbox, boltDodge, tag descs,
+  readability pass, PASSIVE REGEN REMOVED, Blink, infinite ranges, cheap
+  ex-power spells, unlimited pillars, vanish 1/2/3 s). Two measured retunes:
+  venom `tickDmg [0.5,1,1.5]`, hourglass `haste [10,18,26]`. Questions J and
+  G CLOSED. Story: REMI_NOTES.md; numbers: BALANCE.md →
+  `docs/history/2026-08-08-round17-battery.md` + `...-value-analysis.md`.
+- **Waiting on Remi — questions K/L/M in BALANCE.md** (momentum tiers on bot
+  tables, sword mandatory-by-structure, CDR builds bottom-third) + standing
+  feel items (B, E, F, H). He also has UNSHIPPED ideas incoming (gameplay +
+  UI); expect voice-dictated orders.
+- ⚠ STRATEGIES.md's 25-row table + BALANCE's mixed/ladder tables predate the
+  regen removal — re-run the instruments before quoting them.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -88,7 +84,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz, JSONL journal, `/health`, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 226 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 237 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -102,45 +98,51 @@ build step, Node ESM, only dep is `ws`.
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
 | `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive — read on demand only)** |
 
-## Game rules snapshot (post-round-16, one line each — details in constants.js and BALANCE.md)
+## Game rules snapshot (post-round-17, one line each — details in constants.js and BALANCE.md)
 
 - First to **15 kills**, 25-round cap; countdown → battle → roundEnd → shop.
+  The 🧪 **testing sandbox** (lobby flag like draft): chosen gold, game opens
+  in an UNTIMED shop, ready-up starts round 1.
 - **Lava** 14 DPS, ×2 swim speed; versus ring **never stops** (`NEVER_STOPS`);
-  **co-op keeps the classic ring** at `COOP_SHRINK_TIME` 65 s (campaign is
-  priced on it). Lava kill share has fallen every round (now ~19% Hard / 44%
-  Extreme) — RULED 2026-08-08: not a problem per se, keep reporting it.
-- **Knockback is CONSTANT** (`KB_CONSTANT_MISSING 0.30`; set `null` to restore
-  HP-scaling — that one line is the revert). No size term, ever.
-- **Anti-snowball economy**: 8 g/round + 2/kill + 2 round win + 1 first death;
-  invariant caps 4p earn spread at 2× (test-enforced). Bounty ≤ 3 g, never to
-  the leader. ⚠ midas income bypasses this cap by RATE — open question J.
-- **Fireball is locked at lv1 in elemental** (the default ruleset) — the 11
-  stackable **elements are its progression**, all fireball riders, all
-  PRIVATE-stacked per attacker: cheap single axes ember=damage, terra=size,
-  gale=push, arcane=cadence, ghost=speed (6+5+5; gale/arcane/ghost lv3 = 12 g
-  specials: burst gust ×2.4 / −1 s off your OTHER cooldowns per fireball hit /
-  pure passthrough), plus venom, frost, momentum (permanent ramp — re-sweep
-  after ANY fireball change), mosquito (procs twice, shoves once), vampire,
-  midas (+1 g/hit forever). Classic keeps the 3-level fireball.
-- **Items: 3 levels**, cumulative `ITEM_FX` totals, flat cost per level
-  (hourglass carries a per-level `costs` array). Amulet+Sword return 3-6× more
-  per gold than the rest (open question A). Cape is pilot-sign-flipping — never
-  buff it off Hard-bot tables (15D).
+  co-op keeps the classic ring. Lava kill share: keep reporting, no target.
+- **NO PASSIVE REGEN** (round 17, measured): `PLAYER.REGEN 0`, the Ring is
+  deleted, the regen-lock machinery is inert-but-kept as the revert path.
+  Damage is permanent within a round; the Blood Sword is the ONLY healing.
+- **Knockback is CONSTANT** (`KB_CONSTANT_MISSING 0.30`; `null` = revert).
+- **Anti-snowball economy**: 8 g/round + 2/kill + 2 win + 1 first death; 2×
+  earn-spread cap test-enforced. Midas is a mark-then-cash rhythm (question J
+  closed).
+- **Fireball locked at lv1 in elemental** (default ruleset) — 11 elements are
+  its progression, all private-stacked riders: ember=damage, terra=size,
+  gale=push (lv3 gust), arcane=haste [18,32] + lv3 kit refund (NEVER its own
+  fireball — 66-74% feedback loop, twice measured), ghost=speed (lv3 pierce),
+  venom=refresh-only DoT (lethal tick takes the kill), frost=stacks-to-CC,
+  momentum=EVOLUTION TIERS at 40/90/150 game-long landed hits, mosquito=sting
+  trap (procs twice, shoves once), vampire=every-5th engorged heal, midas.
+  Classic keeps the 3-level fireball.
+- **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
+  mechanism sentence on hover. Keep new things in that shape.
+- **Items: 3 levels**, cumulative `ITEM_FX` totals. Sword is mandatory by
+  structure (question L). Cape is pilot-sign-flipping — never buff it off
+  Hard-bot tables.
+- **Spells** (round 17): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
+  ignores pillars/walls; delay+radius NEVER level); hook → **Swap** (full
+  position+velocity trade, 1 dmg stamps lava credit); Teleport is named
+  **Blink**; pillars are unlimited per caster; vanish 1/2/3 s at flat 10 g;
+  ground-targeted spells have INFINITE range (bots use `BOLT_ENGAGE`-style
+  caps instead); ex-"power" spells sit in the normal shop at 12-14 g but
+  `tier: 'power'` REMAINS as the bot guard + draft filter.
 - **Vanish**: position stripped in `snapshot()` AND masked from bot perception
   (`BOT_MEMORY`) — both load-bearing, test-locked.
-- **Power tier** buyable round 1; **no bot build list may contain one** (bots
-  can't pilot them — structural guard in `botShop`).
 - **Credit rules**: DoT never stamps last-hitter; a lethal poison tick DOES
-  take the kill. Lifesteal pays on damage actually dealt, never lava; every
-  heal ≥ 1 hp pops a green +N on the healer.
-- **Lava is ~8.5% of damage and ~30% of kills** — "most damage is lava" is
-  always a wrong premise (13A).
-- **Draft mode**: optional flag over any ruleset; half the catalogue becomes a
-  rolled pool with free picks every 3 rounds. Unmeasured by design.
-- **Bots**: Easy/Normal/Hard/Extreme (`grunt/brawler/berserker/stalker` keys,
-  unchanged on purpose). Ladder h2h: 100 / 99.5 / 100. Easy is pure chaos —
-  h2h against it is not a signal. Bots pressure the kill leader
-  (`BOT_TARGETING.LEADER_BIAS 2.5`).
+  take the kill. Lifesteal pays on damage actually dealt, never lava; heals
+  ≥ 1 hp pop a green +N; poison ticks are exempt from the ≥1 floater filter.
+- **Draft mode**: optional flag over any ruleset. Unmeasured by design.
+- **Bots**: Easy/Normal/Hard/Extreme (`grunt/brawler/berserker/stalker` keys).
+  Ladder h2h 100/99.8/100. Targeting is a SOFTMAX draw (`BOT_TARGETING`,
+  TEMPERATURE 6); sky-bolt dodge is a committed per-bolt roll (`boltDodge`
+  0.35/0.5/0.85 — Remi set Hard's 50%); bots pressure the kill leader
+  (`LEADER_BIAS 2.5`).
 
 ## Co-op campaign (mode `coop`) — MOTHBALLED
 
@@ -165,7 +167,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 226 green
+npx vitest run                                   # 237 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

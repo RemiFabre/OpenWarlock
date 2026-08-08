@@ -9,6 +9,6 @@ Hard rules (full policy in AGENTS.md):
 - Living docs (AGENTS.md, BALANCE.md, REMI_NOTES.md, STRATEGIES.md) are edited
   in place and stay lean; long reports become new dated files in
   `docs/history/`. No sweep tables in code comments — pointer lines only.
-- `npx vitest run` (226) and the verification ritual in AGENTS.md must pass
+- `npx vitest run` (237) and the verification ritual in AGENTS.md must pass
   before claiming anything works. Check Remi isn't hosting
   (`pgrep -fl "server/index.js"`) before running tests that kill servers.
