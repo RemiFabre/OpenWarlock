@@ -496,7 +496,12 @@ setInterval(() => {
   // through their own casts and hits (viewEvents; no-op when nobody is hidden).
   for (const [id, ws] of sockets) {
     if (ws.readyState !== 1) continue;
-    ws.send(JSON.stringify({ t: 'snap', s: snapshot(game, id), e: viewEvents(game, events, id) }));
+    ws.send(JSON.stringify({
+      t: 'snap', s: snapshot(game, id), e: viewEvents(game, events, id),
+      // lobby ban count (server-level, not game state): the client shows its
+      // "Unban all" button only when there is actually something to lift
+      ...(bannedNames.size + bannedIps.size ? { bans: bannedNames.size + bannedIps.size } : {}),
+    }));
   }
 }, 1000 / SNAPSHOT_RATE);
 

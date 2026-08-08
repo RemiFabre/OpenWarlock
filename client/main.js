@@ -130,6 +130,7 @@ function connect(name) {
       setConnBanner(null);
       $('join').classList.add('hidden');
     } else if (m.t === 'snap' && m.s && typeof m.s === 'object' && m.s.players) {
+      if (m.bans != null) m.s.bans = m.bans; // server-level: lobby ban count
       snaps.push({ at: performance.now(), s: m.s });
       if (snaps.length > 40) snaps.shift();
       if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
@@ -773,6 +774,19 @@ const ITEM_LIVE = {
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
 };
 
+// The buy line (round 17, Remi): the stat you'll HAVE if you buy right now —
+// absolute totals, since ITEM_FX arrays are cumulative.
+const ITEM_NEXT = {
+  boots: (lv) => `+${fmtNum(Math.round((itemFxAt('boots', 'speedMult', lv) - 1) * 100))}% move speed`,
+  treads: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('treads', 'lavaMult', lv)) * 100))}% lava damage`,
+  amulet: (lv) => `+${fmtNum(itemFxAt('amulet', 'maxHp', lv))} max HP`,
+  ring: (lv) => `+${fmtNum(itemFxAt('ring', 'regen', lv))} HP every second`,
+  cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback taken`,
+  sword: (lv) => `heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% of damage you deal`,
+  hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} Ability Haste`,
+  echo: () => `every 4th fireball fires twice`,
+};
+
 // One row of the per-level table. A scalar spans every column — that IS what
 // "same at every level" looks like; an array gets one cell per level.
 function tipRow(label, value, cols, fmt, cur, cls = '') {
@@ -833,11 +847,10 @@ function elementTip(key, spec, level) {
     rows += tipRow(label, fxSpec[field], cols, fmt, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, cols), cols, fmtGold, level + 1, 'cost');
-  const total = spec.costs.slice(0, cols).reduce((a, b) => a + b, 0);
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
-    `Full path costs <b>${total} g</b>.`,
-    'Needs <b>Fireball lv 1</b>. Elements stack with each other.',
+    // the one boilerplate line that earns its place: what haste MEANS
+    spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
   return tipShell(spec.icon, spec.name, spec.desc,
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
@@ -858,18 +871,12 @@ function itemTip(key, spec, level) {
     rows += tipRow(label, fxSpec[field], cols, fmt, cur);
   }
   const costs = Array.from({ length: cols }, (_, i) => itemCost(key, i));
-  const total = costs.reduce((a, b) => a + b, 0);
-  const flat = costs.every(c => c === costs[0]);
   rows += tipRow('cost', costs, cols, fmtGold, Math.min(level + 1, cols), 'cost');
   const live = level > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](cur);
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
     live ? `With that, ${live}.` : '',
-    cols > 1
-      ? (flat
-        ? `Every level costs the same <b>${costs[0]} g</b> — full path <b>${total} g</b>. Each level gives less than the last.`
-        : `Full path costs <b>${total} g</b>. Each level gives less than the last.`)
-      : 'Single level — one purchase and it is maxed.',
+    key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
   return tipShell(ICONS[key], spec.name, spec.desc,
     `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
@@ -968,6 +975,19 @@ function spellUpgradeLine(spec, level) {
 
 // The one-line version of a per-level array, for the button itself:
 // "damage 2 / 4 / 6". Scalars stay in the tooltip — they don't evolve.
+// The compact buy line (round 17, Remi): only what the NEXT level gives you.
+// The full per-level table stays in the hover tooltip.
+function nextLevelLine(fxSpec, dict, level) {
+  const parts = [];
+  for (const field of orderedFields(fxSpec || {}, dict)) {
+    const v = fxSpec[field];
+    if (!Array.isArray(v)) continue;
+    const [label, fmt] = dict[field] || [field, fmtNum];
+    parts.push(`${label} ${fmt(statAt(v, level + 1))}`);
+  }
+  return parts.join(' · ');
+}
+
 function perLevelLine(fxSpec, dict) {
   const parts = [];
   for (const field of orderedFields(fxSpec || {}, dict)) {
@@ -984,9 +1004,9 @@ function perLevelLine(fxSpec, dict) {
 // Elements = the ball's stat axes; Mutations = the ones that change what the
 // ball does.
 const ELEMENT_ROWS = [
-  ['Elements ⚗️ (your fireball\'s stat axes — 3 levels each, and they stack)',
+  ['Elements ⚗️ (your fireball\'s stat axes)',
     ['ember', 'terra', 'gale', 'arcane', 'ghost']],
-  ['Mutations 🧬 (they change what your fireball DOES — 3 levels each)',
+  ['Mutations 🧬 (they change what your fireball does)',
     ['venom', 'frost', 'momentum', 'mosquito', 'vampire', 'midas']],
 ];
 const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
@@ -1030,23 +1050,18 @@ function buildShop(container, mode = 'classic') {
     attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
     wares.push(w); inSection(w);
   };
+  // Round 17 (Remi): no separate "Powerful" category — every spell is just a
+  // spell in the shop. `tier: 'power'` lives on in the SPEC as the bot guard
+  // and the draft-offer filter, never as a shelf.
   mkLabel('Spells');
-  for (const [key, spec] of Object.entries(SPELLS))
-    if (spec.tier !== 'power') mkSpell(key, spec);
-  // 2026-08-07: round 12 deleted the `minRound: 5` gate (SPELLS, constants.js) —
-  // the power tier is buyable from the FIRST shop and the only thing keeping
-  // bots out of it is that no build list names one. This label still said
-  // "unlock after round 5", i.e. the shop was lying about the rules.
-  mkLabel('Powerful ⚡ (pricey, decisive — on sale from round 1)');
-  for (const [key, spec] of Object.entries(SPELLS))
-    if (spec.tier === 'power') mkSpell(key, spec);
+  for (const [key, spec] of Object.entries(SPELLS)) mkSpell(key, spec);
   const mkElement = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${spec.icon}</span>
       <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
       <span class="desc">${spec.desc}</span>
-      <span class="stats">${esc(perLevelLine(spec.fx, FX_FIELDS))}</span></span>
+      <span class="stats">${esc(nextLevelLine(spec.fx, FX_FIELDS, 0))}</span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
@@ -1067,7 +1082,7 @@ function buildShop(container, mode = 'classic') {
           if (!ROW_KEYS.has(key)) mkElement(key, spec);
     }
   }
-  mkLabel('Items (3 levels each — each level gives less than the last)');
+  mkLabel('Items (passive boosts)');
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
@@ -1135,6 +1150,8 @@ function buildShop(container, mode = 'classic') {
         w.el.classList.toggle('sel', elevel > 0);
         const lv = w.el.querySelector('.lv');
         lv.textContent = elevel ? `lv ${elevel}` : '';
+        w.el.querySelector('.stats').textContent = nextLevelLine(
+          w.spec.fx, FX_FIELDS, Math.min(elevel, w.spec.maxLevel - 1));
         if (elevel >= w.spec.maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1151,7 +1168,9 @@ function buildShop(container, mode = 'classic') {
         w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
         w.el.classList.toggle('sel', level > 0);
         w.el.querySelector('.stats').textContent =
-          level > 0 && ITEM_LIVE[w.key] ? ITEM_LIVE[w.key](level) : '';
+          level >= w.spec.maxLevel
+            ? (ITEM_LIVE[w.key] ? ITEM_LIVE[w.key](level) : '')
+            : (ITEM_NEXT[w.key] ? ITEM_NEXT[w.key](level + 1) : '');
         if (level >= w.spec.maxLevel) {
           cost.innerHTML = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1420,6 +1439,9 @@ function updateUi(s) {
     testGold.style.display = testOn ? '' : 'none';
     if (testOn && document.activeElement !== testGold)
       testGold.value = s.testing.gold;
+    // a button that lifts bans is noise until a ban exists (Remi: "I didn't
+    // know we could ban people" — you ban from the player list, mid-game)
+    $('unbanBtn').classList.toggle('hidden', !(+s.bans > 0));
   }
 
   if (s.phase === 'shop') {
@@ -1448,7 +1470,7 @@ function updateUi(s) {
     $('shopSub').textContent = pausedBy
       ? `⏸ Clock frozen by ${pausedBy} — take your time. Everyone hitting Ready still starts the round.`
       : watching
-        ? "You're spectating — no shopping" : "Spend it while you're alive to.";
+        ? "You're spectating — no shopping" : '';
     setVisible('shopGrid', !watching);
     setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
     if (!watching) {

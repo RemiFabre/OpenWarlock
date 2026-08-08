@@ -503,10 +503,12 @@
     <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
       <span id="lobbyFormat"></span></p>
     <div class="scroller">
+      <!-- Controls FIRST, the growing player list LAST (Remi: clicking an
+           add-bot button must never shift the other buttons under the cursor).
+           The list also reserves its height for a full lobby, same reason. -->
       <div class="cols2">
         <div>
-          <h2 class="secttl">Warlocks</h2>
-          <div id="playerList"></div>
+          <h2 class="secttl">You</h2>
           <div class="row">
             <button id="readyBtn" class="primary">I am ready</button>
             <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing ⚔</button>
@@ -528,7 +530,7 @@
           <div class="row" id="botRow">
             <span id="botBtns" class="row" style="gap:8px"></span>
             <button id="removeBotBtn" class="mini" type="button">Remove bot</button>
-            <button id="unbanBtn" class="mini" type="button" title="Lift all lobby bans">Unban all</button>
+            <button id="unbanBtn" class="mini hidden" type="button" title="Lift all lobby bans">Unban all</button>
           </div>
           <details id="botHelp" class="hint">
             <summary>Bot difficulties &amp; strategies explained</summary>
@@ -536,6 +538,8 @@
           </details>
         </div>
       </div>
+      <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
+      <div id="playerList" style="min-height:216px"></div>
     </div>
     <p class="hint" id="lobbyHint"></p>
   </div>
@@ -549,7 +553,7 @@
       <span id="shopTimer" class="num"></span>
       <button id="shopPauseBtn" title="Freeze the shop clock — you can still buy, and everyone readying up still starts the round">⏸ Pause</button>
     </div>
-    <p class="sub" id="shopSub">Spend it while you're alive to.</p>
+    <p class="sub" id="shopSub"></p>
     <div class="scroller">
       <table id="shopStats" class="stats"></table>
       <p class="hint" id="shopIncome" style="margin:10px 0 12px"></p>

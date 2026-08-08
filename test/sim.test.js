@@ -2729,7 +2729,7 @@ describe('power spells & pillar', () => {
     }
   });
 
-  it('pillar: raises a blocker, one at a time, and it expires', () => {
+  it('pillar: raises a blocker, stacks freely (round 17), and each expires', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.pillar = 1;
@@ -2743,13 +2743,14 @@ describe('power spells & pillar', () => {
     castSpell(state, 'p0', 'fireball', 12, 0);
     run(state, 0.5);
     expect(b.hp).toBe(b.maxHp);
-    // recasting replaces the old one — never two standing stones
+    // round 17 (Remi): no per-caster limit — recasting ADDS a second stone
     a.cooldowns = {};
     castSpell(state, 'p0', 'pillar', -6, 0);
+    expect(state.pillars.length).toBe(2);
+    // and each crumbles when its own time runs out (0.5 s apart)
+    run(state, SPELLS.pillar.duration[0] - 0.3);
     expect(state.pillars.length).toBe(1);
-    expect(state.pillars[0].x).toBeLessThan(0);
-    // and it crumbles when its time runs out
-    run(state, SPELLS.pillar.duration[0] + 0.2);
+    run(state, 1);
     expect(state.pillars.length).toBe(0);
   });
 

@@ -498,11 +498,10 @@ export function castSpell(state, id, key, tx, ty) {
       break;
     }
     case 'pillar': {
-      // raise a standing stone at the cursor (clamped); a new one replaces
-      // your previous — one piece of personal architecture at a time
+      // raise a standing stone at the cursor. Round 17 (Remi): no per-caster
+      // limit any more — the duration/cooldown ratio is the real cap.
       const dist = Math.min(d, spec.range);
       const px = pl.x + dx * dist, py = pl.y + dy * dist;
-      state.pillars = state.pillars.filter(p => p.placedBy !== id);
       state.pillars.push({
         x: px, y: py, r: spec.radius, sunk: false,
         placedBy: id, until: state.time + lvl(spec, 'duration', level),
@@ -2367,6 +2366,11 @@ function boltEscape(state, pl) {
   return { x: ex, y: ey };
 }
 
+// Bots don't drop bolts from across the map: the SPELL's range is infinite
+// since round 17 (Remi: no range indicators to learn), so the old spec-range
+// engagement gate lives on here as a bot discipline, not a rule of the game.
+const BOLT_ENGAGE = 36;
+
 // Aim for the new lightning (round 17): the bolt lands `delay` after the cast,
 // so lead the target by exactly that — and never drop it on your own head.
 function boltAim(state, pl, target) {
@@ -2490,7 +2494,7 @@ function pilotOwnedSpells(state, pl, dt) {
 
   // lightning poke (stalker uses it natively): drop the sky-bolt on the
   // target's predicted spot (round 17); grunts stay a bit sloppy
-  if (pl.kind !== 'stalker' && owns('lightning') && dist < SPELLS.lightning.range - 2) {
+  if (pl.kind !== 'stalker' && owns('lightning') && dist < BOLT_ENGAGE) {
     const aim = boltAim(state, pl, target);
     const err = pl.kind === 'grunt' ? (rng(state) - 0.5) * dist * 0.15 : 0;
     if (aim && castSpell(state, pl.id, 'lightning',
@@ -3050,7 +3054,7 @@ function stepStalker(state, pl, dt) {
   // -- lightning: finish the wounded or poke from afar — the sky-bolt lands
   // where the target WILL be, one delay from now (round 17)
   if ((pl.spells.lightning || 0) > 0 && (pl.cooldowns.lightning || 0) <= 0 &&
-      dist < SPELLS.lightning.range - 2 && (target.hp <= 20 || dist > 24)) {
+      dist < BOLT_ENGAGE && (target.hp <= 20 || dist > 24)) {
     const aim = boltAim(state, pl, target);
     if (aim) castSpell(state, id, 'lightning', aim.x, aim.y);
   }
