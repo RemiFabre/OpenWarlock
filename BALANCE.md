@@ -25,6 +25,19 @@ kept block below points into
   things read at their floor on Hard, sustain reads flattered. Extreme
   columns show which way skill bends it.
 
+## Round 17 Session A shipped (2026-08-08) — mechanics only, UNMEASURED
+
+Per docs/ROUND17.md: co-op mothballed (§1); **CDR → additive Ability Haste**
+(§4: hourglass +10/+22/+38 all spells, arcane +18/+39 fireball-only —
+`cd = base/(1 + haste/100)`, sources SUM instead of compounding, which is the
+structural half of question J's fix); **Hook → Swap** (§3: full
+position+velocity exchange, 1 dmg stamps the lava credit); **Lightning →
+telegraphed sky-bolt** (§2: radius 2.2, 0.5 s delay, 12/15/18 falling to half
+at the edge, radial knockback, ignores pillars/walls). Bots got minimal §2
+support (lead by the delay, step out of telegraphs); Swap reads at the
+do-nothing floor until Session C — **every table below predates all of this
+and every new number is a FIRST TRY guess**. Session B runs the one battery.
+
 ## Current state (round 16, 2026-08-08)
 
 The rework: elements are the fireball's whole progression (the fireball never
@@ -133,9 +146,9 @@ Ranked by how much they matter. Each carries its evidence and its lever.
    bot artifacts); if Remi's own play says they feel weak, buff the *specials*
    (gale `burstKbMult` 2.4 — steep lever, +20% ≈ +14 points; ghost could get
    its pierce at lv2) rather than the stat lines.
-4. **CDR stacking** — see ranking note 3. Hourglass trim `[0.92, 0.85, 0.78]`
-   is measured and ready if human play confirms; alternatively cap the
-   fireball's total CDR product.
+4. **CDR stacking** — SUPERSEDED by round 17 §4: percentages became additive
+   Ability Haste (sources sum, no compounding). Re-measure in Session B's
+   battery; the old trim numbers no longer apply.
 5. **Frost is quietly fine** (20.0% strategy, +49 isolated lv3): the freeze is
    real, the setup is slow. No action.
 6. **Vampire fell out of the top tier** (15.4% single-element vs 26.7% when it
@@ -190,11 +203,12 @@ retunes on top of it. One-line levers: `PLAYER.KB_HP_FACTOR`,
 `PLAYER.KB_CONSTANT_MISSING` (set to `null` to restore true HP-scaled knockback),
 `LAVA.SPEED_MULT`.
 
-**D. Bots pilot none of the power tier — and, newly, none of the Stone Pillar
-above Easy.** Meteor, Hook, Repulse, Mirror Wall and Pillar all measure at exactly
-the do-nothing control (§6). Every number in the power tier is a design guess, and
-the Pillar is currently dead gold in three of four tiers *and is in shipped build
-lists*. Teaching bots to cast them is the highest-value lab work left.
+**D. Bots pilot none of the power tier — and none of the Stone Pillar above
+Easy.** Meteor, Swap (ex-Hook), Repulse, Mirror Wall and Pillar all measure at
+exactly the do-nothing control (§6). Every number in the power tier is a design
+guess, and the Pillar is currently dead gold in three of four tiers *and is in
+shipped build lists*. ROUND17 §11 (Session C) owns the fix: Swap lava-save and
+defensive Pillar heuristics are specced there.
 
 **E. Midas is either the strongest element in the game or the weakest, depending
 on whether you have anything left to buy** (+72.1 vs −12.5, §3). Which one the
@@ -228,7 +242,10 @@ keeps the classic hold-then-sudden-death ring at its own 65 s journey
 never-stopping ring, the guard is one line in `stepBattle` — but the whole back
 half of the campaign then needs re-pricing.
 
-**J. (round 16) midas-cdr needs a ruling — it is the one copyable auto-win.**
+**J. (round 16) midas-cdr needs a ruling — it is the one copyable auto-win.
+UPDATE 2026-08-08: ROUND17 rules this is expected to resolve via §4 (haste,
+shipped in Session A) + §5 (midas mark, Session B) — verify in Session B's
+battery: midas-cdr and double-cdr must leave degenerate territory.**
 86% Hard / 95% Extreme (Finding 16A). The measured non-fixes: hourglass trim
 −8, deep midas penalty −7/−10. The real options touch your rulings: (a) cap
 midas income by RATE (one payout per victim per second — but a cashed mosquito
@@ -290,8 +307,8 @@ node tools/h2h.js --games=400 stalker   berserker
 
 # ---- health + the checks that must pass before any of this is believed -------
 node tools/arena.js --games=60 --players=4               # lava share, comebacks
-node tools/coop.js --levels                              # RE-RUN AFTER ANY item/gold/knockback CHANGE
-npx vitest run                                           # 212 green
+node tools/coop.js --levels                              # co-op mothballed: only if its tests break
+npx vitest run                                           # 226 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 ```

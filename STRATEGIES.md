@@ -1,5 +1,10 @@
 # Bot strategies — the chart
 
+*⚠ Every number below predates ROUND17 Session A (2026-08-08: haste, Swap,
+sky-bolt lightning). The ranking is still the best available map of the meta,
+but the CDR rows measured the old compounding multipliers — Session B re-runs
+the study.*
+
 *A bot is a **difficulty** (how it fights) × a **strategy** (what it buys).
 Both are picked in the lobby: each difficulty button has a strategy dropdown
 next to it, and 🎲 random rolls one of the six strategies when the bot is

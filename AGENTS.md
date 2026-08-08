@@ -30,19 +30,19 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **Round 16 shipped and committed** (3 commits, not pushed): elements are the
-  fireball's whole progression; the strategy study ran (~35k lobbies); two
-  measured retunes (momentum `rampDmg 0.022`, arcane refund excludes its own
-  fireball); two regression fixes (`NEVER_STOPS` scoped to versus, mirror-wall
-  tunneling). Full story: REMI_NOTES.md; numbers: BALANCE.md.
-- **THE NEXT WORK ORDER IS `docs/ROUND17.md`** (dictated 2026-08-08):
-  lightning → telegraphed sky-bolt, hook → position swap, CDR → Ability
-  Haste, midas/momentum stacking reshapes, sustain-item pass ("no mandatory
-  items" is now a ruling), co-op mothballed, bot stochastic focus (own
-  session). It suggests a session split — follow it.
-- **Still waiting on Remi**: the venom nerf shape (open question G) and the
-  round-13/16 feel items. Open questions A and C were RULED in ROUND17;
-  J (midas-cdr) is expected to be resolved by ROUND17 §4+§5 — verify.
+- **ROUND17 Session A shipped** (2026-08-08, 4 commits): §1 co-op mothballed
+  (off the lobby button, code/tests live), §4 CDR → additive Ability Haste
+  (hourglass +10/+22/+38 all spells, arcane +18/+39 fireball-only), §3 Hook →
+  Swap (full position+velocity exchange, 1 dmg stamps the lava credit), §2
+  Lightning → telegraphed sky-bolt (2.2 zone, 0.5 s delay, falloff, radial kb,
+  ignores cover; bots lead by the delay and step out of telegraphs). ALL new
+  numbers are FIRST TRY and unmeasured. Story: REMI_NOTES.md.
+- **NEXT: `docs/ROUND17.md` Session B** (§5 midas mark → §6 momentum tiers →
+  §7 venom → §8 ember → §9 sustain, then the ONE measurement battery), then
+  Session C (§11 bots, own agent) and Session D (§12 visuals + §10, own agent).
+- **Still waiting on Remi**: the round-13/16 feel items. Questions A, C and
+  G's shape were RULED in ROUND17 (§9, §7); J (midas-cdr) is expected to be
+  resolved by §4 (shipped) + §5 — verify in Session B's battery.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -80,7 +80,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz, JSONL journal, `/health`, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 219 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 226 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -156,7 +156,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 219 green
+npx vitest run                                   # 226 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
