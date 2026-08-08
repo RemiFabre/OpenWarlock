@@ -968,6 +968,18 @@ function perLevelLine(fxSpec, dict) {
   return parts.join(' · ');
 }
 
+// Round 17 §10: the elements sit in two labeled shop rows — PRESENTATIONAL
+// only, every one of them is still 3 levels and buys exactly what it did.
+// Elements = the ball's stat axes; Mutations = the ones that change what the
+// ball does.
+const ELEMENT_ROWS = [
+  ['Elements ⚗️ (your fireball\'s stat axes — 3 levels each, and they stack)',
+    ['ember', 'terra', 'gale', 'arcane', 'ghost']],
+  ['Mutations 🧬 (they change what your fireball DOES — 3 levels each)',
+    ['venom', 'frost', 'momentum', 'mosquito', 'vampire', 'midas']],
+];
+const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
+
 // Build shop buttons once per container; refresh() updates them from state.
 // mode-aware: 'elemental' adds the Elements section and the elemental-only
 // combo items; 'classic' shows exactly the pre-elemental shop.
@@ -1017,22 +1029,31 @@ function buildShop(container, mode = 'classic') {
   mkLabel('Powerful ⚡ (pricey, decisive — on sale from round 1)');
   for (const [key, spec] of Object.entries(SPELLS))
     if (spec.tier === 'power') mkSpell(key, spec);
+  const mkElement = (key, spec) => {
+    const b = document.createElement('button');
+    b.className = 'ware';
+    b.innerHTML = `<span class="icon">${spec.icon}</span>
+      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="desc">${spec.desc}</span>
+      <span class="stats">${esc(perLevelLine(spec.fx, FX_FIELDS))}</span></span>
+      <span class="cost num"></span>`;
+    b.dataset.key = key;   // stable hook for the UI tests
+    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
+    container.appendChild(b);
+    const w = { key, spec, el: b, kind: 'element' };
+    attachTip(b, () => elementTip(key, spec, w.level || 0));
+    wares.push(w); inSection(w);
+  };
   if (elemental) {
-    mkLabel('Elements ⚗️ (3 levels each — and they stack)');
-    for (const [key, spec] of Object.entries(ELEMENTS)) {
-      const b = document.createElement('button');
-      b.className = 'ware';
-      b.innerHTML = `<span class="icon">${spec.icon}</span>
-        <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
-        <span class="desc">${spec.desc}</span>
-        <span class="stats">${esc(perLevelLine(spec.fx, FX_FIELDS))}</span></span>
-        <span class="cost num"></span>`;
-      b.dataset.key = key;   // stable hook for the UI tests
-      b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
-      container.appendChild(b);
-      const w = { key, spec, el: b, kind: 'element' };
-      attachTip(b, () => elementTip(key, spec, w.level || 0));
-      wares.push(w); inSection(w);
+    for (let i = 0; i < ELEMENT_ROWS.length; i++) {
+      const [label, keys] = ELEMENT_ROWS[i];
+      mkLabel(label);
+      for (const key of keys) if (ELEMENTS[key]) mkElement(key, ELEMENTS[key]);
+      // the last row also catches anything added to ELEMENTS but not named
+      // above, so a new element can never be silently missing from the shop
+      if (i === ELEMENT_ROWS.length - 1)
+        for (const [key, spec] of Object.entries(ELEMENTS))
+          if (!ROW_KEYS.has(key)) mkElement(key, spec);
     }
   }
   mkLabel('Items (3 levels each — each level gives less than the last)');

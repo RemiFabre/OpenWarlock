@@ -46,6 +46,7 @@ export function makeView(canvas) {
 }
 
 const fin = Number.isFinite;
+const TAU = Math.PI * 2;
 
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
@@ -55,6 +56,220 @@ const ELEM_CORE = {
   // arterial red (and it also gets the engorged halo below)
   ghost: '#dcd6ff', vampire: '#e0405a',
 };
+
+// Round 17 §12 — the fireball is ONE additive stack of layers, in draw order:
+//   base ball (terra sizes it, the strongest rider tints it)
+//   → element accents (one per element the ball carries, they compose)
+//   → momentum evolution (extra flame wings + motes = the tier)
+//   → event overlay (engorged / sting, which also own the BASE color).
+// Both readings matter: the owner sees the build they bought fly, a defender
+// reads what is coming at them. Accents are cheap strokes on purpose — this
+// runs per projectile per frame, so no gradients and no allocations here.
+const ACCENTS = {
+  // damage axis: hot sparks shedding off the back
+  ember: (ctx, x, y, r, lv, ang, t) => {
+    ctx.fillStyle = 'rgba(255, 214, 120, 0.9)';
+    for (let i = 0; i < lv + 1; i++) {
+      const d = r * (2.1 + i * 1.2) + r * 0.5 * Math.sin(t * 17 + i * 2);
+      const off = r * 0.7 * Math.sin(t * 11 + i * 3);
+      ctx.beginPath();
+      ctx.arc(x - Math.cos(ang) * d - Math.sin(ang) * off,
+        y - Math.sin(ang) * d + Math.cos(ang) * off, r * 0.22, 0, TAU);
+      ctx.fill();
+    }
+  },
+  // size axis: a gritty rock shell, tumbling
+  terra: (ctx, x, y, r, lv, ang, t) => {
+    ctx.strokeStyle = 'rgba(150, 96, 48, 0.95)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (let i = 0; i <= 7; i++) {
+      const a = (i / 7) * TAU + t * 1.4;
+      const rr = r * (1.5 + 0.2 * Math.sin(i * 2.4));
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+      if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.stroke();
+  },
+  // push axis: wind curls peeling off the sides
+  gale: (ctx, x, y, r, lv, ang, t) => {
+    ctx.strokeStyle = 'rgba(230, 242, 255, 0.6)';
+    ctx.lineWidth = 1.4;
+    const wob = 0.25 * Math.sin(t * 7);
+    for (let s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.arc(x - Math.cos(ang) * r * 1.5, y - Math.sin(ang) * r * 1.5,
+        r * (1.3 + 0.3 * lv), ang + s * (0.5 + wob), ang + s * 2.3, s < 0);
+      ctx.stroke();
+    }
+  },
+  // cadence axis: rune arcs spinning fast around the ball
+  arcane: (ctx, x, y, r, lv, ang, t) => {
+    ctx.strokeStyle = 'rgba(196, 150, 255, 0.8)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const a = t * 5 + i * (TAU / 3);
+      ctx.beginPath(); ctx.arc(x, y, r * 1.75, a, a + 0.75); ctx.stroke();
+    }
+  },
+  // speed axis: afterimages; the pierce level gets a second one (it goes THROUGH
+  // people, and that has to read before it does)
+  ghost: (ctx, x, y, r, lv, ang) => {
+    const n = lv >= (ELEMENTS.ghost.fx.pierceAtLevel || 3) ? 2 : 1;
+    ctx.strokeStyle = n > 1 ? 'rgba(220, 214, 255, 0.5)' : 'rgba(220, 214, 255, 0.25)';
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i <= n; i++) {
+      ctx.beginPath();
+      ctx.arc(x - Math.cos(ang) * r * 1.8 * i, y - Math.sin(ang) * r * 1.8 * i,
+        r * 1.5, 0, TAU);
+      ctx.stroke();
+    }
+  },
+  // slow/stun: ice shards standing off the surface
+  frost: (ctx, x, y, r, lv, ang, t) => {
+    ctx.strokeStyle = 'rgba(143, 216, 255, 0.9)';
+    ctx.lineWidth = 1.6;
+    const n = 4 + lv;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + t * 1.8;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r * 1.05, y + Math.sin(a) * r * 1.05);
+      ctx.lineTo(x + Math.cos(a) * r * 1.85, y + Math.sin(a) * r * 1.85);
+      ctx.stroke();
+    }
+  },
+  // the DoT: droplets sinking out of the trail (the ground trail it leaves)
+  venom: (ctx, x, y, r, lv, ang, t) => {
+    ctx.fillStyle = 'rgba(120, 224, 120, 0.85)';
+    for (let i = 0; i < 2 + lv; i++) {
+      const ph = (t * 1.5 + i * 0.37) % 1;
+      const d = r * (1.4 + 2.6 * ph);
+      ctx.beginPath();
+      ctx.arc(x - Math.cos(ang) * d, y - Math.sin(ang) * d + r * 2.2 * ph,
+        r * 0.27 * (1 - 0.5 * ph), 0, TAU);
+      ctx.fill();
+    }
+  },
+  // the gold mark: sparkles orbiting the ball
+  midas: (ctx, x, y, r, lv, ang, t) => {
+    ctx.strokeStyle = 'rgba(255, 215, 106, 0.95)';
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < 2 + lv; i++) {
+      const a = t * 3 + i * 2.1;
+      const px = x + Math.cos(a) * r * 2.1, py = y + Math.sin(a) * r * 2.1;
+      const s = r * 0.45 * (0.6 + 0.4 * Math.sin(t * 9 + i));
+      ctx.beginPath();
+      ctx.moveTo(px - s, py); ctx.lineTo(px + s, py);
+      ctx.moveTo(px, py - s); ctx.lineTo(px, py + s);
+      ctx.stroke();
+    }
+  },
+  // lifesteal: an arterial crescent. Every 3rd cast this ball also goes
+  // engorged, and that overlay is the loud one — this is the "I own vampire" tell.
+  vampire: (ctx, x, y, r, lv, ang) => {
+    ctx.strokeStyle = 'rgba(224, 64, 90, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.45, ang + 2.2, ang + 4.1); ctx.stroke();
+  },
+};
+
+// momentum tier → its flame-wing color (index = tier - 1). Kept as constants so
+// the per-frame path never builds a color string.
+const TIER_TRAIL = ['rgba(255, 186, 70, 0.50)', 'rgba(255, 132, 40, 0.50)', 'rgba(255, 74, 30, 0.52)'];
+
+// The evolution tier is read the way the sim reads it (ELEMENTS.momentum.fx
+// .tierHits against the OWNER's game-long landed hits) — the ball must never
+// claim a tier the damage roll won't honor.
+function momentumTier(hits) {
+  const th = ELEMENTS.momentum.fx.tierHits;
+  let tier = 0;
+  for (let i = 0; i < th.length; i++) if (hits >= th[i]) tier = i + 1;
+  return tier;
+}
+
+// Momentum's layer: one extra flame wing per tier, plus a ring of motes. This is
+// the whole point of the element being visible — 4 motes = tier 1, 12 = tier 3.
+function drawEvolution(ctx, x, y, r, ang, t, tier) {
+  ctx.lineCap = 'round';
+  for (let i = 1; i <= tier; i++) {
+    ctx.strokeStyle = TIER_TRAIL[i - 1];
+    ctx.lineWidth = r * 0.8;
+    for (let s = -1; s <= 1; s += 2) {
+      const a = ang + s * 0.3 * i;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - Math.cos(a) * r * (3 + i), y - Math.sin(a) * r * (3 + i));
+      ctx.stroke();
+    }
+  }
+  const motes = tier * 4;
+  ctx.fillStyle = 'rgba(255, 236, 180, 0.95)';
+  for (let i = 0; i < motes; i++) {
+    const a = t * 4 + (i / motes) * TAU;
+    const d = r * (2.35 + 0.3 * Math.sin(t * 7 + i));
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.2, 0, TAU);
+    ctx.fill();
+  }
+}
+
+// The mosquito's sting (ELEMENTS.mosquito): 1 damage, no push. It must NOT read
+// as an incoming fireball — no flame: a small dark body with beating wings, a
+// dotted wake and a sickly green pinprick, all in the pest's palette. Still
+// trackable (a defender has to see the trap being armed), just visibly harmless.
+// The event owns the base here; a sting carries no other element to stack.
+function drawSting(ctx, x, y, r, ang, t) {
+  const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 2);
+  halo.addColorStop(0, 'rgba(180, 226, 150, 0.5)');
+  halo.addColorStop(1, 'rgba(120, 170, 100, 0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(x, y, r * 2, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(200, 220, 190, 0.5)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 1; i <= 4; i++) {
+    const d = r * i * 1.7 + r * 0.4 * Math.sin(t * 30 - i);
+    ctx.moveTo(x - Math.cos(ang) * d, y - Math.sin(ang) * d);
+    ctx.lineTo(x - Math.cos(ang) * (d + r * 0.6), y - Math.sin(ang) * (d + r * 0.6));
+  }
+  ctx.stroke();
+  const flap = 0.45 * Math.sin(t * 45);
+  ctx.strokeStyle = 'rgba(225, 240, 255, 0.8)';
+  ctx.lineWidth = 1.3;
+  for (let s = -1; s <= 1; s += 2) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * 1.7, r * 0.55, ang + s * (1.0 + flap), 0, TAU);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#2f3a26';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(190, 240, 150, 0.95)';
+  ctx.beginPath();
+  ctx.arc(x + Math.cos(ang) * r, y + Math.sin(ang) * r, r * 0.35, 0, TAU);
+  ctx.fill();
+}
+
+// Vampire's engorged ball (every 3rd cast): an unmissable pulsing blood-red
+// halo with a 🧛 rider. It keeps every other layer — only the base color is
+// taken over, because "this one heals them for a lot" outranks any tint.
+function drawEngorged(ctx, x, y, r, t) {
+  ctx.save();   // this block sets textAlign/baseline; the fx pass draws damage
+                // numbers without setting them itself
+  const pulse = 0.7 + 0.3 * Math.sin(t * 22);
+  ctx.strokeStyle = `rgba(255, 40, 70, ${0.65 + 0.35 * pulse})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, r * 2.9 * pulse, 0, TAU); ctx.stroke();
+  const bg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.6);
+  bg.addColorStop(0, `rgba(255, 40, 70, ${0.42 * pulse})`);
+  bg.addColorStop(1, 'rgba(180, 0, 40, 0)');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(x, y, r * 3.6, 0, TAU); ctx.fill();
+  ctx.font = `${Math.round(Math.max(11, r * 1.6))}px serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🧛', x, y - r * 3.2);
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+}
 
 export function draw(view, vs, fx, myId, moveMark, now) {
   const { ctx, w, h, scale } = view;
@@ -253,64 +468,51 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     if (!pr || !fin(pr.x) || !fin(pr.y)) continue;
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
-      // elemental fireballs tint the core by their strongest rider element;
-      // terra flies bigger per level
-      let coreKey = null, coreLv = 0;
-      if (pr.elements) {
-        for (const [k, v] of Object.entries(pr.elements))
-          if (ELEM_CORE[k] && v > coreLv) { coreKey = k; coreLv = v; }
-      }
-      const terraMult = pr.elements && pr.elements.terra
-        ? ELEMENTS.terra.fx.projRadiusMult[Math.min(pr.elements.terra, 3) - 1] : 1;
-      const r = SPELLS.fireball.radius * terraMult * scale;
-      const core = ELEM_CORE[coreKey] || '#ffab40';
+      // §12: the layered stack — base → element accents → evolution → event.
+      // `elements` carries mosquito ONLY on a sting (a normal ball strips the
+      // key, shared/sim.js spawnFireball), so it is the event flag on the wire.
+      const el = pr.elements || null;
+      const sting = !!(el && el.mosquito > 0);
+      const terraMult = el && el.terra
+        ? ELEMENTS.terra.fx.projRadiusMult[Math.min(el.terra, 3) - 1] : 1;
+      const r = SPELLS.fireball.radius * terraMult * scale * (sting ? 0.7 : 1);
       const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
-      // trail
-      const g = ctx.createLinearGradient(x - Math.cos(ang) * r * 4, y - Math.sin(ang) * r * 4, x, y);
-      g.addColorStop(0, 'rgba(255, 120, 30, 0)');
-      g.addColorStop(1, 'rgba(255, 150, 60, 0.6)');
-      ctx.strokeStyle = g; ctx.lineWidth = r * 1.4; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x - Math.cos(ang) * r * 4, y - Math.sin(ang) * r * 4);
-      ctx.lineTo(x, y); ctx.stroke();
-      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
-      glow.addColorStop(0, '#fff3c8');
-      glow.addColorStop(0.35, core);
-      glow.addColorStop(1, 'rgba(255, 90, 20, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fill();
-      // Vampire's engorged ball (every 3rd cast) must be unmistakable in flight
-      // — you are supposed to aim this one. A fat pulsing blood halo plus a
-      // 🧛 rider, matched to how the Echo Stone's extra ball announces itself.
-      if (pr.engorged) {
-        ctx.save();   // this block sets textAlign/baseline; the fx pass below
-                      // draws damage numbers without setting them itself
-        const pulse = 0.7 + 0.3 * Math.sin(t * 22);
-        ctx.strokeStyle = `rgba(224, 64, 90, ${0.55 + 0.35 * pulse})`;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(x, y, r * 2.9 * pulse, 0, Math.PI * 2); ctx.stroke();
-        const bg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.4);
-        bg.addColorStop(0, `rgba(255, 60, 90, ${0.30 * pulse})`);
-        bg.addColorStop(1, 'rgba(180, 0, 40, 0)');
-        ctx.fillStyle = bg;
-        ctx.beginPath(); ctx.arc(x, y, r * 3.4, 0, Math.PI * 2); ctx.fill();
-        ctx.font = `${Math.round(Math.max(11, r * 1.6))}px serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('🧛', x, y - r * 3.2);
-        ctx.textBaseline = 'alphabetic';
-        ctx.restore();
+      // base tint: the strongest rider element, unless an event takes it over
+      let core = '#ffab40', coreLv = 0;
+      if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
+      if (pr.engorged) core = '#ff2340';
+      // momentum's tier rides on the OWNER's game-long hit count (§6)
+      let tier = 0;
+      if (el && el.momentum) {
+        const own = players.find(p => p && p.id === pr.owner);
+        tier = momentumTier((own && own.momentumHits) || 0);
       }
-      // ghost lv3: a faint second ring trailing the ball, so "this one goes
-      // through people" is visible BEFORE it goes through someone (lv1/2 only
-      // buy speed, which is visible on its own)
-      if (pr.elements && pr.elements.ghost >= (ELEMENTS.ghost.fx.pierceAtLevel || 1)) {
-        ctx.strokeStyle = 'rgba(220, 214, 255, 0.5)';
-        ctx.lineWidth = 1.5;
+      if (sting) {
+        drawSting(ctx, x, y, r, ang, t);
+      } else {
+        // base ball: trail + core glow, both tinted
+        const tail = 4 + tier;   // the evolved ball throws a longer wake
+        const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
+        g.addColorStop(0, 'rgba(255, 120, 30, 0)');
+        g.addColorStop(1, 'rgba(255, 150, 60, 0.6)');
+        ctx.strokeStyle = g; ctx.lineWidth = r * 1.4; ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.arc(x - Math.cos(ang) * r * 1.8, y - Math.sin(ang) * r * 1.8,
-          r * 1.5, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
+        ctx.lineTo(x, y); ctx.stroke();
+        if (tier > 0) drawEvolution(ctx, x, y, r, ang, t, tier);
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+        glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
+        glow.addColorStop(0.35, core);
+        glow.addColorStop(1, pr.engorged ? 'rgba(200, 0, 30, 0)' : 'rgba(255, 90, 20, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
       }
+      // accents stack: every element the ball carries paints its own tell
+      if (el) for (const k in el) {
+        const accent = ACCENTS[k];
+        if (accent && el[k] > 0) accent(ctx, x, y, r, el[k], ang, t);
+      }
+      if (pr.engorged) drawEngorged(ctx, x, y, r, t);
     } else if (pr.type === 'swap') {
       // dashed tether from the caster to the swap bolt — the link the trade
       // will travel is VISIBLE (the hook's chain, recolored arcane violet)
