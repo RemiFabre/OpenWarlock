@@ -164,8 +164,9 @@ const ACCENTS = {
       ctx.stroke();
     }
   },
-  // lifesteal: an arterial crescent. Every 3rd cast this ball also goes
-  // engorged, and that overlay is the loud one — this is the "I own vampire" tell.
+  // lifesteal: an arterial crescent. Every chargeEvery'th cast the ball also
+  // goes engorged, and that overlay is the loud one — this is the "I own
+  // vampire" tell on the ordinary balls between charges.
   vampire: (ctx, x, y, r, lv, ang) => {
     ctx.strokeStyle = 'rgba(224, 64, 90, 0.8)';
     ctx.lineWidth = 2;
@@ -249,7 +250,7 @@ function drawSting(ctx, x, y, r, ang, t) {
   ctx.fill();
 }
 
-// Vampire's engorged ball (every 3rd cast): an unmissable pulsing blood-red
+// Vampire's engorged ball (every chargeEvery'th cast — 5 since round 16): an
 // halo with a 🧛 rider. It keeps every other layer — only the base color is
 // taken over, because "this one heals them for a lot" outranks any tint.
 function drawEngorged(ctx, x, y, r, t) {
