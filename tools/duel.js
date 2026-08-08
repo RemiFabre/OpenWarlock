@@ -12,7 +12,7 @@
 //   are excluded from win% and reported separately. TTK = median seconds to
 //   the kill. Baseline vs FIELD = mean win% across all its pairings.
 //
-// What this lab CANNOT see: multi-enemy dynamics (venom's smear, gale
+// What this lab CANNOT see: multi-enemy dynamics (malady's contagion, gale
 // ring-outs into a crowd), round-to-round economy, and human dodging — bot
 // duels overprice raw dps and underprice aim/utility. Momentum's banked hits
 // are an INPUT here (stated per stage), not earned in the duel.
@@ -37,7 +37,7 @@ export const ARCHETYPES = {
   ember:     ['ember', 'ember', 'ember', 'amulet', 'sword', 'boots'],
   cadence:   ['arcane', 'arcane', 'hourglass', 'hourglass', 'hourglass', 'amulet'],
   momentum:  ['momentum', 'momentum', 'momentum', 'terra', 'amulet', 'sword'],
-  venom:     ['venom', 'venom', 'venom', 'terra', 'amulet', 'sword'],
+  malady:    ['malady', 'malady', 'malady', 'terra', 'amulet', 'sword'],
   mosquito:  ['mosquito', 'mosquito', 'mosquito', 'amulet', 'sword', 'boots'],
   vampire:   ['vampire', 'vampire', 'vampire', 'sword', 'amulet', 'boots'],
   tank:      ['amulet', 'amulet', 'amulet', 'ember', 'sword', 'treads'],

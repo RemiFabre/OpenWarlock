@@ -56,7 +56,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     players: {},
     projectiles: [],
     delayedShots: [],      // Echo Stone: fireballs waiting to fire (elemental)
-    hazards: [],           // venom ground trails (elemental): {x,y,r,until,owner,dps}
+    hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     bolts: [],             // lightning sky-bolts (round 17): {x,y,t,owner,level}
     walls: [],             // mirror walls: {x1,y1,x2,y2,nx,ny,owner,until}
@@ -155,9 +155,10 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // picked). One generic store, three users today: frost, gale and mosquito.
     stacks: {},
     stunT: 0,              // frost lv3: seconds frozen solid (no move, no cast)
-    poisonT: 0,            // venom: seconds of DoT remaining
-    poisonTick: 0,         // venom: damage per 1 s tick (re-hits stack it)
-    poisonBy: null,        // venom: who poisoned us (kill credit)
+    poisonT: 0,            // malady: seconds of sickness remaining (the DoT engine)
+    poisonTick: 0,         // malady: damage per tick (flat 1 at every level)
+    poisonBy: null,        // malady: who a lethal tick credits (creator or spreader)
+    malady: null,          // malady: {inst, by} — the infection riding this body
     vampN: 0,              // vampire: fireballs CAST this round (every 3rd is engorged)
     // momentum: fireball hits landed for the WHOLE GAME (the ramp is permanent
     // — deliberately NOT cleared in startRound, see ELEMENTS.momentum)
@@ -1068,6 +1069,7 @@ function startRound(state) {
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.stacks = {};   // frost/gale/mosquito stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
+    pl.malady = null; // infections die with the round (instances go with them)
     pl.echoN = 0;
     // vampire's charge counter resets with the round, exactly like the Echo
     // Stone's (the other "every Nth cast" mechanic). Deliberate: the rhythm you
@@ -1406,9 +1408,9 @@ function stepBattle(state, dt) {
   const players = Object.values(state.players);
   updateRadii(state);
 
-  // venom ground trails (elemental; empty in classic): standing in one burns
-  // slowly — direct damage credited to the trail's owner, plus the poison
-  // tint. Doesn't touch an active stronger poison's dps.
+  // Ground hazards (generic; empty in classic). No element spawns these since
+  // the venom trail died with the round-19 malady rework — the stepping stays
+  // for whatever uses them next. Damage credits the owner, plus the green tint.
   if (state.hazards && state.hazards.length) {
     state.hazards = state.hazards.filter(h => h.until > state.time);
     for (const pl of players) {
@@ -1420,6 +1422,23 @@ function stepBattle(state, dt) {
           if (pl.alive) pl.poisonT = Math.max(pl.poisonT, 0.3); // green tint
           break; // trails don't stack on one victim
         }
+      }
+    }
+  }
+
+  // Malady contagion (elemental, round 19): every infected body radiates its
+  // instance's aura — any OTHER living player inside catches the SAME instance
+  // (fresh clock) unless it already infected them once: immunity is forever,
+  // so a plague can never ping-pong. Spreads to allies too (friendly-fire
+  // precedent — hostile() is for targeting decisions, never damage paths).
+  if (state.mode === 'elemental') {
+    for (const pl of players) {
+      if (!pl.alive || !pl.malady || !(pl.poisonT > 0)) continue;
+      const inst = pl.malady.inst;
+      const r = efxV(ELEMENTS.malady.fx.auraR, inst.level);
+      for (const q of players) {
+        if (q === pl || !q.alive || inst.immune[q.id]) continue;
+        if (Math.hypot(q.x - pl.x, q.y - pl.y) <= r) infectMalady(state, q, inst, pl.id);
       }
     }
   }
@@ -1443,18 +1462,21 @@ function stepBattle(state, dt) {
       // discrete ticks (2026-08-05 rework): one bite of poisonTick damage per
       // tickEvery seconds. The tick runs BEFORE the clock decrement so the
       // final tick can't be lost to float residue on the last frame. A lethal
-      // tick passes the poisoner as the direct source (they get the kill,
-      // even mid-lava) but never stamps lastHitBy — the round-9 credit rule.
+      // tick passes poisonBy as the direct source (they get the kill, even
+      // mid-lava) but never stamps lastHitBy — the round-9 credit rule.
       if (pl.poisonTick > 0) {
-        pl._poisonNext = (pl._poisonNext ?? ELEMENTS.venom.fx.tickEvery) - dt;
-        if (pl._poisonNext <= 0) {
-          pl._poisonNext += ELEMENTS.venom.fx.tickEvery;
+        pl._poisonNext = (pl._poisonNext ?? ELEMENTS.malady.fx.tickEvery) - dt;
+        // 1e-6 slack: dotTime is an exact multiple of tickEvery, so the LAST
+        // tick races float residue against the cure — a lv1 malady that ticks
+        // once instead of twice is half the element gone
+        if (pl._poisonNext <= 1e-6) {
+          pl._poisonNext += ELEMENTS.malady.fx.tickEvery;
           applyDamage(state, pl, pl.poisonTick, pl.poisonBy, { silent: true, stamp: false });
           state.events.push({ t: 'hit', id: pl.id, amount: pl.poisonTick, x: pl.x, y: pl.y, poison: true });
         }
       }
       pl.poisonT = Math.max(0, pl.poisonT - dt);
-      if (pl.poisonT === 0) { pl.poisonTick = 0; pl.poisonBy = null; }
+      if (pl.poisonT === 0) { pl.poisonTick = 0; pl.poisonBy = null; pl.malady = null; } // CURED
     }
 
     // repulse charge: 2 s of visible wind-up, then a radial burst
@@ -1699,18 +1721,6 @@ function stepProjectiles(state, dt) {
     const px0 = pr.x, py0 = pr.y; // for swept collision below
     pr.x += pr.vx * dt; pr.y += pr.vy * dt;
     pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
-
-    // venom rider: the fireball drips a toxic trail as it flies (elemental)
-    if (pr.type === 'fireball' && pr.elements && pr.elements.venom) {
-      const f = ELEMENTS.venom.fx;
-      if (pr.traveled - (pr._trailAt || 0) >= f.trailStep) {
-        pr._trailAt = pr.traveled;
-        state.hazards.push({
-          x: pr.x, y: pr.y, r: f.trailR, owner: pr.owner, dps: f.trailDps,
-          until: state.time + efxV(f.trailT, pr.elements.venom),
-        });
-      }
-    }
 
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
@@ -1991,7 +2001,7 @@ function turnBoomerangHome(state, pr) {
 // they build, and the 3rd stack spent on one enormous gust.
 //
 // Why this is a function of its own instead of another branch in
-// applyElementsHit next to frost and venom: gale's payload is KNOCKBACK, and
+// applyElementsHit next to frost and malady: gale's payload is KNOCKBACK, and
 // knockback is computed and applied BEFORE the on-hit riders run. So gale has to
 // resolve at the same point mosquito's mark does — decided on the way in, not on
 // the way out. Returns the flat knockback ADD for THIS hit: 0 while stacking,
@@ -2019,7 +2029,27 @@ function galeHit(state, pr, target, level) {
   return efxV(f.burstKbAdd, level);
 }
 
-// Elemental on-hit riders (frost / venom / midas / terra), each at its own
+// One malady instance = one plague: `creator` (whose element, whose kill
+// credit), `level` (creator's malady level at infection time — sizes the aura
+// and the clock), `immune` = {playerId: 1} for every body it has EVER taken —
+// an instance infects each player at most once, which is the no-ping-pong
+// rule. Plain object, never a Set: state must stay JSON-safe (crash dumps).
+// The creator starts OUTSIDE the set, so their own plague can come back.
+function infectMalady(state, target, inst, byId) {
+  if (!target.alive) return;
+  const f = ELEMENTS.malady.fx;
+  inst.immune[target.id] = 1;
+  target.malady = { inst, by: byId };
+  target.poisonTick = efxV(f.tickDmg, inst.level);
+  target.poisonT = efxV(f.dotTime, inst.level);
+  target._poisonNext = f.tickEvery;   // fresh sickness, fresh cadence
+  // lethal-tick credit: the creator's plague — unless the victim IS the
+  // creator (they caught it back): then whoever passed it to them owns it
+  target.poisonBy = inst.creator === target.id ? byId : inst.creator;
+  state.events.push({ t: 'infected', id: target.id, by: byId, x: target.x, y: target.y });
+}
+
+// Elemental on-hit riders (frost / malady / midas / terra), each at its own
 // level. Ember is a pure number tweak handled at the damage/knockback
 // computation above; gale is resolved there too, by galeHit().
 function applyElementsHit(state, pr, target) {
@@ -2062,15 +2092,18 @@ function applyElementsHit(state, pr, target) {
         });
       }
     }
-    if (f.tickDmg) {
-      // Round 17 §7: re-hits only REFRESH the clock — the stacking is deleted
-      // (it was the 92% engine). The tick is the level's flat value; venom's
-      // edge is credit, not volume: the DoT works after you disengage and a
-      // lethal tick takes the kill (the test-locked rule below in stepBattle).
-      if (!(target.poisonT > 0)) target._poisonNext = f.tickEvery;
-      target.poisonTick = efxV(f.tickDmg, el);
-      target.poisonT = efxV(f.dotTime, el);
-      target.poisonBy = pr.owner;
+    if (ek === 'malady' && pr.owner != null) {
+      // Round 19 (ex-venom): a two-hit rhythm on the private-stack store, like
+      // midas. First hit plants the 🦠 stack; the second by the same owner
+      // spends it and INFECTS — contagion and kill credit live in
+      // infectMalady() and the stepBattle aura loop.
+      if (stackCount(target, 'malady', pr.owner) > 0) {
+        clearStacks(target, 'malady', pr.owner);
+        infectMalady(state, target,
+          { creator: pr.owner, level: el, immune: {} }, pr.owner);
+      } else {
+        addStack(target, 'malady', pr.owner);
+      }
     }
     if (f.goldOnHit && pr.owner != null) {
       const owner = state.players[pr.owner];
@@ -2234,6 +2267,13 @@ export function snapshot(state, viewerId = null) {
         elements: p.elements,
         slow: p.slowT > 0, poison: p.poisonT > 0,
         stun: p.stunT > 0,
+        // malady: numbers only — the aura circle the client must draw around
+        // an infected body (radius = the INSTANCE's level) and its clock. The
+        // instance itself (creator, immunity set) never reaches the wire.
+        ...(p.malady && p.poisonT > 0 ? {
+          maladyT: round2(p.poisonT),
+          maladyR: round2(efxV(ELEMENTS.malady.fx.auraR, p.malady.inst.level)),
+        } : {}),
         momentumHits: p.momentumHits || 0, // so the HUD can show the ramp building
         // vampire: casts banked toward the next engorged ball, so the HUD can
         // count it down for you (2/3 → the next one is the big one)
@@ -2300,7 +2340,7 @@ export function snapshot(state, viewerId = null) {
         cleared: !!state.coop.cleared, wiped: !!state.coop.wiped,
       },
     } : {}),
-    // venom ground trails, elemental only (a = remaining-life fade 0..1)
+    // ground hazards, elemental only (a = remaining-life fade 0..1)
     ...(elemental ? {
       hazards: (state.hazards || []).map(h => ({
         x: round2(h.x), y: round2(h.y), r: round2(h.r),
@@ -2803,7 +2843,7 @@ function stepGrunt(state, pl, dt) {
 // every stacking element whose payoff comes from ITS OWN stacks piling up.
 // Private per attacker (stackCount), so this reads as "MY investment", never
 // "someone is about to pop this" — which would be information nobody has.
-const PREY_MARKS = ['frost', 'gale', 'mosquito', 'midas'];
+const PREY_MARKS = ['frost', 'gale', 'mosquito', 'midas', 'malady'];
 
 // Berserker target choice: closest wins, but wounded, isolated, rim-standing,
 // carrying my marks, or FAR AHEAD ON KILLS enemies are tastier. Every term is
@@ -3154,13 +3194,13 @@ const BOT_BUILDS = {
 // in-game strategy chart is generated from those, so change both together.
 const BUILD_ELEMENTS = {
   bruiser: ['vampire', 'ember', 'momentum'],   // stands and trades: sustain + raw damage
-  sniper:  ['venom', 'ghost', 'momentum'],     // pokes from range: DoT and line shots
+  sniper:  ['malady', 'ghost', 'momentum'],    // pokes from range: contagion and line shots
   escape:  ['arcane', 'ghost', 'mosquito'],    // slippery: cadence, speed, setup
-  turtle:  ['frost', 'terra', 'venom'],        // outlasts: control and attrition
+  turtle:  ['frost', 'terra', 'malady'],       // outlasts: control and attrition
   rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
   boomer:  ['arcane', 'midas', 'ember'],       // throws a lot: cadence and income
 };
-const FALLBACK_ELEMENTS = ['ember', 'frost', 'venom', 'gale', 'terra', 'arcane'];
+const FALLBACK_ELEMENTS = ['ember', 'frost', 'malady', 'gale', 'terra', 'arcane'];
 
 export function botElementFor(pl, seat = 0) {
   const list = (pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS;

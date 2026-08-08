@@ -1072,8 +1072,8 @@ describe('elemental mode', () => {
     return state;
   }
 
-  // Point-blank elemental fireball: a (with `elements`, e.g. {venom: 1} or
-  // 'venom' shorthand for lv1) shoots b, 3rd player parked far away so the
+  // Point-blank elemental fireball: a (with `elements`, e.g. {malady: 1} or
+  // 'malady' shorthand for lv1) shoots b, 3rd player parked far away so the
   // round can't end. Returns the state.
   function hitWith(elements) {
     const state = elementalBattle(3);
@@ -1296,61 +1296,219 @@ describe('elemental mode', () => {
     expect(JSON.stringify(snapshot(state, 'p0'))).toBe(JSON.stringify(snapshot(state)));
   });
 
-  it('venom lv1: discrete 1-per-second ticks for dotTime, then it stops', () => {
-    // manual poison application for exact timing (a fireball hit lands at an
-    // uncontrolled sub-second offset); c is the untouched regen control
-    const state = elementalBattle(3);
-    const b = state.players.p1, c = state.players.p2;
-    b.x = 10; b.y = 0; b.vx = 0; b.moveTarget = null;
-    c.x = -10; c.y = 0; c.vx = 0; c.moveTarget = null;
-    state.players.p0.y = -40;
-    b.hp = 50; c.hp = 50;
-    b.poisonT = ELEMENTS.venom.fx.dotTime[0];
-    b.poisonTick = ELEMENTS.venom.fx.tickDmg[0];
-    b._poisonNext = ELEMENTS.venom.fx.tickEvery;
-    b.poisonBy = 'p0';
-    // count the ticks themselves — hp deltas now also carry the regen lock,
-    // which is a separate mechanic with its own tests
-    const ticks = () => state.events.filter(e => e.t === 'hit' && e.poison && e.id === 'p1');
-    run(state, 0.9);
-    expect(ticks().length).toBe(0);         // discrete: nothing before the 1 s mark
-    run(state, 0.2);
-    expect(ticks().length).toBe(1);         // first tick landed
-    const nTicks = Math.floor(ELEMENTS.venom.fx.dotTime[0] / ELEMENTS.venom.fx.tickEvery);
-    run(state, ELEMENTS.venom.fx.dotTime[0] + 0.4); // every tick in
-    expect(ticks().length).toBe(nTicks);
-    expect(ticks().reduce((s, e) => s + e.amount, 0)).toBeCloseTo(
-      ELEMENTS.venom.fx.tickDmg[0] * nTicks, 5);
-    expect(b.poisonTick).toBe(0);           // expired poison leaves no residue
-    run(state, 2);
-    expect(ticks().length).toBe(nTicks);    // and it STOPPED
-    expect(c.hp).toBeGreaterThan(b.hp);     // the victim really is down on hp
-  });
+  // ---- malady 🦠 (round 19: venom → contagion rework) -----------------------
+  // Every number below is read from ELEMENTS.malady.fx — spec, never pinned.
+  const MF = () => ELEMENTS.malady.fx;
+  const efx = (v, lv) => (Array.isArray(v) ? v[lv - 1] : v);
 
-  it('venom re-hits REFRESH the clock — the tick never stacks (round 17)', () => {
-    const dot1 = ELEMENTS.venom.fx.dotTime[0];  // lv1 duration (levels buy TIME)
-    const state = hitWith('venom');
-    const b = state.players.p1;
-    expect(b.poisonT).toBeGreaterThan(dot1 - 0.5);
-    expect(b.poisonTick).toBe(ELEMENTS.venom.fx.tickDmg[0]);
-    run(state, 2.2); // burn 2.2 s off the clock (past the lv1 fireball cd too)
-    expect(b.poisonT).toBeLessThan(dot1 - 2);
-    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.hp = b.maxHp;
-    state.players.p0.x = 0; state.players.p0.y = 0;
+  // p0 (malady at `lv`) is the shooter, p1 the victim, everyone else parked far
+  // south, out of every aura but inside the arena (START_RADIUS 56).
+  function maladyBattle(lv = 1, nPlayers = 3) {
+    const state = elementalBattle(nPlayers);
+    state.pillars = [];
+    state.players.p0.elements = { malady: lv };
+    for (let i = 2; i < nPlayers; i++) {
+      const p = state.players[`p${i}`];
+      p.x = 0; p.y = -45; p.vx = p.vy = 0; p.moveTarget = null;
+    }
+    return state;
+  }
+  // One landed point-blank fireball from p0 on p1 (cooldown scrubbed). The
+  // victim stands at 10 so a fresh max-level aura never laps back over the
+  // shooter within the landing frame.
+  function landHit(state) {
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(b.poisonT).toBeGreaterThan(dot1 - 0.5); // refreshed to the full clock
-    expect(b.poisonT).toBeLessThanOrEqual(dot1);
-    expect(b.poisonTick).toBe(ELEMENTS.venom.fx.tickDmg[0]); // NOT stronger
-    // the stacking machinery is deleted from the spec, not just unused
-    expect(ELEMENTS.venom.fx.stackAdd).toBeUndefined();
-    expect(ELEMENTS.venom.fx.stackCap).toBeUndefined();
-    // round 17.2 identity: levels buy kill-steal DURATION, never tick damage
-    expect(new Set(ELEMENTS.venom.fx.tickDmg).size).toBe(1);
-    expect(ELEMENTS.venom.fx.dotTime[2]).toBeGreaterThan(ELEMENTS.venom.fx.dotTime[0]);
+    run(state, 0.5);
+  }
+
+  it('malady 🦠: the first hit plants a private stack, the SECOND infects', () => {
+    expect(ELEMENTS.venom).toBeUndefined();        // the rename is total
+    expect(ELEMENTS.malady.name).toBe('Malady');
+    const state = maladyBattle(1);
+    const b = state.players.p1;
+    landHit(state);
+    expect(stacksOf(b, 'malady', 'p0')).toBe(1);   // armed, not sick
+    expect(b.poisonT).toBe(0);
+    expect(b.malady || null).toBe(null);
+    landHit(state);
+    expect(stacksOf(b, 'malady', 'p0')).toBe(0);   // the stack was spent
+    expect(b.poisonT).toBeGreaterThan(efx(MF().dotTime, 1) - 0.5);
+    expect(b.poisonT).toBeLessThanOrEqual(efx(MF().dotTime, 1));
+    expect(b.poisonTick).toBe(efx(MF().tickDmg, 1));
+    expect(b.malady.inst.creator).toBe('p0');      // the instance: who and how bad
+    expect(b.malady.inst.level).toBe(1);
+    expect(b.malady.inst.immune.p1).toBeTruthy();  // it can never take b again
+    expect(b.malady.by).toBe('p0');                // direct infection: by = creator
+    expect(b.poisonBy).toBe('p0');                 // lethal-tick credit target
+    expect(state.events.some(e => e.t === 'infected' && e.id === 'p1' && e.by === 'p0'))
+      .toBe(true);                                 // the client FX/sound hook
   });
 
-  it('a lethal poison tick gives the poisoner the kill — without stamping lastHitBy', () => {
+  it('malady: 1 damage per tick at EVERY level; levels buy duration, then CURED', () => {
+    for (let lv = 1; lv <= ELEMENTS.malady.maxLevel; lv++) {
+      const state = maladyBattle(lv);
+      const b = state.players.p1;
+      landHit(state); landHit(state);
+      expect(b.poisonTick).toBe(efx(MF().tickDmg, lv));
+      expect(efx(MF().tickDmg, lv)).toBe(efx(MF().tickDmg, 1)); // flat: never scales
+      const dot = efx(MF().dotTime, lv);
+      if (lv > 1) expect(dot).toBeGreaterThan(efx(MF().dotTime, lv - 1));
+      state.events = [];
+      const ticks = () => state.events.filter(e => e.t === 'hit' && e.poison && e.id === 'p1');
+      run(state, dot + 0.6);                       // every tick in, clock out
+      const nTicks = Math.floor(dot / MF().tickEvery);
+      expect(ticks().length).toBe(nTicks);
+      // the poison flag is the client's ≥1-damage floater exemption — every
+      // tick must carry it (a tick you cannot see is the mosquito scar)
+      for (const e of ticks()) expect(e.amount).toBe(efx(MF().tickDmg, lv));
+      expect(b.poisonT).toBe(0);                   // CURED: no residue at all
+      expect(b.poisonTick).toBe(0);
+      expect(b.malady || null).toBe(null);
+      run(state, 1.5);
+      expect(ticks().length).toBe(nTicks);         // and it STOPPED
+    }
+  });
+
+  it('contagion: inside the aura catches the SAME instance — outside never', () => {
+    const state = maladyBattle(1, 4);
+    const a = state.players.p0, b = state.players.p1;
+    const c = state.players.p2, d = state.players.p3;
+    landHit(state); landHit(state);
+    const inst = b.malady.inst;
+    const r = efx(MF().auraR, 1);
+    // carrier at the center, creator far away; one body just inside the aura,
+    // one just outside — on opposite sides so a fresh catch can't chain over
+    a.x = 0; a.y = -40; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 0; b.y = 0; b.vx = b.vy = 0;
+    c.x = r - 0.5; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    d.x = -(r + 1.5); d.y = 0; d.vx = d.vy = 0; d.moveTarget = null;
+    run(state, 0.2);
+    expect(c.malady && c.malady.inst).toBe(inst);  // the SAME plague object
+    expect(c.malady.by).toBe('p1');                // caught from the patient
+    expect(c.poisonT).toBeGreaterThan(efx(MF().dotTime, 1) - 0.4); // fresh clock
+    expect(c.poisonBy).toBe('p0');                 // credit: the CREATOR
+    expect(inst.immune.p2).toBeTruthy();
+    expect(d.malady || null).toBe(null);           // outside: never caught it
+    expect(d.poisonT).toBe(0);
+  });
+
+  it('the contagion radius grows with the INSTANCE level (auraR by level)', () => {
+    expect(efx(MF().auraR, 3)).toBeGreaterThan(efx(MF().auraR, 1));
+    const state = maladyBattle(3, 4);
+    const a = state.players.p0, b = state.players.p1;
+    const c = state.players.p2, d = state.players.p3;
+    landHit(state); landHit(state);
+    const r = efx(MF().auraR, 3);
+    a.x = 0; a.y = -40; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 0; b.y = 0; b.vx = b.vy = 0;
+    c.x = r - 0.5; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    d.x = -(r + 1.5); d.y = 0; d.vx = d.vy = 0; d.moveTarget = null;
+    run(state, 0.2);
+    expect(c.poisonT).toBeGreaterThan(0);          // lv3 reach caught it
+    expect(d.malady || null).toBe(null);           // just past lv3 reach: safe
+  });
+
+  it('immunity: one instance takes each body ONCE — no bounce-back, no re-catch', () => {
+    const state = maladyBattle(1, 3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    landHit(state); landHit(state);
+    const inst = b.malady.inst;
+    a.x = 0; a.y = -40; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 0; b.y = 0; b.vx = b.vy = 0;
+    c.x = 2; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    run(state, 0.2);
+    expect(c.malady && c.malady.inst).toBe(inst);  // c caught it from b
+    // make c a long carrier (manual clock) so b's own cure happens first
+    c.poisonT = 30;
+    run(state, efx(MF().dotTime, 1) + 1);
+    expect(b.poisonT).toBe(0);                     // b is cured...
+    expect(b.malady || null).toBe(null);
+    expect(c.poisonT).toBeGreaterThan(0);          // ...standing by a live carrier
+    run(state, 1);
+    expect(b.poisonT).toBe(0);                     // the instance can NEVER re-take b
+    expect(b.malady || null).toBe(null);
+    // ...but a NEW instance can: the creator re-runs the two-hit rhythm
+    // (carrier first parked off the firing line — it would eat the ball)
+    c.x = 20; c.y = -20; c.vx = c.vy = 0;
+    landHit(state); landHit(state);
+    expect(b.poisonT).toBeGreaterThan(0);
+    expect(b.malady.inst).not.toBe(inst);
+  });
+
+  it("the creator catches their own plague back — its lethal tick is the SPREADER's kill", () => {
+    const state = maladyBattle(1, 4);              // 4 seats: a death can't end the round
+    const a = state.players.p0, b = state.players.p1;
+    landHit(state); landHit(state);
+    const inst = b.malady.inst;
+    b.x = 0; b.y = 0; b.vx = b.vy = 0;
+    a.x = 1.5; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    run(state, 0.2);
+    expect(a.malady && a.malady.inst).toBe(inst);  // his own plague, back
+    expect(a.malady.by).toBe('p1');
+    expect(a.poisonBy).toBe('p1');                 // credit flips to the spreader
+    a.hp = 0.5; a.lastHitBy = null;
+    const k0 = b.kills;
+    run(state, MF().tickEvery + 0.3);
+    expect(a.alive).toBe(false);
+    expect(b.kills).toBe(k0 + 1);                  // the spreader takes the kill
+  });
+
+  it("kill credit: a lethal tick is the CREATOR's kill — even on a contagion catch", () => {
+    const state = maladyBattle(1, 4);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    landHit(state); landHit(state);
+    a.x = 0; a.y = -40; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 0; b.y = 0; b.vx = b.vy = 0;
+    c.x = 2; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    run(state, 0.2);
+    expect(c.poisonBy).toBe('p0');
+    c.hp = 0.5; c.lastHitBy = null;
+    const ka0 = a.kills, kb0 = b.kills;
+    run(state, MF().tickEvery + 0.3);
+    expect(c.alive).toBe(false);
+    expect(a.kills).toBe(ka0 + 1);                 // the creator, never the carrier
+    expect(b.kills).toBe(kb0);
+  });
+
+  it('the venom trail is DEAD: malady balls drip nothing (generic hazards stay)', () => {
+    const state = maladyBattle(3);
+    landHit(state); landHit(state);
+    expect(state.hazards.length).toBe(0);          // no trail ever spawned
+    expect(MF().trailT).toBeUndefined();           // deleted from the spec too
+    expect(MF().trailDps).toBeUndefined();
+  });
+
+  it('malady on the wire: numbers only — poison flag, maladyT/maladyR, no instance leak', () => {
+    const state = maladyBattle(2);
+    const b = state.players.p1;
+    landHit(state);
+    let pb = snapshot(state).players.p1;
+    expect(pb.maladyR).toBeUndefined();            // armed is not infected
+    landHit(state);
+    pb = snapshot(state).players.p1;
+    expect(pb.poison).toBe(true);                  // the green-tint flag
+    expect(pb.maladyT).toBeCloseTo(b.poisonT, 1);  // the clock, for the client
+    expect(pb.maladyR).toBe(efx(MF().auraR, 2));   // the instance level sizes it
+    expect(pb.malady).toBeUndefined();             // the instance stays server-side
+    expect(() => JSON.parse(JSON.stringify(snapshot(state)))).not.toThrow();
+    const pa = snapshot(state).players.p0;
+    expect(pa.maladyR).toBeUndefined();            // healthy body: no aura fields
+  });
+
+  it('mosquito proc balls are REAL fireballs to malady: the armed+cashed pair infects', () => {
+    // 4 malady applications (arm, trigger, 2 procs) = plant → infect → plant →
+    // infect again: the pair ends INFECTED with no stack banked
+    const state = mosquitoProc({ mosquito: 1, malady: 1 }, { hp: 9999 });
+    const b = state.players.p1;
+    expect(b.poisonT).toBeGreaterThan(0);
+    expect(b.malady.inst.creator).toBe('p0');
+    expect(stacksOf(b, 'malady', 'p0')).toBe(0);
+  });
+
+  it('a lethal DoT tick gives the credited player the kill — without stamping lastHitBy', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     b.x = 10; b.y = 0; b.vx = 0; b.moveTarget = null;
@@ -1515,10 +1673,10 @@ describe('elemental mode', () => {
 
   it("round 18.2: a mosquito owner's ball is a normal fireball — every rider rides", () => {
     // No sting any more: the same hit that arms the trap applies the full
-    // rider set (venom/midas/momentum...), stamps lastHitBy, the works.
-    const state = hitWith({ mosquito: 1, midas: 3, venom: 3, momentum: 3 });
+    // rider set (malady/midas/momentum...), stamps lastHitBy, the works.
+    const state = hitWith({ mosquito: 1, midas: 3, malady: 3, momentum: 3 });
     const a = state.players.p0, b = state.players.p1;
-    expect(b.poisonT).toBeGreaterThan(0);            // venom applied
+    expect(stacksOf(b, 'malady', 'p0')).toBe(1);     // malady's first hit: armed
     expect(stacksOf(b, 'midas', 'p0')).toBe(1);      // mark planted...
     expect(a.gold).toBe(GOLD.START);                 // ...but not yet cashed
     expect(a.momentumHits).toBe(ELEMENTS.momentum.fx.pointsPerHit[2]);
@@ -1730,26 +1888,6 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'frostBreak')).toBe(true);
     expect(frostOn(b, 'p0')).toBe(1);       // the 4th application, banked
     expect(b.slowT).toBeGreaterThan(0);     // lv1 break = the slow
-  });
-
-  it('venom fireballs drip a trail that burns whoever stands in it', () => {
-    const state = hitWith('venom');
-    expect(state.hazards.length).toBeGreaterThan(0); // trail was dropped
-    const b = state.players.p1, c = state.players.p2;
-    // scrub b's hit poison and park it off-trail as the regen control
-    b.poisonT = 0; b.poisonTick = 0;
-    b.x = 0; b.y = -20; b.vx = 0; b.vy = 0; b.hp = 80;
-    // park the third player right on a trail puddle
-    const h = state.hazards[0];
-    c.x = h.x; c.y = h.y; c.vx = 0; c.vy = 0; c.hp = 80;
-    run(state, 0.5);
-    expect(c.poisonT).toBeGreaterThan(0); // tinted green while soaking
-    run(state, 0.5);
-    // identical regen on both; only the trail separates them (2 dps while alive)
-    expect(b.hp - c.hp).toBeGreaterThan(0.4);
-    // trails expire: lv1 lifetime 1.4 s
-    run(state, 2.5);
-    expect(state.hazards.length).toBe(0);
   });
 
   // ---- gale: stack-and-burst (2026-08-07 rework) ---------------------------
@@ -2432,10 +2570,12 @@ describe('elemental mode', () => {
       expect(state.events.some(e => e.t === 'refund')).toBe(false);
       expect(a.cooldowns.teleport).toBeCloseTo(15 - elapsed, 1);
     }
-    // ...and venom's DoT does NOT either: a tick is a burn, not a hit
-    const state = hitWith({ arcane: 3, venom: 1 });
+    // ...and a DoT tick does NOT either: a tick is a burn, not a hit
+    // (manual poison fields: malady's two-hit infection is its own test)
+    const state = hitWith({ arcane: 3, malady: 1 });
     const a = state.players.p0, b = state.players.p1;
     b.maxHp = 500; b.hp = 500;
+    b.poisonT = 4; b.poisonTick = 1; b._poisonNext = 0.5; b.poisonBy = 'p0';
     a.spells.teleport = 1;
     a.cooldowns.teleport = 15;
     a.x = 0; a.y = -40;                    // out of the way, no more hits
@@ -2922,14 +3062,14 @@ describe('power spells & pillar', () => {
     run(state, ROUND.COUNTDOWN + DT);
     const a = state.players.p0, b = state.players.p1;
     a.spells.swap = 1;
-    a.elements = { venom: 1, midas: 1 };
+    a.elements = { malady: 1, midas: 1 };
     state.pillars = [];
     a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.vx = 0; b.moveTarget = null;
     state.players.p2.x = 0; state.players.p2.y = -45;
     const gold0 = a.gold;
     castSpell(state, 'p0', 'swap', 20, 0);
     expect(stepToSwap(state)).toBeTruthy();
-    expect(b.poisonT || 0).toBe(0);        // no venom
+    expect((b.stacks && b.stacks.malady && b.stacks.malady.p0) || 0).toBe(0); // no malady
     expect(a.gold).toBe(gold0);            // no midas
     expect(Math.abs(b.vx)).toBeLessThan(1); // no knockback: b got a's rest state
   });

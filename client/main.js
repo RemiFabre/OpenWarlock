@@ -197,8 +197,8 @@ function onEvent(e) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
     // lightning sky-bolt landing (round 17 — the hitscan 'beam' died with it)
     case 'boltHit': fx.push({ ...e, type: 'boltHit', at: now, dur: 0.45 }); playSfx('zap'); break;
-    // poison ticks are exempt from the ≥1 filter: venom lv1 ticks for ½ and an
-    // invisible tick reads as a broken element (the mosquito scar)
+    // DoT ticks are exempt from the ≥1 filter (malady ticks flat 1 today, but
+    // an invisible tick reads as a broken element — the mosquito scar)
     case 'hit': if (e.amount >= 1 || e.poison) pushFloater(e, 'hit', 0.8, now); break;
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
@@ -259,6 +259,12 @@ function onEvent(e) {
     // on-hit indicators (two damage numbers, two +1 g…) show the effect — without
     // this you see the payoff and never learn what triggered it.
     case 'biteHit': fx.push({ ...e, type: 'biteHit', at: now, dur: 0.6 }); break;
+    // malady: somebody just caught the plague — one-shot burst + a sound cue
+    // (the drain slurp reused: sick and wet, and no new audio assets)
+    case 'infected':
+      fx.push({ ...e, type: 'infected', at: now, dur: 0.7 });
+      playSfx('drain');
+      break;
     // vampire: the engorged ball just paid out. Loud on purpose — this element's
     // whole design goal is "an EVENT, not a passive trickle"
     case 'lifesteal':
@@ -726,13 +732,10 @@ const FX_FIELDS = {
   slowMult: ['victim speed', fmtMult],
   slowT: ['slow lasts', fmtSec],
   stunT: ['stun lasts', fmtSec],
-  tickDmg: ['poison per tick', fmtNum],
-  dotTime: ['poison lasts', fmtSec],
+  tickDmg: ['sickness per tick', fmtNum],
+  dotTime: ['sickness lasts', fmtSec],
   tickEvery: ['ticks every', fmtSec],
-  trailT: ['trail lasts', fmtSec],
-  trailDps: ['trail damage', (v) => `${fmtNum(v)}/s`],
-  trailStep: ['trail spacing', fmtNum],
-  trailR: ['trail radius', fmtNum],
+  auraR: ['contagion radius', fmtNum],
   goldOnHit: ['gold per cashed mark', (v) => `+${fmtNum(v)} g`],
   pointsPerHit: ['evolution points per hit', fmtNum],
   evolveEvery: ['evolves every', (v) => `${fmtNum(v)} points`],
@@ -1010,7 +1013,7 @@ const ELEMENT_ROWS = [
   ['Elements ⚗️ (your fireball\'s stat axes)',
     ['ember', 'terra', 'gale', 'arcane', 'ghost']],
   ['Mutations 🧬 (they change what your fireball does)',
-    ['venom', 'frost', 'momentum', 'mosquito', 'vampire', 'midas']],
+    ['malady', 'frost', 'momentum', 'mosquito', 'vampire', 'midas']],
 ];
 const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 
@@ -1333,7 +1336,7 @@ function statsTable(fighters, specs, opts = {}) {
       ${showRound ? th('⚔️ Round', 'kills you have scored in the CURRENT round') : ''}
       ${th('💀 Deaths', 'times you died, all game')}
       ${th('Streak', 'best multi-kill this game (×2 = double kill)')}
-      ${th('Direct', 'damage you landed yourself: spells, poison ticks, trails')}
+      ${th('Direct', 'damage you landed yourself: spells and DoT ticks')}
       ${th('Lava', 'lava burn credited to you for shoving someone in')}
       ${th('Total', 'direct + lava')}
       ${th('Lifesteal', 'HP the Blood Sword clawed back')}
@@ -1624,7 +1627,7 @@ function updateUi(s) {
       buffs.push(`<span class="buff frost">${ELEMENTS.gale.icon} ` +
         `${onMe.gale}/${ELEMENTS.gale.fx.stacksToTrigger}</span>`);
     if (onMe && onMe.mosquito > 0)
-      buffs.push(`<span class="buff venom">${ELEMENTS.mosquito.icon} marked</span>`);
+      buffs.push(`<span class="buff malady">${ELEMENTS.mosquito.icon} marked</span>`);
     // vampire: count the casts down, so "the next one is the big one" is a thing
     // you KNOW rather than something you notice afterwards
     const vampLv = (m.elements && m.elements.vampire) || 0;
@@ -1642,7 +1645,7 @@ function updateUi(s) {
       buffs.push(`<span class="buff vanish">${ICONS.vanish} invisible · ${(+m.vanishT).toFixed(1)}s</span>`);
     if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');
     else if (m.slow) buffs.push('<span class="buff frost">🐌 slowed</span>');
-    if (m.poison) buffs.push(`<span class="buff venom">${ELEMENTS.venom.icon} poisoned</span>`);
+    if (m.poison) buffs.push(`<span class="buff malady">${ELEMENTS.malady.icon} infected</span>`);
   }
   setVisible('buffbar', buffs.length > 0);
   if (buffs.length) $('buffbar').innerHTML = buffs.join('');

@@ -50,7 +50,7 @@ const TAU = Math.PI * 2;
 
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
-  frost: '#8fd8ff', venom: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
+  frost: '#8fd8ff', malady: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
   momentum: '#d8dee9',
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
   // arterial red (and it also gets the engorged halo below)
@@ -138,8 +138,8 @@ const ACCENTS = {
       ctx.stroke();
     }
   },
-  // the DoT: droplets sinking out of the trail (the ground trail it leaves)
-  venom: (ctx, x, y, r, lv, ang, t) => {
+  // the contagion: sickly droplets shedding off the back of the ball
+  malady: (ctx, x, y, r, lv, ang, t) => {
     ctx.fillStyle = 'rgba(120, 224, 120, 0.85)';
     for (let i = 0; i < 2 + lv; i++) {
       const ph = (t * 1.5 + i * 0.37) % 1;
@@ -376,7 +376,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     }
   }
 
-  // --- venom ground trails (elemental): toxic green puddles, fading out ---
+  // --- ground hazards (elemental; no live spawner since round 19): green puddles ---
   const hazards = Array.isArray(vs.hazards) ? vs.hazards : [];
   for (const h of hazards) {
     if (!h || !fin(h.x) || !fin(h.y) || !fin(h.r)) continue;
@@ -611,6 +611,18 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
+    // Malady contagion aura (elemental): the plague's catch radius drawn on
+    // the PATIENT — step inside this circle and it is yours. maladyR arrives
+    // in world units from the snapshot (the instance's level sizes it).
+    if (fin(pl.maladyR) && pl.maladyR > 0) {
+      const ar = pl.maladyR * scale;
+      const pulse = 0.75 + 0.25 * Math.sin(now / 250);
+      ctx.fillStyle = 'rgba(110, 200, 90, 0.10)';
+      ctx.beginPath(); ctx.arc(x, y, ar, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(130, 220, 110, ${0.4 * pulse})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, ar, 0, Math.PI * 2); ctx.stroke();
+    }
     // Stack pips. Stacks are PRIVATE (round 12), so the snapshot only ever
     // carries YOUR count on an enemy (`myStacks`) and the worst incoming pile on
     // your own body (`stacksOnMe`) — exactly one of the two is ever present,
@@ -659,6 +671,17 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(x + r * 1.75, y, 3.2, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    // Malady mark (round 19): your first hit planted the 🦠 — your next one
+    // infects. One sickly-green pip on the LEFT: midas owns the right, frost
+    // the top arc, gale the bottom dashes, mosquito the low center.
+    if (mine && mine.malady > 0) {
+      ctx.fillStyle = 'rgba(140, 220, 110, 0.95)';
+      ctx.strokeStyle = 'rgba(40, 90, 30, 0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x - r * 1.75, y, 3.2, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
     if (mine && mine.mosquito > 0) {
@@ -914,7 +937,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         const bonus = +f.bonus || 0;
         const base = (+f.amount || 0) - bonus;
         ctx.font = '700 15px ui-monospace, Menlo, monospace';
-        // venom DoT ticks are green; normal hits stay ember-red
+        // malady DoT ticks are green; normal hits stay ember-red
         ctx.fillStyle = f.poison ? `rgba(130, 220, 110, ${a})` : `rgba(255, 120, 80, ${a})`;
         ctx.fillText(String(Math.round(base)), x, y);
         if (bonus >= 0.5) {
@@ -1111,6 +1134,21 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.strokeStyle = `rgba(255, 208, 70, ${a * 0.9})`;
         ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(x, y, (2.4 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'infected': {
+        // malady just took a body: one sick green burst + the germ itself —
+        // the ongoing state is the aura circle and green tint, this is the
+        // one-shot "you caught it" moment
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(140, 220, 110, ${a})`;
+        ctx.lineWidth = 3 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, (1 + 4 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.font = `${Math.round(13 + 6 * k)}px serif`;
+        ctx.fillText('🦠', x, y - 18 - 20 * k);
+        ctx.restore();
         break;
       }
       case 'biteHit': {

@@ -37,7 +37,7 @@ const progress = process.stderr.isTTY ? console.error : () => {};
 // reachable (a list entry buys at most one level per shop pass).
 const EXHAUST_PASS = [
   'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
-  'hourglass', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'venom',
+  'hourglass', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
   'vampire', 'momentum', 'boomerang', 'rush', 'shield', 'teleport', 'echo',
   'frost', 'mosquito', 'midas',
 ];
@@ -64,9 +64,9 @@ export const STRATEGIES = {
     core: ['ember', 'amulet', 'arcane', 'sword', 'ember', 'amulet', 'arcane',
       'sword', 'ember', 'amulet', 'sword'],
   },
-  'venom-dot': {
-    desc: 'Poison attrition: max venom fast, then terra so the (weaker) direct hits are easy to land, then HP to outlast the DoT clock.',
-    core: ['venom', 'venom', 'venom', 'terra', 'terra', 'terra',
+  'malady-dot': {
+    desc: 'Plague attrition: max malady fast, then terra so the two-hit infections are easy to land, then HP to outlast the sickness clock.',
+    core: ['malady', 'malady', 'malady', 'terra', 'terra', 'terra',
       'amulet', 'amulet', 'amulet'],
   },
   'vampire-brawler': {
@@ -80,9 +80,9 @@ export const STRATEGIES = {
       'amulet', 'amulet'],
   },
   'mosquito-combo': {
-    desc: 'Trap setup: max mosquito (lv3 clears the damage penalty), then venom so every cashed trap re-applies the poison, then arcane cadence for more casts per fight.',
-    core: ['mosquito', 'mosquito', 'mosquito', 'venom', 'venom', 'arcane',
-      'venom', 'arcane', 'amulet'],
+    desc: 'Trap setup: max mosquito (lv3 clears the damage penalty), then malady so a cashed trap lands the whole two-hit infection at once, then arcane cadence for more casts per fight.',
+    core: ['mosquito', 'mosquito', 'mosquito', 'malady', 'malady', 'arcane',
+      'malady', 'arcane', 'amulet'],
   },
   'frost-control': {
     desc: 'Control: max frost (3rd stack freezes solid at lv3), lightning to punish the frozen, HP to survive the stack-building phase.',
@@ -132,14 +132,14 @@ export const STRATEGIES = {
     noExhaust: true, // the core IS the exhaust, minus the element shelf
   },
   // ---- wave 2 (round 16): hybrids and order-variants informed by wave 1 ----
-  'venom-ember': {
-    desc: 'The two strongest elements stacked: venom DoT on an ember-boosted ball, sustain after.',
-    core: ['venom', 'ember', 'venom', 'ember', 'venom', 'ember',
+  'malady-ember': {
+    desc: 'Contagion on a hot ball: malady infections stacked with ember damage, sustain after.',
+    core: ['malady', 'ember', 'malady', 'ember', 'malady', 'ember',
       'amulet', 'sword', 'amulet'],
   },
-  'venom-balanced': {
-    desc: 'Wave-1 lesson applied to venom: alternate the DoT with defense every purchase.',
-    core: ['venom', 'amulet', 'venom', 'sword', 'venom', 'amulet',
+  'malady-balanced': {
+    desc: 'Wave-1 lesson applied to malady: alternate the plague with defense every purchase.',
+    core: ['malady', 'amulet', 'malady', 'sword', 'malady', 'amulet',
       'ember', 'sword', 'ember'],
   },
   'cdr-balanced': {

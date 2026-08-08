@@ -339,19 +339,16 @@ export const ELEMENTS = {
            long: 'Hits stack frost: the 3rd stack slows the victim — or freezes them SOLID at lv3.',
            fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
                  stunT: [0, 0, 2] } },
-  // Round 17 §7: tick STACKING deleted (it was the 92% engine) — re-hits only
-  // refresh the clock. Identity: venom deals LESS total than ember; its edge
-  // is that the DoT ticks after you disengage and a lethal tick TAKES the
-  // kill, even in lava (test-locked credit rule — it IS the identity).
-  // tickDmg measured 2026-08-08 (600-game mixed table, monotone): [1,2,3] 96%
-  // · [0.7,1.4,2] 79% · [0.5,1,1.5] 56% = the top-third-not-#1 target. Sub-1
-  // ticks stay visible via the poison exception on the hit floater.
-  // history: docs/history/2026-08-08-round17-battery.md#venom
-  venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Damage over time.',
-           long: 'Hits poison: ½ damage per second for 3 / 5 / 7 s — levels buy DURATION, not damage. It keeps ticking after you disengage, and a lethal tick is YOUR kill, even in lava.',
-           fx: { dmgMult: 0.85, tickDmg: [0.5, 0.5, 0.5], dotTime: [3, 5, 7], tickEvery: 1,
-                 trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
+  // Round 19 (Remi): venom → MALADY, the contagion rework. Two hits infect
+  // (private stack, like midas); the sickness radiates auraR — anyone close
+  // catches the SAME instance once each, ever (immunity set = no ping-pong).
+  // Tick flat at 1; levels buy duration + aura. Lethal tick takes the kill
+  // (creator's — or the spreader's when the creator catches it back). Trail dead.
+  // history: docs/history/2026-08-08-round17-battery.md#venom (the old DoT)
+  malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Spread disease, steal kills.',
+           long: 'Two hits infect: 1 damage per tick, and a contagious aura — anyone who comes close catches the same plague (once each). Levels grow the aura and the sickness length. A lethal tick takes the kill.',
+           fx: { tickDmg: 1, dotTime: [2, 3, 4], tickEvery: 1, auraR: [4, 6, 8] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
   // ⚠ The burst lever is VIOLENTLY STEEP (+20% ≈ +14 points); old sweep at git c38730f.
@@ -507,7 +504,7 @@ export const BOT_TARGETING = {
   WOUNDED: 0.35,       // per missing HP — finish what someone already started
   CROWD: 0.8,          // per unit of "how much backup this one has within 18"
   RIM: 8,              // full bonus for standing on the edge, 0 at the centre
-  MY_STACKS: 4,        // per frost/gale/mosquito/midas mark of MINE on the body
+  MY_STACKS: 4,        // per frost/gale/mosquito/midas/malady mark of MINE on the body
 };
 
 // ---- Bot build strategies -------------------------------------------------
@@ -525,13 +522,13 @@ export const BUILDS = {
     desc: 'Stands its ground and trades: HP and lifesteal under the fireball. Elemental picks: vampire, ember, momentum — it heals through you now and out-damages you later.',
     order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'cape', 'treads'] },
   sniper:  { name: 'Sniper',
-    desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: venom, ghost, momentum — the poison keeps working while it repositions.',
+    desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: malady, ghost, momentum — the plague keeps spreading while it repositions.',
     order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape'] },
   escape:  { name: 'Escape artist',
     desc: 'A fireball with an escape button: slippery, never where you aimed. Elemental picks: arcane, ghost, mosquito — fast, faster, and a trap on your body.',
     order: ['boots', 'fireball', 'teleport', 'fireball', 'fireball', 'cape', 'teleport'] },
   turtle:  { name: 'Turtle',
-    desc: 'Shield and HP: outlasts you and lets the lava do the work. Elemental picks: frost, terra, venom — slow you, hit big, and bleed you out.',
+    desc: 'Shield and HP: outlasts you and lets the lava do the work. Elemental picks: frost, terra, malady — slow you, hit big, and bleed you out.',
     order: ['shield', 'amulet', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
   rusher:  { name: 'Rusher',
     desc: 'Rush and lifesteal: dives in and shoves you toward the lava. Elemental picks: gale, terra, ember — every hit pushes, and the big ones push HARD.',
