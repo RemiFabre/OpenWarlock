@@ -131,6 +131,7 @@ function connect(name) {
       $('join').classList.add('hidden');
     } else if (m.t === 'snap' && m.s && typeof m.s === 'object' && m.s.players) {
       if (m.bans != null) m.s.bans = m.bans; // server-level: lobby ban count
+      if (m.pings && typeof m.pings === 'object') m.s.pings = m.pings; // per-player RTT (ms)
       snaps.push({ at: performance.now(), s: m.s });
       if (snaps.length > 40) snaps.shift();
       if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
@@ -1303,6 +1304,18 @@ function kitIcons(p) {
 // spectator) always do, with the word "round" in the header and the tooltip.
 // Nothing here reads a position, an HP or a cooldown, which is why it is safe
 // to show live to a dead player — see the spectator block in updateUi().
+// Per-player RTT badge (round 18, Remi: "a friend had a lot of lag"). The
+// number is server-measured over the ws socket, so it prices the NETWORK path
+// only — a janky tab can show a green ping and still stutter. Bots have no
+// socket and therefore no badge.
+let lastPings = {};
+function pingBadge(id) {
+  const ms = lastPings[id];
+  if (!fin(+ms)) return '';
+  const cls = ms < 80 ? 'good' : ms < 180 ? 'warn' : 'bad';
+  return ` <span class="ping ${cls}" title="round-trip to the server">${Math.round(ms)}ms</span>`;
+}
+
 function statsTable(fighters, specs, opts = {}) {
   const { winnerId = null, showRound = false } = opts;
   const cell = (v, cls = '') =>
@@ -1332,7 +1345,7 @@ function statsTable(fighters, specs, opts = {}) {
       <th class="c-kit">Kit</th></tr></thead>`;
   const who = (p) =>
     `<td class="who"><span class="dot" style="display:inline-block;background:${p.color}"></span>
-      ${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}</td>`;
+      ${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</td>`;
   const rows = fighters.map((p, i) => {
     const direct = fin(+p.dmgDealt) ? +p.dmgDealt : null;
     const lava = fin(+p.dmgLava) ? +p.dmgLava : null;
@@ -1358,6 +1371,7 @@ function statsTable(fighters, specs, opts = {}) {
 
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
+  lastPings = (s.pings && typeof s.pings === 'object') ? s.pings : {};
   shopPausedBy = typeof s.shopPaused === 'string' ? s.shopPaused : null;
   const m = me(s);
   const playerList = Object.values(s.players || {}).filter(p => p && typeof p === 'object');
@@ -1398,7 +1412,7 @@ function updateUi(s) {
       const div = document.createElement('div');
       div.className = 'pl';
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}</span>
+        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
       // ban button on other humans: clears ghost seats AND keeps them out
       // (name+ip blocked until the server restarts or someone unbans)

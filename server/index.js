@@ -183,6 +183,19 @@ setInterval(() => {
   }
 }, HEARTBEAT_MS);
 
+// RTT measure (round 18, Remi: "a friend had a lot of lag"): a second, faster
+// ping stream whose payload is its own send time — the pong echoes the payload
+// back (RFC 6455), so every browser reports its round-trip with zero client
+// code. DELIBERATELY separate from the reaper above: folding this cadence into
+// the reaper would shrink its miss-two-pongs tolerance from 30 s to 4 s and
+// kill players on an ordinary tunnel stall.
+const PING_MS = Number(process.env.PING_MS || 2000);
+setInterval(() => {
+  for (const ws of wss.clients) {
+    try { ws.ping(String(Date.now())); } catch { }
+  }
+}, PING_MS);
+
 // Bans (until the server restarts): a kicked-with-ban player is blocked by
 // NAME and by IP. Name catches the classic offender — an abandoned tab that
 // auto-reconnects under the same name 2 s after every kick; IP catches
@@ -229,7 +242,13 @@ wss.on('connection', (ws, req) => {
   const ip = ipOf(req);
   let joined = false;
   ws.isAlive = true;
-  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('pong', (data) => {
+    ws.isAlive = true;
+    // RTT pings carry their send time; the reaper's plain ping echoes an
+    // empty payload, which parses to 0 and is skipped here
+    const t0 = Number(String(data));
+    if (Number.isFinite(t0) && t0 > 0) ws.pingMs = Math.max(0, Date.now() - t0);
+  });
 
   ws.on('message', (raw) => {
     let m;
@@ -494,6 +513,12 @@ setInterval(() => {
   // The EVENT stream is per-viewer for the same reason: events carry positions,
   // so a Vanish that only stripped the snapshot would leak the hidden player
   // through their own casts and hits (viewEvents; no-op when nobody is hidden).
+  // per-player RTT (server-level, like `bans`): one shared blob — a ping is
+  // not a secret, and every viewer wants to see who is lagging
+  const pings = {};
+  for (const [pid, pws] of sockets)
+    if (pws.pingMs != null) pings[pid] = Math.round(pws.pingMs);
+  const havePings = Object.keys(pings).length > 0;
   for (const [id, ws] of sockets) {
     if (ws.readyState !== 1) continue;
     ws.send(JSON.stringify({
@@ -501,6 +526,7 @@ setInterval(() => {
       // lobby ban count (server-level, not game state): the client shows its
       // "Unban all" button only when there is actually something to lift
       ...(bannedNames.size + bannedIps.size ? { bans: bannedNames.size + bannedIps.size } : {}),
+      ...(havePings ? { pings } : {}),
     }));
   }
 }, 1000 / SNAPSHOT_RATE);
