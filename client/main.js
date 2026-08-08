@@ -531,7 +531,7 @@ $('spectateBtn').addEventListener('click', () => {
 });
 $('modeBtn').addEventListener('click', () => {
   const s = latest();
-  send({ t: 'mode', mode: nextMode(s ? s.mode : 'classic') }); // classic → elemental → co-op
+  send({ t: 'mode', mode: nextMode(s ? s.mode : 'classic') }); // elemental ⇄ classic (co-op: under construction, ROUND17 §1)
 });
 // draft is an INDEPENDENT flag, not a fourth ruleset: it rides on top of
 // whichever of the three is selected (docs/ROUND12.md S7)

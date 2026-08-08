@@ -86,7 +86,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
-| `tools/coop.js` | co-op lab: `--levels` is the tuning view. **Re-run after ANY global item/gold/knockback/arena change** |
+| `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
 | `BALANCE.md` | current balance truths + open questions + repro commands. Full reports: `docs/history/` |
 | `STRATEGIES.md` | bot tiers × builds chart, the 25-strategy ranking, how to read arena reports |
@@ -133,16 +133,17 @@ build step, Node ESM, only dep is `ws`.
   h2h against it is not a signal. Bots pressure the kill leader
   (`BOT_TARGETING.LEADER_BIAS 2.5`).
 
-## Co-op campaign (mode `coop`)
+## Co-op campaign (mode `coop`) — MOTHBALLED
 
+- **Under construction (ROUND17 §1): do not tune it, do not balance around
+  it.** The mode is off the lobby button (`MODES` in `client/coop.js`) and
+  waits for Remi's redesign; the code, the campaign data and the tests stay
+  live. Keep them green — that is the whole obligation.
 - One team vs data-defined waves; **friendly fire is ON** (team kills pay
   nothing); `hostile()` is a targeting helper only — never put it on a damage
   path. Level ≠ round: wipes cost a round, `COOP_MAX_ROUNDS` 13 is the budget.
-- Tuning levers and measured lessons (staggering softens, chaff is dead past
-  L5, one Shade ≈ 30-45 clear points, enemy lightning is a solo-killer):
-  `docs/history/2026-08-08-agents-full-pre-diet.md` §co-op. Current curve and
-  the re-run rule live with `tools/coop.js --levels` — **run it in the same
-  commit as any global change; it has caught two campaign-breaking regressions.**
+- Old tuning levers and measured lessons, for whoever picks the redesign up:
+  `docs/history/2026-08-08-agents-full-pre-diet.md` §co-op.
 
 ## Hosting & ops
 
@@ -176,16 +177,17 @@ first that Remi isn't hosting a live game.**
 2. Hosting/versioning work in `docs/` is decided but unbuilt.
 3. Bot hotspots (accepted): boomer over-rated everywhere (nothing dodges or
    catches one); escape/rusher are bot-traps — fix with piloting, not numbers.
-4. Co-op polish: enemy HP bars render green; L8-3p pacing; no per-wave `hp`.
+4. Co-op polish (enemy HP bars render green; L8-3p pacing; no per-wave `hp`) —
+   parked with the mode until Remi's redesign, do not pick it up.
 
 ## Scars (one line each — full stories: `docs/history/2026-08-08-agents-full-pre-diet.md`)
 
 - A refund that pays the spell that triggers it is a feedback loop; fix the
   topology, not the number (arcane, 74%).
-- Any global arena/item/gold/knockback change re-prices the whole co-op
-  campaign AND everything priced against it — re-sweep ramps/percentages and
-  re-run `coop --levels` in the same commit (NEVER_STOPS broke L8 to 6%;
-  the fireball lock silently tripled momentum and crowned venom).
+- Any global arena/item/gold/knockback change re-prices everything priced
+  against it — re-sweep ramps/percentages (the fireball lock silently tripled
+  momentum and crowned venom). It re-prices the mothballed co-op campaign too:
+  `coop --levels` only if its tests break (NEVER_STOPS broke L8 to 6%).
 - Swept-collision side checks must use the PRE-move position (fast balls
   tunneled through Mirror Walls).
 - A feature that is never rendered — or renders under the HP bar, or moves by

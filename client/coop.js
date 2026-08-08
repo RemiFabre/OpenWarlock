@@ -17,11 +17,14 @@
 import { setLevel } from './music.js';
 
 // ---- ruleset cycle ----------------------------------------------------------
-// One button, three rulesets. Kept here so main.js only needs the two calls.
+// One button. Kept here so main.js only needs the two calls.
 
 // Elemental leads the cycle since 2026-08-08: it is the DEFAULT ruleset now and
 // is no longer called experimental. Classic still exists, unchanged.
-export const MODES = ['elemental', 'classic', 'coop'];
+// ⚠ 'coop' is UNDER CONSTRUCTION (ROUND17 §1) — mothballed, so it is off the
+// button and unreachable from the UI. The server still accepts it and all the
+// campaign code below stays live; put it back in this array to re-offer it.
+export const MODES = ['elemental', 'classic'];
 
 export function nextMode(mode) {
   const i = MODES.indexOf(mode);
