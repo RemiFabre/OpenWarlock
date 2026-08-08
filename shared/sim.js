@@ -1539,6 +1539,27 @@ function stepBattle(state, dt) {
     // component INTO the pillar — knockback slams you against cover and stops
     collidePillars(state, pl);
 
+    // Lava portals (round 18, versus only): touch one and you are home at the
+    // center — dead stop, intent cleared. The event carries `id`, so a
+    // VANISHED traveller's flashes are masked for everyone else by viewEvents
+    // (the standard vanish rule; unlike Swap, nobody else is touched, so
+    // there is nothing that must be revealed). Checked BEFORE the lava so the
+    // porting tick doesn't also burn you.
+    if (state.mode !== 'coop' && pl.alive) {
+      const P = ARENA.PORTALS;
+      const d = ARENA.START_RADIUS * P.DIST_FRAC;
+      for (let i = 0; i < P.COUNT; i++) {
+        const a = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
+        const px = Math.cos(a) * d, py = Math.sin(a) * d;
+        if (Math.hypot(pl.x - px, pl.y - py) > P.RADIUS + pl.radius) continue;
+        pl.x = 0; pl.y = 0;
+        pl.vx = 0; pl.vy = 0;
+        pl.moveTarget = null; pl.dash = null; pl.charging = null;
+        state.events.push({ t: 'portal', id: pl.id, x: 0, y: 0, fx: px, fy: py });
+        break;
+      }
+    }
+
     // lava (radius 0 = the whole world is lava). No lingering burn: step out
     // and the damage stops — the price is only paid while swimming.
     const inLava = state.arenaRadius <= 0 || Math.hypot(pl.x, pl.y) > state.arenaRadius;

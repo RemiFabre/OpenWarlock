@@ -4522,6 +4522,68 @@ describe('live spectator standings', () => {
   });
 });
 
+describe('lava portals (round 18)', () => {
+  const portalXY = (i) => {
+    const P = ARENA.PORTALS;
+    const a = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
+    const d = ARENA.START_RADIUS * P.DIST_FRAC;
+    return { x: Math.cos(a) * d, y: Math.sin(a) * d };
+  };
+
+  it('all portals sit out in the lava', () => {
+    const P = ARENA.PORTALS;
+    expect(P.COUNT).toBe(4);
+    for (let i = 0; i < P.COUNT; i++) {
+      const { x, y } = portalXY(i);
+      expect(Math.hypot(x, y)).toBeGreaterThan(ARENA.START_RADIUS);
+    }
+  });
+
+  it('touching a portal teleports you to the arena center, dead stop', () => {
+    const state = freshBattle(2);
+    const pl = state.players.p0;
+    const { x, y } = portalXY(1);
+    pl.x = x; pl.y = y; pl.vx = 30; pl.vy = -10;
+    pl.moveTarget = { x: x + 5, y };
+    pl.hp = pl.maxHp;
+    state.events = [];
+    step(state, DT);
+    expect(Math.hypot(pl.x, pl.y)).toBeLessThan(1);
+    expect(pl.vx).toBe(0);
+    expect(pl.vy).toBe(0);
+    expect(pl.moveTarget).toBe(null);
+    expect(state.events.some(e => e.t === 'portal' && e.id === 'p0')).toBe(true);
+    // the tick that ports you home does not also burn you: you left the lava
+    expect(pl.hp).toBe(pl.maxHp);
+  });
+
+  it('swimming NEAR a portal does not trigger it', () => {
+    const state = freshBattle(2);
+    const pl = state.players.p0;
+    const { x, y } = portalXY(0);
+    const P = ARENA.PORTALS;
+    pl.x = x + P.RADIUS + pl.radius + 1; pl.y = y;
+    pl.vx = 0; pl.vy = 0; pl.moveTarget = null;
+    step(state, DT);
+    expect(Math.hypot(pl.x - x, pl.y - y)).toBeGreaterThan(P.RADIUS);
+  });
+
+  it('co-op ignores portals (the mothballed mode keeps its classic ring)', () => {
+    const state = createGame({ seed: 5, mode: 'coop' });
+    addPlayer(state, 'p0', 'Ally0');
+    addPlayer(state, 'p1', 'Ally1');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    const pl = state.players.p0;
+    const { x, y } = portalXY(0);
+    pl.x = x; pl.y = y; pl.vx = 0; pl.vy = 0; pl.moveTarget = null;
+    pl.hp = 9999; pl.maxHp = 9999;
+    step(state, DT);
+    expect(Math.hypot(pl.x - x, pl.y - y)).toBeLessThan(2); // still out there
+  });
+});
+
 describe('spawn shuffle (round 18)', () => {
   // Drive a running battle through roundEnd -> shop -> next countdown, so
   // startRound re-seats everyone. Kills all but p0 in lava (no kill credit).

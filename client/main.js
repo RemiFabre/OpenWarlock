@@ -231,6 +231,12 @@ function onEvent(e) {
       fx.push({ x: e.x2, y: e.y2, type: 'teleport', at: now, dur: 0.45 });
       playSfx('swap');
       break;
+    // lava portal (round 18): one flash where you sank, one where you surface
+    case 'portal':
+      fx.push({ x: e.fx, y: e.fy, type: 'teleport', at: now, dur: 0.45 });
+      fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.45 });
+      playSfx('teleport');
+      break;
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
     case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;

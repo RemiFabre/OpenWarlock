@@ -348,6 +348,32 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.beginPath(); ctx.arc(view.cx, view.cy, R * i / 3.4, 0, Math.PI * 2); ctx.stroke();
   }
 
+  // --- lava portals (round 18, versus only): touch one, surface at the center.
+  // Cool-toned vortex so it can never be mistaken for lava FX; the swirl spins
+  // so a static frame still reads as "this is a mechanism", not decoration.
+  if (vs.mode !== 'coop' && ARENA.PORTALS) {
+    const P = ARENA.PORTALS;
+    const pd = ARENA.START_RADIUS * P.DIST_FRAC;
+    for (let i = 0; i < P.COUNT; i++) {
+      const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
+      const x = view.sx(Math.cos(pa) * pd), y = view.sy(Math.sin(pa) * pd);
+      const pr = P.RADIUS * scale;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, pr * 1.7);
+      g.addColorStop(0, 'rgba(8, 12, 28, 0.95)');   // dark well
+      g.addColorStop(0.6, 'rgba(45, 95, 170, 0.45)');
+      g.addColorStop(1, 'rgba(45, 95, 170, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, pr * 1.7, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(140, 220, 255, 0.85)';
+      ctx.lineWidth = Math.max(1.5, pr * 0.22);
+      const spin = t * 1.6 + i * Math.PI / 2;
+      for (let k = 0; k < 3; k++) {
+        const o = spin + k * (Math.PI * 2 / 3);
+        ctx.beginPath(); ctx.arc(x, y, pr, o, o + Math.PI / 2); ctx.stroke();
+      }
+    }
+  }
+
   // --- pillars: obsidian columns; sunken ones melt dimly under the lava ---
   const pillars = Array.isArray(vs.pillars) ? vs.pillars : [];
   for (const pil of pillars) {

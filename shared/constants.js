@@ -7,6 +7,10 @@ export const SNAPSHOT_RATE = 15;      // snapshots sent to clients Hz
 export const ARENA = {
   START_RADIUS: 56,
   MIN_RADIUS: 10,
+  // Round 18 (Remi): 4 portals out in the lava — touch one and you are
+  // teleported to the arena center. Fixed positions (diagonals, a bit beyond
+  // the starting rim), versus only; the swim there is priced in lava HP.
+  PORTALS: { COUNT: 4, DIST_FRAC: 1.25, RADIUS: 2.2, ANGLE: Math.PI / 4 },
   // TEST flag (round 16): the ring shrinks continuously START→0 so the whole
   // arena becomes lava; MIN_RADIUS/OVERTIME_* bypassed. false = classic
   // hold-then-sudden-death, untouched.
