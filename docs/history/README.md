@@ -33,3 +33,4 @@ is CRITICAL, so the living docs stay lean and everything historical lands here.*
 | `2026-08-08-round17-bot-targeting-softmax.md` | ROUND17 §11: the `BOT_TARGETING` softmax, the TEMPERATURE sweep (targeting convergence + h2h ladder), and why the new arena focus metric does not move |
 | `2026-08-08-round17-battery.md` | the ROUND17 Session B battery: mixed tables, strategy study, item ladders, the venom tick sweeps (96→56), the momentum threshold sweep, the sword structural finding, and the final tables at HEAD |
 | `2026-08-08-remi-notes-round-16.md` | REMI_NOTES.md round 16 (archived when round 17 was written) |
+| `2026-08-08-round17-value-analysis.md` | upgrade VALUE analysis: sustained-dps math per option, tankiness/effective-HP with regen gone, and the staged gold-matched duel matrix (tools/duel.js) — why momentum is a "time machine" and venom a bad duelist |

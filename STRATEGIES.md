@@ -95,6 +95,44 @@ baseline 25% — the table is zero-sum, so read it as a ranking:*
 | **gale-launcher** | 2.6 | 19.9 | gale push into the lv3 burst; wins by ring-outs |
 | **item-breadth** | 2.5 | 2.0 | one level of every item before any second level or element |
 
+### What each strategy opens with (first 8 buys, in order)
+
+*Remi's report rule: a strategy name means nothing undecoded. Each list below
+is the strategy's CORE — after it, every strategy walks the same shared
+breadth tail (`EXHAUST_PASS` in `tools/strategy-study.js`: amulet, sword,
+boots, lightning, cape, treads, hourglass, then every element), so late-game
+contents converge and the measured difference is the OPENING. A repeated name
+means "buy its next level". Regenerate this list with
+`node tools/strategy-study.js --list`.*
+
+| strategy | opening buys, in order |
+|---|---|
+| glass-cannon | ember → ember → arcane → ember → arcane → gale → gale → sword |
+| cadence | arcane ×3 → hourglass ×2 → echo → lightning → hourglass |
+| double-cdr | arcane ×3 → hourglass ×2 → lightning → hourglass → lightning |
+| balanced | ember → amulet → arcane → sword → ember → amulet → arcane → sword |
+| venom-dot | venom ×3 → terra ×3 → amulet ×2 |
+| vampire-brawler | vampire ×3 → amulet → sword → amulet → sword → amulet |
+| momentum-scaling | momentum ×3 → terra ×3 → amulet ×2 |
+| mosquito-combo | mosquito ×3 → venom ×2 → arcane → venom → arcane |
+| frost-control | frost ×3 → lightning → amulet → lightning → amulet → lightning |
+| ghost-sniper | ghost ×2 → ember ×2 → ghost → ember → sword → amulet |
+| gale-launcher | gale ×2 → terra ×2 → gale → terra → boots ×2 |
+| tank-sustain | amulet ×2 → sword → amulet → treads → sword ×2 → ember |
+| midas-economy | midas ×3 → amulet → sword → boots → amulet |
+| item-breadth | amulet → sword → boots → cape → treads → hourglass → ember → terra |
+| spell-kit | lightning → boomerang → rush → shield → ember ×2 → lightning → boomerang |
+| all-cheap | ember → terra → arcane → gale → ghost → then all their lv2s |
+| no-elements | amulet → sword → boots → lightning → amulet → sword → boomerang → cape |
+| venom-ember | venom → ember, alternating ×3 → amulet → sword |
+| venom-balanced | venom → amulet → venom → sword → venom → amulet → ember → sword |
+| cdr-balanced | arcane → amulet → arcane → sword → hourglass → amulet → arcane → sword |
+| midas-cdr | midas ×3 → arcane → hourglass, alternating to max |
+| mosquito-midas | mosquito → midas, alternating ×3 → amulet → sword |
+| frost-gale | gale ×3 → frost ×3 → amulet → sword |
+| ember-tank | ember ×2 → amulet ×2 → sword → amulet → sword → treads |
+| vampire-cadence | vampire ×3 → arcane → hourglass, alternating to max |
+
 The headline reads: **the economy is the strongest axis** (all three midas
 builds at or above everything else — see BALANCE.md Finding 16A before
 copying midas-cdr into a lobby), **offense-first wins and defense-first

@@ -5,7 +5,9 @@ CURRENT balance state — the latest tables, the shipped retunes, the guidelines
 and the open questions. Full reports are dated files in `docs/history/` —
 grep them on demand, never read them wholesale. Round 17's full evidence:
 `docs/history/2026-08-08-round17-battery.md` (battery + sweeps) and
-`2026-08-08-round17-bot-targeting-softmax.md` (bot targeting).*
+`2026-08-08-round17-bot-targeting-softmax.md` (bot targeting), and
+`2026-08-08-round17-value-analysis.md` (per-upgrade dps/eHP math + the staged
+duel matrix — the intuition layer behind questions K, L and M).*
 
 ## How to read the numbers
 

@@ -67,8 +67,12 @@ build step, Node ESM, only dep is `ws`.
 - **Data-driven balance** (seeded headless games, sweeps, 2+ seeds, check
   monotonicity) — but bots can't price reactive skill: **flag bot artifacts,
   never number-buff around them**. His feel report outranks every table.
-- **Reports must explain themselves**: define metrics, state the 25% baseline,
-  describe strategies as build+playstyle, link STRATEGIES.md.
+- **Reports must explain themselves** (Remi, reinforced 2026-08-08 after
+  three "what does this number mean" questions): EVERY section that shows
+  numbers opens with 1-3 lines saying exactly what the number is, vs what
+  baseline, measured how — repeated AT the table, not in a block far above.
+  Strategy/build names are decoded where used (composition + buy order).
+  State what the instrument CANNOT see next to its results.
 - Non-QWERTY keyboard → keybindings stay rebindable. He supplies art/music
   (`assets/`; `sips` JPEG q65, never downscale; `afconvert` AAC 96k).
 
@@ -89,6 +93,7 @@ build step, Node ESM, only dep is `ws`.
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
+| `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots — prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
