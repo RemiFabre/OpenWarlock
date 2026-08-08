@@ -66,10 +66,12 @@ try {
   await until(a, c => c.snap.phase === 'shop', 150, 'first shop');
   const me1 = a.me();
   assert(me1.spells.fireball === 1, 'starts with fireball lv1');
-  a.send({ t: 'buy', id: 'fireball' });
-  await until(a, c => c.me().spells.fireball === 2, 5, 'bought fireball lv2');
+  // round 16: the fireball no longer levels in elemental (the default mode),
+  // so the progress this test drops-and-recovers is a lightning level instead
+  a.send({ t: 'buy', id: 'lightning' });
+  await until(a, c => c.me().spells.lightning === 1, 5, 'bought lightning lv1');
   const kept = a.me();
-  console.log(`pre-drop: gold=${kept.gold} kills=${kept.kills} deaths=${kept.deaths} fireball=${kept.spells.fireball}`);
+  console.log(`pre-drop: gold=${kept.gold} kills=${kept.kills} deaths=${kept.deaths} lightning=${kept.spells.lightning}`);
 
   // -- hard drop (no clean leave), then rejoin under the same name
   a.ws.terminate();
@@ -79,7 +81,7 @@ try {
   b.send({ t: 'join', name: 'Remi' }); // case differs on purpose: normName match
   await until(b, c => c.id && c.me(), 10, 'rejoin snapshot');
   const back = b.me();
-  assert(back.spells.fireball === kept.spells.fireball, `fireball level survives (${back.spells.fireball})`);
+  assert(back.spells.lightning === kept.spells.lightning, `lightning level survives (${back.spells.lightning})`);
   assert(back.gold === kept.gold, `gold survives (${back.gold})`);
   assert(back.kills === kept.kills, `kills survive (${back.kills})`);
   assert(back.deaths === kept.deaths, `deaths survive (${back.deaths})`);

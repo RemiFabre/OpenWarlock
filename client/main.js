@@ -23,12 +23,8 @@ const ICONS = {
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
   meteor: '☄️', hook: '🪝', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
-  echo: '🔁', crown: '👑',
+  echo: '🔁', hourglass: '⏳',
 };
-// Elements that are NOT fireball riders (mirrors GLOBAL_ELEMENTS in shared/sim.js):
-// they badge every owned spell slot instead of the fireball, because that is
-// where you actually see them working. Arcane = flat CDR, chronos = CDR on hit.
-const GLOBAL_ELEM = new Set(['arcane', 'chronos']);
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
 // Defaults per Remi 2026-08-03: blink (teleport) on F, dash (rush) on E,
@@ -223,7 +219,6 @@ function onEvent(e) {
     // criterion for the mosquito proc, and two identical popups on one pixel is
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
-    case 'grow': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); break;       // terra pulse
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
     case 'hooked': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('zap'); break;
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
@@ -251,9 +246,9 @@ function onEvent(e) {
       pushFloater(e, 'lifesteal', 1.1, now);
       if (e.id === myId) playSfx('drain');
       break;
-    // chronos: your cooldowns just jumped back
-    case 'chronos':
-      pushFloater(e, 'chronos', 0.55, now);
+    // arcane lv3: your cooldowns just jumped back (a fireball landed)
+    case 'refund':
+      pushFloater(e, 'refund', 0.55, now);
       if (e.id === myId) playSfx('rewind');
       break;
     // Vanish: the server only ever sends this to the player who cast it
@@ -687,10 +682,15 @@ const FX_FIELDS = {
   kbAdd: ['fireball push', (v) => `+${fmtNum(v)}`],
   dmgMult: ['fireball damage', fmtMult],
   kbMult: ['fireball push', fmtMult],
-  cdrMult: ['every cooldown', fmtMult],
+  cdrMult: ['fireball cooldown', fmtMult],
   cdMult: ['fireball cooldown', fmtMult],
   projRadiusMult: ['fireball size', fmtMult],
+  projSpeedMult: ['fireball speed', fmtMult],
   stacksToTrigger: ['stacks to detonate', fmtNum],
+  burstKbMult: ['the gust pushes', fmtMult],
+  burstAtLevel: ['gust unlocks at', (v) => `lv ${fmtNum(v)}`],
+  hitRefund: ['fireball hit refunds', (v) => (+v > 0 ? `−${fmtSec(v)} off every cooldown` : '—')],
+  pierceAtLevel: ['passthrough unlocks at', (v) => `lv ${fmtNum(v)}`],
   slowMult: ['victim speed', fmtMult],
   slowT: ['slow lasts', fmtSec],
   stunT: ['stun lasts', fmtSec],
@@ -704,18 +704,12 @@ const FX_FIELDS = {
   trailStep: ['trail spacing', fmtNum],
   trailR: ['trail radius', fmtNum],
   goldOnHit: ['gold per hit', (v) => `+${fmtNum(v)} g`],
-  growMult: ['target grows', fmtMult],
-  growT: ['growth lasts', fmtSec],
-  growCap: ['growth cap', (v) => `×${fmtNum(v)}`],
   rampDmg: ['damage per landed hit', (v) => `+${fmtNum(v)}`],
   rampPermanent: ['the ramp', (v) => (v ? 'never resets — it is yours for the game' : 'resets each round')],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
-  cdRefund: ['refund per enemy hit', (v) => `−${fmtSec(v)} off every cooldown`],
   cdFloor: ['a refund never goes below', fmtSec],
-  pierce: ['your fireball', (v) => (v ? 'passes THROUGH bodies' : 'pops on the first body')],
-  pierceDmgMult: ['damage to everyone behind the first', fmtMult],
-  pierceKbMult: ['push on everyone behind the first', fmtMult],
+  pierce: ['your fireball (at lv 3)', (v) => (v ? 'passes THROUGH bodies' : 'pops on the first body')],
   mosquito: ['fireball becomes a mosquito', fmtNum],
   stingDmg: ['sting damage', fmtNum],
   procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} of your fireballs, together`],
@@ -735,7 +729,7 @@ const ITEM_FIELDS = {
   lifesteal: ['lifesteal', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
   every: ['echo cadence', (v) => `every ${fmtNum(v)}th fireball`],
   delay: ['echo delay', fmtSec],
-  fireballMax: ['fireball level cap', (v) => `+${fmtNum(v)}`],
+  cdrMult: ['every cooldown', fmtMult],
 };
 
 // What the level you own actually bought, as a plain sentence. The maths lives
@@ -751,6 +745,7 @@ const ITEM_LIVE = {
   ring: (lv) => `you regenerate ${fmtNum(PLAYER.REGEN + itemFxAt('ring', 'regen', lv))} hp/s (base ${fmtNum(PLAYER.REGEN)})`,
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
+  hourglass: (lv) => `all your cooldowns run at ×${fmtNum(itemFxAt('hourglass', 'cdrMult', lv))}`,
 };
 
 // One row of the per-level table. A scalar spans every column — that IS what
@@ -817,7 +812,7 @@ function elementTip(key, spec, level) {
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
     `Full path costs <b>${total} g</b>.`,
-    key === 'arcane' ? 'No fireball needed.' : 'Needs <b>Fireball lv 1</b>. Elements stack with each other.',
+    'Needs <b>Fireball lv 1</b>. Elements stack with each other.',
   ].filter(Boolean).join(' ');
   return tipShell(spec.icon, spec.name, spec.desc,
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
@@ -826,7 +821,8 @@ function elementTip(key, spec, level) {
 // Items are LEVELLED like spells (round 12): the columns are levels 1..maxLevel
 // and the ITEM_FX arrays are absolute totals, so each cell is read straight out
 // of the spec — no per-copy arithmetic, and nothing here can drift from what
-// stats() computes on the server. Cost is flat at every level.
+// stats() computes on the server. Cost is flat at every level for most items;
+// the hourglass carries a per-level costs array (itemCost reads both).
 function itemTip(key, spec, level) {
   const cols = spec.maxLevel;
   const cur = Math.min(level, cols);
@@ -836,15 +832,18 @@ function itemTip(key, spec, level) {
     const [label, fmt] = ITEM_FIELDS[field] || [field, fmtNum];
     rows += tipRow(label, fxSpec[field], cols, fmt, cur);
   }
-  const each = itemCost(key);
-  rows += tipRow('cost', Array.from({ length: cols }, () => each), cols, fmtGold,
-    Math.min(level + 1, cols), 'cost');
+  const costs = Array.from({ length: cols }, (_, i) => itemCost(key, i));
+  const total = costs.reduce((a, b) => a + b, 0);
+  const flat = costs.every(c => c === costs[0]);
+  rows += tipRow('cost', costs, cols, fmtGold, Math.min(level + 1, cols), 'cost');
   const live = level > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](cur);
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
     live ? `With that, ${live}.` : '',
     cols > 1
-      ? `Every level costs the same <b>${each} g</b> — full path <b>${each * cols} g</b>. Each level gives less than the last.`
+      ? (flat
+        ? `Every level costs the same <b>${costs[0]} g</b> — full path <b>${total} g</b>. Each level gives less than the last.`
+        : `Full path costs <b>${total} g</b>. Each level gives less than the last.`)
       : 'Single level — one purchase and it is maxed.',
   ].filter(Boolean).join(' ');
   return tipShell(ICONS[key], spec.name, spec.desc,
@@ -1067,9 +1066,9 @@ function buildShop(container, mode = 'classic') {
           continue;
         }
         const level = spells[w.key] || 0;
-        // the Cinder Crown raises the fireball cap by one (elemental only)
-        const maxLevel = w.spec.maxLevel +
-          (elemental && w.key === 'fireball' && (items.crown || 0) > 0 ? 1 : 0);
+        // round 16: in elemental mode the fireball never levels — the elements
+        // are its progression (same rule as buy() in shared/sim.js)
+        const maxLevel = elemental && w.key === 'fireball' ? 1 : w.spec.maxLevel;
         w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
         const lv = w.el.querySelector('.lv');
         lv.textContent = level ? `lv ${level}` : '';
@@ -1095,12 +1094,12 @@ function buildShop(container, mode = 'classic') {
         } else {
           const c = w.spec.costs[elevel];
           cost.textContent = `${c} g`; cost.className = 'cost';
-          w.el.disabled = gold < c ||
-            (w.key !== 'arcane' && (spells.fireball || 0) < 1);
+          w.el.disabled = gold < c || (spells.fireball || 0) < 1;
         }
       } else {
         // items are levelled like spells: the level you own sits next to the
-        // name, the price is flat, and maxLevel is the wall (1 for echo/crown).
+        // name, the price is flat (the hourglass carries a per-level array —
+        // itemCost handles both), and maxLevel is the wall (1 for echo).
         const level = Math.min(items[w.key] || 0, w.spec.maxLevel);
         w.level = level;
         w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
@@ -1110,7 +1109,7 @@ function buildShop(container, mode = 'classic') {
         if (level >= w.spec.maxLevel) {
           cost.innerHTML = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
-          const c = itemCost(w.key);
+          const c = itemCost(w.key, level);
           cost.innerHTML = `${c} g${level > 0 ? `<span class="nth">→ lv ${level + 1}</span>` : ''}`;
           cost.className = 'cost';
           w.el.disabled = gold < c;
@@ -1243,12 +1242,13 @@ function statsTable(fighters, specs, opts = {}) {
   const roundCols = showRound ? 1 : 0;
   const th = (label, tip) => `<th class="n" title="${esc(tip)}">${label}</th>`;
   const head = `<thead>
-    <tr class="grp"><th colspan="${5 + roundCols}"></th>
+    <tr class="grp"><th colspan="${6 + roundCols}"></th>
       <th class="g" colspan="3">Damage dealt</th>
       <th class="g" colspan="2">HP healed</th>
       <th class="g" colspan="${goldCols}">Gold</th>
       <th class="c-kit"></th></tr>
     <tr><th></th><th>Warlock</th>
+      ${th('❤️ HP', `current / max HP. Everyone starts the game with ${PLAYER.MAX_HP} max HP — the Amulet of Health raises yours`)}
       ${th('⚔️ Kills', `enemies you killed — GAME TOTAL, the number that wins the match (first to ${ROUND.KILLS_TO_WIN})`)}
       ${showRound ? th('⚔️ Round', 'kills you have scored in the CURRENT round') : ''}
       ${th('💀 Deaths', 'times you died, all game')}
@@ -1272,6 +1272,9 @@ function statsTable(fighters, specs, opts = {}) {
     const cls = [p.id === myId ? 'me' : '', winnerId && p.id === winnerId ? 'winner' : '']
       .filter(Boolean).join(' ');
     return `<tr class="${cls}"><td class="rank">${i + 1}</td>${who(p)}
+      <td class="n">${fin(+p.maxHp)
+        ? `${p.alive ? Math.max(0, Math.round(+p.hp)) : 0}/${Math.round(+p.maxHp)}`
+        : '<span class="dim">–</span>'}</td>
       ${cell(p.kills)}${showRound ? cell(p.roundKills, 'g-round') : ''}${cell(p.deaths)}
       <td class="n">${mk >= 2 ? `<span class="mk">×${mk}</span>` : '<span class="dim">–</span>'}</td>
       ${cell(direct)}${cell(lava, 'g-lava')}${cell(direct != null && lava != null ? direct + lava : null)}
@@ -1281,7 +1284,7 @@ function statsTable(fighters, specs, opts = {}) {
       <td class="kit c-kit">${kitIcons(p)}</td></tr>`;
   }).concat(specs.map((p) =>
     `<tr class="spec"><td class="rank">👁</td>${who(p)}
-      <td colspan="${8 + goldCols + roundCols}"></td><td class="c-kit"></td></tr>`)).join('');
+      <td colspan="${9 + goldCols + roundCols}"></td><td class="c-kit"></td></tr>`)).join('');
   return `${head}<tbody>${rows}</tbody>`;
 }
 
@@ -1484,22 +1487,15 @@ function updateUi(s) {
       const level = spells[key] || 0;
       el.classList.toggle('owned', level > 0);
       el.querySelector('.lv').textContent = level > 1 ? 'lv' + level : '';
-      // your owned elements ride on the fireball slot (elemental mode);
-      // arcane is global CDR, so it badges EVERY owned spell slot — that's
-      // how you see it working
-      // chronos joins arcane as a GLOBAL element (it refunds every cooldown you
-      // have running, off any spell that lands), so it badges every owned slot
-      // instead of riding on the fireball
+      // your owned elements ride on the fireball slot (elemental mode) — since
+      // round 16 EVERY element is a fireball rider, so they all badge there.
+      // The Hourglass of Haste (global CDR) is an item and shows in the shop.
       const riders = key === 'fireball' && m.elements
         ? Object.keys(m.elements)
-            .filter(k => !GLOBAL_ELEM.has(k) && m.elements[k] > 0 && ELEMENTS[k])
+            .filter(k => m.elements[k] > 0 && ELEMENTS[k])
             .map(k => ELEMENTS[k].icon).join('')
         : '';
-      const global = m.elements && level > 0
-        ? [...GLOBAL_ELEM].filter(k => m.elements[k] > 0 && ELEMENTS[k])
-            .map(k => ELEMENTS[k].icon).join('')
-        : '';
-      el.querySelector('.elem').textContent = riders + global;
+      el.querySelector('.elem').textContent = riders;
       const cd = fin(+cooldowns[key]) ? +cooldowns[key] : 0;
       const cdEl = el.querySelector('.cd');
       cdEl.classList.toggle('hidden', cd <= 0);

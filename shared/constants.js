@@ -12,6 +12,10 @@ export const ARENA = {
   // becomes lava; MIN_RADIUS, OVERTIME_GRACE and OVERTIME_SHRINK are all
   // bypassed while this is true. Set to false and the classic hold-then-sudden-
   // death behaviour is back, untouched.
+  // ⚠ VERSUS ONLY since round 16: the co-op campaign is exempt (stepBattle).
+  // It shipped without a co-op re-measure and level 8 (a ~100 s fight) fell
+  // from 68/66/57% clear to 80/46/6 under it — the campaign is priced around
+  // the holding ring. See the guard in shared/sim.js.
   NEVER_STOPS: true,
   // "30% slower" is read as the shrink RATE, not the duration (voice-dictated,
   // stating the interpretation per the AGENTS.md convention). Old: 46 units in
@@ -20,6 +24,12 @@ export const ARENA = {
   // While NEVER_STOPS is true this is the time from START to ZERO; when false it
   // is the old "START to MIN" and you want 65 back.
   SHRINK_TIME: 113,
+  // Co-op keeps the classic hold-then-sudden-death ring (NEVER_STOPS is versus
+  // only, round 16) and its whole campaign was priced at the old 65 s
+  // START→MIN journey — this is that number, read only by the co-op branch in
+  // stepBattle. Measured: with the slowed 113 s ring the mid-campaign drifted
+  // 5-15 points easier (L8 68/66/57 → 81/82/81); with 65 the curve is back.
+  COOP_SHRINK_TIME: 65,
   // the shrink RATE scales with deaths: rate *= 1 + ADAPT * (1 - alive/total)
   // (4 fighters, 2 dead -> 1.75x faster) so small fights don't wait on a big arena
   SHRINK_ADAPT: 1.5,
@@ -126,15 +136,18 @@ export const GOLD = {
 // costs[i] = cost to reach level i+1 (level 0 = not owned)
 export const SPELLS = {
   fireball: {
-    // the 4th damage/knockback/cost entries are only reachable in elemental
-    // mode via the Cinder Crown (maxLevel stays 3 in classic — buy() enforces)
-    name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8, 8],
+    // 2026-08-08 (Remi, round 16): in ELEMENTAL mode the fireball NEVER levels
+    // — buy() locks it at lv1 there, because a fireball level bought damage AND
+    // push AND cadence in one purchase (OP and unreadable). The elements are
+    // its progression now, one axis each: ember=damage, gale=push,
+    // arcane=cadence, terra=size, ghost=speed. Classic keeps these levels.
+    name: 'Fireball', hotkey: 'Q', maxLevel: 3, costs: [0, 8, 8],
     // lv1 spam was too strong (2026-08-03): ~30% slower at lv1, upgrades
     // buy the old cadence back
     // lv1 damage 5 → 7 (2026-08-06): at 5 a lv1 fireball could not out-damage
     // passive regen, which is what made round 1 a 52-second stalemate
-    cooldown: [2.1, 1.85, 1.6, 1.5], speed: 41, radius: 0.8, range: Infinity,
-    damage: [7, 10, 14, 18], knockback: [65, 70, 76, 83],
+    cooldown: [2.1, 1.85, 1.6], speed: 41, radius: 0.8, range: Infinity,
+    damage: [7, 10, 14], knockback: [65, 70, 76],
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
@@ -368,14 +381,24 @@ export const ITEMS = {
   sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Heal 18% of damage dealt, then 30% and 38% (poison too — lava excluded)' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
             desc: '⚗️ every 4th fireball echoes: a second one fires 0.15 s later, same aim' },
-  crown:  { name: 'Cinder Crown', cost: 18, mode: 'elemental', maxLevel: 1,
-            desc: '⚗️ unlocks Fireball lv4 (buy it for the usual 8 g: +4 dmg, +7 push)' },
+  // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
+  // here from the element roster, same costs (10+8+8) and same numbers — his
+  // reasoning: elements are the FIREBALL's progression now, and a thing that
+  // affects ALL spells is thematically an item. `costs` is a per-level price
+  // array (itemCost reads it); items without one keep their flat cost.
+  hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
+            desc: 'ALL your cooldowns run faster: −10%, then −19% and −28%' },
 };
 
-// Price of the next level of `key`. Flat by design (round 12): every level of
-// an item costs the same, and the shrinking effect is what limits stacking.
-export function itemCost(key) {
-  return ITEMS[key] ? ITEMS[key].cost : 0;
+// Price of the next level of `key` when you already own `owned` levels. Flat by
+// design for most items (round 12): every level costs the same, and the
+// shrinking effect is the brake. An item may carry a `costs` array instead
+// (round 16: the hourglass keeps its element-era 10+8+8 curve).
+export function itemCost(key, owned = 0) {
+  const spec = ITEMS[key];
+  if (!spec) return 0;
+  if (Array.isArray(spec.costs)) return spec.costs[Math.min(owned, spec.costs.length - 1)];
+  return spec.cost;
 }
 
 // Per-level effect totals, indexed by level-1. Scalars apply at every level.
@@ -443,21 +466,34 @@ export const ITEM_FX = {
   cape: { kbMult: [0.92, 0.85, 0.80] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
-  crown: { fireballMax: 1 },         // handled in buy()
+  // global CDR (round 16, ex-element arcane). castSpell multiplies EVERY
+  // cooldown by it; the arcane ELEMENT's cdrMult touches the fireball only.
+  hourglass: { cdrMult: [0.9, 0.81, 0.72] },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------
-// 2026-08-04 rework (Remi): each element is a 3-LEVEL upgrade path and they
-// STACK — frost+ember is a chilling fire; buy as many as you can afford.
-// Adds are summed, mults multiplied across everything you own. Per-level
-// values are arrays indexed by level-1; scalars apply at every level.
-// Riders need Fireball >= 1; arcane is global (no fireball needed).
-// Balance notes vs the old one-pick system: gale and midas nerfed (were
-// dominant), venom buffed (+ground trail), terra size now scales per level.
+// Each element is a 3-LEVEL upgrade path and they STACK — frost+ember is a
+// chilling fire; buy as many as you can afford. Adds are summed, mults
+// multiplied across everything you own. Per-level values are arrays indexed by
+// level-1; scalars apply at every level. Every element is a fireball rider
+// (needs Fireball >= 1 — which everyone owns from spawn).
+//
+// 2026-08-08 (Remi, round 16): ELEMENTS ARE THE FIREBALL'S PROGRESSION, and
+// that is all they are. The fireball no longer levels in elemental mode (one
+// purchase used to buy damage AND push AND cadence — OP and unreadable), so
+// that bundle is split into single-axis elements, CHEAP on purpose ("sometimes
+// you're low on gold and it gives you something to do in the shop"):
+//   ember = damage · gale = push · arcane = cadence · terra = size · ghost = speed
+// Level 3 of gale / arcane / ghost costs more and unlocks a SPECIAL instead of
+// a third stat step; ember and terra stay cheap all the way (Remi: "do it like
+// fire"). Anything touching ALL spells is thematically an ITEM now: arcane's
+// old global CDR became the Hourglass of Haste, and CHRONOS WAS REMOVED — its
+// on-hit refund, narrowed to fireball hits only, is arcane's lv3 special.
+// Pre-round-16 specs and their sweep tables: git c38730f:shared/constants.js.
 export const ELEMENTS = {
-  ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Pure fire: more damage and push each level.',
-           fx: { dmgAdd: [2, 4, 6], kbAdd: [2, 4, 6] } },
+  ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [6, 5, 5],
+           desc: 'Pure fire: +2 fireball damage, then +4 and +6. Cheap, no tricks.',
+           fx: { dmgAdd: [2, 4, 6] } },
   // 2026-08-06 rework (Remi: the old always-on chill "wasn't impactful").
   // Now it BUILDS: every frost hit leaves a stack that never melts, and the
   // 3rd one detonates. Stacks are on the VICTIM and, since round 12 (S2), are
@@ -508,48 +544,21 @@ export const ELEMENTS = {
            fx: { dmgMult: 0.85, tickDmg: [1, 1.5, 2], stackAdd: [0.4, 0.6, 0.8],
                  stackCap: [3, 4.5, 6], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
-  // 2026-08-06 -> 2026-08-07 rework (Remi, from playtest: *"I find [wind] very
-  // strong... I think we're going to change the wind's gameplay to redo it like
-  // with the ice, where the pushback is enormous after three stacks and normal
-  // the rest of the time"*). Gale WAS an always-on `kbMult: [1.28, 1.46, 1.65]`
-  // on every hit — invisible, unavoidable, and the reason bots that bought it all
-  // felt the same. It is now FROST'S SHAPE: every gale fireball that lands leaves
-  // one stack, knockback is completely normal while they build, and the 3rd stack
-  // is spent on one enormous shove. Stacks are PRIVATE to whoever applied them
-  // (the round-12 rule) and go through the same generic store frost and mosquito
-  // use — see addStack/galeHit in sim.js.
-  //
-  // ---- SWEEP for burstKbMult (`tools/arena.js --mode=elemental --games=1000`,
-  // Hard berserker/bruiser). The brief was to land gale NEAR where it already
-  // was, so the rework is a change of FEEL and not a stealth buff or nerf.
-  // Pre-rework gale, same lab: 23.5% (seed 1) · 28.0% (seed 7).
-  //
-  // The starting candidate was impulse-neutral: gale now pushes ×1 twice and ×B
-  // once, so B = 3M − 2 keeps the AVERAGE impulse per hit at the old flat M.
-  // That gives [1.84, 2.38, 2.95] — and it measured dead on target:
-  //     [1.84, 2.38, 2.95]  ->  23.5 / 26.4 / 24.3%  (seeds 1/7/23)  <- SHIPPED
-  //     [2.20, 2.85, 3.55]  ->    -- / 40.4 / 36.7%
-  //     [2.60, 3.40, 4.20]  ->  48.4 /   -- /   --
-  //     [3.20, 4.20, 5.20]  ->  64.2 /   -- /   --
-  //     [4.00, 5.20, 6.40]  ->  81.7 /   -- /   --
-  // Two things to carry forward from that table:
-  //  · IMPULSE IS WHAT COUNTS, not its distribution — concentrating the same
-  //    average shove into one hit in three changed the win rate by less than
-  //    noise. The prediction going in was the opposite (that a burst would be
-  //    worth more, because only a big shove reaches the lava); it was wrong, and
-  //    see the bot caveat below for why it may still be right for a human.
-  //  · THIS LEVER IS VIOLENTLY STEEP. A 20% bump on the burst (1.84 -> 2.20) is
-  //    +14 points. Do not "round it up a bit" without re-running the table.
-  //
-  // ⚠ BOT ARTIFACT, flagged not corrected: bots never bait, never hold a shot,
-  // and never notice they are standing at 2 stacks with the lava behind them.
-  // Everything a burst is FOR — timing it, saving it, walking someone toward the
-  // edge before spending it — is invisible to this lab, so 23.5% is a floor on
-  // gale's value in human hands and the honest reading of "unchanged" is
-  // "unchanged for players who don't aim it". Remi's playtest decides.
-  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits leave a gale stack and push normally. The 3rd stack is spent on one enormous gust: ×1.84 knockback, then ×2.38 and ×2.95. Only YOUR stacks count toward your 3.',
-           fx: { stacksToTrigger: 3, burstKbMult: [1.84, 2.38, 2.95] } },
+  // 2026-08-08 (Remi, round 16): gale is the fireball's PUSH axis — a cheap
+  // flat kbAdd at lv1/2 (the fireball's own kb is 65, so +7/+14 ≈ +11/+22%),
+  // and the pricier lv3 unlocks the round-13 stack-and-burst gust: every gale
+  // fireball that lands leaves one PRIVATE stack, knockback is normal while
+  // they build, and the 3rd stack is spent on one enormous shove
+  // (burstKbMult, resolved in galeHit — sim gates it on burstAtLevel).
+  // ⚠ The burst lever is VIOLENTLY STEEP (round-13 sweep: +20% on the burst
+  // was +14 points); the old three-level burst [1.84, 2.38, 2.95] and its full
+  // sweep are at git c38730f:shared/constants.js. 2.4 = the mid value.
+  // ⚠ Bot caveat carried forward: bots never bait or time a burst, so every
+  // lab number on the gust is a floor on its value in human hands.
+  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [6, 5, 12],
+           desc: 'Wind under your fireball: +7 push, then +14. Lv3 unlocks the gust: your hits leave a stack, and the 3rd is spent on one enormous shove (×2.4). Only YOUR stacks count.',
+           fx: { kbAdd: [7, 14, 14], stacksToTrigger: 3, burstKbMult: 2.4,
+                 burstAtLevel: 3 } },
   // 2026-08-06 rework (Remi, from human play — the lab's 1% win rate is a
   // gold-saturation artifact, see BALANCE.md): +1 g per hit is ALREADY strong,
   // so the payout is capped there forever and the levels buy back a real
@@ -584,9 +593,13 @@ export const ELEMENTS = {
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −38% at lv2, −28% at lv3.',
            fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.62, 0.72], kbMult: [0.5, 0.62, 0.72] } },
-  terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Bigger, heavier fireball each level; hits briefly grow the target (a bigger target is easier to hit).',
-           fx: { dmgAdd: [1, 2, 3], projRadiusMult: [1.25, 1.45, 1.65], growMult: [1.1, 1.15, 1.2], growT: 3, growCap: 2.2 } },
+  // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
+  // else — the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
+  // (his instruction: "one only increases speed, the other only size", and
+  // terra's lv3 is "like fire": a cheap third step, no special).
+  terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 5, 5],
+           desc: 'A bigger fireball each level (+25%, +45%, +65% radius): much easier to land. Cheap, no tricks.',
+           fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
   // 2026-08-07 (Remi, round 12) — REWORKED and RENAMED from 'critical', a name
   // that never described what it did. History worth keeping, it is two lessons:
   // the original ramp was correct but invisible (+0.45 dmg/hit), so Remi
@@ -728,9 +741,20 @@ export const ELEMENTS = {
                  procBalls: 2 } },
   // 2026-08-05: buffed (−10/−18/−25 felt invisible in play) and the HUD now
   // badges every spell slot with 🔮 so the owner SEES it working.
-  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'ALL your cooldowns run faster: −10% / −19% / −28%.',
-           fx: { cdrMult: [0.9, 0.81, 0.72] } },
+  // 2026-08-08 (Remi, round 16): arcane is the fireball's CADENCE axis. Its
+  // old global CDR ("ALL your cooldowns run faster") moved to the Hourglass of
+  // Haste item, same costs and numbers — see ITEMS. Here, cdrMult now touches
+  // THE FIREBALL'S COOLDOWN ONLY (0.72 ≈ the cadence the old fireball lv3
+  // bought: 2.1 s → 1.51 vs 1.6). The pricier lv3 unlocks chronos's old
+  // effect, narrowed exactly as Remi specced it ("currently hitting ANY spell
+  // triggers it, I'm changing it to only work when hitting fireball"): every
+  // FIREBALL hit refunds hitRefund seconds off every cooldown you have
+  // running, per enemy hit. cdFloor: a refund can never drive a cooldown to 0
+  // in the same frame and re-cast in a loop (chronos's old guard, test-locked).
+  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 5, 12],
+           desc: 'Your fireball cools down faster: −15%, then −28%. Lv3 unlocks: every fireball HIT refunds 1 s off ALL your cooldowns (per enemy hit).',
+           fx: { cdrMult: [0.85, 0.72, 0.72], hitRefund: [0, 0, 1],
+                 cdFloor: 0.25 } },
   // ---- 2026-08-07 (Remi, round 12): three new elements -------------------
   // Remi's read was that the lifesteal fantasy is under-exploited — the Blood
   // Sword pays 18% and nobody notices. This chases much bigger numbers, but
@@ -767,72 +791,22 @@ export const ELEMENTS = {
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Every 5th fireball is engorged: it heals you for 140% of the damage it deals (192% / 245% at higher levels). Rare, loud, and it turns a won trade around.',
            fx: { chargeEvery: 5, chargeLifesteal: [1.4, 1.92, 2.45] } },
-  // Remi's design, and the build he wants to make possible: buy level 1 of
-  // EVERYTHING — boomerang, lightning, fireball, repulse, hook — and machine-gun
-  // the whole kit, using repulse's AoE to refund it all at once. Rise, ~2013.
-  // Distinct from arcane on purpose: arcane is a passive flat %, chronos is
-  // EARNED on hit. They stack into something absurd, which is the intent.
-  // Refund applies to every cooldown currently running INCLUDING the spell that
-  // just landed, and multiplies by the number of enemies that spell hit.
-  // ⚠ cdFloor exists so a refund can never drive a cooldown to 0 in the same
-  // frame and re-cast in a loop. Test-locked.
-  chronos: { name: 'Chronos', icon: '⏳', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every spell of yours that HITS refunds 0.5 s off every cooldown you have running (1 s / 1.5 s at higher levels) — and it counts per enemy hit, so a Repulse into four people refunds four times.',
-           fx: { cdRefund: [0.5, 1.0, 1.5], cdFloor: 0.25 } },
-  // Remi's design: the ball does not stop on the first body, it goes through.
-  // Deliberately NOT scaled per victim — a lucky 4-player line would produce a
-  // nonsense number. The first victim takes an ordinary fireball; everyone
-  // BEHIND them takes the bonus, and the level buys how big that bonus is.
-  // Cheap to build: boomerang already tracks one-hit-per-enemy-per-throw, so
-  // ghost reuses that set plus the pierce flag.
-  // MEASURED 2026-08-07 and DELIBERATELY LEFT ALONE at 4.3% (1000-game study,
-  // baseline 25%) — the numbers below are not the problem, the trigger rate is,
-  // and AGENTS.md forbids number-buffing around a bot artifact. The evidence:
-  //   • the pierce bonus fires on **3.07% of ghost fireballs** (60 games, 11880
-  //     balls: 51.1% hit somebody, only 3.07% reached a SECOND body) — about 6
-  //     bonus hits per whole game, i.e. ~21 extra damage over ~15 rounds.
-  //   • controls, 400 games each: an element that does literally NOTHING scores
-  //     2.2%, and "pierces but with a 1.0x bonus" scores 2.9% — so piercing
-  //     costs nothing, and ghost's 4.4% is the no-op floor plus a rounding error.
-  //     The 25% baseline is an average over the pool; a seat with no working
-  //     element sits at ~2%, which is what ghost currently is TO A BOT.
-  //   • scaling the bonus does work, but only at absurd values: ×2
-  //     (dmg 2.0/2.8/3.6) → 6.6% · ×3 (2.5/3.7/4.9) → 11.0% · ×5
-  //     (3.5/5.5/7.5) → 28.7%. A second victim taking 3.5x a fireball out-damages
-  //     a Meteor; that is not a retune, it is a different element.
-  // Bots never line two enemies up — "line them up" IS this element's entire
-  // skill expression, exactly the case AGENTS.md says to flag rather than pay
-  // for. A human in a late-round arena (radius 10, everyone clustered) should
-  // trigger it far more often than 3%. If Remi's feel report says it is weak
-  // anyway, the honest fix is FREQUENCY (pierce more reliably, or give the first
-  // victim something), not a bigger multiplier — the sweep above shows what each
-  // multiplier step actually buys.
-  //
-  // ---- RE-CONFIRMED 2026-08-07 (8.3% in the 1000-game table) — STILL UNCHANGED,
-  // and this is where the calibration for every "is this element weak" question
-  // now lives. The mixed 12-element study is a RANKING, not a strength meter, so
-  // the absolute lab was built: ONE element seat against THREE seats carrying no
-  // element at all, 600 games, same profile and build everywhere.
-  //   · the no-op control — an element whose fx is `{}`, so it does nothing but
-  //     still costs its 10+8+8 g and is still bought FIRST — scores **2.7 / 2.8%**
-  //     (seeds 7/23). THAT is the floor of this lab, not 25%: the element seat
-  //     starts 26 gold behind three seats that spent it all on their build.
-  //   · pierce with the bonus neutralised (dmg/kb mult 1.0) scores **8.5 / 8.5%**.
-  //   · ghost as shipped scores **18.0 / 20.3%**.
-  // So piercing is worth ~+6 over nothing, the bonus another ~+10, and ghost is a
-  // WORKING element that ranks last of twelve because the field is strong (same
-  // lab: vampire 68-71 · mosquito 60-62 · momentum 59-62 · venom 58-60 · ember
-  // 50-53 · arcane 48.7 · terra 43.8 · chronos 42.5 · frost 37-40 · gale 34-38 ·
-  // ghost 18-20 · midas 0.5-1.0). Its 8.3% in the mixed table is what "12th out of
-  // 12 strong things" looks like, and in BOT hands that is the correct answer: the
-  // bonus fires on 3.07% of ghost fireballs because bots do not line targets up.
-  // ⚠ The honest lever if Remi's feel report says it is weak in HUMAN hands is
-  // still FREQUENCY, not a bigger multiplier — see the multiplier sweep above,
-  // where the only values that move the table are ones that out-damage a Meteor.
-  ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Your fireball passes straight through people. The first one hit takes a normal hit; anyone caught BEHIND them takes +50% damage and +30% push (+90/+55% and +130/+80% at higher levels). Line them up.',
-           fx: { pierce: true, pierceDmgMult: [1.5, 1.9, 2.3],
-                 pierceKbMult: [1.3, 1.55, 1.8] } },
+  // (Chronos — refund on ANY landed spell — was REMOVED in round 16: its
+  // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
+  // c38730f:shared/constants.js.)
+  // 2026-08-08 (Remi, round 16): REWORKED — the old ghost (pierce from lv1,
+  // with a damage/push bonus on victims behind the first) measured at the
+  // no-op floor in bot hands because bots never line targets up, and Remi's
+  // call was to rebuild it: ghost is the fireball's SPEED axis now (cheap
+  // lv1/2 — a faster ball is harder to dodge and lands more often), and the
+  // pricier lv3 unlocks the passthrough as a pure passive: the ball goes
+  // straight through people, EVERYONE hit takes a full ordinary hit (no
+  // behind-bonus any more), and every on-hit effect — lifesteal included —
+  // pays per enemy hit. Old spec + its sweeps: git c38730f:shared/constants.js.
+  ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 5, 12],
+           desc: 'Your fireball flies faster: +15%, then +30%. Lv3 unlocks: it passes straight THROUGH people — everyone on the line takes a full hit, and your on-hit effects (lifesteal too) pay for each of them.',
+           fx: { projSpeedMult: [1.15, 1.3, 1.3], pierce: true,
+                 pierceAtLevel: 3 } },
 };
 
 // ---- Draft mode (2026-08-07, Remi, round 12) -----------------------------

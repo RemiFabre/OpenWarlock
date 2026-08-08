@@ -156,8 +156,6 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     poisonT: 0,            // venom: seconds of DoT remaining
     poisonTick: 0,         // venom: damage per 1 s tick (re-hits stack it)
     poisonBy: null,        // venom: who poisoned us (kill credit)
-    growT: 0,              // terra: seconds of forced growth remaining
-    growMultHit: 1,        // terra: strength of the grow that hit us
     vampN: 0,              // vampire: fireballs CAST this round (every 3rd is engorged)
     // momentum: fireball hits landed for the WHOLE GAME (the ramp is permanent
     // — deliberately NOT cleared in startRound, see ELEMENTS.momentum)
@@ -224,13 +222,7 @@ function updateRadii(state) {
   const { PER_KILL, MIN, MAX } = PLAYER.SIZE_LEAD;
   for (const pl of fs) {
     if (pl.team === TEAM.AI) { pl.radius = PLAYER.RADIUS * (pl.sizeMult || 1); continue; }
-    let mult = clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
-    // terra hits force the target bigger for a moment; stacks multiplicatively
-    // with size-by-lead but the TOTAL multiplier is capped (elemental only —
-    // growT stays 0 in classic)
-    if (pl.growT > 0) {
-      mult = Math.min(ELEMENTS.terra.fx.growCap, mult * (pl.growMultHit || 1.15));
-    }
+    const mult = clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
     pl.radius = PLAYER.RADIUS * mult;
   }
 }
@@ -315,63 +307,47 @@ function worstStack(target, kind) {
   return max;
 }
 
-// Elements that are NOT fireball riders: they are global effects, so they never
-// ride on the projectile and they do not require Fireball in the shop. Arcane
-// (flat CDR) has always been one; chronos (2026-08-07) is the second — it
-// triggers off ANY spell of yours that lands, so gating it behind the fireball
-// would be a lie. Keeping the set here means buy() and spawnFireball can never
-// disagree about what a rider is.
-const GLOBAL_ELEMENTS = new Set(['arcane', 'chronos']);
-
 // Mosquito level a player is flying with, or 0 (elemental mode only).
 function mosquitoLevel(state, pl) {
   if (state.mode !== 'elemental') return 0;
   return (pl.elements && pl.elements.mosquito) || 0;
 }
 
-// Arcane (elemental): global cooldown multiplier for everything you cast.
+// Hourglass of Haste (item, any mode): global cooldown multiplier for
+// everything you cast. This was the arcane ELEMENT's effect until round 16;
+// the element's cdrMult now touches the fireball only (see castSpell).
 function cdrOf(state, pl) {
+  const { mult } = itemBonuses(pl.items);
+  return mult.cdrMult != null ? mult.cdrMult : 1;
+}
+
+// Arcane (elemental, round 16): the fireball's own cooldown runs faster.
+function fireballCdrOf(state, pl) {
   if (state.mode !== 'elemental') return 1;
   const el = pl.elements && pl.elements.arcane;
   return el ? efxV(ELEMENTS.arcane.fx.cdrMult, el) : 1;
 }
 
-// Chronos (elemental): every spell of YOURS that lands on an enemy hands you
-// seconds back off everything currently on cooldown — including the spell that
-// just landed, which is what makes the "level 1 of everything, machine-gun the
-// whole kit" build possible.
-//
-// THE CHOKE POINT: this is called from applyDamage, which is the single place
-// every spell that can hit an enemy funnels through — fireball, lightning,
-// boomerang, rush, meteor, repulse and hook all land there, so nothing needed
-// inventing and nothing can be forgotten by a future spell. The `stamp` flag
-// (already maintained for the round-9 kill-credit rule: direct hits stamp the
-// last-hitter slot, DoT ticks and ground trails must not) is exactly the
-// "this was a HIT, not a burn" distinction chronos needs, so a poison tick or a
-// venom trail cannot machine-gun your cooldowns 30×/s.
-//
-// The refund is per VICTIM: one call per body damaged, so a repulse catching
-// four people refunds four times, exactly as specified — no counting code.
+// Arcane lv3 (elemental, round 16 — chronos's old effect, narrowed to fireball
+// hits): every FIREBALL of yours that lands on an enemy hands you `refund`
+// seconds back off everything currently on cooldown, per enemy hit. Called
+// from applyElementsHit, which only ever runs for a landed fireball's riders —
+// that is the "only works when hitting fireball" rule by construction (a
+// poison tick, a trail or a lightning bolt never gets here).
 //
 // ⚠ cdFloor: a refund never drives a cooldown to zero (that would allow a
 // same-frame re-cast loop), and it never RAISES one that is already below the
-// floor. Test-locked.
-function chronosRefund(state, pl, target) {
-  if (state.mode !== 'elemental') return;
-  const el = pl.elements && pl.elements.chronos;
-  if (!el) return;
-  if (!hostile(pl, target)) return;   // only an enemy's blood buys you time
-  const f = ELEMENTS.chronos.fx;
-  const refund = efxV(f.cdRefund, el);
+// floor. Test-locked since the chronos era.
+function arcaneRefund(state, pl, refund, cdFloor) {
   let any = false;
   for (const k of Object.keys(pl.cooldowns)) {
     const cd = pl.cooldowns[k];
-    if (cd > f.cdFloor) {
-      pl.cooldowns[k] = Math.max(f.cdFloor, cd - refund);
+    if (cd > cdFloor) {
+      pl.cooldowns[k] = Math.max(cdFloor, cd - refund);
       any = true;
     }
   }
-  if (any) state.events.push({ t: 'chronos', id: pl.id, x: pl.x, y: pl.y });
+  if (any) state.events.push({ t: 'refund', id: pl.id, x: pl.x, y: pl.y });
 }
 
 // ---- inputs -------------------------------------------------------------
@@ -410,6 +386,8 @@ export function castSpell(state, id, key, tx, ty) {
   const d = Math.hypot(dx, dy) || 1;
   dx /= d; dy /= d;
   let cd = lvl(spec, 'cooldown', level) * cdrOf(state, pl);
+  // arcane (round 16): the fireball's own cadence axis
+  if (key === 'fireball') cd *= fireballCdrOf(state, pl);
   // the mosquito is a pest, not a cannon: it stings for 1 at double the rate
   if (key === 'fireball' && mosquitoLevel(state, pl))
     cd *= efxV(ELEMENTS.mosquito.fx.cdMult, mosquitoLevel(state, pl));
@@ -585,31 +563,36 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     elements = { mosquito: mosq };
   } else if (state.mode === 'elemental' && pl.elements) {
     for (const [k, v] of Object.entries(pl.elements)) {
-      if (GLOBAL_ELEMENTS.has(k) || !(v > 0)) continue;
+      if (!(v > 0)) continue;
       if (k === 'mosquito') continue; // the pest is the setup, never a rider
       (elements = elements || {})[k] = v;
     }
   }
   const radius = spec.radius * (elements && elements.terra
     ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1);
+  // ghost lv1/2 (round 16): the fireball's SPEED axis — it just flies faster
+  const speed = spec.speed * (elements && elements.ghost
+    ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
     // an explicit origin is used verbatim (the proc places its own muzzle);
     // otherwise the ball starts half a body ahead of the caster
     x: opts.x != null ? opts.x : pl.x + dx * pl.radius * 0.5,
     y: opts.y != null ? opts.y : pl.y + dy * pl.radius * 0.5,
-    vx: dx * spec.speed, vy: dy * spec.speed,
+    vx: dx * speed, vy: dy * speed,
     traveled: 0,
     returning: false,
     hit: {},
-    // ghost (elemental): this ball passes THROUGH bodies. `pierce` is the
+    // ghost lv3 (elemental): this ball passes THROUGH bodies. `pierce` is the
     // per-projectile flag that decides whether a hit pops the shot at all (the
     // boomerang has always been a piercing projectile; a hook and a plain
-    // fireball are not) and `pierced` counts the victims already behind it —
-    // the first takes an ordinary hit, everyone after it takes the bonus.
-    // Read off the SPEC (any rider whose fx declares `pierce`), not off the
-    // element's name, so ELEMENTS.ghost.fx.pierce is the real switch.
-    pierce: !!(elements && Object.keys(elements).some(k => ELEMENTS[k].fx.pierce)),
+    // fireball are not); `pierced` counts victims already hit. Round 16:
+    // everyone on the line takes a FULL ordinary hit (the old behind-bonus is
+    // gone), and the passthrough unlocks at `pierceAtLevel`. Read off the SPEC
+    // (any rider whose fx declares `pierce` at a sufficient owned level), not
+    // off the element's name, so ELEMENTS.ghost.fx is the real switch.
+    pierce: !!(elements && Object.entries(elements).some(([k, v]) =>
+      ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
     pierced: 0,
     elements, radius, mosquito: mosq || 0,
     ...(opts.noStacks ? { noStacks: true } : {}),
@@ -673,10 +656,11 @@ export function buy(state, id, thing) {
     if (spec.minRound && state.round < spec.minRound)
       return { ok: false, err: `unlocks after round ${spec.minRound}` };
     const level = pl.spells[thing] || 0;
-    // Cinder Crown (elemental) raises the fireball cap by one
+    // Round 16 (Remi): in ELEMENTAL mode the fireball never levels — the
+    // elements are its whole progression (one axis each; see ELEMENTS).
+    // Classic keeps the 3-level fireball: it has no elements to lean on.
     let maxLevel = spec.maxLevel;
-    if (thing === 'fireball' && state.mode === 'elemental' && (pl.items.crown || 0) > 0)
-      maxLevel += ITEM_FX.crown.fireballMax;
+    if (thing === 'fireball' && state.mode === 'elemental') maxLevel = 1;
     if (level >= maxLevel) return { ok: false, err: 'max level' };
     const cost = spec.costs[level];
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
@@ -689,9 +673,9 @@ export function buy(state, id, thing) {
     // Own as many as you like (frost+ember = chilling fire).
     if (state.mode !== 'elemental') return { ok: false, err: 'elemental mode only' };
     const espec = ELEMENTS[thing];
-    // riders need something to ride on; the global elements (arcane, chronos)
-    // do not touch the fireball at all — see GLOBAL_ELEMENTS
-    if (!GLOBAL_ELEMENTS.has(thing) && (pl.spells.fireball || 0) < 1)
+    // every element is a fireball rider (round 16 — the last global element,
+    // arcane, became fireball-scoped and chronos became the hourglass item)
+    if ((pl.spells.fireball || 0) < 1)
       return { ok: false, err: 'requires fireball' };
     const elevel = pl.elements[thing] || 0;
     if (elevel >= espec.maxLevel) return { ok: false, err: 'max level' };
@@ -704,12 +688,13 @@ export function buy(state, id, thing) {
   if (Object.hasOwn(ITEMS, thing)) {
     if (ITEMS[thing].mode === 'elemental' && state.mode !== 'elemental')
       return { ok: false, err: 'elemental mode only' };
-    // items are LEVELLED like spells: 1..maxLevel, the same flat cost every
-    // level, each level worth less than the last (echo/crown are maxLevel 1,
-    // which is what used to be the `unique` flag).
+    // items are LEVELLED like spells: 1..maxLevel, usually the same flat cost
+    // every level with each level worth less than the last (echo is maxLevel 1,
+    // which is what used to be the `unique` flag; the hourglass has a per-level
+    // costs array — itemCost handles both).
     const level = pl.items[thing] || 0;
     if (level >= ITEMS[thing].maxLevel) return { ok: false, err: 'max level' };
-    const cost = itemCost(thing);
+    const cost = itemCost(thing, level);
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
     pl.gold -= cost;
     pl.items[thing] = level + 1;
@@ -943,18 +928,17 @@ function applyDamage(state, target, amount, sourceId,
         src.hp = Math.min(src.maxHp, src.hp + effective * total);
         const healed = src.hp - before;
         src.healLifesteal += healed;   // scoreboard column
-        // Vampire's engorged ball is an EVENT, not a trickle, so it gets its own
-        // green number. The Blood Sword deliberately stays silent: a popup on
-        // every poison tick would be noise, and this element's whole problem
-        // (AGENTS.md scar) is being legible.
-        if (bonusLifesteal > 0 && healed > 0.5)
+        // 2026-08-08 (Remi, round 16): EVERY meaningful lifesteal heal gets a
+        // green "+N" over the healed player — the Blood Sword used to be
+        // deliberately silent and read as broken because of it (the momentum/
+        // mosquito scar: a correct mechanic with no on-screen presence is a bug
+        // in practice). The >= 1 floor keeps sub-point poison-tick heals from
+        // spamming; a full point is a popup, a rounding crumb is not.
+        if (healed >= 1)
           state.events.push({
             t: 'lifesteal', id: src.id, amount: healed, x: src.x, y: src.y,
           });
       }
-      // Chronos (elemental): a landed spell refunds time off every cooldown you
-      // have running. `stamp` is the choke point — see chronosRefund.
-      if (stamp) chronosRefund(state, src, target);
     }
   }
   if (!silent)
@@ -1076,7 +1060,7 @@ function startRound(state) {
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.stacks = {};   // frost/gale/mosquito stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
-    pl.growT = 0; pl.growMultHit = 1; pl.echoN = 0;
+    pl.echoN = 0;
     // vampire's charge counter resets with the round, exactly like the Echo
     // Stone's (the other "every Nth cast" mechanic). Deliberate: the rhythm you
     // are asked to count is "my 3rd fireball of this fight", and carrying a
@@ -1324,14 +1308,23 @@ function stepBattle(state, dt) {
   const totalF = Math.max(1, state.roundFighters || fsNow.length);
   const aliveF = fsNow.filter(p => p.alive).length;
   const speedMult = 1 + ARENA.SHRINK_ADAPT * (1 - Math.min(aliveF, totalF) / totalF);
-  if (ARENA.NEVER_STOPS) {
+  if (ARENA.NEVER_STOPS && state.mode !== 'coop') {
     // One continuous journey from START to nothing: no floor, no grace, no
     // sudden-death branch. The adaptive rate still applies, so a round with
     // three dead players still closes fast.
+    // ⚠ VERSUS ONLY (2026-08-08, round 16): the co-op campaign keeps the
+    // classic hold-then-sudden-death ring. NEVER_STOPS shipped in c38730f
+    // without a co-op re-measure, and the whole late campaign is priced around
+    // long fights (level 8 averages ~100 s) — under a ring that never stops it
+    // collapsed from 68/66/57% clear to 80/46/6% (200 attempts/cell, seed 7).
+    // Scoping the flag to PvP restored the documented curve exactly.
     const baseRate = ARENA.START_RADIUS / ARENA.SHRINK_TIME;
     state.arenaRadius = Math.max(0, state.arenaRadius - baseRate * speedMult * dt);
   } else if (state.arenaRadius > ARENA.MIN_RADIUS) {
-    const baseRate = (ARENA.START_RADIUS - ARENA.MIN_RADIUS) / ARENA.SHRINK_TIME;
+    // co-op runs the campaign's own (faster) journey: SHRINK_TIME was retuned
+    // for the never-stopping versus ring, and the campaign is priced at 65 s
+    const shrinkT = state.mode === 'coop' ? ARENA.COOP_SHRINK_TIME : ARENA.SHRINK_TIME;
+    const baseRate = (ARENA.START_RADIUS - ARENA.MIN_RADIUS) / shrinkT;
     state.arenaRadius = Math.max(ARENA.MIN_RADIUS, state.arenaRadius - baseRate * speedMult * dt);
   } else if (state.graceT > 0) {
     state.graceT = Math.max(0, state.graceT - dt);
@@ -1408,7 +1401,6 @@ function stepBattle(state, dt) {
     // elemental timed effects (all timers stay 0 in classic mode)
     if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
     if (pl.stunT > 0) pl.stunT = Math.max(0, pl.stunT - dt);
-    if (pl.growT > 0) pl.growT = Math.max(0, pl.growT - dt);
     if (pl.poisonT > 0) {
       // discrete ticks (2026-08-05 rework): one bite of poisonTick damage per
       // tickEvery seconds. The tick runs BEFORE the clock decrement so the
@@ -1665,11 +1657,15 @@ function stepProjectiles(state, dt) {
 
     // mirror walls: ENEMY projectiles bounce (mirrored across the wall's
     // normal, ownership flips to the wall's owner); your own shots pass.
-    // The side check stops a just-reflected shot from re-triggering.
+    // The side check stops a just-reflected shot from re-triggering. It reads
+    // the PRE-move position on purpose: a fast ball (ghost lv3 is +30%) can
+    // cross the wall plane inside one tick, and the post-move side then reads
+    // as "moving away" — the ball tunneled straight through. Found by the
+    // ghost+wall test the day ghost became the speed element.
     let mirrored = false;
     for (const w of state.walls) {
       if (w.owner === pr.owner) continue;
-      const side = (pr.x - w.x1) * w.nx + (pr.y - w.y1) * w.ny;
+      const side = (px0 - w.x1) * w.nx + (py0 - w.y1) * w.ny;
       const vn = pr.vx * w.nx + pr.vy * w.ny;
       if (side * vn >= 0) continue; // moving away from the plane: no hit
       if (segSegDist(px0, py0, pr.x, pr.y, w.x1, w.y1, w.x2, w.y2) > prRadius + 0.4) continue;
@@ -1756,25 +1752,19 @@ function stepProjectiles(state, dt) {
           // midas test caught it.
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
-        // Gale (elemental): stack-and-burst, so its multiplier is NOT a constant
-        // and cannot be folded into the loop above — it depends on how many of
-        // THIS owner's stacks the victim is already carrying. Resolved here
-        // because knockback is applied a few lines below, before the on-hit
-        // riders run. Multiplies whatever the loop produced, so a gale+midas
-        // build still pays midas's push penalty on the gust.
-        if (pr.elements.gale) kb *= galeHit(state, pr, other, pr.elements.gale);
+        // Gale lv3 (elemental): stack-and-burst, so its multiplier is NOT a
+        // constant and cannot be folded into the loop above — it depends on how
+        // many of THIS owner's stacks the victim is already carrying. Resolved
+        // here because knockback is applied a few lines below, before the
+        // on-hit riders run. Multiplies whatever the loop produced, so a
+        // gale+midas build still pays midas's push penalty on the gust.
+        // Levels 1-2 are the flat kbAdd in the loop above; the gust (and its
+        // stacking) exists only from burstAtLevel up.
+        if (pr.elements.gale >= (ELEMENTS.gale.fx.burstAtLevel || 1))
+          kb *= galeHit(state, pr, other, pr.elements.gale);
       }
-      // Ghost (elemental): the FIRST body the ball reaches takes an ordinary
-      // fireball; everyone caught BEHIND them takes the multiplied hit. The
-      // level buys how big that bonus is and deliberately NOT how it compounds
-      // per victim — a lucky 4-player line must not produce a nonsense number.
-      // Multiplies the momentum ramp too, like every other damage multiplier.
-      if (pr.elements && pr.elements.ghost && pr.pierced > 0) {
-        const gf = ELEMENTS.ghost.fx;
-        const gm = efxV(gf.pierceDmgMult, pr.elements.ghost);
-        dmg *= gm; ramp *= gm;
-        kb *= efxV(gf.pierceKbMult, pr.elements.ghost);
-      }
+      // (Ghost's old behind-the-first-victim damage/push bonus was removed in
+      // round 16 — a pierced ball now lands a full ordinary hit on everyone.)
       // per-ball damage scale (mosquito's proc balls, if the lever is set).
       // Damage only: knockback and every on-hit effect are untouched, because the
       // stated fantasy is "every on-hit effect procs twice", not "double damage".
@@ -2021,10 +2011,15 @@ function applyElementsHit(state, pr, target) {
       const owner = state.players[pr.owner];
       if (owner) owner.momentumHits = (owner.momentumHits || 0) + 1;
     }
-    if (f.growMult) {
-      target.growT = f.growT;
-      target.growMultHit = efxV(f.growMult, el);
-      state.events.push({ t: 'grow', id: target.id, x: target.x, y: target.y });
+    // arcane lv3 (round 16): a landed FIREBALL refunds seconds off every
+    // cooldown the owner has running, per enemy hit. hitRefund is 0 below the
+    // unlock level, so this line prices lv1/2 at nothing by construction.
+    if (f.hitRefund && pr.owner != null) {
+      const refund = efxV(f.hitRefund, el);
+      const owner = refund > 0 ? state.players[pr.owner] : null;
+      // only an enemy's blood buys you time (friendly fire heals no cooldowns)
+      if (owner && owner.alive && hostile(owner, target))
+        arcaneRefund(state, owner, refund, f.cdFloor);
     }
   }
 }
@@ -2146,7 +2141,7 @@ export function snapshot(state, viewerId = null) {
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,
-        slow: p.slowT > 0, poison: p.poisonT > 0, grow: p.growT > 0,
+        slow: p.slowT > 0, poison: p.poisonT > 0,
         stun: p.stunT > 0,
         momentumHits: p.momentumHits || 0, // so the HUD can show the ramp building
         // vampire: casts banked toward the next engorged ball, so the HUD can
@@ -2923,10 +2918,10 @@ const BOT_BUILDS = {
 const BUILD_ELEMENTS = {
   bruiser: ['vampire', 'ember', 'momentum'],   // stands and trades: sustain + raw damage
   sniper:  ['venom', 'ghost', 'momentum'],     // pokes from range: DoT and line shots
-  escape:  ['arcane', 'chronos', 'mosquito'],  // slippery: cooldowns and setup
+  escape:  ['arcane', 'ghost', 'mosquito'],    // slippery: cadence, speed, setup
   turtle:  ['frost', 'terra', 'venom'],        // outlasts: control and attrition
   rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
-  boomer:  ['chronos', 'midas', 'arcane'],     // throws a lot: refunds and income
+  boomer:  ['arcane', 'midas', 'ember'],       // throws a lot: cadence and income
 };
 const FALLBACK_ELEMENTS = ['ember', 'frost', 'venom', 'gale', 'terra', 'arcane'];
 
@@ -2945,7 +2940,15 @@ export function botShop(state, id) {
       const seat = Object.keys(state.players).indexOf(id);
       pl._elemPick = botElementFor(pl, seat < 0 ? 0 : seat);
     }
-    buy(state, id, pl._elemPick); // one level per shop; maxes out quietly
+    // one element level per shop, walking the build's themed list from the
+    // seat's pick: primary to max, then the next one. Elements are the
+    // fireball's whole progression since round 16 (it no longer levels here),
+    // so a bot that stopped at one maxed element would simply stop scaling.
+    const list = (pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS;
+    const from = Math.max(0, list.indexOf(pl._elemPick));
+    for (let i = 0; i < list.length; i++) {
+      if (buy(state, id, list[(from + i) % list.length]).ok) break;
+    }
   }
   // an explicit build strategy (lobby pick) beats the kind's default list
   const order = (pl.build && BUILDS[pl.build] && BUILDS[pl.build].order) ||

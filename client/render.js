@@ -276,9 +276,10 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         ctx.textBaseline = 'alphabetic';
         ctx.restore();
       }
-      // ghost: a faint second ring trailing the ball, so "this one goes through
-      // people" is visible BEFORE it goes through someone
-      if (pr.elements && pr.elements.ghost) {
+      // ghost lv3: a faint second ring trailing the ball, so "this one goes
+      // through people" is visible BEFORE it goes through someone (lv1/2 only
+      // buy speed, which is visible on its own)
+      if (pr.elements && pr.elements.ghost >= (ELEMENTS.ghost.fx.pierceAtLevel || 1)) {
         ctx.strokeStyle = 'rgba(220, 214, 255, 0.5)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -694,9 +695,10 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'lifesteal': {
-        // vampire's payout, on the HEALER's body: a big green number and a
-        // rising blood ring. Deliberately louder than the damage popup — the
-        // whole point of the element is that you feel the trade flip.
+        // lifesteal payout, on the HEALER's body: a big green "+N hp" and a
+        // rising blood ring. Round 16 (Remi): EVERY lifesteal heal >= 1 hp gets
+        // this — Blood Sword included — not just vampire's engorged ball. The
+        // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
         ctx.save();
         ctx.textAlign = 'center';
@@ -713,9 +715,9 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.restore();
         break;
       }
-      case 'chronos': {
-        // a landed spell just refunded every cooldown: an hourglass over the
-        // caster and a ring winding INWARD (time coming back to you)
+      case 'refund': {
+        // arcane lv3: a landed fireball just refunded every cooldown — an
+        // hourglass over the caster and a ring winding INWARD (time coming back)
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
         ctx.strokeStyle = `rgba(200, 180, 255, ${a})`;
@@ -736,7 +738,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'grow': {
-        // terra: brief brown pulse around the growing target
+        // brief brown pulse (a stone pillar rising)
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.strokeStyle = `rgba(170, 120, 70, ${a})`;
         ctx.lineWidth = 3;

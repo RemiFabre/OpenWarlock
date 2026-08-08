@@ -494,9 +494,26 @@ describe('shop & economy', () => {
   it('rejects over-max spell levels', () => {
     const state = shopState();
     state.players.a.gold = 999;
-    for (let i = 0; i < 3; i++) buy(state, 'a', 'fireball');
-    expect(state.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
+    for (let i = 0; i < 3; i++) buy(state, 'a', 'lightning');
+    expect(state.players.a.spells.lightning).toBe(SPELLS.lightning.maxLevel);
+    expect(buy(state, 'a', 'lightning').ok).toBe(false);
+  });
+
+  // Round 16 (Remi): the fireball never levels in ELEMENTAL mode — the
+  // elements are its whole progression there. Classic keeps its 3 levels.
+  it('fireball is locked at lv1 in elemental mode, levels normally in classic', () => {
+    const state = shopState(); // default mode: elemental
+    state.players.a.gold = 999;
     expect(buy(state, 'a', 'fireball').ok).toBe(false);
+    expect(state.players.a.spells.fireball).toBe(1);
+    const classic = createGame({ seed: 7, mode: 'classic' });
+    addPlayer(classic, 'a', 'Alice');
+    classic.phase = 'shop';
+    classic.players.a.gold = 999;
+    for (let i = 1; i < SPELLS.fireball.maxLevel; i++)
+      expect(buy(classic, 'a', 'fireball').ok).toBe(true);
+    expect(classic.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
+    expect(buy(classic, 'a', 'fireball').ok).toBe(false);
   });
 
   // ---- items are LEVELLED (round 12) ------------------------------------
@@ -1005,7 +1022,8 @@ describe('elemental mode', () => {
     a.gold = 99;
     a.spells.fireball = 0;
     expect(buy(state, 'a', 'frost').err).toBe('requires fireball');
-    expect(buy(state, 'a', 'arcane').ok).toBe(true); // arcane is global: no fireball needed
+    // round 16: EVERY element is a fireball rider now, arcane included
+    expect(buy(state, 'a', 'arcane').err).toBe('requires fireball');
     a.spells.fireball = 1;
     a.gold = ELEMENTS.frost.costs[0] - 1;
     expect(buy(state, 'a', 'frost').err).toBe('not enough gold');
@@ -1021,8 +1039,9 @@ describe('elemental mode', () => {
     expect(buy(state, 'a', 'frost').ok).toBe(true);
     expect(a.elements.frost).toBe(3);
     expect(buy(state, 'a', 'frost').err).toBe('max level');
-    // cost path: 10 + 8 + 8 for a full element
-    expect(ELEMENTS.frost.costs.reduce((s, c) => s + c, 0)).toBe(26);
+    // cost path read from the spec (round 16: costs differ per element —
+    // cheap single-axis elements vs a pricier lv3 special)
+    expect(ELEMENTS.frost.costs.length).toBe(ELEMENTS.frost.maxLevel);
   });
 
   it('elements stack on one fireball: frost stacks AND ember hits harder', () => {
@@ -1513,13 +1532,14 @@ describe('elemental mode', () => {
   });
 
   it('HARD RULE, the case that can actually chain: a PIERCING proc ball may not cash a second mark', () => {
-    // With ghost the proc balls fly THROUGH the first victim, so they can reach a
-    // second body that also carries your mark. That is the real infinite-loop
-    // shape (each cash spawns balls that cash again), and `noStacks` is the guard.
+    // With ghost lv3 (round 16: the passthrough unlocks at pierceAtLevel) the
+    // proc balls fly THROUGH the first victim, so they can reach a second body
+    // that also carries your mark. That is the real infinite-loop shape (each
+    // cash spawns balls that cash again), and `noStacks` is the guard.
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
-    a.elements = { mosquito: 1, ghost: 1 };
+    a.elements = { mosquito: 1, ghost: ELEMENTS.ghost.fx.pierceAtLevel };
     a.x = 0; a.y = 0; a.vx = a.vy = 0;
     for (const v of [b, c]) {
       v.maxHp = 9999; v.hp = 9999; v.vx = v.vy = 0; v.moveTarget = null;
@@ -1626,23 +1646,31 @@ describe('elemental mode', () => {
   }
   const galeOn = (pl, by) => stacksOf(pl, 'gale', by);
 
-  it('gale: knockback is NORMAL while stacking, and the 3rd stack bursts', () => {
+  // Round 16: gale lv1/2 is the fireball's PUSH axis — a flat kbAdd, no
+  // stacks, no burst. The stack-and-burst gust is the lv3 special
+  // (fx.burstAtLevel). Every number below is read from the spec.
+  it('gale lv1/2: a flat fireball push increase — no stacks, no burst', () => {
     const f = ELEMENTS.gale.fx;
-    const need = f.stacksToTrigger;
+    const fb = SPELLS.fireball;
     const plain = galePeaks({}, 1).peaks[0];
     expect(plain).toBeGreaterThan(0);
-    const { state, peaks } = galePeaks({ gale: 1 }, need);
+    const { state, peaks } = galePeaks({ gale: 1 }, 2);
+    const want = (fb.knockback[0] + f.kbAdd[0]) / fb.knockback[0];
+    for (const p of peaks) expect(p / plain).toBeCloseTo(want, 1);
+    expect(galeOn(state.players.p1, 'p0')).toBe(0);   // no stacks below lv3
+    expect(state.events.some(e => e.t === 'gale' || e.t === 'galeBurst')).toBe(false);
+  });
+
+  it('gale lv3: push is the flat boost while stacking, and the 3rd stack bursts', () => {
+    const f = ELEMENTS.gale.fx;
+    const need = f.stacksToTrigger;
+    const { state, peaks } = galePeaks({ gale: 3 }, need);
     const b = state.players.p1;
-    // every hit before the last is an ORDINARY fireball — that is the whole
-    // point of the rework, so it is asserted against the real plain shove and
-    // not against a tolerance band
-    for (let i = 0; i < need - 1; i++) expect(peaks[i] / plain).toBeCloseTo(1, 1);
-    // ...and the last one is the gust, at the level's multiplier from the spec
-    expect(peaks[need - 1] / plain).toBeCloseTo(f.burstKbMult[0], 1);
-    // the burst is bigger than the stacking hits by the SPEC's factor, not by a
-    // hardcoded one — this line said `* 2` and broke the moment the sweep landed
-    // burstKbMult[0] at 1.84 (AGENTS.md: balance tests read the spec)
-    expect(peaks[need - 1]).toBeGreaterThan(peaks[0] * f.burstKbMult[0] * 0.9);
+    // every hit before the last is the ordinary lv3 shove (kbAdd only) — the
+    // gust must not leak into the stacking hits
+    for (let i = 0; i < need - 1; i++) expect(peaks[i] / peaks[0]).toBeCloseTo(1, 1);
+    // ...and the last one is the gust, at the spec's multiplier
+    expect(peaks[need - 1] / peaks[0]).toBeCloseTo(f.burstKbMult, 1);
     // the stack was SPENT, so the next three start the count again
     expect(galeOn(b, 'p0')).toBe(0);
     // and it is legible: one pip event per hit, exactly one burst
@@ -1657,14 +1685,12 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(false);
   });
 
-  it('gale burst strength is the LEVEL, read from the spec', () => {
+  it('the gust exists only from burstAtLevel up: lv2 hits place no stacks', () => {
     const f = ELEMENTS.gale.fx;
-    const need = f.stacksToTrigger;
-    const plain = galePeaks({}, 1).peaks[0];
-    const burst = (lv) => galePeaks({ gale: lv }, need).peaks[need - 1];
-    expect(burst(1) / plain).toBeCloseTo(f.burstKbMult[0], 1);
-    expect(burst(3) / plain).toBeCloseTo(f.burstKbMult[2], 1);
-    expect(burst(3)).toBeGreaterThan(burst(1) * 1.1);
+    const below = f.burstAtLevel - 1;
+    const { state } = galePeaks({ gale: below }, f.stacksToTrigger + 1);
+    expect(galeOn(state.players.p1, 'p0')).toBe(0);
+    expect(state.events.some(e => e.t === 'galeBurst')).toBe(false);
   });
 
   // The round-12 rule: an element's power must not depend on what everyone else
@@ -1674,9 +1700,10 @@ describe('elemental mode', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
-    a.elements = { gale: 1 };
-    c.elements = { gale: 1 };                 // a second gale player
-    const plainPeak = galePeaks({}, 1).peaks[0];
+    a.elements = { gale: 3 };                 // round 16: stacks exist at lv3 only
+    c.elements = { gale: 3 };                 // a second gale player
+    // the reference shove: one lv3 gale hit (flat kbAdd, first stack, no burst)
+    const plainPeak = galePeaks({ gale: 3 }, 1).peaks[0];
     // p0 lands need-1, p2 lands one: under a shared counter that last hit would
     // have been the burst. It must be an ordinary shove instead.
     const shooters = [...Array(need - 1).fill('p0'), 'p2'];
@@ -1704,7 +1731,7 @@ describe('elemental mode', () => {
     for (let t = 0; t < 12; t++) { step(state, DT); peak = Math.max(peak, b.vx); }
     expect(galeOn(b, 'p0')).toBe(0);
     expect(galeOn(b, 'p2')).toBe(1);          // c's pile is untouched
-    expect(peak / plainPeak).toBeCloseTo(ELEMENTS.gale.fx.burstKbMult[0], 1);
+    expect(peak / plainPeak).toBeCloseTo(ELEMENTS.gale.fx.burstKbMult, 1);
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(true);
   });
 
@@ -1755,20 +1782,20 @@ describe('elemental mode', () => {
     expect(peak(1)).toBeLessThan(peak(3) * 0.8);
   });
 
-  it('terra grows the target and respects the total 2.2x size cap', () => {
+  // Round 16: terra is the fireball's SIZE axis and nothing else — the old
+  // grow-the-target-on-hit effect (and its +1/+2/+3 damage) is gone.
+  it('terra grows the PROJECTILE only; the victim is untouched', () => {
     const state = hitWith('terra');
     const b = state.players.p1;
-    expect(b.growT).toBeGreaterThan(2);
     step(state, DT);
-    // equal kills -> lead mult 1, grown radius = RADIUS * growMult lv1 (1.1)
-    expect(b.radius).toBeCloseTo(PLAYER.RADIUS * ELEMENTS.terra.fx.growMult[0], 2);
-    // with a maxed size lead (2.0x) the grow would exceed the cap -> 2.2x
-    b.kills = 100;
-    step(state, DT);
-    expect(b.radius).toBeCloseTo(PLAYER.RADIUS * ELEMENTS.terra.fx.growCap, 2);
-    // and once growT expires the cap logic no longer applies
-    run(state, ELEMENTS.terra.fx.growT + 0.1);
-    expect(b.radius).toBeCloseTo(PLAYER.RADIUS * PLAYER.SIZE_LEAD.MAX, 2);
+    expect(b.radius).toBeCloseTo(PLAYER.RADIUS, 2);   // no forced growth
+    // ...and a fresh terra ball is bigger by the spec's multiplier
+    const a = state.players.p0;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    const pr = state.projectiles.find(p => p.type === 'fireball');
+    expect(pr.radius).toBeCloseTo(
+      SPELLS.fireball.radius * ELEMENTS.terra.fx.projRadiusMult[0], 3);
   });
 
   it('terra fireballs grow with the element level', () => {
@@ -1788,31 +1815,29 @@ describe('elemental mode', () => {
       SPELLS.fireball.radius * ELEMENTS.terra.fx.projRadiusMult[2], 3);
   });
 
-  it('combo items are elemental-only; the crown unlocks fireball lv4', () => {
+  it('the echo stone is elemental-only; the hourglass sells anywhere at its per-level prices', () => {
     const classic = createGame({ seed: 6, mode: 'classic' });
     addPlayer(classic, 'a', 'Alice');
     classic.phase = 'shop';
     classic.players.a.gold = 99;
     expect(buy(classic, 'a', 'echo').err).toBe('elemental mode only');
-    expect(buy(classic, 'a', 'crown').err).toBe('elemental mode only');
     // classic fireball stays capped at 3 even with gold to burn
     for (let i = 0; i < 5; i++) buy(classic, 'a', 'fireball');
     expect(classic.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
 
-    const state = createGame({ seed: 6, mode: 'elemental' });
-    addPlayer(state, 'a', 'Alice');
-    state.phase = 'shop';
-    const a = state.players.a;
+    // the hourglass (round 16: the ex-arcane global CDR as an item) keeps its
+    // element-era per-level cost curve — itemCost must read the costs array
+    const a = classic.players.a;
     a.gold = 99;
-    buy(state, 'a', 'fireball'); buy(state, 'a', 'fireball'); // -> lv3
-    expect(buy(state, 'a', 'fireball').err).toBe('max level'); // no crown yet
-    expect(buy(state, 'a', 'echo').ok).toBe(true);
-    expect(buy(state, 'a', 'crown').ok).toBe(true);
-    const gold = a.gold;
-    expect(buy(state, 'a', 'fireball').ok).toBe(true); // lv4 unlocked
-    expect(a.spells.fireball).toBe(4);
-    expect(a.gold).toBe(gold - SPELLS.fireball.costs[3]);
-    expect(buy(state, 'a', 'fireball').err).toBe('max level'); // 4 is the end
+    let spent = 0;
+    for (let lv = 0; lv < ITEMS.hourglass.maxLevel; lv++) {
+      expect(itemCost('hourglass', lv)).toBe(ITEMS.hourglass.costs[lv]);
+      const before = a.gold;
+      expect(buy(classic, 'a', 'hourglass').ok).toBe(true);
+      spent += before - a.gold;
+    }
+    expect(spent).toBe(ITEMS.hourglass.costs.reduce((s, c) => s + c, 0));
+    expect(buy(classic, 'a', 'hourglass').err).toBe('max level');
   });
 
   it('echo stone doubles every 4th fireball, 0.15 s later on the same aim', () => {
@@ -1960,6 +1985,31 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'lifesteal' && e.id === 'p0')).toBe(true);
   });
 
+  // Round 16 (Remi): "lifesteal needs a visual indicator". The Blood Sword used
+  // to be deliberately silent (only vampire's engorged ball got the green
+  // number) and read as broken because of it — now ANY lifesteal heal >= 1 hp
+  // is an event the client turns into a green "+N" over the healed player.
+  it('the Blood Sword pops the green lifesteal number too, on the healer', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    a.items = { sword: 1 };
+    a.hp = a.maxHp - 20;                    // room to heal
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    const steal = ITEM_FX.sword.lifesteal[0];
+    expect(SPELLS.fireball.damage[0] * steal).toBeGreaterThanOrEqual(1);
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    let ev = null;
+    for (let i = 0; i < 20 && !ev; i++) {
+      step(state, DT);
+      ev = state.events.find(e => e.t === 'lifesteal' && e.id === 'p0');
+    }
+    expect(ev).toBeTruthy();
+    expect(ev.amount).toBeCloseTo(SPELLS.fireball.damage[0] * steal, 1);
+  });
+
   it('vampire pays only on damage ACTUALLY DEALT: no overkill, and never from lava', () => {
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
@@ -2032,15 +2082,49 @@ describe('elemental mode', () => {
     expect(f.chargeEvery).toBeGreaterThan(1);
   });
 
-  // ---- chronos ⏳ ----------------------------------------------------------
+  // ---- arcane 🔮 (round 16: cadence lv1/2, on-hit refund lv3) --------------
+  // The hourglass ITEM carries the old global CDR; arcane touches the fireball
+  // only, and its lv3 special is chronos's old refund narrowed to fireball hits.
 
-  it('chronos ⏳: a landed spell refunds every running cooldown, its own included', () => {
-    const f = ELEMENTS.chronos.fx;
+  it('arcane lv1/2: the FIREBALL cools down faster; nothing else does', () => {
+    const f = ELEMENTS.arcane.fx;
+    const state = elementalBattle(2);
+    const a = state.players.p0;
+    a.elements = { arcane: 1 };
+    a.spells.lightning = 1;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    castSpell(state, 'p0', 'lightning', 20, 10);
+    expect(a.cooldowns.fireball).toBeCloseTo(
+      SPELLS.fireball.cooldown[0] * f.cdrMult[0], 3);
+    expect(a.cooldowns.lightning).toBeCloseTo(SPELLS.lightning.cooldown, 3);
+  });
+
+  it('the hourglass speeds up EVERY cooldown, and stacks with arcane on the fireball', () => {
+    const state = elementalBattle(2);
+    const a = state.players.p0;
+    a.items = { hourglass: 2 };
+    a.spells.lightning = 1;
+    a.cooldowns = {};
+    const hg = ITEM_FX.hourglass.cdrMult[1];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    castSpell(state, 'p0', 'lightning', 20, 10);
+    expect(a.cooldowns.fireball).toBeCloseTo(SPELLS.fireball.cooldown[0] * hg, 3);
+    expect(a.cooldowns.lightning).toBeCloseTo(SPELLS.lightning.cooldown * hg, 3);
+    a.elements = { arcane: 2 };
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    expect(a.cooldowns.fireball).toBeCloseTo(
+      SPELLS.fireball.cooldown[0] * hg * ELEMENTS.arcane.fx.cdrMult[1], 3);
+  });
+
+  it('arcane lv3: a landed FIREBALL refunds every running cooldown, its own included', () => {
+    const f = ELEMENTS.arcane.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
-    a.elements = { chronos: 1 };
+    a.elements = { arcane: 3 };
     a.spells.teleport = 1;
     a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     castSpell(state, 'p0', 'fireball', 20, 0);
@@ -2051,73 +2135,94 @@ describe('elemental mode', () => {
     for (let i = 0; i < 20; i++) {
       state.events = [];
       step(state, DT); elapsed += DT;
-      if (state.events.some(e => e.t === 'chronos' && e.id === 'p0')) break;
+      if (state.events.some(e => e.t === 'refund' && e.id === 'p0')) break;
     }
-    // both cooldowns jumped back by cdRefund (on top of the normal tick down)
-    expect(a.cooldowns.teleport).toBeCloseTo(tpBefore - elapsed - f.cdRefund[0], 2);
-    expect(a.cooldowns.fireball).toBeCloseTo(fbBefore - elapsed - f.cdRefund[0], 2);
+    // both cooldowns jumped back by hitRefund (on top of the normal tick down)
+    expect(a.cooldowns.teleport).toBeCloseTo(tpBefore - elapsed - f.hitRefund[2], 2);
+    expect(a.cooldowns.fireball).toBeCloseTo(fbBefore - elapsed - f.hitRefund[2], 2);
   });
 
-  it('chronos refunds ONCE PER ENEMY HIT: a repulse into 3 bodies pays 3×', () => {
-    const f = ELEMENTS.chronos.fx;
-    const state = elementalBattle(4);
-    const a = state.players.p0;
+  it('arcane below lv3 refunds nothing: hitRefund is 0 until the special unlocks', () => {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
-    a.elements = { chronos: 3 };
-    a.spells.repulse = 1;
+    a.elements = { arcane: 2 };
     a.spells.teleport = 1;
-    a.x = 0; a.y = 0;
-    const victims = ['p1', 'p2', 'p3'];
-    victims.forEach((id, i) => {
-      const v = state.players[id];
-      v.x = Math.cos((i / 3) * Math.PI * 2) * 3;
-      v.y = Math.sin((i / 3) * Math.PI * 2) * 3;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    a.cooldowns.teleport = 15;
+    state.events = [];
+    run(state, 1);
+    expect(state.events.some(e => e.t === 'refund')).toBe(false);
+    expect(a.cooldowns.teleport).toBeCloseTo(15 - 1, 1);
+  });
+
+  it('arcane lv3 refunds ONCE PER ENEMY HIT: a ghost ball through 2 bodies pays 2x', () => {
+    const f = ELEMENTS.arcane.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    state.pillars = [];
+    a.elements = { arcane: 3, ghost: ELEMENTS.ghost.fx.pierceAtLevel };
+    a.spells.teleport = 1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    b.x = 8; b.y = 0; c.x = 16; c.y = 0;
+    for (const v of [b, c]) {
       v.vx = v.vy = 0; v.moveTarget = null; v.maxHp = 500; v.hp = 500;
-    });
-    castSpell(state, 'p0', 'repulse', 10, 0);
+    }
+    castSpell(state, 'p0', 'fireball', 20, 0);
     a.cooldowns.teleport = 15;
     const before = a.cooldowns.teleport;
-    let elapsed = 0;
-    for (let i = 0; i < 90; i++) {
+    let elapsed = 0, refunds = 0;
+    for (let i = 0; i < 30; i++) {
       state.events = [];
       step(state, DT); elapsed += DT;
-      if (state.events.some(e => e.t === 'repulse')) break;
+      refunds += state.events.filter(e => e.t === 'refund' && e.id === 'p0').length;
+      if (refunds >= 2) break;
     }
-    const refunded = before - elapsed - a.cooldowns.teleport;
-    expect(refunded).toBeCloseTo(f.cdRefund[2] * victims.length, 1);
+    expect(refunds).toBe(2);
+    expect(before - elapsed - a.cooldowns.teleport).toBeCloseTo(f.hitRefund[2] * 2, 1);
   });
 
-  it('chronos cdFloor: a refund never reaches 0, and never RAISES a short cooldown', () => {
-    const f = ELEMENTS.chronos.fx;
+  it('arcane cdFloor: a refund never reaches 0, and never RAISES a short cooldown', () => {
+    const f = ELEMENTS.arcane.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
-    a.elements = { chronos: 3 };            // the biggest refund in the spec
-    a.spells.lightning = 1;
-    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    a.elements = { arcane: 3 };
+    a.spells.rush = 1;
+    a.x = 0; a.y = 0; b.x = 4; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 500; b.hp = 500;
-    // a cooldown SHORTER than the floor must be left exactly alone: clamping
-    // with a bare max() would push it UP to the floor, which is a stealth nerf
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    // arrange a cooldown the refund would ZERO (the loop guard the floor is
+    // for), and one already BELOW the floor (a bare max() would raise it)
+    a.cooldowns.fireball = f.hitRefund[2];
     a.cooldowns.rush = f.cdFloor / 2;
-    castSpell(state, 'p0', 'lightning', 20, 0);
-    const lightningCd = a.cooldowns.lightning;
-    expect(lightningCd).toBeGreaterThan(f.cdRefund[2]); // the refund would zero it
-    expect(f.cdRefund[2]).toBeGreaterThan(f.cdFloor);
-    const rushBefore = a.cooldowns.rush;
-    step(state, DT);
-    expect(a.cooldowns.lightning).toBeGreaterThanOrEqual(f.cdFloor);
-    expect(a.cooldowns.rush).toBeLessThanOrEqual(rushBefore); // never pushed up
-    // and it can never re-cast in the same frame it landed
-    expect(castSpell(state, 'p0', 'lightning', 20, 0)).toBe(false);
+    expect(f.hitRefund[2]).toBeGreaterThan(f.cdFloor);
+    let fired = false;
+    for (let i = 0; i < 20 && !fired; i++) {
+      const rushBefore = a.cooldowns.rush;
+      state.events = [];
+      step(state, DT);
+      if (state.events.some(e => e.t === 'refund' && e.id === 'p0')) {
+        fired = true;
+        expect(a.cooldowns.fireball).toBeGreaterThanOrEqual(f.cdFloor - 1e-9);
+        expect(a.cooldowns.rush).toBeLessThanOrEqual(rushBefore); // never pushed up
+        // and it can never re-cast in the same frame it landed
+        expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(false);
+      }
+    }
+    expect(fired).toBe(true);
   });
 
-  it('chronos + arcane stack without producing a negative or NaN cooldown', () => {
+  it('arcane lv3 + hourglass stack without producing a negative or NaN cooldown', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
-    a.elements = { chronos: 3, arcane: 3 };  // both maxed, the stack Remi asked for
+    a.elements = { arcane: 3 };
+    a.items = { hourglass: 3 };
     a.spells.lightning = 1; a.spells.boomerang = 1; a.spells.rush = 1;
     b.maxHp = 9999; b.hp = 9999;
     for (let round = 0; round < 40; round++) {
@@ -2133,39 +2238,29 @@ describe('elemental mode', () => {
     }
   });
 
-  it('chronos triggers on EVERY spell that hits, but not on DoT ticks or trails', () => {
-    const f = ELEMENTS.chronos.fx;
-    // one refund per spell landing: fireball, lightning, boomerang and rush all
-    // funnel through the same choke point (applyDamage with stamp)
-    for (const spell of ['fireball', 'lightning', 'boomerang', 'rush']) {
+  it('the refund triggers ONLY on fireball hits — not lightning, rush, DoT ticks or trails', () => {
+    // chronos triggered on any landed spell; arcane lv3 must not (Remi: "I'm
+    // changing it to only work when hitting fireball")
+    for (const spell of ['lightning', 'rush']) {
       const state = elementalBattle(3);
       const a = state.players.p0, b = state.players.p1;
       state.players.p2.x = 0; state.players.p2.y = -45;
       state.pillars = [];
-      a.elements = { chronos: 1 };
+      a.elements = { arcane: 3 };
       a.spells[spell] = 1;
       a.spells.teleport = 1;
       a.x = 0; a.y = 0; b.x = 5; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
       b.maxHp = 500; b.hp = 500;
-      // set the long cooldown BEFORE casting: lightning is hitscan, so its hit
-      // (and its refund) happens inside castSpell, not on a later frame
       a.cooldowns.teleport = 15;
-      const before = a.cooldowns.teleport;
       state.events = [];
       expect(castSpell(state, 'p0', spell, 20, 0)).toBe(true);
       let elapsed = 0;
-      let fired = state.events.some(e => e.t === 'chronos' && e.id === 'p0');
-      for (let i = 0; i < 40 && !fired; i++) {
-        state.events = [];
-        step(state, DT); elapsed += DT;
-        if (state.events.some(e => e.t === 'chronos' && e.id === 'p0')) { fired = true; break; }
-      }
-      expect(fired, `${spell} should refund`).toBe(true);
-      expect(before - elapsed - a.cooldowns.teleport).toBeCloseTo(f.cdRefund[0], 2);
+      for (let i = 0; i < 40; i++) { state.events = []; step(state, DT); elapsed += DT; }
+      expect(state.events.some(e => e.t === 'refund')).toBe(false);
+      expect(a.cooldowns.teleport).toBeCloseTo(15 - elapsed, 1);
     }
-    // ...and venom's DoT does NOT: a tick is a burn, not a hit (same `stamp`
-    // rule that stops poison from stealing lava kills)
-    const state = hitWith({ chronos: 1, venom: 1 });
+    // ...and venom's DoT does NOT either: a tick is a burn, not a hit
+    const state = hitWith({ arcane: 3, venom: 1 });
     const a = state.players.p0, b = state.players.p1;
     b.maxHp = 500; b.hp = 500;
     a.spells.teleport = 1;
@@ -2175,7 +2270,7 @@ describe('elemental mode', () => {
     state.events = [];
     run(state, 3);                          // several poison ticks
     expect(b.poisonT).toBeGreaterThanOrEqual(0);
-    expect(state.events.some(e => e.t === 'chronos')).toBe(false);
+    expect(state.events.some(e => e.t === 'refund')).toBe(false);
     expect(a.cooldowns.teleport).toBeCloseTo(before - 3, 1);
   });
 
@@ -2214,24 +2309,34 @@ describe('elemental mode', () => {
     return out;
   }
 
-  it('ghost 👻: the ball passes through, and everyone BEHIND the first takes the bonus', () => {
+  // Round 16: ghost lv1/2 is the fireball's SPEED axis; the passthrough is the
+  // lv3 special, and everyone hit takes a FULL ordinary hit (no behind-bonus).
+  it('ghost lv1/2: the fireball flies faster and still pops on the first body', () => {
     const f = ELEMENTS.ghost.fx;
-    const r = pierceLine({ ghost: 1 });
+    for (const lv of [1, 2, 3]) {
+      const state = elementalBattle(2);
+      const a = state.players.p0;
+      a.elements = { ghost: lv };
+      a.x = 0; a.y = 0;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      const pr = state.projectiles[0];
+      expect(Math.hypot(pr.vx, pr.vy)).toBeCloseTo(
+        SPELLS.fireball.speed * f.projSpeedMult[lv - 1], 3);
+      expect(pr.pierce).toBe(lv >= f.pierceAtLevel);
+    }
+    const r = pierceLine({ ghost: f.pierceAtLevel - 1 });
+    expect(r.survived).toBe(false);                  // below lv3: pops on body 1
+    expect(r.second).toBe(null);
+  });
+
+  it('ghost lv3: the ball passes through, and EVERYONE takes a full ordinary hit', () => {
+    const r = pierceLine({ ghost: 3 });
     expect(r.survived).toBe(true);                    // it did not pop on body 1
     expect(r.first.dmg).toBeCloseTo(SPELLS.fireball.damage[0], 5);
     expect(r.second).not.toBe(null);
-    // the level buys the SIZE of the bonus, not a per-victim compounding
-    expect(r.second.dmg / r.first.dmg).toBeCloseTo(f.pierceDmgMult[0], 5);
-    expect(r.second.kb / r.first.kb).toBeCloseTo(f.pierceKbMult[0], 2);
-  });
-
-  it('ghost levels scale the bonus, and level 3 hits harder than level 1', () => {
-    const f = ELEMENTS.ghost.fx;
-    for (const lv of [1, 2, 3]) {
-      const r = pierceLine({ ghost: lv });
-      expect(r.second.dmg / r.first.dmg).toBeCloseTo(f.pierceDmgMult[lv - 1], 5);
-      expect(r.second.kb / r.first.kb).toBeCloseTo(f.pierceKbMult[lv - 1], 2);
-    }
+    // no behind-bonus any more: body 2 takes exactly what body 1 took
+    expect(r.second.dmg).toBeCloseTo(r.first.dmg, 5);
+    expect(r.second.kb).toBeCloseTo(r.first.kb, 1);
   });
 
   it('a piercing ball hits each body ONCE, then leaves the world', () => {
@@ -2294,10 +2399,9 @@ describe('elemental mode', () => {
     run(state, 0.6);
     expect(state.events.some(e => e.t === 'reflect')).toBe(true);
     expect(b.hp).toBe(500);                       // the shield ate it entirely
-    // it flew home and hit its own caster as a FIRST victim: a plain fireball's
-    // damage, not the pierce bonus
+    // it flew home and hit its own caster ONCE, for a plain fireball's damage
     expect(500 - a.hp).toBeGreaterThan(SPELLS.fireball.damage[0] - 1);
-    expect(500 - a.hp).toBeLessThan(SPELLS.fireball.damage[0] * f.pierceDmgMult[2] - 1);
+    expect(500 - a.hp).toBeLessThan(SPELLS.fireball.damage[0] + 1);
   });
 
   it('ghost + mirror wall: reflected, ownership flips, and the pierce counter resets', () => {
@@ -2316,18 +2420,18 @@ describe('elemental mode', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 1.6);   // out to the wall (20 u) and all the way back
     expect(state.events.some(e => e.t === 'reflect')).toBe(true);
-    // the bounced ball belongs to the wall's owner and treats the caster as its
-    // first victim (ordinary damage, no pierce bonus)
+    // the bounced ball belongs to the wall's owner and hits the caster once,
+    // for ordinary damage
     const taken = 500 - a.hp;
     expect(taken).toBeGreaterThan(SPELLS.fireball.damage[0] - 1);
-    expect(taken).toBeLessThan(SPELLS.fireball.damage[0] * f.pierceDmgMult[2] - 1);
+    expect(taken).toBeLessThan(SPELLS.fireball.damage[0] + 1);
   });
 
   it('ghost + mosquito: the STING does not pierce, the proc balls do', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     state.pillars = [];
-    a.elements = { mosquito: 1, ghost: 1 };
+    a.elements = { mosquito: 1, ghost: ELEMENTS.ghost.fx.pierceAtLevel };
     a.x = 0; a.y = 0;
     b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 500; b.hp = 500;
@@ -2351,29 +2455,27 @@ describe('elemental mode', () => {
     }
     const proc = state.projectiles.find(p => p.type === 'fireball');
     expect(proc.pierce).toBe(true);
-    expect(proc.elements.ghost).toBe(1);
+    expect(proc.elements.ghost).toBe(ELEMENTS.ghost.fx.pierceAtLevel);
   });
 
-  it('chronos and arcane are the only elements that do not require a fireball', () => {
+  it('every element requires a fireball, and every element rides on the ball (round 16)', () => {
     const state = createGame({ seed: 9, mode: 'elemental' });
     addPlayer(state, 'a', 'Alice');
     state.phase = 'shop';
     const a = state.players.a;
     a.gold = 999;
     a.spells.fireball = 0;
-    expect(buy(state, 'a', 'chronos').ok).toBe(true);
-    expect(buy(state, 'a', 'arcane').ok).toBe(true);
-    for (const k of ['vampire', 'ghost', 'frost', 'ember'])
-      expect(buy(state, 'a', k).err).toBe('requires fireball');
-    // ...and neither global element ever rides on the projectile
+    for (const k of Object.keys(ELEMENTS))
+      expect(buy(state, 'a', k).err, k).toBe('requires fireball');
+    // arcane rides on the projectile now (its lv3 refund resolves on the hit)
     a.spells.fireball = 1;
+    expect(buy(state, 'a', 'arcane').ok).toBe(true);
     a.x = 0; a.y = 0;
     state.phase = 'battle';
     a.alive = true;
     castSpell(state, 'a', 'fireball', 20, 0);
     const pr = state.projectiles[0];
-    expect((pr.elements || {}).chronos).toBeUndefined();
-    expect((pr.elements || {}).arcane).toBeUndefined();
+    expect((pr.elements || {}).arcane).toBe(1);
   });
 
   it('elemental bots-only game reaches gameover with each kind on its element', () => {
