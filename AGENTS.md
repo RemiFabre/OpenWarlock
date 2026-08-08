@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-08 (round 16 + the context diet). Read this first, then
+*Last updated 2026-08-08 (round 18, built mid-game in a worktree). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -30,19 +30,22 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **ROUND17 shipped IN FULL and pushed** (2026-08-08): all four sessions, the
-  battery, Remi's live-playtest batch (testing sandbox, boltDodge, tag descs,
-  readability pass, PASSIVE REGEN REMOVED, Blink, infinite ranges, cheap
-  ex-power spells, unlimited pillars, vanish 1/2/3 s). Two measured retunes:
-  venom `tickDmg [0.5,1,1.5]`, hourglass `haste [10,18,26]`. Questions J and
-  G CLOSED. Story: REMI_NOTES.md; numbers: BALANCE.md →
-  `docs/history/2026-08-08-round17-battery.md` + `...-value-analysis.md`.
-- **Waiting on Remi — questions K/L/M in BALANCE.md** (momentum tiers on bot
-  tables, sword mandatory-by-structure, CDR builds bottom-third) + standing
-  feel items (B, E, F, H). He also has UNSHIPPED ideas incoming (gameplay +
-  UI); expect voice-dictated orders.
+- **ROUND18 built during Remi's live game** (2026-08-08, mid-game dictation):
+  per-player ping badge (server ws RTT), spawn seats dealt fresh each round,
+  4 lava portals → center teleport, mosquito rework (arming sting APPLIES
+  on-hit riders, 3 procs per armed+cashed pair, levels = fireball haste
+  [20,40,60]). 245 tests green, client screenshotted. Story: REMI_NOTES.md;
+  numbers: BALANCE.md §Round 18.
+- **ROUND17 shipped in full and pushed** earlier the same day (all four
+  sessions + the battery + the live batch: sandbox, boltDodge, NO PASSIVE
+  REGEN, Blink, unlimited pillars, 17.2 momentum/venom/midas/Swap). Questions
+  J and G CLOSED. Evidence: `docs/history/2026-08-08-round17-battery.md`.
+- **Waiting on Remi — questions K/L/M in BALANCE.md** (momentum on bot
+  tables — reads 99.6-100% on the element mirror since the 17.2 uncapped
+  ramp, flagged not nerfed; sword mandatory-by-structure; CDR bottom-third)
+  + standing feel items (B, E, F, H). Expect voice-dictated orders.
 - ⚠ STRATEGIES.md's 25-row table + BALANCE's mixed/ladder tables predate the
-  regen removal — re-run the instruments before quoting them.
+  regen removal AND the 17.2/18 reworks — re-run before quoting them.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -84,7 +87,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz, JSONL journal, `/health`, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 237 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 245 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -98,13 +101,16 @@ build step, Node ESM, only dep is `ws`.
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
 | `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive — read on demand only)** |
 
-## Game rules snapshot (post-round-17, one line each — details in constants.js and BALANCE.md)
+## Game rules snapshot (post-round-18, one line each — details in constants.js and BALANCE.md)
 
 - First to **15 kills**, 25-round cap; countdown → battle → roundEnd → shop.
+  Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
   The 🧪 **testing sandbox** (lobby flag like draft): chosen gold, game opens
   in an UNTIMED shop, ready-up starts round 1.
 - **Lava** 14 DPS, ×2 swim speed; versus ring **never stops** (`NEVER_STOPS`);
   co-op keeps the classic ring. Lava kill share: keep reporting, no target.
+  **4 portals** in the lava (diagonals, 1.25× rim, `ARENA.PORTALS`, versus
+  only): touch → teleport to center, dead stop (round 18).
 - **NO PASSIVE REGEN** (round 17, measured): `PLAYER.REGEN 0`, the Ring is
   deleted, the regen-lock machinery is inert-but-kept as the revert path.
   Damage is permanent within a round; the Blood Sword is the ONLY healing.
@@ -117,8 +123,9 @@ build step, Node ESM, only dep is `ws`.
   gale=push (lv3 gust), arcane=haste [18,32] + lv3 kit refund (NEVER its own
   fireball — 66-74% feedback loop, twice measured), ghost=speed (lv3 pierce),
   venom=refresh-only DoT (lethal tick takes the kill), frost=stacks-to-CC,
-  momentum=EVOLUTION TIERS at 40/90/150 game-long landed hits, mosquito=sting
-  trap (procs twice, shoves once), vampire=every-5th engorged heal, midas.
+  momentum=banked points +3 dmg/50 uncapped (17.2), mosquito=ON-HIT AMP
+  (arming sting applies riders, 3 procs per armed+cashed pair, levels =
+  fireball haste — round 18), vampire=every-5th engorged heal, midas.
   Classic keeps the 3-level fireball.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
@@ -161,13 +168,16 @@ build step, Node ESM, only dep is `ws`.
 - `npm run host` → cloudflared quick tunnel (URL changes each restart).
 - ws heartbeat + lobby ban button handle ghost players; reconnect persistence
   restores progress by normalized name within 10 min (e2e test-locked).
+- Per-player ping (round 18): a SECOND 2 s ws ping stream with a timestamp
+  payload → `pings` blob beside snap → colored ms badge. Never fold its
+  cadence into the 15 s reaper (that would cut stall tolerance 30 s → 4 s).
 - Final standings wait for every human (45 s grace). After pulling: restart
   the server AND hard-refresh clients.
 
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 237 green
+npx vitest run                                   # 245 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

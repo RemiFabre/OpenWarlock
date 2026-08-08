@@ -50,6 +50,20 @@ baseline), double-cdr 49.1 → 10.5/12.9, mosquito-midas 70.0 → 29.8. Haste
 sums where CDR compounded, and the mark halves midas's income rate; nothing
 engine-shaped remains.
 
+**Round 18 (2026-08-08, Remi live mid-game, dictated)**: spawn seats dealt
+fresh each round (seeded rng, versus only); 4 lava portals (diagonals, 1.25×
+the starting rim, versus only) teleport a toucher to the center; mosquito
+rework — the ARMING sting now applies every on-hit rider (1 dmg, no push), the
+cashing sting doesn't (its 2 proc balls do) = **3 on-hit procs per
+armed+cashed pair**, and levels became fireball haste [20,40,60] (ex-cdMult,
+one additive pool with arcane/hourglass); per-player ping badge (server-side
+ws RTT, network path only). One quick instrument pass (element mirror, 600
+games, seed 1): mosquito 43.5 (at 17.2) → 46.1 after the rework —
+value-neutral on bots, which can't use the on-hit-amp fantasy anyway.
+⚠ Momentum reads **99.6-100% on that instrument both BEFORE and after round
+18** — the uncapped 17.2 ramp on 172-hit bot carriers. Question K got louder,
+not new. The mixed/ladder tables below are now two reworks stale.
+
 ### The mixed table (one element per seat, Hard, 800 games × seeds 1/7, at `62de05b`)
 
 | element | s1 | s7 | | element | s1 | s7 |
@@ -151,7 +165,7 @@ node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme colu
 node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
 node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
-npx vitest run                                                # 237 green
+npx vitest run                                                # 245 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 ```
