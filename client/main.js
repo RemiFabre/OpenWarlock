@@ -697,7 +697,7 @@ const SPELL_FIELDS = {
   delay: ['impact delay', fmtSec],
   length: ['wall length', fmtNum],
 };
-const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'tier', 'minRound']);
+const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound']);
 // element fx whose array is NOT per-level (tierHits columns are tiers) —
 // their reading lives in another row's label instead
 const ELEM_FX_SKIP = new Set(['tierHits']);
@@ -829,7 +829,7 @@ function spellTip(key, spec, level, maxLevel) {
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.desc,
+  return tipShell(ICONS[key], spec.name, spec.long || spec.desc,
     `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -847,7 +847,7 @@ function elementTip(key, spec, level) {
     // the one boilerplate line that earns its place: what haste MEANS
     spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(spec.icon, spec.name, spec.desc,
+  return tipShell(spec.icon, spec.name, spec.long || spec.desc,
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -873,7 +873,7 @@ function itemTip(key, spec, level) {
     live ? `With that, ${live}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.desc,
+  return tipShell(ICONS[key], spec.name, spec.long || spec.desc,
     `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
 }
 

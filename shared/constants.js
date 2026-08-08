@@ -247,7 +247,7 @@ export const SPELLS = {
 // history: docs/history/2026-08-08-constants-sweeps.md#items
 export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: 'Move speed.' },
-  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: 'Swim cheaper: less lava damage.' },
+  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: 'Lava resistance.', long: 'Swimming burns you for much less.' },
   // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
@@ -258,22 +258,22 @@ export const ITEMS = {
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
   // Hard-tier number is a bot artifact. Needs Remi's feel read (BALANCE 15D).
   // history: docs/history/2026-08-08-constants-sweeps.md#items-treads-and-cape-round-15
-  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'You get knocked around less.' },
+  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'Knockback resistance.', long: 'You get knocked around less — and into the lava less.' },
   // Studied 2026-08-07 after Remi's "really really weak" report: lava is only
   // ~8.5% of all damage (hypothesis false) and the sword measured 2nd-strongest
   // item; the weak FEEL was scoreboard vs regen-lock — round 16 added the green
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
-  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
+  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal.', long: 'Your damage heals you (poison too — lava excluded). The only healing there is.' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
-            desc: '⚗️ Every 4th fireball echoes: a second one fires right behind it.' },
+            desc: 'Extra fireballs.', long: '⚗️ Every 4th fireball echoes: a second one fires right behind it, same aim.' },
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
   // here from the element roster, same costs (10+8+8) and same numbers — his
   // reasoning: elements are the FIREBALL's progression now, and a thing that
   // affects ALL spells is thematically an item. `costs` is a per-level price
   // array (itemCost reads it); items without one keep their flat cost.
   hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
-            desc: 'ALL your cooldowns run faster.' },
+            desc: 'Ability Haste.', long: 'ALL your cooldowns run faster — spells included.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -319,7 +319,8 @@ export const ELEMENTS = {
   // (+39.8 isolated). Linear cost↔gain with the premium last step (the
   // general tuning principle: going all-in deserves the reward).
   ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [6, 5, 5],
-           desc: 'Pure fire: more damage. Cheap, no tricks.',
+           desc: 'More damage.',
+           long: 'Every fireball hits harder. Cheap, no tricks.',
            fx: { dmgAdd: [1, 2, 4] } },
   // Stack-and-detonate (2026-08-06 rework): stacks never melt, the 3rd triggers;
   // stacks PRIVATE per attacker since round 12. The ~17% mixed-table read is
@@ -327,7 +328,8 @@ export const ELEMENTS = {
   // ⚠ The mixed table is the wrong ruler for "is this element weak".
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-frost
   frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits stack frost: the 3rd slows — or freezes SOLID at lv3.',
+           desc: 'Crowd control.',
+           long: 'Hits stack frost: the 3rd stack slows the victim — or freezes them SOLID at lv3.',
            fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
                  stunT: [0, 0, 2] } },
   // Round 17 §7: tick STACKING deleted (it was the 92% engine) — re-hits only
@@ -339,7 +341,8 @@ export const ELEMENTS = {
   // ticks stay visible via the poison exception on the hit floater.
   // history: docs/history/2026-08-08-round17-battery.md#venom
   venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Poison over time: it keeps ticking after you disengage, and a lethal tick is YOUR kill.',
+           desc: 'Damage over time.',
+           long: 'Hits poison. It keeps ticking after you disengage — and a lethal tick is YOUR kill, even in lava.',
            fx: { dmgMult: 0.85, tickDmg: [0.5, 1, 1.5], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
@@ -348,7 +351,8 @@ export const ELEMENTS = {
   // ⚠ Bots never bait or time a burst — every lab number on the gust is a floor.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-gale
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [6, 5, 12],
-           desc: 'Wind under your fireball: more push. Lv3: every 3rd hit is one enormous gust.',
+           desc: 'More push.',
+           long: 'Wind under your fireball. Lv3: every 3rd hit on the same target is one enormous gust.',
            fx: { kbAdd: [7, 14, 14], stacksToTrigger: 3, burstKbMult: 2.4,
                  burstAtLevel: 3 } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now — the first hit on a target
@@ -358,14 +362,16 @@ export const ELEMENTS = {
   // forever; levels still only buy back the damage/push penalty.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits pay gold: mark, then cash +1 g. The price: a much weaker fireball — levels buy it back.',
+           desc: 'Gold generation.',
+           long: 'Your first hit marks 🪙, the next hit on them cashes +1 g. The price: a much weaker fireball — levels buy the damage back.',
            fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.62, 0.72], kbMult: [0.5, 0.62, 0.72] } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else — the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
   // terra's lv3 is "like fire": a cheap third step, no special).
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 5, 5],
-           desc: 'A bigger fireball: much easier to land. Cheap, no tricks.',
+           desc: 'Bigger fireball.',
+           long: 'A bigger ball is much easier to land. Cheap, no tricks — and every on-hit effect loves the extra hits.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
   // Round 17 §6: the per-hit ramp became visible EVOLUTION TIERS — landed
   // fireballs still count all game (permanence is Remi's design), and at
@@ -375,7 +381,8 @@ export const ELEMENTS = {
   // hits/game, humans far fewer.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every landed fireball counts, all game: at 40/90/150 hits your fireball permanently EVOLVES.',
+           desc: 'Late-game scaling.',
+           long: 'Every landed fireball counts, all game: at 40 / 90 / 150 hits your fireball permanently EVOLVES into a bigger hit.',
            fx: { tierHits: [40, 90, 150],
                  tierDmg: [[2, 5, 9], [2.5, 6, 10.5], [3, 7, 12]],
                  rampPermanent: true } },
@@ -385,7 +392,8 @@ export const ELEMENTS = {
   // ⚠ cdMult curve is brutally steep: re-run 800×3 after any kb/lava/fireball change.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Your fireball becomes a fast 1-damage sting that arms a trap: sting them again and TWO real fireballs land at once.',
+           desc: 'On-hit amplification.',
+           long: 'Your fireball becomes a fast 1-damage sting that arms a trap: sting them again and TWO real fireballs land at once — every on-hit effect procs twice.',
            fx: { mosquito: true, cdMult: [0.80, 0.70, 0.59], stingDmg: 1,
                  procBalls: 2 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
@@ -395,7 +403,8 @@ export const ELEMENTS = {
   // (self-refund = 74% feedback loop; revert on arcaneRefund in sim.js).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-arcane
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 5, 12],
-           desc: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns.',
+           desc: 'Faster casting.',
+           long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns.',
            fx: { haste: [18, 32, 32], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
   // Every 5th fireball engorged: heals >100% of damage dealt — an EVENT, not a
@@ -404,7 +413,8 @@ export const ELEMENTS = {
   // ⚠ Probably bot-over-measured; chargeEvery/chargeLifesteal are one-line levers.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every 5th fireball is engorged: it heals you for MORE than it deals.',
+           desc: 'Burst lifesteal.',
+           long: 'Every 5th fireball is engorged: it heals you for MORE than the damage it deals.',
            fx: { chargeEvery: 5, chargeLifesteal: [1.4, 1.92, 2.45] } },
   // (Chronos — refund on ANY landed spell — was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
@@ -414,7 +424,8 @@ export const ELEMENTS = {
   // on-hit effect pays per enemy. Old pierce spec + sweeps: git c38730f.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-ghost
   ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 5, 12],
-           desc: 'A faster fireball. Lv3: it flies THROUGH people, hitting everyone on the line.',
+           desc: 'Faster projectile.',
+           long: 'Your fireball flies faster. Lv3: it passes THROUGH people, hitting everyone on the line.',
            fx: { projSpeedMult: [1.15, 1.3, 1.3], pierce: true,
                  pierceAtLevel: 3 } },
 };
