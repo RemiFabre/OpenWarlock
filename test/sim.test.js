@@ -1287,10 +1287,12 @@ describe('elemental mode', () => {
     expect(dealt).toBeGreaterThan(first);          // strictly ramping
     expect(a2.momentumHits).toBe(11);
     // The payoff is a WHOLE GAME, not ten hits: a momentum seat lands a median
-    // 78 fireballs per game (measured 2026-08-07), which is where the "you
-    // earned a cannon" fantasy actually lands. Deriving the hit count from the
-    // spec would be circular, so 78 is the measured median, stated as such.
-    const GAME_HITS = 78;
+    // 172 fireballs per game (re-measured 2026-08-08 — it was 78 in round 13;
+    // the lv1-locked elemental fireball means longer fights and many more
+    // casts), which is where the "you earned a cannon" fantasy actually lands.
+    // Deriving the hit count from the spec would be circular, so 172 is the
+    // measured median, stated as such.
+    const GAME_HITS = 172;
     const s3 = hitWith('momentum');
     s3.players.p0.momentumHits = GAME_HITS;
     const b3 = s3.players.p1;
@@ -2118,7 +2120,7 @@ describe('elemental mode', () => {
       SPELLS.fireball.cooldown[0] * hg * ELEMENTS.arcane.fx.cdrMult[1], 3);
   });
 
-  it('arcane lv3: a landed FIREBALL refunds every running cooldown, its own included', () => {
+  it('arcane lv3: a landed FIREBALL refunds every OTHER running cooldown — never its own', () => {
     const f = ELEMENTS.arcane.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2137,9 +2139,11 @@ describe('elemental mode', () => {
       step(state, DT); elapsed += DT;
       if (state.events.some(e => e.t === 'refund' && e.id === 'p0')) break;
     }
-    // both cooldowns jumped back by hitRefund (on top of the normal tick down)
+    // teleport jumped back by hitRefund (on top of the normal tick down)...
     expect(a.cooldowns.teleport).toBeCloseTo(tpBefore - elapsed - f.hitRefund[2], 2);
-    expect(a.cooldowns.fireball).toBeCloseTo(fbBefore - elapsed - f.hitRefund[2], 2);
+    // ...and the fireball's own cooldown only ticked — refunding the spell that
+    // triggers the refund is the measured 74% feedback loop (see arcaneRefund)
+    expect(a.cooldowns.fireball).toBeCloseTo(fbBefore - elapsed, 2);
   });
 
   it('arcane below lv3 refunds nothing: hitRefund is 0 until the special unlocks', () => {
@@ -2191,13 +2195,13 @@ describe('elemental mode', () => {
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
     a.elements = { arcane: 3 };
-    a.spells.rush = 1;
+    a.spells.rush = 1; a.spells.teleport = 1;
     a.x = 0; a.y = 0; b.x = 4; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 500; b.hp = 500;
     castSpell(state, 'p0', 'fireball', 20, 0);
     // arrange a cooldown the refund would ZERO (the loop guard the floor is
     // for), and one already BELOW the floor (a bare max() would raise it)
-    a.cooldowns.fireball = f.hitRefund[2];
+    a.cooldowns.teleport = f.hitRefund[2];
     a.cooldowns.rush = f.cdFloor / 2;
     expect(f.hitRefund[2]).toBeGreaterThan(f.cdFloor);
     let fired = false;
@@ -2207,10 +2211,10 @@ describe('elemental mode', () => {
       step(state, DT);
       if (state.events.some(e => e.t === 'refund' && e.id === 'p0')) {
         fired = true;
-        expect(a.cooldowns.fireball).toBeGreaterThanOrEqual(f.cdFloor - 1e-9);
+        expect(a.cooldowns.teleport).toBeGreaterThanOrEqual(f.cdFloor - 1e-9);
         expect(a.cooldowns.rush).toBeLessThanOrEqual(rushBefore); // never pushed up
-        // and it can never re-cast in the same frame it landed
-        expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(false);
+        // and a refunded spell can never re-cast in the frame it was floored
+        expect(castSpell(state, 'p0', 'teleport', 20, 0)).toBe(false);
       }
     }
     expect(fired).toBe(true);

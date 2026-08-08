@@ -1,34 +1,46 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-07, after round 13 (see REMI_NOTES.md for the
-player-facing changelog of each round, BALANCE.md for the numbers). Read this
-first; it replaces digging through history.*
+*Last updated 2026-08-08, after round 16 (see REMI_NOTES.md for the
+player-facing changelog of each round, BALANCE.md for the numbers — §0 is the
+round-16 report). Read this first; it replaces digging through history.*
 
 ## ⚠ State of the repo right now (read before your first command)
 
-- **Rounds 12-14 are committed** (HEAD before round 15 was `33b64ab`, the shop
-  pause button). **Round 15 is UNCOMMITTED working-tree changes**, by
-  instruction: the **isolation lab** as real flags on `tools/arena.js`
-  (`--isolate=`, `--ladder=`, `--fx=`, `--tail=`, `--control=`), a **rewritten
-  `BALANCE.md`**, two retuned constants (`treads.lavaMult`, `boots.speedMult` —
-  sweeps in `constants.js`), one spec-driven test fix, one stale shop label in
-  `client/main.js`, and the AGENTS/STRATEGIES corrections around them.
-  Verified: **212 vitest**, both harness scenarios, `--games=60 --players=4`
-  (lava 30.0%, comeback 10.0%), both mirrors at 1500 games, the h2h ladder
-  (100 / 99.8 / 100), `tools/coop.js --levels` re-run in the same change (the
-  late campaign got 5-10 points EASIER — see BALANCE §8, not compensated for on
-  purpose), and the client screenshotted in a headless browser with zero console
-  errors. Not committed and not pushed by instruction.
-- **Remi may still be playing.** Do not `pkill` anything matching
+- **Round 16 (2026-08-08, overnight, autonomous) — ELEMENTS ARE THE FIREBALL'S
+  PROGRESSION.** Remi's dictated brief, executed while he slept: the fireball
+  never levels in elemental mode (classic keeps 3 levels); its old bundle is
+  split into cheap single-axis elements (ember=damage, gale=push,
+  arcane=cadence, terra=size, ghost=speed; 6+5+5 g, specials 6+5+12);
+  gale/arcane/ghost lv3 unlock specials (burst gust / −1 s off your OTHER
+  cooldowns per fireball hit / pure passthrough with full hits); **chronos
+  removed** (arcane lv3 is its heir); **arcane's old global CDR became the
+  Hourglass of Haste item** (items can carry per-level `costs` arrays now);
+  **Cinder Crown removed**; lifesteal pops a green +N on every heal ≥ 1 hp;
+  the live scoreboard has an ❤️ HP `current/max` column. Then ~20k games of
+  strategy study (`tools/strategy-study.js`, NEW) produced the ranking and the
+  buff/nerf guidelines in BALANCE.md §0. Two measured retunes shipped with it:
+  momentum `rampDmg 0.06 → 0.022` (the flat fireball tripled the ramp's
+  relative power) and the arcane refund excluding the fireball's own cooldown
+  (self-refund was a 74%-win feedback loop). Verified: **219 vitest**, both
+  harness scenarios, robustness (chromium+webkit), reconnect e2e, h2h ladder
+  (100/99.5/100), coop --levels, shop screenshotted headless.
+- **Two repairs of round-15/16-era regressions are in the same work**:
+  `ARENA.NEVER_STOPS` is now **versus-only** — it had shipped (c38730f) with no
+  co-op re-measure and had collapsed campaign L8 to 6% at 3p; co-op keeps the
+  classic ring at its own 65 s journey (`ARENA.COOP_SHRINK_TIME`). And **fast
+  projectiles could tunnel through Mirror Walls** (the side check read the
+  post-move position); found by ghost's new speed, fixed for every projectile.
+- **Remi may be playing when you start.** Do not `pkill` anything matching
   `server/index.js` and do not run `test/client-robustness.js` or
   `tools/reconnect-test.js` without checking first — they spawn and kill
   servers, and a stray kill takes down his live game. `npx vitest run` and the
-  `tools/arena.js` / `tools/coop.js` / `tools/h2h.js` labs are pure and always
-  safe.
-- **Round 12's feel report arrived and drove round 13** (the gale rework and
-  the sword study). What round 13 could NOT settle is listed in debt item #0:
-  gale's burst in human hands, and whether the Blood Sword still feels weak now
-  that we know it is the 2nd-strongest item in the shop.
+  `tools/arena.js` / `tools/coop.js` / `tools/h2h.js` /
+  `tools/strategy-study.js` labs are pure and always safe.
+- **Round 16 needs Remi's feel pass**: the interpretation call (global-CDR→item
+  vs chronos→item), the arcane self-refund exclusion, and the guidelines
+  (venom #1 nerf candidate at 92% single-element; ember trim; whether
+  offense-first is the meta he wants) are all his to ratify — BALANCE.md §10
+  G/H/I and REMI_NOTES round 16.
 
 ## What this is
 
@@ -64,17 +76,18 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 
 | Path | What |
 |---|---|
-| `shared/constants.js` | ALL game numbers (spells incl. power tier + Vanish, **3-level items**, **12 elements**, arena, gold economy, DRAFT, bots, BUILDS). Every value carries its sweep in a comment — read those before re-deriving anything |
+| `shared/constants.js` | ALL game numbers (spells incl. power tier + Vanish, **3-level items**, **11 elements**, arena, gold economy, DRAFT, bots, BUILDS). Every value carries its sweep in a comment — read those before re-deriving anything |
 | `shared/items.js` | the ONE place that knows how `ITEM_FX` is shaped: `pl.items` is `{key: level}`, every fx array is an **absolute cumulative total** (lv2 boots ARE ×1.27, nothing compounds) |
 | `shared/catalogue.js` | one enumerable view over spells + elements + items for a ruleset, minus the starting kit. Draft mode's pool split, the gold-equivalence and the shop gate all read it; it is a VIEW, not a second source of truth |
 | `shared/sim.js` | pure simulation + bot brains (`grunt` random, `berserker` piloted, `stalker` dodging — Normal is the berserker brain with worse params, not new code — plus the generic pilotOwnedSpells layer) + elements, hazards, meteors, walls, Vanish's wire masking |
 | `server/index.js` | authoritative server, 30 Hz tick, JSONL journal (`JOURNAL=`), crash dumps, `/health`, static serving, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel → public URL (verified end-to-end incl. websockets) |
 | `client/` | canvas client: main.js (net/input/HUD/shop/draft banner/floaters), render.js (full-res art + 1/3-res blob layer), music.js, sfx.js (synthesized) |
-| `test/sim.test.js` | 212 vitest tests — `npx vitest run` must stay green |
+| `test/sim.test.js` | 219 vitest tests — `npx vitest run` must stay green |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`node test/harness/run.js test/harness/scenarios/bots.js`, and `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000 node test/client-robustness.js`) |
-| `tools/arena.js` | balance lab. **`--isolate=` is the one to reach for** (round 15): 1 seat holds the thing, 3 hold a price-matched do-nothing control, so the baseline is exactly 25% and the number is *points over wasting the same gold*. Also `--ladder=` (item levels: depth vs breadth), `--fx=item.field=a,b,c` (sweep a constant without editing it), `--tail=bruiser`, `--control=none`, `--isolate=self-test` / `no-op` (the lab checks itself). Older views: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
+| `tools/arena.js` | balance lab. **`--isolate=` is the one to reach for** (round 15): 1 seat holds the thing, 3 hold a price-matched do-nothing control, so the baseline is exactly 25% and the number is *points over wasting the same gold*. ⚠ Round 16: in elemental mode the isolation lab **saturates at the top** (an element seat vs element-less seats is an auto-win now — elements are the progression), so it ranks the bottom of the roster only. Also `--ladder=` (item levels: depth vs breadth), `--fx=item.field=a,b,c` (sweep a constant without editing it), `--tail=bruiser`, `--control=none`, `--isolate=self-test` / `no-op` (the lab checks itself; at 400 games the self-test can read ~30% on seed noise — believe it at 1600, where it reads 25.7). Older views: mixed Elo, `--mirror=`, `--probe=`, `--mode=elemental --kind=` |
+| `tools/strategy-study.js` | **round 16, the ranking instrument**: complete shopping strategies (identity core + shared exhaust tail so gold never idles) in 4-seat mirror lobbies, elemental. `--list`, `--games=`, `--seed=`, `--kind=stalker`, `--only=a,b,c`, `--json=`. The report built on it is BALANCE.md §0 |
 | `tools/h2h.js` | **difficulty-ladder check** (2 seats vs 2 seats, 50% = parity) — the mixed Elo table hides tier gaps; this one doesn't |
 | `shared/campaign.js` | **co-op campaign**: the 10 levels as pure data (unit templates + waves + the party-scaling rule). Levels are data, never code |
 | `tools/coop.js` | co-op lab: `--levels` (isolated per-level clear rates, the tuning view), no flag (full campaign runs), `--roster` |
@@ -85,18 +98,21 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 | `REMI_NOTES.md` | per-round changelog Remi actually reads (newest on top; round 12 onward in English) |
 | `docs/` | **design + decision docs, all current**: `ROUND12.md` (the round-12 work order as dictated, with every correction applied inline — read it for *why*, not for numbers), `VERSIONING.md` (**revision 2**: a version is **arbitrary code** with **distributed maintenance** — rev 1's "a version is a data patch" was OVERRULED by Remi and the reasoning is on the page), `HOSTING.md` (player-hosting plan: named tunnel + domain, one-button "Create game", chat box → Worker → GitHub issue), `NAMING.md` + `CONTRIBUTING-LEGAL.md` (name/licence/contributor answers), `archive/` |
 
-## Game rules snapshot (v10, post-round-13)
+## Game rules snapshot (post-round-16)
 
 - First to **15 kills**, 25-round cap. countdown → battle → roundEnd (banner,
   art reveal, itemized income) → shop (full roster w/ kits; Ready skips).
 - **Lava**: 14 DPS, **×2 move speed** while in it (swimming is a real escape
-  route), no afterburn. Ring shrinks faster as fighters die; sudden death after
-  overtime. 6 pillars sink as it shrinks. **Lava kill share ~30%** (86% at
-  launch → 68% after round 9 → 47% after round 10 → ~38% after round 11 →
-  **30.0% / 30.2%** measured 2026-08-07 at 60 and 1000 games). This is
-  BALANCE.md open question #1, it has fallen every single round, and **Remi has
-  never ruled on it**. Levers are one-line reverts: `KB_HP_FACTOR`,
-  `PLAYER.KB_CONSTANT_MISSING`, `LAVA.SPEED_MULT`. Comeback rate 11.7% / 12.4%.
+  route), no afterburn. Ring shrinks faster as fighters die. **In VERSUS the
+  ring never stops** (`ARENA.NEVER_STOPS`, c38730f — shrinks continuously from
+  START to zero at a 30% slower rate); **co-op is exempt** (round 16: keeps the
+  classic hold-then-sudden-death ring at `ARENA.COOP_SHRINK_TIME` 65 s — the
+  campaign is priced around it, see the scar below). 6 pillars sink as it
+  shrinks. **Lava kill share keeps falling**: 86% at launch → 68% → 47% → ~38%
+  → 30% (round 15) → **18.9% in round-16 Hard strategy mirrors** (44.3% on
+  Extreme). BALANCE.md open question C — **Remi has never ruled on it**.
+  Levers are one-line reverts: `KB_HP_FACTOR`, `PLAYER.KB_CONSTANT_MISSING`,
+  `LAVA.SPEED_MULT`.
 - **Knockback is CONSTANT** (round 12, S1 — this line described HP-scaled
   knockback as current until 2026-08-07 and that is now WRONG). The HP formula
   is still there but is fed a fixed `PLAYER.KB_CONSTANT_MISSING = 0.30`, so
@@ -109,12 +125,13 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   spread at 2× (test-enforced). Gap bounty max 3 g; the leader never
   collects one. `goldEarned` + `dmgDealt` tracked (DoT/lava credit rules
   below); standings show earnings, not wallet.
-- **Spells**: fireball 41 u/s r0.8 dmg **7**/10/14 cd 2.1→1.6; lightning range
-  38 NO push (finisher); boomerang **out 52 and recallable — tapping the key
-  mid-flight turns it round early**, returns to the LAUNCH POINT, catch = half
-  cd, uncaught flies off forever, one hit per enemy per throw; teleport F,
-  rush E, boomerang R, **pillar S** (placeable blocker, one each, 10–16 s),
-  **Vanish V** (round 12).
+- **Spells**: fireball 41 u/s r0.8, **locked at lv1 in elemental (round 16 —
+  dmg 7, cd 2.1; the ELEMENTS are its levels now)**, classic keeps 7/10/14 and
+  cd 2.1→1.6; lightning range 38 NO push (finisher); boomerang **out 52 and
+  recallable — tapping the key mid-flight turns it round early**, returns to
+  the LAUNCH POINT, catch = half cd, uncaught flies off forever, one hit per
+  enemy per throw; teleport F, rush E, boomerang R, **pillar S** (placeable
+  blocker, one each, 10–16 s), **Vanish V** (round 12).
 - **Regen lock (round 11)**: taking damage throttles regen to 25% for 2.5 s.
   This exists because a lv1 fireball (2.38 dps if EVERY shot lands) lost to
   1.2 hp/s of passive regen, so round 1 was unkillable — median first death
@@ -180,25 +197,25 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   points to a Hard berserker and +26 to an Extreme stalker** — it changes SIGN
   with the pilot. A "buff" means pushing `kbMult` down, toward the value that
   measures −20 on the tier every table uses. Needs a playtest, not more games.
-- **Elemental mode** ⚗️ (lobby toggle): **12 elements**, each 3 levels
-  (10+8+8 g), **stackable with each other** (frost+ember works). Stacks (frost,
-  mosquito) are **PRIVATE to the attacker who applied them** since round 12 (S2)
-  — reversing round 11's shared stacks, because an element's power shouldn't
-  depend on what everyone else picked. Highlights: arcane 🔮 = global CDR, no
-  fireball needed; venom drips ground trails and poisons in discrete 1/s ticks
-  for 5 s that refresh+stack; terra size/level; **momentum ⚙️** (round 12,
-  renamed+rebuilt from `critical`) = every fireball you LAND permanently raises
-  your fireball damage **for the whole game, damage only, no ceiling** — the
-  white accumulated-bonus number over the damage popup is the *fix*, not
-  decoration; **mosquito 🦟** (round 12 rework) = 1-damage fast sting that leaves
-  ONE stack; landing your own fireball on your own stack spends it and lands
-  **two of your fireballs co-located in one frame**, so every on-hit effect procs
-  twice — **but the knockback happens ONCE** (`kbScale: 1/procBalls`, Remi's
-  ruling, test-locked incl. a `procBalls=3` run); **vampire 🧛** every 5th
-  fireball heals 140/192/245% of damage dealt; **chronos ⏳** every hit refunds
-  0.5/1/1.5 s off every running cooldown, **per enemy hit** (floor stops
-  same-frame recast loops); **ghost 👻** piercing fireball, victims *behind* the
-  first take a bonus. Classic wire format untouched by elemental fields.
+- **Elemental mode** ⚗️ (the DEFAULT ruleset): **11 elements** (round 16 —
+  chronos removed), each 3 levels, **stackable with each other** (frost+ember
+  works), and since round 16 they are **the fireball's entire progression** —
+  every element is a fireball rider needing Fireball lv1 (which everyone owns
+  from spawn). The five single-axis ones are CHEAP (6+5+5): ember 🔥 damage,
+  terra 🪨 size, and — with a 12 g lv3 special — gale 🌪️ push (lv3: the
+  stack-and-burst gust, ×2.4 on the 3rd private stack), arcane 🔮 fireball
+  cooldown (lv3: every fireball hit refunds 1 s off your OTHER cooldowns, per
+  enemy hit — **the fireball's own cd is excluded, self-refund measured as a
+  74% feedback loop**), ghost 👻 fireball speed (lv3: pure passthrough — full
+  hit on everyone in the line, all on-hits/lifesteal pay per victim, NO
+  behind-bonus). The six originals keep 10+8+8: venom (ticks+trail — **#1 nerf
+  candidate, 92% single-element, see BALANCE §0**), frost (3rd private stack
+  detonates), momentum ⚙️ (permanent ramp, `rampDmg 0.022` since round 16 —
+  re-sweep after ANY fireball change), mosquito 🦟 (sting arms, your fireball
+  cashes: everything procs twice, knockback once), vampire 🧛 (every 5th ball
+  heals >100%), midas 🪙 (+1 g/hit, halved fireball — REAL now that full buy
+  lists exist: 2nd-best strategy). Stacks are **PRIVATE to the attacker who
+  applied them** (round 12). Classic wire format untouched by elemental fields.
 - **Draft mode 🎴** (round 12, S7, lobby toggle, **off by default**): an
   independent flag that composes with classic/elemental/co-op, not a fourth
   mode. Half the catalogue leaves the shop and becomes a pool, rolled once per
@@ -208,20 +225,20 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
   never contains something you already own; power spells are filtered out of bot
   offers. **Unmeasured on purpose** — the elemental study can't express a random
   half-catalogue pool (see the scar about studies that can't express a variable).
-- **Current 12-element standings** (`tools/arena.js --mode=elemental
-  --games=1000`, seed 1, Hard berserker/bruiser, baseline 25%, 2026-08-07):
-  venom 39.2 · vampire 37.4 · ember 34.4 · arcane 33.2 · mosquito 31.8 ·
-  terra 28.7 · momentum 24.8 · gale 23.5 · chronos 20.1 · frost 18.6 ·
-  ghost 8.6 · midas 0.0. **Read this as a ranking, not a strength meter** — the
-  do-nothing floor in the scars below explains why 25% is not the floor.
-- **Gale 🌪️ is stack-and-burst since round 13**, not a flat push multiplier:
-  one PRIVATE stack per landed gale fireball, **normal knockback while
-  stacking**, 3rd stack spent on `burstKbMult` [1.84, 2.38, 2.95]. It resolves
-  in `galeHit()` and NOT in `applyElementsHit` with frost and venom, because
-  its payload is knockback and knockback is applied before the riders run —
-  same position in the pipeline as mosquito's mark. Frost's branch is keyed on
-  `ek === 'frost'` for exactly this reason: both elements declare
-  `stacksToTrigger` now. Measured 23.5% before and after (see BALANCE 13C).
+- **Current 11-element standings** (`tools/arena.js --mode=elemental
+  --games=800`, seeds 1/7 mean, Hard berserker/bruiser, baseline 25%,
+  2026-08-08, post-rework): venom 91.8 · ember 61.5 · momentum 39.9 ·
+  mosquito 33.3 · vampire 15.4 · arcane 11.1 · gale 7.3 · ghost 4.3 ·
+  midas 3.2 · terra 2.4 · frost 1.8. **A ranking, not a strength meter** — and
+  since round 16 the STRATEGY study (BALANCE §0) is the better instrument:
+  this table is "commit to ONE element", which real play no longer is.
+- **Gale's gust is the lv3 special since round 16** (lv1/2 are a flat kbAdd):
+  one PRIVATE stack per landed gale fireball at lv3+, **normal (flat-boosted)
+  knockback while stacking**, 3rd stack spent on `burstKbMult` 2.4 (scalar).
+  It resolves in `galeHit()` and NOT in `applyElementsHit` with frost and
+  venom, because its payload is knockback and knockback is applied before the
+  riders run — same position in the pipeline as mosquito's mark. The
+  stepProjectiles gate is `pr.elements.gale >= fx.burstAtLevel`.
 - Bots: **four named tiers** (round 12, S6) — `grunt`/**Easy**,
   `brawler`/**Normal**, `berserker`/**Hard**, `stalker`/**Extreme**. Normal is
   the berserker brain with a longer reaction window and a bigger aim-error floor
@@ -336,7 +353,7 @@ codebase. Vanilla JS everywhere, no build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 212 green
+npx vitest run                                   # 219 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
@@ -411,6 +428,28 @@ takes his session down with it.
 
 ## Recent gotchas (learn from our scars)
 
+- **An effect that refunds the cooldown of the spell that triggers it is a
+  feedback loop, and it will win the whole table.** Arcane's lv3 refund at 1 s
+  measured 74% as a lone element; even 0.5 s measured 47%. The loop was killed
+  by EXCLUDING the triggering fireball (one-line guard in `arcaneRefund`), not
+  by shrinking the number — the number was never the problem, the topology was.
+  Chronos "got away with it" for a round only because the old fireball
+  out-leveled the loop.
+- **A global mechanic flag shipped without re-running the co-op lab broke the
+  campaign for the second time.** `ARENA.NEVER_STOPS` (c38730f) collapsed
+  level 8 from 68/66/57% clear to 80/46/6 — a ~100 s fight cannot live in a
+  ring that reaches zero. Same lesson as the round-12 item cap: **any global
+  arena/item/gold/knockback change re-prices the whole back half of the
+  campaign — `tools/coop.js --levels` in the same commit, no exceptions.**
+- **Re-sweep every ramp/percentage element after changing the thing it rides
+  on.** Locking the fireball at lv1 silently tripled momentum's relative power
+  (0.06/hit went from "on the 25% baseline" to 80-87%) and crowned venom at
+  92% without either element changing at all. A retune of X is a stealth
+  retune of everything priced against X.
+- **Fast projectiles tunneled through Mirror Walls** — the side check read the
+  POST-move position, so a ball crossing the wall plane inside one tick read
+  as "moving away". Swept-collision checks must use the pre-move side. Found
+  the day ghost became the speed element; latent for every projectile before.
 - **A feature that is never rendered reads as a broken feature.** Round 11's
   mosquito put a bite on an arc of the victim's body; the bites were computed,
   they were on the wire, and **the client never drew them at all**. Remi

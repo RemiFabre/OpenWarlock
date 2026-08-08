@@ -288,13 +288,14 @@ export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame 
 // iterates the fx keys, finds none, and contributes neither a mult nor an add.
 const CONTROL_ITEM = '__control';
 const CONTROL_ELEMENT = '__controlElement';
-function registerControls(itemCost) {
+function registerControls(itemCost, elementCosts = [10, 8, 8]) {
   ITEMS[CONTROL_ITEM] = { name: 'Control', cost: itemCost, maxLevel: 3, desc: 'lab control: does nothing' };
   ITEM_FX[CONTROL_ITEM] = {};
-  // Elements all cost 10+8+8, so ONE control element price-matches all twelve
-  // at every level — no per-run repricing needed.
+  // Round 16: element cost curves DIFFER (cheap 6+5+5 single-axis elements vs
+  // 6+5+12 specials vs the 10+8+8 originals), so the control element copies the
+  // PROBE element's cost curve per run — price-matched at every level.
   ELEMENTS[CONTROL_ELEMENT] = {
-    name: 'Control', icon: '·', maxLevel: 3, costs: [10, 8, 8],
+    name: 'Control', icon: '·', maxLevel: 3, costs: [...elementCosts],
     desc: 'lab control: does nothing', fx: {},
   };
 }
@@ -356,7 +357,8 @@ export function runIsolation({
   // this reason: a spell's cost curve (10+6+6) has no item-shaped twin.
   const ctlKey = isElement ? CONTROL_ELEMENT : CONTROL_ITEM;
   const ctlLevels = isElement ? lv : (isSpell ? 1 : lv);
-  registerControls(isElement ? 0 : Math.round(price / ctlLevels));
+  registerControls(isElement ? 0 : Math.round(price / ctlLevels),
+    isElement ? spec.costs : undefined);
   const ctlPrice = isElement
     ? ELEMENTS[CONTROL_ELEMENT].costs.slice(0, lv).reduce((a, b) => a + b, 0)
     : ITEMS[CONTROL_ITEM].cost * ctlLevels;

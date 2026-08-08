@@ -1,32 +1,238 @@
 # BALANCE.md — what everything is actually worth
 
-*Round 15, 2026-08-08. This file was **rewritten from scratch** around one idea:
-measure every purchasable thing in **isolation**, against a price-matched control
-that does nothing, so the number means "points over wasting the same gold"
-instead of "position in a ranking".*
+*Rounds 15-16, 2026-08-08. Round 15 rewrote this file around one idea: measure
+every purchasable thing in **isolation**, against a price-matched control that
+does nothing, so the number means "points over wasting the same gold" instead of
+"position in a ranking". **Round 16 changed the game underneath it** — elements
+are now the fireball's whole progression — so [§0](#0-round-16-the-strategy-study)
+is the round-16 report (the strategy ranking Remi asked for, plus the retunes and
+the buff/nerf guidelines), [§3](#3-elements) was re-measured under the new rules,
+and everything else below it still holds (items, spells and builds were measured
+in classic mode, which round 16 did not touch).*
 
 **Where the old reports went.** Report #4 (round 10) and the round-11, -12, -13
 and -14 addenda are in git history at `33b64ab:BALANCE.md`; reports #2 and #3 are
-at `ab48932` / `9a96b47`. Every *finding* of theirs that is still true and is not
-reproduced below is carried forward in [§9](#9-what-was-kept-from-the-old-reports).
-One old headline is **superseded and wrong** — round 13's "item levels 2-3 lose
-29-33 points" — and [§4](#4-items) explains the measurement error that produced it.
+at `ab48932` / `9a96b47`; the round-15 element table (measured under the OLD
+element rules) is at `dce0096:BALANCE.md`. Every *finding* of theirs that is
+still true and is not reproduced below is carried forward in
+[§9](#9-what-was-kept-from-the-old-reports).
 
 ---
 
 ## Contents
 
+0. [**Round 16 — the strategy study**](#0-round-16-the-strategy-study) — the ranking, the retunes, the guidelines. **Start here.**
 1. [How to read this report](#1-how-to-read-this-report) — every metric defined
 2. [The instrument, and why the old tables disagree with it](#2-the-instrument) — Finding 15A
-3. [Elements](#3-elements) — Finding 15B
-4. [Items, level by level](#4-items) — Finding 15C
-5. [Should the Cape and the Lava Treads be buffed?](#5-should-the-cape-and-the-lava-treads-be-buffed) — Finding 15D, **the round's brief**
-6. [Spells](#6-spells) — Finding 15E
-7. [Builds and difficulty tiers](#7-builds-and-difficulty-tiers) — Finding 15F
+3. [Elements](#3-elements) — re-measured for round 16
+4. [Items, level by level](#4-items) — Finding 15C (classic mode, still current)
+5. [Should the Cape and the Lava Treads be buffed?](#5-should-the-cape-and-the-lava-treads-be-buffed) — Finding 15D
+6. [Spells](#6-spells) — Finding 15E (still current)
+7. [Builds and difficulty tiers](#7-builds-and-difficulty-tiers) — Finding 15F (classic mode)
 8. [Health metrics, and what this round changed](#8-health-metrics-and-what-changed)
 9. [What was kept from the old reports](#9-what-was-kept-from-the-old-reports)
 10. [Open questions — these need Remi, not more games](#10-open-questions)
 11. [How to reproduce every number here](#11-how-to-reproduce)
+
+---
+
+## 0. Round 16 — the strategy study
+
+*The brief: after the elements-are-the-progression rework, run full 4-player
+lobbies where complete SHOPPING STRATEGIES compete, rank them, and end with
+buff/nerf guidelines. Every metric used here is defined in
+[§1](#1-how-to-read-this-report); every strategy is described as build +
+playstyle below and in [STRATEGIES.md](STRATEGIES.md); the baseline is **25%**
+(4 players, so a strategy exactly as good as the field wins a quarter of its
+games).*
+
+### What round 16 changed (context for every number below)
+
+- **The fireball never levels in elemental mode** (elemental is the default
+  ruleset). Its old level bundle — damage AND push AND cadence in one 8 g
+  purchase — was split into cheap single-axis elements: **ember** = damage,
+  **gale** = push, **arcane** = cadence, **terra** = size, **ghost** = speed
+  (6+5+5 g, or 6+5+12 where lv3 unlocks a special). Classic keeps its 3-level
+  fireball.
+- **Lv3 specials**: gale = the stack-and-burst gust (3rd stack, one ×2.4
+  shove), arcane = every fireball hit refunds 1 s off all your *other*
+  cooldowns (per enemy hit), ghost = pure passthrough (everyone on the line
+  takes a full hit; all on-hit effects and lifesteal pay per victim).
+- **Chronos was removed** (its refund became arcane's lv3, narrowed to fireball
+  hits); **arcane's old global CDR became an item**, the Hourglass of Haste
+  (same 10+8+8 costs, same −10/−19/−28%); **the Cinder Crown is gone** (there
+  is no fireball lv4 to unlock).
+- **Two retunes were forced by the rework, both measured** (details below):
+  momentum's ramp `0.06 → 0.022`/hit, and arcane's refund excludes the
+  fireball's own cooldown.
+
+### The instrument
+
+`node tools/strategy-study.js` — a **strategy** here is what a player actually
+plays: a named, ordered, *exhaustive* buy list. Each has a **core** (its
+identity — what it rushes, in what order) and then a shared **exhaust tail**
+(one canonical breadth pass over everything a bot can pilot, repeated), so no
+seat ever sits on dead gold late. That tail is Remi's own spec — *"make the
+list in a way that there is always something to buy"* — and it matters
+enormously: it is what finally made midas measurable (see below). Games are
+4-seat **mirrors** (all Hard berserkers, the piloted tier), each game sampling
+4 distinct strategies; the table is therefore **zero-sum — a ranking**, and a
+number far above 25% means "beats the rest of this field", not "broken in
+absolute terms".
+
+**Sample sizes**: 4,000 games per seed × 2 seeds on Hard → ~950 games per
+strategy per seed, 2σ ≈ ±2.8 points on one seed's cell. The two seeds agree
+within that band on every row, so the mean is quoted.
+
+### The ranking — Hard (berserker) mirrors, 8,000 games
+
+| # | strategy | win% (seeds 1/7 → mean) | the build, in one line |
+|---|---|---|---|
+| 1 | **double-cdr** | 62.4 / 64.7 → **63.6** | arcane maxed (fireball CDR + lv3 kit refund) × Hourglass — the fireball lands at ~1.1 s and every hit hastens the lightning |
+| 2 | **midas-economy** | 56.8 / 49.9 → **53.4** | midas maxed first, then convert the income lead into the deepest full build in the lobby |
+| 3 | **balanced** | 53.4 / 52.0 → **52.7** | strict one-for-one alternation: ember, amulet, arcane, sword, repeat |
+| 4 | **cadence** | 53.1 / 51.5 → **52.3** | double-cdr plus the Echo Stone and deeper lightning |
+| 5 | **mosquito-combo** | 35.0 / 40.6 → **37.8** | mosquito maxed, venom behind it (a cashed sting procs the poison twice), arcane cadence |
+| 6 | **venom-dot** | 37.0 / 36.3 → **36.7** | venom maxed, terra so the weaker direct hits land, then max HP |
+| 7 | **spell-kit** | 28.7 / 31.3 → **30.0** | lightning + boomerang + rush + shield at lv1 before anything deep, ember on top |
+| 8 | **frost-control** | 20.4 / 19.6 → **20.0** | frost to the lv3 freeze, lightning to punish it, HP to survive the setup |
+| 9 | **glass-cannon** | 17.8 / 18.4 → **18.1** | all three cheap offense axes (ember/arcane/gale) maxed before any HP |
+| 10 | **vampire-brawler** | 17.2 / 16.1 → **16.7** | vampire maxed + amulet + Blood Sword; wins long point-blank trades |
+| 11 | **all-cheap** | 10.8 / 9.4 → **10.1** | lv1-2 of every cheap element axis before anything expensive |
+| 12 | **ghost-sniper** | 8.5 / 7.9 → **8.2** | ghost speed into the lv3 passthrough, ember damage |
+| 13 | **gale-launcher** | 5.6 / 6.7 → **6.2** | gale push into the lv3 burst, terra to land it, boots — wins by ring-outs |
+| 14 | **tank-sustain** | 5.7 / 5.5 → **5.6** | amulet/ring/sword/treads before any element |
+| 15 | **no-elements** | 4.5 / 5.9 → **5.2** | control: refuses the element shelf entirely |
+| 16 | **momentum-scaling** | 4.4 / 4.0 → **4.2** | momentum maxed first, terra to feed the ramp, bank on a late cannon |
+| 17 | **item-breadth** | 4.3 / 4.1 → **4.2** | one level of every item before any second level or element |
+
+Gold-left at game end is 11-15 g for every strategy (28 for midas — see below),
+so **every list really does go all the way**: nobody wins or loses because they
+ran out of things to buy.
+
+### What the ranking says (each claim is measured unless marked `INFERRED`)
+
+1. **Offense-first wins; defense-first collapses.** The bottom third is every
+   strategy that spends its early gold on survival (tank-sustain 5.6,
+   item-breadth 4.2, no-elements 5.2). The exhaust tail means *everyone* owns
+   the amulet and the sword eventually — the losers are the ones who bought
+   them *first*. `INFERRED`: with the fireball flat at 7 damage, early offense
+   compounds (kills → gold → more offense) while early HP just delays losses.
+2. **…but pure offense with no HP is also a trap.** glass-cannon (18.1) is the
+   same three cheap axes as `balanced` (52.7) — the only difference is that
+   balanced buys an amulet level between each offense purchase. **Order is
+   worth ~35 points at equal contents.** This is the single most useful line in
+   the table for a human player.
+3. **CDR stacking is the strongest axis** (double-cdr 63.6, cadence 52.3), even
+   after the refund exclusion below. Arcane lv1/2 (×0.72 on the fireball) and
+   the Hourglass (×0.72 on everything) multiply to a 1.09 s fireball. A
+   measured trim exists if human play confirms it dominates: hourglass
+   `[0.92, 0.85, 0.78]` moves double-cdr −11 and cadence −19 points — but in
+   the same run `balanced` simply took the throne at 60.5, so the trim
+   reshuffles kings rather than flattening the field. **Not applied.**
+4. **Midas is finally real, and the exhaust tail is why.** Three rounds of
+   reports called midas dead (0.0%); its round-15 diagnosis was "the income has
+   nowhere to go". Give it a list that never runs dry and it places 2nd (53.4)
+   while *still* ending games on 28 g of change. `INFERRED`: a human with a
+   plan is even better at spending than the tail is. Watch it.
+5. **momentum-scaling (4.2) is the price of the momentum re-nerf** (below) —
+   rushing a 26 g ramp that only pays after ~80 landed hits is now a bad plan.
+   Its element-level number is fine (24% when it is one purchase among many);
+   it is *rushing it first* that died. `INFERRED`: acceptable for a late-game
+   bet, but if Remi wants "momentum rush" to be a real archetype, the lever is
+   its 10+8+8 price (the cheap axes are 6+5+5), not the ramp.
+
+### The same strategies on Extreme (stalker) pilots — 2,000 games
+
+*The 10%-effort skill check Remi asked for. Same lists, same lab, better
+pilots (dodging, kiting, teleport saves). The differences are large and
+informative:*
+
+| strategy | Hard | Extreme | reading |
+|---|---|---|---|
+| midas-economy | 53.4 | **79.3** | a pilot that survives longer lands more hits → more gold; midas is the best strategy in skilled hands |
+| all-cheap | 10.1 | **49.5** | breadth of small stats compounds with a pilot that doesn't die |
+| gale-launcher | 6.2 | **27.1** | the burst needs aim; Hard bots spray, stalkers place it |
+| ghost-sniper | 8.2 | **25.8** | projectile speed only matters if your aim was going to be dodged |
+| momentum-scaling | 4.2 | **14.1** | more landed hits per game feed the ramp faster |
+| balanced | 52.7 | **15.5** | HP is worth far less to a pilot that dodges — the amulet half of the alternation is wasted on a stalker |
+| vampire-brawler | 16.7 | **8.3** | lifesteal pays on trades; stalkers refuse trades |
+| double-cdr | 63.6 | **36.1** | still strong, no longer king |
+
+`INFERRED`: a human sits between these two columns, and closer to Extreme the
+better they are. The practical read for Remi's lobby: **the offense-first rule
+holds at both tiers** (tank-sustain/no-elements/item-breadth are last
+everywhere), but *which* offense is best flips with skill — cooldown stacking
+for brawlers, economy and aimed bursts (midas, gale, ghost) for good aim.
+Lava kill share is 18.9% in Hard mirrors and 44.3% in Extreme ones — same
+spread as round 15, now with the whole elemental meta on top.
+
+### The two retunes the rework forced (measured, shipped)
+
+- **Momentum ramp `0.06 → 0.022`/hit.** Locking the fireball at lv1 silently
+  tripled the ramp's relative power: at the round-13 value momentum measured
+  **80-87%** across three seeds in the single-element study — the strongest
+  thing ever recorded here. Swept at 400-800 games per row (0.06 → 81.8 ·
+  0.045 → 67.0 · 0.035 → 50.7 · 0.025 → 32.5 · 0.02 → 24.5), confirmed at
+  800 × 3 seeds. 0.022 keeps the exact 1:1.5:2 level ratio and puts break-even
+  vs a plain fireball at ~80 landed hits against the new measured median of
+  **172 hits/game** (it was 78 in round 13 — flat fireballs mean long fights).
+- **Arcane's lv3 refund excludes the fireball's own cooldown.** Refunding the
+  spell that triggers the refund is a feedback loop: land a ball → its own
+  1.5 s cooldown drops toward the 0.25 s floor → fire again. Arcane alone
+  measured **74%** in the single-element study; halving the refund to 0.5 s
+  still measured 47%. With the exclusion, arcane's stat line lands at 11-14%
+  there (a cheap utility element) and the refund becomes what the fantasy says:
+  *your fireball accelerates the rest of your kit.* One-line revert on
+  `arcaneRefund` in `shared/sim.js`.
+
+### Buff/nerf guidelines (the deliverable — nothing here is applied)
+
+Ranked by how much they matter. Each carries its evidence and its lever.
+
+1. **Venom is the #1 nerf candidate.** In the single-element study it now wins
+   **91.4 / 92.1%** (seeds 1/7) — the field around it weakened while its DoT
+   ignores everything round 16 changed. But the obvious knob barely moves it:
+   ticks −20% → 84%, ticks −30% → 77%. The dominance lives in the *stacking*
+   (re-hits refresh the 5 s clock AND grow the tick toward `stackCap`), so the
+   honest levers are `stackCap` `[3, 4.5, 6]`, `dotTime` 5, or deepening the
+   −15% direct-damage penalty. Note the strategy table disagrees about
+   severity (venom-dot ranks 6th at 36.7% once everyone else has real builds
+   too), so this is "clearly strongest element", not "auto-win strategy".
+2. **Ember probably needs a trim; it is the second face of the same coin**
+   (61.5% single-element, +39.8 isolated at lv1 for 6 g — the best
+   gold-for-points purchase in the game). Lever: `dmgAdd` `[2, 4, 6]` →
+   `[2, 3, 5]`, or price lv2/3 up. `INFERRED`: some of this is bots being
+   unable to miss at point-blank; a human's +2 damage is worth less.
+3. **The cheap "aim" axes are cheap for a reason** — terra +5.0, gale +3.8,
+   ghost +3.0 isolated at lv1 (vs ember's +39.8 for the same 6 g), and their
+   strategies sit at the bottom on Hard while tripling or better on Extreme.
+   Do **not** number-buff them for Hard-bot tables (the round-12 rule about
+   bot artifacts); if Remi's own play says they feel weak, buff the *specials*
+   (gale `burstKbMult` 2.4 — steep lever, +20% ≈ +14 points; ghost could get
+   its pierce at lv2) rather than the stat lines.
+4. **CDR stacking** — see ranking note 3. Hourglass trim `[0.92, 0.85, 0.78]`
+   is measured and ready if human play confirms; alternatively cap the
+   fireball's total CDR product.
+5. **Frost is quietly fine** (20.0% strategy, +49 isolated lv3): the freeze is
+   real, the setup is slow. No action.
+6. **Vampire fell out of the top tier** (15.4% single-element vs 26.7% when it
+   was tuned in round 12; vampire-brawler 16.7% strategy). The whole sustain
+   axis is worth less in the flat-fireball meta. If sustain-brawling should be
+   an archetype, `chargeLifesteal` is the lever — but read open question §10
+   first: Remi may prefer the offense-first meta as-is.
+7. **Watch midas in human hands** (53% Hard / 79% Extreme with a full list).
+   If it takes over, the lever is NOT the income (+1 g cap is load-bearing) but
+   the penalty buyback `dmgMult [0.5, 0.62, 0.72]`.
+
+### ⚠ Bot caveats on all of the above
+
+Hard berserkers never dodge, never bait, never hold a gale burst, never kite a
+frozen target. Everything whose value is *aimed* (gale, ghost, terra) reads at
+its floor on Hard and 3-5× higher on Extreme; everything whose value is
+*trading* (vampire, lifesteal, HP) reads richer on Hard than it will feel
+against humans who disengage. The Hard table is the meta of Remi's usual
+lobby; the Extreme column is the direction skilled play bends it.
 
 ---
 
@@ -126,87 +332,68 @@ kills each).** The instrument's systematic bias is under one point.
 
 ## 3. Elements
 
-*Elemental mode only. Twelve elements, three levels each, 10+8+8 g, stackable.
-All measured at **level 3** (the full 26 g), Hard berserker, 800 games per cell
-per seed, seeds 1 and 7, baseline 25.*
+*Re-measured 2026-08-08 for **round 16**: eleven elements (chronos removed),
+the five single-axis ones cheap (6+5+5 g, or 6+5+12 with a lv3 special), the
+six originals still 10+8+8 g. The round-15 table below this one was measured
+under the OLD rules and is preserved only in git (`dce0096:BALANCE.md`) — do
+not quote it for current values.*
 
-### Finding 15B — the mixed table was a good ranking all along, and Midas is the one exception
+### The mixed table (one element per seat, Hard berserker/bruiser, 800 games × seeds 1/7, baseline 25%)
 
-| element | isolated, seed 1 | seed 7 | **mean** | mixed table (1000 games) |
+| element | seed 1 | seed 7 | **mean** | isolated (lv3, 600 games) |
 |---|---|---|---|---|
-| 🪙 Midas | +72.0 | +72.1 | **+72.1** | 0.0% *(12th)* |
-| 🧛 Vampire | +69.3 | +71.4 | **+70.4** | 33.6% *(4th)* |
-| ⚙️ Momentum | +69.3 | +68.0 | **+68.7** | 37.0% *(3rd)* |
-| 🐍 Venom | +64.4 | +65.4 | **+64.9** | 44.3% *(1st)* |
-| 🦟 Mosquito | +63.3 | +65.1 | **+64.2** | 42.9% *(2nd)* |
-| 🔥 Ember | +61.8 | +60.8 | **+61.3** | 32.9% *(5th)* |
-| 🔮 Arcane | +61.4 | +59.3 | **+60.4** | 26.9% *(7th)* |
-| 🪨 Terra | +59.4 | +58.6 | **+59.0** | 27.1% *(6th)* |
-| ⏳ Chronos | +58.8 | +57.1 | **+58.0** | 20.4% *(8th)* |
-| ❄️ Frost | +48.6 | +49.1 | **+48.9** | 18.6% *(9th)* |
-| 🌪️ Gale | +40.9 | +40.4 | **+40.7** | 9.7% *(10th)* |
-| 👻 Ghost | +31.5 | +30.5 | **+31.0** | 7.6% *(11th)* |
+| 🐍 Venom | 91.4 | 92.1 | **91.8** | +74.8 *(saturated)* |
+| 🔥 Ember | 62.5 | 60.4 | **61.5** | +74.5 *(saturated)* |
+| ⚙️ Momentum | 39.2 | 40.5 | **39.9** | +74.2 *(saturated)* |
+| 🦟 Mosquito | 35.9 | 30.6 | **33.3** | +74.0 *(saturated)* |
+| 🧛 Vampire | 17.4 | 13.4 | **15.4** | +70.8 |
+| 🔮 Arcane | 12.3 | 9.8 | **11.1** | +60.3 |
+| 🌪️ Gale | 5.4 | 9.1 | **7.3** | +57.3 |
+| 👻 Ghost | 5.3 | 3.3 | **4.3** | +47.3 |
+| 🪙 Midas | 2.9 | 3.5 | **3.2** | +75.0 *(saturated — long-list tail)* |
+| 🪨 Terra | 2.5 | 2.2 | **2.4** | +16.7 |
+| ❄️ Frost | 2.3 | 1.3 | **1.8** | +49.2 |
 
-Seed-to-seed spread is at most 2.1 points, so this table reproduces.
+**Read the two columns differently.** The mixed table is the zero-sum ranking:
+each seat commits to ONE element for the whole game. The isolated column is
+"one element seat vs three seats with a price-matched do-nothing" — and in the
+round-16 meta it **saturates**: six elements win 95-100% of those games,
+because a fireball that never levels makes an element seat vs an element-less
+seat an auto-win. That is not an instrument failure, it is the design working —
+*elements ARE the progression now* — but it means the isolation lab can no
+longer rank the top of the roster; the strategy study (§0) is the ranking
+instrument for round 16.
 
-**The two views agree.** Strike Midas and the orderings are the same list with
-swaps that all sit inside the noise band: the bottom four (chronos, frost, gale,
-ghost) are in **identical** order, arcane and terra swap adjacent places, and the
-top five contain exactly the same five elements in a different order. **Finding
-12A was right: the mixed table is a good ranking.** What it is not is a strength
-meter — and here is the difference that matters:
+**What the mixed table is really saying:**
 
-> **Every single element, including the ones the mixed table prints at 7.6% and
-> 9.7%, is worth +31 to +72 points over its 26 gold.** Ghost is last of twelve
-> and returns +31. There is no broken element in the roster. The mixed table's
-> low numbers are what *"twelfth of twelve strong things, in a zero-sum table"*
-> looks like, and buying anything up toward 25% there would only deflate the
-> other eleven.
-
-### Midas: the one disagreement, and it is not a mystery
-
-Midas is 12th in the mixed table (0.0%) and 1st in isolation (+72.1). The cause
-is **measured, not argued** — the same element, same seeds, same lab, differing
-only in the shopping list the four seats share:
-
-| Midas at lv3, 800 games, seed 1 | isolated |
-|---|---|
-| on the lab's **long breadth-first list** (every spell a bot pilots + every item to lv3) | **+72.0** |
-| on the shipped **bruiser** build order (`--tail=bruiser`) | **−12.5** |
-
-An **84-point swing** from one lab-design choice, and it is not a lab artifact —
-it is the element. Midas pays in gold, and gold is worth nothing if you have
-nothing left to buy. The evidence is printed in the mixed table itself: the
-`avg-gold` column reads **77.5 for Midas and ~14 for every other seat**. In the
-study where Midas scores 0.0%, it is finishing every game sitting on five items'
-worth of unspent change while carrying a −28% damage penalty.
-
-The control that shows this is specific to Midas and not a general property of
-the long list: **Chronos measures +58.8 on the long list and +57.8 on the bruiser
-order** — a 1.0-point difference. Only the economic element cares.
-
-- `INFERRED`: in a human game with the power tier, three item levels and twelve
-  elements all on the shelf, a real player's shopping list is much closer to the
-  long one than to a bruiser bot's eight-entry order. Midas is therefore probably
-  a *strong* element in Remi's hands, and its 0.0% is a property of the study, not
-  of the element. AGENTS.md's scar — *"before believing a bot-artifact
-  explanation, check whether you can DELETE the artifact"* — is now answered with
-  a number instead of a hypothesis. **Nothing was changed for Midas**: the fix, if
-  he wants one, is Remi's ruling on whether the drawback is right, not a lab tune.
+- **Venom at ~92% is the outlier that matters** — see guideline #1 in §0. Its
+  DoT ignores everything the rework flattened, and tick-size nerfs barely dent
+  it (−30% ticks still measures 77%).
+- **The strategy study softens most of these extremes**: when every seat has a
+  full list (and everyone eventually owns several elements), venom-dot ranks
+  6th at 36.7% and single-element commitment stops being the game. The mixed
+  table is the "what should my FIRST 26 gold be" view.
+- **Terra (2.4%) and frost (1.8%) are not broken** — isolated they return +17
+  and +49 over their gold. They are last of eleven strong things, and both are
+  utility riders that shine stacked under damage elements rather than alone.
+- The **cheap lv1 dips**, isolated at 600 games (the "is 6 g of this worth 6 g"
+  question a low-gold shop actually asks): **ember +39.8 · arcane +29.8 ·
+  terra +5.0 · gale +3.8 · ghost +3.0**. The damage and cadence axes are
+  spectacular per gold; the aim axes barely break even *in Hard-bot hands*
+  (they triple or better on Extreme pilots — §0).
 
 ### ⚠ Bot artifacts in this table, flagged not corrected
 
-- **Ghost (+31.0, last)**. Its pierce bonus fires on 3.07% of its fireballs
-  because bots never line two enemies up (round 12). Lining them up *is* the
-  element. +31 is a floor.
-- **Gale (+40.7, 11th)**. The round-13 rework made it stack-and-burst; everything
-  a burst is *for* — holding it, walking a victim toward the rim before spending
-  it — is invisible here. `burstKbMult` is a violently steep lever (+20% = +14
-  points in the mixed table); do not round it up.
-- **Mosquito (+64.2)** is *flattered*: a bot re-hits its nearest enemy constantly
-  and so cashes the mark for free. This is an upper bound.
-- **Vampire (+70.4)** is flattered for the same reason a bruiser berserker is the
-  ideal lifesteal engine: it brawls point-blank forever and never disengages.
+- **Gale and ghost read at their floor on Hard.** Everything a burst or a
+  fast-piercing ball is *for* — timing it, lining people up — is invisible to a
+  bot that sprays at its nearest enemy. Both roughly quadruple on Extreme
+  pilots (gale-launcher 6.2 → 27.1, ghost-sniper 8.2 → 25.8 in §0).
+- **Mosquito (33.3) and vampire (15.4) are flattered**: a bot re-hits its
+  nearest enemy constantly (free mark cashes) and never disengages a brawl
+  (ideal lifesteal engine). Both are upper bounds.
+- **Midas's 3.2% is the old gold-saturation story** (it ends these games on
+  ~225 g!). With a list that never runs dry it places 2nd of 17 strategies —
+  §0. The mixed table's bruiser tail is simply too short for it.
 
 ---
 
@@ -462,7 +649,17 @@ raise them with smarter piloting, not numbers.
 
 ## 8. Health metrics, and what changed
 
-**Health metrics, measured on the shipped build:**
+**Round-16 update (2026-08-08, after the elements rework):** lava kill share is
+**18.9%** in the Hard strategy mirrors (8,000 games) and **44.3%** on Extreme —
+the flat-fireball meta kills more by damage and less by shove at Hard tier, one
+more step in the fall that open question C tracks. Comeback machinery, the h2h
+ladder (Normal>Easy 100%, Hard>Normal 99.5%, Extreme>Hard 100%, 400 games/pair)
+and the co-op curve (re-run after scoping `ARENA.NEVER_STOPS` to versus — it had
+silently collapsed L8 to 6% at 3p) are all at their documented values. Tests:
+**219/219** vitest, both harness scenarios, robustness (chromium+webkit),
+reconnect e2e. The round-15 numbers below are kept for the record.
+
+**Health metrics, measured on the shipped build (round 15):**
 
 | metric | value | (before this round's retune) |
 |---|---|---|
@@ -600,9 +797,31 @@ real game is depends on how a human actually shops, which no lab here can answer
 
 **F. Still open from round 13 and only answerable by playing**: whether Gale's
 burst feels good in human hands, whether the Blood Sword still *feels* weak now
-that it measures 2nd, whether Mosquito's setup is as free for a human as it is for
+that it measures 2nd (round 16 gave it the green +N popup, which was 13B's
+recommended fix), whether Mosquito's setup is as free for a human as it is for
 a bot, whether constant knockback feels better, and whether draft mode is fun
 (unmeasured by design).
+
+**G. (round 16) Venom.** Strongest element by a wide margin under the new rules
+(91.8% single-element, and tick nerfs barely dent it — §0 guideline #1). The
+honest levers are the stacking (`stackCap`, `dotTime`) or a deeper direct-damage
+penalty, and choosing between them is a design call, not a lab call.
+
+**H. (round 16) Is offense-first the meta you want?** Every defense-first
+strategy is in the bottom third of the ranking at both skill tiers (§0). That is
+a coherent, readable meta — buy threat, then live long enough to use it — but it
+inverts the sustain-dominated meta of rounds 10-15. If you want defense-first to
+be viable rather than merely order-swapped, the lever is the fireball's flat
+7 damage (a small lv1 bump makes early defense cheaper to skip past), not the
+items.
+
+**I. (round 16) `ARENA.NEVER_STOPS` is now versus-only.** Your never-stopping
+ring shipped without a co-op re-measure and had collapsed campaign level 8 from
+68/66/57% clear to 80/46/6 (a ~100 s fight in a ring that reaches zero). Co-op
+keeps the classic hold-then-sudden-death ring at its own 65 s journey
+(`ARENA.COOP_SHRINK_TIME`). If you'd rather the campaign ALSO play under the
+never-stopping ring, the guard is one line in `stepBattle` — but the whole back
+half of the campaign then needs re-pricing.
 
 ---
 
@@ -612,6 +831,17 @@ Every number above comes from the shipped tools with fixed seeds. Nothing in thi
 report used a throwaway harness — that was the point of the round.
 
 ```bash
+# ---- the round-16 strategy study (§0) ----------------------------------------
+node tools/strategy-study.js --list                       # roster + descriptions
+node tools/strategy-study.js --games=4000 --seed=1        # the Hard table (and --seed=7)
+node tools/strategy-study.js --games=2000 --kind=stalker  # the Extreme column
+node tools/strategy-study.js --games=800 --only=cadence,double-cdr,balanced,venom-dot
+
+# the round-16 retune sweeps (re-run these after ANY fireball/element change)
+node tools/arena.js --mode=elemental --games=800 --seed=1 --fx=momentum.rampDmg=0.022,0.033,0.044
+node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=arcane.hitRefund=0,0,0.5
+node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=venom.tickDmg=0.7,1.0,1.4
+
 # ---- the isolation lab (§2, §3, §4, §6) --------------------------------------
 node tools/arena.js --isolate=self-test --games=800     # must read 25.0% / +0.0
 node tools/arena.js --isolate=no-op      --games=600     # 25.2% (price-matched)

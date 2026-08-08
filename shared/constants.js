@@ -368,11 +368,9 @@ export const ITEMS = {
   //        lifesteal arrives mid-fight while regen is throttled to 25% for 2.5 s
   //        after every hit (PLAYER.REGEN_LOCK). In-combat hp and out-of-combat
   //        hp are not the same hp. THIS is the "really really weak" reading.
-  //      Recommended (NOT done here — it is a feel change, not a number):
-  //      give the sword some in-fight feedback. It is deliberately silent today
-  //      (see applyDamage: only vampire's engorged ball gets a green number),
-  //      which is the momentum/mosquito scar again — a correct mechanic with no
-  //      on-screen presence reads as broken.
+  //      The recommended fix SHIPPED in round 16 (Remi asked for it directly):
+  //      every lifesteal heal >= 1 hp now pops the green "+N hp" on the healer
+  //      — see applyDamage in sim.js. The sword is no longer silent.
   //
   //  ⚠ BOT CAVEAT on all of the above: bots never dodge, never bait, and never
   //  make the trade a human makes with a lifesteal build ("I can win this
@@ -617,26 +615,26 @@ export const ELEMENTS = {
   // over ~15 rounds), so +1/hit is +78 damage on a 7-14 damage fireball against
   // 100 max HP — exactly the one-shotting the design ⚠ predicted.
   //
-  // ---- RE-SWEPT 2026-08-07 (later), and the old 0.08 → "27.2%" claim is WRONG.
-  // That figure came from a single 400-game run and does not reproduce: 0.08
-  // actually makes momentum the strongest element in the game. Re-measured on the
-  // standard 12-element elemental study (4 seats, baseline 25%, so an element
-  // plays ~1/3 of the games — at 800 games one cell is ~250-280 games, 2σ ≈ ±5.4
-  // points), 800 games × 3 seeds (1 / 7 / 23), which is why this table is
-  // trustworthy where the old one was not:
-  //   rampDmg lv1   seed 1   seed 7   seed 23   mean
-  //   0.08          43.1%    37.9%    38.5%     39.8%   ← what shipped as "27.2"
-  //   **0.06        23.6%    24.6%    25.0%     24.4%   ← SHIPPED**
-  //   0.05          16.1%    13.6%    15.1%     14.9%
-  //   0.04           8.6%    11.8%    10.7%     10.4%
-  //   0.03           6.0%     5.4%     7.1%      6.2%
-  // Monotone at every seed, and 0.06 is the tightest cell in the sweep (spread
-  // 1.4 points across three seeds) — it lands ON the 25% baseline and reproduces.
-  // The response curve is steep: one notch up is +15 points, one notch down is
-  // −10, so re-run 800×3 after any change to the fireball, knockback or the lava.
-  // 0.06 keeps the 1:1.5:2 level ratio and the permanence untouched, and still
-  // ends a long game at ~+4.7 dmg (lv1) to ~+9.4 (lv3) on a 7-14 damage fireball
-  // — earned over 20 rounds, which is the design.
+  // ---- RE-SWEPT 2026-08-08 (round 16): locking the fireball at lv1 in
+  // elemental mode silently TRIPLED momentum's relative power — the ramp used
+  // to compete with a fireball that grew to 14 damage, and now rides one stuck
+  // at 7, so the round-13 value (0.06) measured 80-87% across three seeds, the
+  // strongest element ever recorded here. Swept on the standard elemental
+  // study (4 seats, baseline 25%), 400 games × 2-3 seeds per row, keeping the
+  // 1:1.5:2 level ratio throughout:
+  //   rampDmg lv1: 0.06 → 81.8% · 0.045 → 67.0 · 0.035 → 50.7 ·
+  //                0.025 → 32.5 · 0.02 → 24.5 · 0.015 → 11.8
+  // 0.02 confirmed at 800 games × seeds 1/7/23: 24.1 / 21.0 / 23.3 (mean 22.8).
+  // **SHIPPED 0.022** (interpolates to ~27%): 0.02 put the break-even against a
+  // plain fireball at 87.5 landed hits, a hair PAST half a median game — the
+  // median is 172 hits/game now (re-measured round 16; it was 78 in round 13,
+  // because a lv1-locked fireball means longer fights and far more casts), and
+  // the test-locked design property is that the ramp climbs back out of its
+  // 0.8 penalty well inside one game. 0.022 keeps the 1:1.5:2 ratio exactly.
+  // The curve is still violently steep (one notch is ±8-15 points) — re-run
+  // 800×3 after ANY change to the fireball, ember, knockback or the lava.
+  // (The round-13 sweep that chose 0.06, and the "0.08 is not 27.2%" scar, are
+  // at git c38730f:shared/constants.js — the method there still applies.)
   // The small per-hit step does NOT re-create the 2026-08-06 "I can't see it
   // working" complaint, because the feedback now comes from the accumulated
   // white number on the damage popup, not from the size of one step.
@@ -645,7 +643,7 @@ export const ELEMENTS = {
   // touch the permanence (accumulating across the whole game is Remi's design).
   momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Starts at 80% damage. EVERY fireball you LAND makes your fireball permanently stronger — for the whole game, not just the round, with no ceiling. Damage only: your push never changes.',
-           fx: { dmgMult: 0.8, rampDmg: [0.06, 0.09, 0.12], rampPermanent: true } },
+           fx: { dmgMult: 0.8, rampDmg: [0.022, 0.033, 0.044], rampPermanent: true } },
   // 2026-08-07 (Remi, round 12) — SIMPLIFIED. The 2026-08-06 version put a bite
   // on an ARC of the victim's body and let any OTHER spell double on it. Two
   // things killed it: it was too fiddly to aim and too invisible to read (the
@@ -749,10 +747,13 @@ export const ELEMENTS = {
   // effect, narrowed exactly as Remi specced it ("currently hitting ANY spell
   // triggers it, I'm changing it to only work when hitting fireball"): every
   // FIREBALL hit refunds hitRefund seconds off every cooldown you have
-  // running, per enemy hit. cdFloor: a refund can never drive a cooldown to 0
-  // in the same frame and re-cast in a loop (chronos's old guard, test-locked).
+  // running, per enemy hit — EXCEPT the fireball's own (measured 2026-08-08:
+  // self-refund is a feedback loop that took arcane to 74% alone; the full
+  // sweep and the one-line revert live on arcaneRefund in sim.js). cdFloor: a
+  // refund can never drive a cooldown to 0 in the same frame and re-cast in a
+  // loop (chronos's old guard, test-locked).
   arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 5, 12],
-           desc: 'Your fireball cools down faster: −15%, then −28%. Lv3 unlocks: every fireball HIT refunds 1 s off ALL your cooldowns (per enemy hit).',
+           desc: 'Your fireball cools down faster: −15%, then −28%. Lv3 unlocks: every fireball HIT refunds 1 s off all your OTHER cooldowns (per enemy hit).',
            fx: { cdrMult: [0.85, 0.72, 0.72], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
   // ---- 2026-08-07 (Remi, round 12): three new elements -------------------

@@ -6,6 +6,112 @@ you asked before leaving.*
 
 ---
 
+## ROUND 16 — Elements ARE the fireball, the strategy ranking you asked for (2026-08-08, overnight)
+
+Everything you listed is done, tested (219/219 + harness + browser + reconnect
++ co-op), and committed. Then I ran the strategy study — ~20,000 full 4-player
+lobbies. The full report is **BALANCE.md §0**; this is the short version.
+
+### The rework, as shipped
+
+- **The fireball never levels in elemental** (classic keeps its 3 levels — it
+  has no elements to lean on). Its old bundle is split into cheap single-axis
+  elements, 6+5+5 g: **ember** = damage only, **gale** = push only, **arcane** =
+  fireball cooldown only, **terra** = size only, **ghost** = speed only.
+- **Lv3 specials at 12 g** (so those paths are 6+5+12): gale = the current
+  stack-and-burst gust (×2.4 — mid value of the old three, the lever is steep);
+  arcane = every fireball hit refunds **1 s off all your OTHER cooldowns**, per
+  enemy hit; ghost = pure passthrough — everyone on the line takes a **full**
+  hit and all your on-hits + lifesteal pay per victim (the old behind-bonus is
+  gone). Ember and terra lv3 stay cheap, as you said ("do it like fire").
+- **Chronos is gone** (arcane lv3 IS its effect, fireball-triggered).
+  **Arcane's old global CDR is now an item**: the Hourglass of Haste ⏳, same
+  costs (10+8+8 — items can carry per-level prices now), same −10/−19/−28%.
+- **Cinder Crown removed** (no fireball lv4 exists to unlock).
+- **Lifesteal is visible**: every heal ≥ 1 hp pops a green "+N hp" on the
+  healer — Blood Sword included, not just vampire's engorged ball.
+- **Max HP is on the live scoreboard**: an ❤️ HP column shows `current/max`
+  for everyone during the round, and its tooltip says everyone starts at 100.
+
+**One interpretation I had to make** (flag if wrong): "the flat reduction
+elemental is removed and becomes an item" — I read *the flat, always-on global
+CDR* (old arcane) as the item, and chronos's on-hit refund as the thing that
+became arcane's lv3. The alternative reading (chronos becomes the item) would
+have left the same effect existing twice.
+
+**One deviation from your literal spec, forced by measurement**: the lv3
+refund does NOT refund the fireball's own cooldown. Refunding the spell that
+triggers the refund is a feedback loop — it measured **74%** win rate as a
+lone element (baseline 25%), the strongest thing ever recorded here, and even
+a 0.5 s refund was 47%. Excluding the fireball keeps the crisp "−1 s off your
+spells" and it becomes what the fantasy wants: your fireball machine-guns the
+rest of your kit. One-line revert in `arcaneRefund` (shared/sim.js).
+
+**One retune the rework forced**: momentum's ramp `0.06 → 0.022`/hit. With the
+fireball stuck at 7 damage the old ramp measured 80-87% (it used to compete
+with 14-damage fireballs). Swept and confirmed at 800 games × 3 seeds; the
+1:1.5:2 level ratio and the permanence are untouched.
+
+### The strategy ranking (4 identical Hard bots, full buy lists, 8,000 games, baseline 25%)
+
+Every strategy is an exhaustive list — there is always something to buy, per
+your instruction — with its identity up front. Full table + descriptions in
+BALANCE.md §0 and STRATEGIES.md. The podium and the floor:
+
+| win% | strategy | in one line |
+|---|---|---|
+| **63.6** | double-cdr | arcane × Hourglass: a ~1.1 s fireball whose hits hasten the lightning |
+| **53.4** | midas-economy | midas first, convert income into the deepest build (midas WORKS now — it just needed a list that never runs dry) |
+| **52.7** | balanced | alternate offense/defense every purchase: ember, amulet, arcane, sword… |
+| **52.3** | cadence | double-cdr + Echo Stone |
+| 37.8 / 36.7 | mosquito-combo / venom-dot | the setup and DoT engines |
+| … | … | … |
+| **5.6** | tank-sustain | all defense first — dead last tier |
+| **4.2** | momentum-scaling | rushing the (re-nerfed) ramp first is now a bad bet |
+| **4.2** | item-breadth | one of every item before any element |
+
+The two most useful lines for a human: **offense-first wins, defense-first
+collapses** (everyone owns the amulet eventually; the losers bought it first) —
+and **order is worth ~35 points at equal contents**: `balanced` (52.7) and
+`glass-cannon` (18.1) buy nearly the same things.
+
+### Same lists on Extreme bots (your 10% skill question — big differences)
+
+**midas 79%** (best strategy in skilled hands), all-cheap 10→50,
+gale-launcher 6→27, ghost-sniper 8→26 (the "aim" elements need aim),
+while balanced 53→16 and vampire 17→8 (HP and lifesteal are worth far less to
+a pilot that dodges). Offense-first holds at both tiers.
+
+### Buff/nerf guidelines (nothing applied — your call, evidence in BALANCE.md §0)
+
+1. **Venom needs a design-level nerf** — 92% as a lone element, and tick nerfs
+   barely dent it (−30% ticks → still 77%). The power is the stacking:
+   `stackCap` / `dotTime` / a deeper direct-damage penalty are the honest levers.
+2. **Ember is the best 6 g in the game** (+39.8 points isolated at lv1) —
+   consider `[2,3,5]` damage instead of `[2,4,6]`.
+3. **Don't number-buff terra/gale/ghost off the Hard tables** — they triple or
+   better on Extreme; they're aim-rewarding by design. If they FEEL weak in
+   your hands, buff the specials, not the stat lines.
+4. **If CDR stacking dominates your lobby**: hourglass `[0.92, 0.85, 0.78]` is
+   measured (−11 on double-cdr) — but the crown just moves to `balanced`.
+5. **Watch midas** — if it takes over, the lever is the damage-penalty buyback,
+   never the +1 g income.
+
+### Two things I found and fixed on the way
+
+- **Your never-stopping ring had silently broken co-op**: campaign level 8 (a
+  ~100 s fight) was at **6%** clear for a 3-player party. The flag is now
+  versus-only; co-op keeps the classic ring and the whole curve is back on its
+  round-15 numbers. If you want co-op under the new ring too, it's one line —
+  but the campaign needs re-pricing after it.
+- **Fast projectiles could tunnel through Mirror Walls** (the side-check used
+  the post-move position). Found by ghost's new speed, fixed for everything.
+
+*Written by Claude, autonomously, 2026-08-08 03:00-07:00. Every number above
+reproduces from the commands in BALANCE.md §11.*
+
+---
+
 ## ROUND 15 — What everything is actually worth, and your Cape/Treads question (2026-08-08)
 
 You asked for `BALANCE.md` rewritten around *"the most isolated possible win rate

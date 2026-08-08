@@ -1021,7 +1021,7 @@ function buildShop(container, mode = 'classic') {
       wares.push(w); inSection(w);
     }
   }
-  mkLabel('Items (3 levels each — same price every level, each level gives less)');
+  mkLabel('Items (3 levels each — each level gives less than the last)');
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');

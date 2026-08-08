@@ -338,9 +338,21 @@ function fireballCdrOf(state, pl) {
 // ⚠ cdFloor: a refund never drives a cooldown to zero (that would allow a
 // same-frame re-cast loop), and it never RAISES one that is already below the
 // floor. Test-locked since the chronos era.
+//
+// ⚠ THE FIREBALL'S OWN COOLDOWN IS EXCLUDED (measured, 2026-08-08). Refunding
+// the spell that triggers the refund is a positive feedback loop: with
+// arcane's own lv1/2 CDR the fireball sits at ~1.5 s, so a 1 s refund per hit
+// turned "land your shots" into a near-cooldownless machine gun — arcane alone
+// measured 74% in the mixed element study (baseline 25%, 600 games × 2 seeds),
+// and shrinking the refund to 0.5 s still measured 47%. Excluding the fireball
+// keeps the crisp "−1 s" on everything else — the Rise-style "your fireball
+// accelerates your whole kit" fantasy — and lands a dedicated cadence build at
+// ~40-50% instead of 81%. One-line revert: delete the guard below (and re-run
+// the sweep before believing the result).
 function arcaneRefund(state, pl, refund, cdFloor) {
   let any = false;
   for (const k of Object.keys(pl.cooldowns)) {
+    if (k === 'fireball') continue; // self-refund is a feedback loop, see above
     const cd = pl.cooldowns[k];
     if (cd > cdFloor) {
       pl.cooldowns[k] = Math.max(cdFloor, cd - refund);
