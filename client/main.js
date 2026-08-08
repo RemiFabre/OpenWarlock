@@ -195,7 +195,9 @@ function onEvent(e) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
     // lightning sky-bolt landing (round 17 — the hitscan 'beam' died with it)
     case 'boltHit': fx.push({ ...e, type: 'boltHit', at: now, dur: 0.45 }); playSfx('zap'); break;
-    case 'hit': if (e.amount >= 1) pushFloater(e, 'hit', 0.8, now); break;
+    // poison ticks are exempt from the ≥1 filter: venom lv1 ticks for ½ and an
+    // invisible tick reads as a broken element (the mosquito scar)
+    case 'hit': if (e.amount >= 1 || e.poison) pushFloater(e, 'hit', 0.8, now); break;
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
       playSfx('death');

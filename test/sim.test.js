@@ -1299,7 +1299,7 @@ describe('elemental mode', () => {
     expect(JSON.stringify(snapshot(state, 'p0'))).toBe(JSON.stringify(snapshot(state)));
   });
 
-  it('venom lv1: discrete 1-per-second ticks, ~5 dmg over 5 s, then it stops', () => {
+  it('venom lv1: discrete 1-per-second ticks for dotTime, then it stops', () => {
     // manual poison application for exact timing (a fireball hit lands at an
     // uncontrolled sub-second offset); c is the untouched regen control
     const state = elementalBattle(3);
@@ -1321,7 +1321,9 @@ describe('elemental mode', () => {
     expect(ticks().length).toBe(1);         // first tick landed
     run(state, 4.3);                        // t ≈ 5.4: all 5 ticks in
     expect(ticks().length).toBe(5);
-    expect(ticks().reduce((s, e) => s + e.amount, 0)).toBeCloseTo(5, 5);
+    expect(ticks().reduce((s, e) => s + e.amount, 0)).toBeCloseTo(
+      ELEMENTS.venom.fx.tickDmg[0] *
+        (ELEMENTS.venom.fx.dotTime / ELEMENTS.venom.fx.tickEvery), 5);
     expect(b.poisonTick).toBe(0);           // expired poison leaves no residue
     run(state, 2);
     expect(ticks().length).toBe(5);         // and it STOPPED

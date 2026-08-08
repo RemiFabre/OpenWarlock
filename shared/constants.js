@@ -324,10 +324,13 @@ export const ELEMENTS = {
   // refresh the clock. Identity: venom deals LESS total than ember; its edge
   // is that the DoT ticks after you disengage and a lethal tick TAKES the
   // kill, even in lava (test-locked credit rule — it IS the identity).
-  // Balance target: top-third of the mixed table, never #1.
+  // tickDmg measured 2026-08-08 (600-game mixed table, monotone): [1,2,3] 96%
+  // · [0.7,1.4,2] 79% · [0.5,1,1.5] 56% = the top-third-not-#1 target. Sub-1
+  // ticks stay visible via the poison exception on the hit floater.
+  // history: docs/history/2026-08-08-round17-battery.md#venom
   venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits poison: 1 / 2 / 3 damage per second for 5 s. Re-hits refresh the clock. The poison keeps working after you run — and a lethal tick is YOUR kill, even in lava. Trail on the ground. −15% direct damage.',
-           fx: { dmgMult: 0.85, tickDmg: [1, 2, 3], dotTime: 5, tickEvery: 1,
+           desc: 'Hits poison: ½ / 1 / 1½ damage per second for 5 s. Re-hits refresh the clock. The poison keeps working after you run — and a lethal tick is YOUR kill, even in lava. Trail on the ground. −15% direct damage.',
+           fx: { dmgMult: 0.85, tickDmg: [0.5, 1, 1.5], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
