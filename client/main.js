@@ -193,7 +193,8 @@ function onEvent(e) {
   const now = performance.now();
   switch (e.t) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
-    case 'beam': fx.push({ ...e, type: 'beam', at: now, dur: 0.3 }); playSfx('zap'); break;
+    // lightning sky-bolt landing (round 17 — the hitscan 'beam' died with it)
+    case 'boltHit': fx.push({ ...e, type: 'boltHit', at: now, dur: 0.45 }); playSfx('zap'); break;
     case 'hit': if (e.amount >= 1) pushFloater(e, 'hit', 0.8, now); break;
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
@@ -366,6 +367,7 @@ function interpolated(now) {
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
+    bolts: Array.isArray(s.bolts) ? s.bolts : [],
     walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
     players, projectiles, me: me(s),

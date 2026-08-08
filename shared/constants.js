@@ -139,12 +139,19 @@ export const SPELLS = {
     desc: 'Your bread and butter. Medium projectile, strong knockback.',
   },
   lightning: {
-    // last-hitting from across the map was too strong (2026-08-03):
-    // range -30%, push removed entirely — damage untouched
+    // Round 17 (docs/ROUND17.md §2): hitscan → telegraphed sky-bolt. Mark a
+    // spot in range; the zone shows INSTANTLY, the bolt lands `delay` later.
+    // Damage and knockback fall linearly to HALF at the zone edge; knockback
+    // is RADIAL from the zone center. Falls from the SKY: pillars and mirror
+    // walls never block it — the anti-cover tool, by design.
+    // ⚠ delay and radius NEVER change with level (Remi's ruler: a human with
+    // boots must escape a bolt centered on them — never balance the dodge
+    // window against bots). Damage/kb/cd are FIRST TRY, provisional until
+    // Session C's bot support makes them measurable.
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 5, range: 38, width: 1.2,
-    damage: [5, 8, 12],
-    desc: 'Instant mid-range bolt. No push — a pure finisher.',
+    cooldown: [6, 5.5, 5], range: 38, radius: 2.2, delay: 0.5,
+    damage: [12, 15, 18], knockback: [70, 78, 86],
+    desc: '⚡ Mark a spot: a sky-bolt strikes it 0.5 s later — full power at the center, half at the edge, blasting outward. No pillar or wall can shield it.',
   },
   boomerang: {
     // 2026-08-06 rework (Remi: "nobody ever plays it, make it exciting"):

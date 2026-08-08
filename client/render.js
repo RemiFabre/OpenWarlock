@@ -3,6 +3,10 @@
 import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS } from '../shared/constants.js';
 import { currentLevel } from './music.js';
 
+// Sky-bolt tint per spell level (round 17 §2: the color shift IS the level
+// read) — pale electric blue, deeper blue, storm violet. "r, g, b" strings.
+const BOLT_TINTS = ['165, 220, 255', '110, 190, 255', '195, 160, 255'];
+
 // Precomputed drifting lava blobs (deterministic, just for looks).
 const BLOBS = [];
 for (let i = 0; i < 14; i++) {
@@ -194,6 +198,26 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = `rgba(255, 80, 40, ${0.10 + 0.12 * blink})`;
+    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
+  // Same blink language as the meteor's, but in the bolt's per-level tint —
+  // the zone appears the INSTANT of the cast; the dodge window IS the spell.
+  const bolts = Array.isArray(vs.bolts) ? vs.bolts : [];
+  for (const m of bolts) {
+    if (!m || !fin(m.x) || !fin(m.y)) continue;
+    const tt = fin(+m.t) ? Math.max(0, +m.t) : 0;
+    const blink = 0.5 + 0.5 * Math.abs(Math.sin(now / (40 + tt * 160)));
+    const x = view.sx(m.x), y = view.sy(m.y);
+    const R2 = SPELLS.lightning.radius * scale;
+    const tint = BOLT_TINTS[Math.min(Math.max((+m.level || 1) - 1, 0), 2)];
+    ctx.strokeStyle = `rgba(${tint}, ${blink})`;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(${tint}, ${0.10 + 0.14 * blink})`;
     ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
   }
 
@@ -640,9 +664,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
     const age = (now - f.at) / 1000;
     const k = age / f.dur;
     if (!fin(k) || k >= 1 || k < 0) continue;
-    // beams anchor on x1..y2, everything else on x,y — skip malformed events
-    if (f.type === 'beam' ? !(fin(f.x1) && fin(f.y1) && fin(f.x2) && fin(f.y2))
-                          : !(fin(f.x) && fin(f.y))) continue;
+    if (!(fin(f.x) && fin(f.y))) continue; // skip malformed events
     const a = 1 - k;
     switch (f.type) {
       case 'boom': {
@@ -657,22 +679,32 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.beginPath(); ctx.arc(x, y, 2.4 * scale * (0.4 + k), 0, Math.PI * 2); ctx.fill();
         break;
       }
-      case 'beam': {
-        ctx.strokeStyle = `rgba(160, 220, 255, ${a})`;
+      case 'boltHit': {
+        // the sky-bolt lands: a jagged vertical strike from above, then the
+        // blast ring expanding to the zone's true radius (the falloff edge)
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const tint = BOLT_TINTS[Math.min(Math.max((+f.level || 1) - 1, 0), 2)];
+        const top = Math.max(0, y - 190);
+        ctx.strokeStyle = `rgba(${tint}, ${a})`;
         ctx.lineWidth = 3 * a + 1;
         ctx.beginPath();
-        const x1 = view.sx(f.x1), y1 = view.sy(f.y1);
-        const x2 = view.sx(f.x2), y2 = view.sy(f.y2);
-        const segs = 7;
-        ctx.moveTo(x1, y1);
+        ctx.moveTo(x, top);
+        const segs = 6;
         for (let i = 1; i < segs; i++) {
           const tt = i / segs;
-          const jx = (Math.sin(i * 12.9898 + f.at) * 0.5) * 10 * a;
-          const jy = (Math.sin(i * 78.233 + f.at) * 0.5) * 10 * a;
-          ctx.lineTo(x1 + (x2 - x1) * tt + jx, y1 + (y2 - y1) * tt + jy);
+          const jx = (Math.sin(i * 12.9898 + f.at) * 0.5) * 12 * a;
+          ctx.lineTo(x + jx, top + (y - top) * tt);
         }
-        ctx.lineTo(x2, y2);
+        ctx.lineTo(x, y);
         ctx.stroke();
+        const R = (fin(+f.r) ? +f.r : 2.2) * scale;
+        ctx.lineWidth = 2.5 * a + 0.5;
+        ctx.beginPath(); ctx.arc(x, y, R * (0.3 + 0.7 * k), 0, Math.PI * 2); ctx.stroke();
+        const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+        g.addColorStop(0, `rgba(255, 255, 255, ${a * 0.7})`);
+        g.addColorStop(1, `rgba(${tint}, 0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
         break;
       }
       case 'hit': {

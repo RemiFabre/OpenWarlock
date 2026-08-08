@@ -337,14 +337,69 @@ describe('spells', () => {
     expect(castSpell(state, 'p0', 'lightning', 20, 0)).toBe(false);
   });
 
-  it('lightning hits instantly along a ray', () => {
+  // ---- lightning ⚡ (round 17: telegraphed sky-bolt — docs/ROUND17.md §2) --
+
+  it('lightning: the zone shows instantly, the bolt lands after the delay', () => {
+    const spec = SPELLS.lightning;
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.lightning = 1;
-    a.x = 0; a.y = 0; b.x = 20; b.y = 0.5;
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     state.players.p2.y = -30;
-    castSpell(state, 'p0', 'lightning', 30, 0);
-    expect(b.hp).toBe(b.maxHp - SPELLS.lightning.damage[0]);
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    expect(state.bolts.length).toBe(1);           // telegraph up on cast
+    expect(snapshot(state).bolts.length).toBe(1); // and on the wire, for everyone
+    run(state, spec.delay * 0.6);
+    expect(b.hp).toBe(b.maxHp);                   // the dodge window is real
+    run(state, spec.delay * 0.6);
+    expect(state.bolts.length).toBe(0);
+    expect(b.maxHp - b.hp).toBeGreaterThan(spec.damage[0] - 1); // centered: full
+    expect(b.vx).toBeGreaterThan(0);              // radial push, outward from center
+  });
+
+  it('lightning: stepping out of the telegraph dodges the bolt entirely', () => {
+    const spec = SPELLS.lightning;
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.lightning = 1;
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0; b.moveTarget = null;
+    state.players.p2.y = -30;
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    b.x = 20 + spec.radius + b.radius + 1; // walked clear of the zone
+    run(state, spec.delay + 0.1);
+    expect(b.hp).toBe(b.maxHp);            // the bolt does not track
+  });
+
+  it('lightning: damage and knockback fall linearly to half at the zone edge, radially', () => {
+    const spec = SPELLS.lightning;
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.lightning = 1;
+    a.x = 0; a.y = 0;
+    state.players.p2.y = -30;
+    const reach = spec.radius + b.radius;
+    b.x = 10; b.y = reach * 0.9; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'lightning', 10, 0);
+    run(state, spec.delay + 0.1);
+    const frac = 1 - 0.5 * 0.9;            // 90% of the way out
+    const taken = b.maxHp - b.hp;
+    expect(taken).toBeGreaterThan(spec.damage[0] * frac - 1.5);
+    expect(taken).toBeLessThan(spec.damage[0] * frac + 0.5);
+    expect(b.vy).toBeGreaterThan(0);       // pushed away from the zone CENTER...
+    expect(Math.abs(b.vx)).toBeLessThan(b.vy); // ...not along the caster's line
+  });
+
+  it('lightning: a shield holds the bolt', () => {
+    const spec = SPELLS.lightning;
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.lightning = 1;
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0; b.moveTarget = null;
+    state.players.p2.y = -30;
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    b.shieldT = spec.delay + 1;
+    run(state, spec.delay + 0.1);
+    expect(b.hp).toBe(b.maxHp);
   });
 
   it('teleport moves the caster and zeroes momentum', () => {
@@ -1582,11 +1637,15 @@ describe('elemental mode', () => {
     a.spells.lightning = 1;
     a.spells.boomerang = 1;
     expect(mosqOn(b, 'p0')).toBe(1);
+    // sky-bolt centered on a pinned b (round 17: lightning lands after its delay)
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     b.hp = b.maxHp;
-    castSpell(state, 'p0', 'lightning', 20, 0);
-    run(state, 0.2);
+    castSpell(state, 'p0', 'lightning', 8, 0);
+    run(state, SPELLS.lightning.delay + 0.2);
+    expect(b.maxHp - b.hp).toBeGreaterThan(0);                          // it landed
     expect(b.maxHp - b.hp).toBeLessThan(SPELLS.lightning.damage[0] + 1); // plain hit
     expect(mosqOn(b, 'p0')).toBe(1);        // mark untouched, still waiting
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     b.hp = b.maxHp;
     castSpell(state, 'p0', 'boomerang', 20, 0);
     run(state, 0.4);
@@ -2102,7 +2161,7 @@ describe('elemental mode', () => {
     castSpell(state, 'p0', 'lightning', 20, 10);
     expect(a.cooldowns.fireball).toBeCloseTo(
       SPELLS.fireball.cooldown[0] / (1 + f.haste[0] / 100), 3);
-    expect(a.cooldowns.lightning).toBeCloseTo(SPELLS.lightning.cooldown, 3);
+    expect(a.cooldowns.lightning).toBeCloseTo(SPELLS.lightning.cooldown[0], 3);
   });
 
   it('the hourglass hastens EVERY cooldown, and SUMS with arcane on the fireball', () => {
@@ -2117,7 +2176,7 @@ describe('elemental mode', () => {
     expect(a.cooldowns.fireball).toBeCloseTo(
       SPELLS.fireball.cooldown[0] / (1 + hg / 100), 3);
     expect(a.cooldowns.lightning).toBeCloseTo(
-      SPELLS.lightning.cooldown / (1 + hg / 100), 3);
+      SPELLS.lightning.cooldown[0] / (1 + hg / 100), 3);
     a.elements = { arcane: 2 };
     a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 20, 0);
@@ -3043,19 +3102,19 @@ describe('v5 mechanics', () => {
     expect(snapshot(state).pillars.length).toBe(1); // pillars are on the wire
   });
 
-  it('a pillar blocks lightning (the ray stops at the pillar)', () => {
+  it('pillars and mirror walls do NOT block lightning — it falls from the sky', () => {
+    // round 17 §2: the anti-cover tool, by design
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     a.spells.lightning = 1;
-    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0; b.moveTarget = null;
     state.pillars = [{ x: 10, y: 0, r: 2.5, sunk: false }];
-    castSpell(state, 'p0', 'lightning', 30, 0);
-    expect(b.hp).toBe(b.maxHp);
-    const beam = state.events.find(e => e.t === 'beam');
-    expect(beam).toBeTruthy();
-    expect(beam.x2).toBeLessThan(10); // truncated at the pillar face
-    expect(beam.x2).toBeGreaterThan(6);
+    state.walls = [{ x1: 14, y1: -4, x2: 14, y2: 4, nx: 1, ny: 0,
+      owner: 'p1', until: state.time + 99 }];
+    castSpell(state, 'p0', 'lightning', 20, 0);
+    run(state, SPELLS.lightning.delay + 0.1);
+    expect(b.hp).toBeLessThan(b.maxHp);  // struck clean through both
   });
 
   it('a player pushed against a pillar stops (stays outside, inward velocity killed)', () => {

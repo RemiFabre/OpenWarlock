@@ -57,6 +57,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     delayedShots: [],      // Echo Stone: fireballs waiting to fire (elemental)
     hazards: [],           // venom ground trails (elemental): {x,y,r,until,owner,dps}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
+    bolts: [],             // lightning sky-bolts (round 17): {x,y,t,owner,level}
     walls: [],             // mirror walls: {x1,y1,x2,y2,nx,ny,owner,until}
     events: [],            // transient, drained by the server each snapshot
     nextId: 1,
@@ -456,7 +457,13 @@ export function castSpell(state, id, key, tx, ty) {
       break;
     }
     case 'lightning': {
-      fireLightning(state, pl, level, dx, dy);
+      // round 17: telegraphed sky-bolt on the meteor's path — the zone shows
+      // instantly (snapshot carries state.bolts), the strike lands in stepBattle
+      const dist = Math.min(d, spec.range);
+      state.bolts.push({
+        x: pl.x + dx * dist, y: pl.y + dy * dist,
+        t: spec.delay, owner: id, level,
+      });
       break;
     }
     case 'teleport': {
@@ -614,44 +621,6 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
-}
-
-function fireLightning(state, pl, level, dx, dy) {
-  const spec = SPELLS.lightning;
-  // pillars block the bolt: the ray stops at the first pillar intersection
-  let rayMax = spec.range;
-  for (const pil of state.pillars) {
-    if (pil.sunk) continue;
-    const t = rayCircleT(pl.x, pl.y, dx, dy, pil.x, pil.y, pil.r);
-    if (t != null && t < rayMax) rayMax = t;
-  }
-  // enemy mirror walls block the bolt too (your own — and an ally's — let it through)
-  for (const w of state.walls) {
-    if (w.owner === pl.id) continue; // only your OWN wall lets your bolt out
-    const t = raySegT(pl.x, pl.y, dx, dy, w.x1, w.y1, w.x2, w.y2);
-    if (t != null && t < rayMax) rayMax = t;
-  }
-  // hitscan: first live enemy within `width` of the ray, up to the block point
-  let best = null, bestT = Infinity;
-  for (const other of Object.values(state.players)) {
-    if (other === pl || !other.alive) continue; // friendly fire: allies too
-    const ox = other.x - pl.x, oy = other.y - pl.y;
-    const t = ox * dx + oy * dy;                 // projection along ray
-    if (t < 0 || t > rayMax) continue;
-    const perp = Math.abs(ox * dy - oy * dx);    // distance from ray
-    if (perp <= spec.width + other.radius && t < bestT) { best = other; bestT = t; }
-  }
-  const endT = best ? bestT : rayMax;
-  state.events.push({
-    t: 'beam', id: pl.id,
-    x1: pl.x, y1: pl.y, x2: pl.x + dx * endT, y2: pl.y + dy * endT,
-  });
-  if (best) {
-    if (best.shieldT > 0) return; // shield blocks (no reflect for hitscan)
-    const kb = lvl(spec, 'knockback', level);
-    if (kb) applyKnockback(state, best, dx, dy, kb); // lightning has no push
-    applyDamage(state, best, lvl(spec, 'damage', level), pl.id);
-  }
 }
 
 export function buy(state, id, thing) {
@@ -1049,6 +1018,7 @@ function startRound(state) {
   state.delayedShots = [];
   state.hazards = [];
   state.meteors = [];
+  state.bolts = [];
   state.walls = [];
   const coop = state.mode === 'coop';
   if (coop) coopPrepareRound(state);   // clears last level's monsters, sets teams
@@ -1379,6 +1349,35 @@ function stepBattle(state, dt) {
     state.meteors = rest;
   }
 
+  // lightning sky-bolts (round 17): the meteor's telegraph→impact shape, but
+  // damage AND knockback fall linearly to HALF at the zone's edge, and the
+  // knockback is RADIAL from the zone center — far-side positioning pushes a
+  // lava swimmer back onto the platform, near-side throws them out (intended,
+  // both ways). No pillar or wall check anywhere: it falls from the SKY.
+  if (state.bolts.length) {
+    const rest = [];
+    const spec = SPELLS.lightning;
+    for (const m of state.bolts) {
+      m.t -= dt;
+      if (m.t > 0) { rest.push(m); continue; }
+      state.events.push({ t: 'boltHit', x: m.x, y: m.y, r: spec.radius, level: m.level });
+      for (const pl of Object.values(state.players)) {
+        if (!pl.alive) continue;
+        const ddx = pl.x - m.x, ddy = pl.y - m.y;
+        const dd = Math.hypot(ddx, ddy);
+        const reach = spec.radius + pl.radius;
+        if (dd > reach) continue;
+        if (pl.shieldT > 0) continue; // shield holds the bolt (as it held the beam)
+        const fall = 1 - 0.5 * (dd / reach);
+        const nx = dd > 1e-6 ? ddx / dd : 1, ny = dd > 1e-6 ? ddy / dd : 0;
+        applyKnockback(state, pl, nx, ny, lvl(spec, 'knockback', m.level) * fall);
+        applyDamage(state, pl, lvl(spec, 'damage', m.level) * fall,
+          pl.id === m.owner ? null : m.owner);
+      }
+    }
+    state.bolts = rest;
+  }
+
   const players = Object.values(state.players);
   updateRadii(state);
 
@@ -1592,21 +1591,6 @@ function collidePillars(state, pl) {
     const vn = pl.vx * nx + pl.vy * ny;
     if (vn < 0) { pl.vx -= vn * nx; pl.vy -= vn * ny; }
   }
-}
-
-// Smallest non-negative t where the unit-direction ray (ox,oy)+(dx,dy)t
-// enters the circle, or null if it never does.
-function rayCircleT(ox, oy, dx, dy, cx, cy, r) {
-  const fx = ox - cx, fy = oy - cy;
-  const b = 2 * (fx * dx + fy * dy);
-  const c = fx * fx + fy * fy - r * r;
-  const disc = b * b - 4 * c;
-  if (disc < 0) return null;
-  const sq = Math.sqrt(disc);
-  const t1 = (-b - sq) / 2, t2 = (-b + sq) / 2;
-  if (t1 >= 0) return t1;
-  if (t2 >= 0) return 0; // origin inside the pillar: blocked immediately
-  return null;
 }
 
 function stepProjectiles(state, dt) {
@@ -2198,6 +2182,10 @@ export function snapshot(state, viewerId = null) {
     winner: state.winner,
     roundSummary: state.roundSummary || null,
     meteors: (state.meteors || []).map(m => ({ x: round2(m.x), y: round2(m.y), t: round2(m.t) })),
+    // sky-bolt telegraphs are public by design: the dodge window IS the spell
+    bolts: (state.bolts || []).map(m => ({
+      x: round2(m.x), y: round2(m.y), t: round2(m.t), level: m.level,
+    })),
     walls: (state.walls || []).map(w => ({
       x1: round2(w.x1), y1: round2(w.y1), x2: round2(w.x2), y2: round2(w.y2), owner: w.owner,
     })),
@@ -2231,17 +2219,6 @@ export function snapshot(state, viewerId = null) {
       })),
     } : {}),
   };
-}
-
-// Smallest non-negative t where the unit ray (ox,oy)+(dx,dy)t crosses the
-// segment a-b, or null. Solves p + t·d = a + s·(b−a) with s in [0,1].
-function raySegT(ox, oy, dx, dy, ax, ay, bx, by) {
-  const ex = bx - ax, ey = by - ay;
-  const denom = dx * ey - dy * ex;
-  if (Math.abs(denom) < 1e-9) return null; // parallel
-  const t = ((ax - ox) * ey - (ay - oy) * ex) / denom;
-  const s = ((ax - ox) * dy - (ay - oy) * dx) / denom;
-  return t >= 0 && s >= 0 && s <= 1 ? t : null;
 }
 
 // Minimum distance between segments p1-p2 and q1-q2 (0 if they cross).
@@ -2312,6 +2289,41 @@ function botTune(pl, key, dflt) {
   const v = spec && spec[key];
   return Array.isArray(v) && v.length === 2 && v.every(n => Number.isFinite(n))
     ? v : dflt;
+}
+
+// Telegraph awareness (round 17, minimal — Session C owns the full pilot):
+// where to step to leave the nearest sky-bolt zone covering this bot, or null.
+// Without this every measurement of the new lightning is garbage — a bot that
+// stands in a marked circle prices the spell as unmissable.
+function boltEscape(state, pl) {
+  if (!state.bolts.length) return null;
+  let worst = null, worstD = Infinity;
+  for (const m of state.bolts) {
+    const dd = Math.hypot(pl.x - m.x, pl.y - m.y);
+    if (dd < SPELLS.lightning.radius + pl.radius + 0.6 && dd < worstD) {
+      worst = m; worstD = dd;
+    }
+  }
+  if (!worst) return null;
+  const dd = worstD > 1e-6 ? worstD : 1;
+  const nx = (pl.x - worst.x) / dd, ny = (pl.y - worst.y) / dd;
+  const hop = SPELLS.lightning.radius + pl.radius + 1.5;
+  let ex = worst.x + nx * hop, ey = worst.y + ny * hop;
+  // never step out of the bolt into the lava: cross to the far side instead
+  if (Math.hypot(ex, ey) > state.arenaRadius - 1) {
+    ex = worst.x - nx * hop; ey = worst.y - ny * hop;
+  }
+  return { x: ex, y: ey };
+}
+
+// Aim for the new lightning (round 17): the bolt lands `delay` after the cast,
+// so lead the target by exactly that — and never drop it on your own head.
+function boltAim(state, pl, target) {
+  const spec = SPELLS.lightning;
+  const v = estVel(target);
+  const x = target.x + v.vx * spec.delay, y = target.y + v.vy * spec.delay;
+  if (Math.hypot(x - pl.x, y - pl.y) < spec.radius + pl.radius + 1) return null;
+  return { x, y };
 }
 
 // Generic "use what you own" pilot. Each kind's native logic covers its own
@@ -2386,13 +2398,14 @@ function pilotOwnedSpells(state, pl, dt) {
         target.y + v.vy * t + (tdx / dist) * err)) return;
   }
 
-  // lightning poke (stalker uses it natively); grunts stay a bit sloppy
+  // lightning poke (stalker uses it natively): drop the sky-bolt on the
+  // target's predicted spot (round 17); grunts stay a bit sloppy
   if (pl.kind !== 'stalker' && owns('lightning') && dist < SPELLS.lightning.range - 2) {
-    const v = estVel(target);
+    const aim = boltAim(state, pl, target);
     const err = pl.kind === 'grunt' ? (rng(state) - 0.5) * dist * 0.15 : 0;
-    if (castSpell(state, pl.id, 'lightning',
-        target.x + v.vx * 0.06 - (tdy / dist) * err,
-        target.y + v.vy * 0.06 + (tdx / dist) * err)) return;
+    if (aim && castSpell(state, pl.id, 'lightning',
+        aim.x - (tdy / dist) * err,
+        aim.y + (tdx / dist) * err)) return;
   }
 
   // rush as a WEAPON only against rim-standers (berserker rushes natively).
@@ -2711,6 +2724,13 @@ function stepBerserker(state, pl, dt) {
     setMoveTarget(state, id, pl.x * s, pl.y * s);
   }
 
+  // telegraph threat (round 17): even the berserker steps out of a marked
+  // sky-bolt zone — standing in one is not aggression, it is a donation
+  if (!fleeing) {
+    const esc = boltEscape(state, pl);
+    if (esc) { setMoveTarget(state, id, esc.x, esc.y); return; }
+  }
+
   // hunt the best prey: near, wounded, isolated from its friends (charging
   // into the middle of a pack is how a brawler dies), near the rim (shovable)
   const target = pickPrey(state, pl);
@@ -2863,6 +2883,17 @@ function stepStalker(state, pl, dt) {
     }
   }
 
+  // -- telegraph threat (round 17): step OUT of a marked sky-bolt zone. Held
+  // like a projectile dodge so the kite step doesn't walk straight back in.
+  if (!doomed && !dodging) {
+    const esc = boltEscape(state, pl);
+    if (esc) {
+      setMoveTarget(state, id, esc.x, esc.y);
+      dodging = true;
+      pl._dodgeT = Math.max(pl._dodgeT, 0.3);
+    }
+  }
+
   // the stalker gets the same kill-leader bias as pickPrey (its whole target
   // choice is this one call, so leaving it out would exempt Extreme)
   const target = nearestEnemy(state, pl, 0.04, true);
@@ -2891,11 +2922,12 @@ function stepStalker(state, pl, dt) {
     setMoveTarget(state, id, mx, my);
   }
 
-  // -- lightning: finish the wounded or poke from afar (it's hitscan)
+  // -- lightning: finish the wounded or poke from afar — the sky-bolt lands
+  // where the target WILL be, one delay from now (round 17)
   if ((pl.spells.lightning || 0) > 0 && (pl.cooldowns.lightning || 0) <= 0 &&
       dist < SPELLS.lightning.range - 2 && (target.hp <= 20 || dist > 24)) {
-    const v = estVel(target);
-    castSpell(state, id, 'lightning', target.x + v.vx * 0.06, target.y + v.vy * 0.06);
+    const aim = boltAim(state, pl, target);
+    if (aim) castSpell(state, id, 'lightning', aim.x, aim.y);
   }
 
   // -- fireball with a proper intercept solve; error shrinks at close range
