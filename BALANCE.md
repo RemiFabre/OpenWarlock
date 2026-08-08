@@ -39,7 +39,10 @@ sweep is monotone now that stacking is gone) and **hourglass
 (`PLAYER.REGEN 0`, Ring deleted; round-1 first death 34.8 s unchanged, venom
 −20 to ~44%, midfield healthier — full numbers in the battery history file
 §no-regen); power spells cheaper (12-14 g) with infinite ground-target range;
-vanish 1/2/3 s; hourglass [10,18,26]. ⚠ The mixed/ladder tables above predate
+vanish 1/2/3 s; hourglass [10,18,26]. Round 17.2 (pre-game batch): momentum =
+1/2/3 points per hit, +3 dmg per 50 points, linear/uncapped; venom ticks flat
+½ with duration 3/5/7 s; midas penalty-free at lv3; Swap single-level range
+68. ⚠ The mixed/ladder tables above predate
 these — momentum's row is the stable read, the sustain rows are not.
 
 **Question J is CLOSED**: midas-cdr 86.2 → **24.3%** (both seeds — exactly

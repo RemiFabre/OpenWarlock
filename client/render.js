@@ -182,10 +182,9 @@ const TIER_TRAIL = ['rgba(255, 186, 70, 0.50)', 'rgba(255, 132, 40, 0.50)', 'rgb
 // .tierHits against the OWNER's game-long landed hits) — the ball must never
 // claim a tier the damage roll won't honor.
 function momentumTier(hits) {
-  const th = ELEMENTS.momentum.fx.tierHits;
-  let tier = 0;
-  for (let i = 0; i < th.length; i++) if (hits >= th[i]) tier = i + 1;
-  return tier;
+  // evolutions are uncapped since round 17.2; the WINGS cap at 3 pairs so the
+  // ball stays readable — the HUD carries the true number
+  return Math.min(3, Math.floor(hits / ELEMENTS.momentum.fx.evolveEvery));
 }
 
 // Momentum's layer: one extra flame wing per tier, plus a ring of motes. This is

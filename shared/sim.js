@@ -1753,18 +1753,13 @@ function stepProjectiles(state, dt) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
           if (f.kbAdd) kb += efxV(f.kbAdd, el);
-          if (f.tierHits) {
-            // momentum (round 17 §6): landed hits ALL GAME unlock evolution
-            // tiers; the bonus is the CURRENT tier's flat value (cumulative
-            // totals, not increments), read at hit time. Damage only —
-            // knockback is untouched so a big tier melts, never launches.
+          if (f.evolveEvery) {
+            // momentum (round 17.2): banked points ALL GAME, +evolveDmg per
+            // completed bracket — linear, uncapped. Damage only; knockback
+            // untouched so a big bank melts, never launches.
             const own = state.players[pr.owner];
-            const hits = (own && own.momentumHits) || 0;
-            const tiers = efxV(f.tierDmg, el);
-            let tier = 0;
-            for (let i = 0; i < f.tierHits.length; i++)
-              if (hits >= f.tierHits[i]) tier = i + 1;
-            if (tier > 0) ramp += tiers[tier - 1];
+            const pts = (own && own.momentumHits) || 0;
+            ramp += Math.floor(pts / f.evolveEvery) * f.evolveDmg;
           }
           if (f.dmgMult) { dmg *= efxV(f.dmgMult, el); ramp *= efxV(f.dmgMult, el); }
           // flat knockback multiplier. Gale used to be the loud user of this;
@@ -2015,7 +2010,7 @@ function applyElementsHit(state, pr, target) {
       // lethal tick takes the kill (the test-locked rule below in stepBattle).
       if (!(target.poisonT > 0)) target._poisonNext = f.tickEvery;
       target.poisonTick = efxV(f.tickDmg, el);
-      target.poisonT = f.dotTime;
+      target.poisonT = efxV(f.dotTime, el);
       target.poisonBy = pr.owner;
     }
     if (f.goldOnHit && pr.owner != null) {
@@ -2042,11 +2037,11 @@ function applyElementsHit(state, pr, target) {
         }
       }
     }
-    if (f.tierHits && pr.owner != null) {
-      // momentum: one more landed hit banked toward the next evolution tier,
+    if (f.pointsPerHit && pr.owner != null) {
+      // momentum: bank pointsPerHit[level] toward the next evolution,
       // for the rest of the GAME (never reset in startRound)
       const owner = state.players[pr.owner];
-      if (owner) owner.momentumHits = (owner.momentumHits || 0) + 1;
+      if (owner) owner.momentumHits = (owner.momentumHits || 0) + efxV(f.pointsPerHit, el);
     }
     // arcane lv3 (round 16): a landed FIREBALL refunds seconds off every
     // cooldown the owner has running, per enemy hit. hitRefund is 0 below the

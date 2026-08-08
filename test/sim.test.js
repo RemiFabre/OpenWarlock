@@ -1305,7 +1305,7 @@ describe('elemental mode', () => {
     c.x = -10; c.y = 0; c.vx = 0; c.moveTarget = null;
     state.players.p0.y = -40;
     b.hp = 50; c.hp = 50;
-    b.poisonT = ELEMENTS.venom.fx.dotTime;
+    b.poisonT = ELEMENTS.venom.fx.dotTime[0];
     b.poisonTick = ELEMENTS.venom.fx.tickDmg[0];
     b._poisonNext = ELEMENTS.venom.fx.tickEvery;
     b.poisonBy = 'p0';
@@ -1316,34 +1316,38 @@ describe('elemental mode', () => {
     expect(ticks().length).toBe(0);         // discrete: nothing before the 1 s mark
     run(state, 0.2);
     expect(ticks().length).toBe(1);         // first tick landed
-    run(state, 4.3);                        // t ≈ 5.4: all 5 ticks in
-    expect(ticks().length).toBe(5);
+    const nTicks = Math.floor(ELEMENTS.venom.fx.dotTime[0] / ELEMENTS.venom.fx.tickEvery);
+    run(state, ELEMENTS.venom.fx.dotTime[0] + 0.4); // every tick in
+    expect(ticks().length).toBe(nTicks);
     expect(ticks().reduce((s, e) => s + e.amount, 0)).toBeCloseTo(
-      ELEMENTS.venom.fx.tickDmg[0] *
-        (ELEMENTS.venom.fx.dotTime / ELEMENTS.venom.fx.tickEvery), 5);
+      ELEMENTS.venom.fx.tickDmg[0] * nTicks, 5);
     expect(b.poisonTick).toBe(0);           // expired poison leaves no residue
     run(state, 2);
-    expect(ticks().length).toBe(5);         // and it STOPPED
+    expect(ticks().length).toBe(nTicks);    // and it STOPPED
     expect(c.hp).toBeGreaterThan(b.hp);     // the victim really is down on hp
   });
 
   it('venom re-hits REFRESH the clock — the tick never stacks (round 17)', () => {
+    const dot1 = ELEMENTS.venom.fx.dotTime[0];  // lv1 duration (levels buy TIME)
     const state = hitWith('venom');
     const b = state.players.p1;
-    expect(b.poisonT).toBeGreaterThan(4.5);
+    expect(b.poisonT).toBeGreaterThan(dot1 - 0.5);
     expect(b.poisonTick).toBe(ELEMENTS.venom.fx.tickDmg[0]);
     run(state, 2.2); // burn 2.2 s off the clock (past the lv1 fireball cd too)
-    expect(b.poisonT).toBeLessThan(3);
+    expect(b.poisonT).toBeLessThan(dot1 - 2);
     b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.hp = b.maxHp;
     state.players.p0.x = 0; state.players.p0.y = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
-    expect(b.poisonT).toBeGreaterThan(4.5); // refreshed to the full 5 s
-    expect(b.poisonT).toBeLessThanOrEqual(ELEMENTS.venom.fx.dotTime);
+    expect(b.poisonT).toBeGreaterThan(dot1 - 0.5); // refreshed to the full clock
+    expect(b.poisonT).toBeLessThanOrEqual(dot1);
     expect(b.poisonTick).toBe(ELEMENTS.venom.fx.tickDmg[0]); // NOT stronger
     // the stacking machinery is deleted from the spec, not just unused
     expect(ELEMENTS.venom.fx.stackAdd).toBeUndefined();
     expect(ELEMENTS.venom.fx.stackCap).toBeUndefined();
+    // round 17.2 identity: levels buy kill-steal DURATION, never tick damage
+    expect(new Set(ELEMENTS.venom.fx.tickDmg).size).toBe(1);
+    expect(ELEMENTS.venom.fx.dotTime[2]).toBeGreaterThan(ELEMENTS.venom.fx.dotTime[0]);
   });
 
   it('a lethal poison tick gives the poisoner the kill — without stamping lastHitBy', () => {
@@ -1372,42 +1376,36 @@ describe('elemental mode', () => {
   // ---- momentum ⚙️ ------------------------------------------------------
   // Every number below is read out of ELEMENTS.momentum.fx: AGENTS.md — balance
   // tests must not pin constants the owner is still tuning.
-  it('momentum ⚙️: landed hits unlock permanent EVOLUTION TIERS (round 17)', () => {
+  it('momentum ⚙️: banked points evolve the ball every 50, forever (round 17.2)', () => {
     const f = ELEMENTS.momentum.fx;
     const base = SPELLS.fireball.damage[0];
-    // hit 1: tier 0 — exactly a plain fireball (the 0.8 early penalty is gone)
+    // hit 1: no bracket yet — exactly a plain fireball, and it banked
+    // pointsPerHit[0] points (element lv1)
     const s1 = hitWith('momentum');
     const b1 = s1.players.p1;
     expect(b1.maxHp - b1.hp).toBeCloseTo(base, 1);
-    expect(s1.players.p0.momentumHits).toBe(1);
-    expect(f.dmgMult).toBeUndefined();
-    // damage dealt with `hits` already banked (element lv1)
-    const dealtAt = (hits) => {
-      const s = hitWith('momentum');
-      const a = s.players.p0, b = s.players.p1;
-      a.momentumHits = hits;
+    expect(s1.players.p0.momentumHits).toBe(f.pointsPerHit[0]);
+    // damage dealt with `pts` already banked (element lv1)
+    const dealtAt = (pts) => {
+      const st = hitWith('momentum');
+      const a = st.players.p0, b = st.players.p1;
+      a.momentumHits = pts;
       b.maxHp = 999; b.hp = 999; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
       a.cooldowns = {};
-      castSpell(s, 'p0', 'fireball', 20, 0);
-      run(s, 0.4);
+      castSpell(st, 'p0', 'fireball', 20, 0);
+      run(st, 0.4);
       return 999 - b.hp;
     };
-    // tierDmg values are CUMULATIVE TOTALS per tier, not increments
-    const tiers = f.tierDmg[0];
-    expect(dealtAt(f.tierHits[0] - 1)).toBeCloseTo(base, 1);            // not yet
-    expect(dealtAt(f.tierHits[0])).toBeCloseTo(base + tiers[0], 1);     // evolved
-    expect(dealtAt(f.tierHits[1])).toBeCloseTo(base + tiers[1], 1);
-    expect(dealtAt(f.tierHits[2])).toBeCloseTo(base + tiers[2], 1);
-    expect(dealtAt(f.tierHits[2] * 3)).toBeCloseTo(base + tiers[2], 1); // tier 3 is the top
-    // element levels buy the tier bonuses UP, monotonically per tier
-    for (let i = 0; i < f.tierHits.length; i++) {
-      expect(f.tierDmg[1][i]).toBeGreaterThan(f.tierDmg[0][i]);
-      expect(f.tierDmg[2][i]).toBeGreaterThan(f.tierDmg[1][i]);
-    }
-    // calibration guard: the first evolution must land well inside a game —
-    // a bot carrier banks a median 172 hits/game (measured 2026-08-08), and
-    // humans land far fewer, so tier 1 has to sit in the first half of that
-    expect(f.tierHits[0]).toBeLessThan(172 / 2);
+    expect(dealtAt(f.evolveEvery - 1)).toBeCloseTo(base, 1);                    // not yet
+    expect(dealtAt(f.evolveEvery)).toBeCloseTo(base + f.evolveDmg, 1);          // evolved
+    expect(dealtAt(f.evolveEvery * 4)).toBeCloseTo(base + 4 * f.evolveDmg, 1);  // linear...
+    expect(dealtAt(f.evolveEvery * 10)).toBeCloseTo(base + 10 * f.evolveDmg, 1); // ...and UNCAPPED
+    // element levels buy BANKING SPEED, never bigger bonuses
+    expect(f.pointsPerHit[1]).toBeGreaterThan(f.pointsPerHit[0]);
+    expect(f.pointsPerHit[2]).toBeGreaterThan(f.pointsPerHit[1]);
+    // lv3 banks pointsPerHit[2] per landed hit
+    const s3 = hitWith({ momentum: 3 });
+    expect(s3.players.p0.momentumHits).toBe(f.pointsPerHit[2]);
   });
 
   it('momentum is DAMAGE ONLY: a huge stack pushes exactly as hard as none', () => {
@@ -1436,7 +1434,7 @@ describe('elemental mode', () => {
     const base = SPELLS.fireball.damage[0];
     const state = hitWith('momentum');
     const a = state.players.p0, b = state.players.p1;
-    a.momentumHits = f.tierHits[0];          // tier 1 unlocked
+    a.momentumHits = f.evolveEvery;          // one evolution banked
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
     a.cooldowns = {};
     state.events = [];
@@ -1444,7 +1442,7 @@ describe('elemental mode', () => {
     run(state, 0.4);
     const hit = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(hit).toBeTruthy();
-    expect(hit.bonus).toBeCloseTo(f.tierDmg[0][0], 5);  // the tier IS the white number
+    expect(hit.bonus).toBeCloseTo(f.evolveDmg, 5);  // the evolution IS the white number
     expect(hit.amount - hit.bonus).toBeCloseTo(base, 5);
     // a plain fireball carries no bonus field at all
     const plain = hitWith('ember');
@@ -1890,8 +1888,8 @@ describe('elemental mode', () => {
     const lv1 = dealtAt(1), lv3 = dealtAt(3);
     expect(lv1).toBeGreaterThan(base * f.dmgMult[0] - 0.8); // ~half damage
     expect(lv1).toBeLessThan(base * f.dmgMult[0] + 0.5);
-    expect(lv3).toBeGreaterThan(lv1 * 1.4);                 // lv3 much closer to normal
-    expect(lv3).toBeLessThan(base);                         // but never free
+    expect(lv3).toBeGreaterThan(lv1 * 1.4);                 // lv3 buys it all back...
+    expect(lv3).toBeCloseTo(base, 1);                       // ...to a PENALTY-FREE fireball (round 17.2)
     // push is halved at lv1 too
     const peak = (level) => {
       const state = hitWith({ midas: level });

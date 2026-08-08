@@ -79,6 +79,17 @@ target). Two things you should know:
   feedback loop survives in the haste world — your call), and the ring was
   measurably WEAK, not strong (now moot — it's gone).
 
+### Round 17.2 — your pre-game batch (dictated live, all shipped)
+
+- **Momentum reworked**: levels buy BANKING SPEED (1/2/3 points per landed
+  hit), and every 50 points = +3 damage, linear and INFINITE — no more tier
+  table. HUD shows earned damage + points-to-next.
+- **Venom**: ticks flat ½ at every level; levels buy DURATION 3/5/7 s — the
+  kill-steal identity, max lava-steal window, lv3 adds only 3.5 damage.
+- **Midas**: penalty −50% / −25% / **0% at lv3** — a clean fireball.
+- **Swap**: ONE level (12 g), range doubled to 68.
+- **Mosquito**: the shop speaks positive haste now, not "cooldown ×0.59".
+
 ### Everything else that shipped, one line each
 
 - Sustain: amulet [18,32,42]; hourglass haste [10,18,26] (your flat-delta

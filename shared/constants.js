@@ -208,13 +208,12 @@ export const SPELLS = {
     desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast.',
   },
   swap: {
-    // Round 17 (docs/ROUND17.md §3): the hook's yank became a full position
-    // exchange — x/y AND velocity, both ways. Same projectile shell.
-    // The 1 damage exists to stamp the last-hitter (a following lava death
-    // credits the caster); no knockback, no on-hit riders — not a fireball.
-    name: 'Swap', hotkey: 'G', tier: 'power', maxLevel: 2, costs: [12, 8],
-    cooldown: [13, 10], speed: 38, radius: 0.9, range: [34, 44],
-    damage: [1, 1],
+    // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
+    // exchange; 1 dmg stamps the last-hitter (lava credit). ONE level since
+    // round 17.2, range doubled — the lava-save fantasy needs the reach.
+    name: 'Swap', hotkey: 'G', tier: 'power', maxLevel: 1, costs: [12],
+    cooldown: 13, speed: 38, radius: 0.9, range: 68,
+    damage: 1,
     desc: '🔀 Hit an enemy to TRADE PLACES — position and momentum both.',
   },
   repulse: {
@@ -342,8 +341,8 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-round17-battery.md#venom
   venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Damage over time.',
-           long: 'Hits poison. It keeps ticking after you disengage — and a lethal tick is YOUR kill, even in lava.',
-           fx: { dmgMult: 0.85, tickDmg: [0.5, 1, 1.5], dotTime: 5, tickEvery: 1,
+           long: 'Hits poison: ½ damage per second for 3 / 5 / 7 s — levels buy DURATION, not damage. It keeps ticking after you disengage, and a lethal tick is YOUR kill, even in lava.',
+           fx: { dmgMult: 0.85, tickDmg: [0.5, 0.5, 0.5], dotTime: [3, 5, 7], tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
@@ -363,8 +362,8 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
-           long: 'Your first hit marks 🪙, the next hit on them cashes +1 g. The price: a much weaker fireball — levels buy the damage back.',
-           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.62, 0.72], kbMult: [0.5, 0.62, 0.72] } },
+           long: 'Your first hit marks 🪙, the next hit on them cashes +1 g. The price: −50% fireball at lv1, −25% at lv2 — and NO penalty at lv3.',
+           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.75, 1], kbMult: [0.5, 0.75, 1] } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else — the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -373,18 +372,14 @@ export const ELEMENTS = {
            desc: 'Bigger fireball.',
            long: 'A bigger ball is much easier to land. Cheap, no tricks — and every on-hit effect loves the extra hits.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
-  // Round 17 §6: the per-hit ramp became visible EVOLUTION TIERS — landed
-  // fireballs still count all game (permanence is Remi's design), and at
-  // tierHits thresholds the ball evolves for a flat cumulative bonus
-  // (tierDmg[level-1][tier-1], totals not increments). No early penalty any
-  // more. FIRST TRY numbers; calibration: a bot carrier lands a median 172
-  // hits/game, humans far fewer.
+  // Round 17.2 (Remi, live): element levels buy BANKING SPEED (points/hit),
+  // never bigger bonuses; every evolveEvery points = +evolveDmg damage,
+  // linear and UNCAPPED. Points are game-long (permanence is the design).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Late-game scaling.',
-           long: 'Every landed fireball counts, all game: at 40 / 90 / 150 hits your fireball permanently EVOLVES into a bigger hit.',
-           fx: { tierHits: [40, 90, 150],
-                 tierDmg: [[2, 5, 9], [2.5, 6, 10.5], [3, 7, 12]],
+           long: 'Every landed fireball banks evolution points — 1, 2 or 3 per hit by level. Every 50 points your fireball permanently EVOLVES: +3 damage, forever.',
+           fx: { pointsPerHit: [1, 2, 3], evolveEvery: 50, evolveDmg: 3,
                  rampPermanent: true } },
   // Round 12: sting leaves ONE private stack; hitting a stacked target spends it
   // — two co-located fireballs, every on-hit pays TWICE, knockback happens ONCE.

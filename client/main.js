@@ -708,7 +708,7 @@ const FX_FIELDS = {
   dmgMult: ['fireball damage', fmtMult],
   kbMult: ['fireball push', fmtMult],
   haste: ['fireball haste', (v) => `+${fmtNum(v)}`],
-  cdMult: ['fireball cooldown', fmtMult],
+  cdMult: ['fireball haste', (v) => `+${fmtNum(Math.round((1 / v - 1) * 100))}%`],
   projRadiusMult: ['fireball size', fmtMult],
   projSpeedMult: ['fireball speed', fmtMult],
   stacksToTrigger: ['stacks to detonate', fmtNum],
@@ -727,11 +727,10 @@ const FX_FIELDS = {
   trailStep: ['trail spacing', fmtNum],
   trailR: ['trail radius', fmtNum],
   goldOnHit: ['gold per cashed mark', (v) => `+${fmtNum(v)} g`],
-  // tierHits is skipped below (its columns are TIERS, not levels); the label
-  // here carries the thresholds instead, read off the spec
-  tierDmg: [`evolution bonus (at ${ELEMENTS.momentum.fx.tierHits.join(' / ')} hits)`,
-    (v) => (Array.isArray(v) ? `+${v.join(' / +')} dmg` : `+${fmtNum(v)}`)],
-  rampPermanent: ['your landed hits', (v) => (v ? 'never reset — they are yours for the game' : 'reset each round')],
+  pointsPerHit: ['evolution points per hit', fmtNum],
+  evolveEvery: ['evolves every', (v) => `${fmtNum(v)} points`],
+  evolveDmg: ['each evolution', (v) => `+${fmtNum(v)} dmg, forever`],
+  rampPermanent: ['your points', (v) => (v ? 'never reset — they are yours for the game' : 'reset each round')],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
@@ -1587,17 +1586,13 @@ function updateUi(s) {
   if (inGame && m && !m.spectator) {
     const momLv = (m.elements && m.elements.momentum) || 0;
     if (momLv > 0) {
-      // round 17 §6: the quest counter — current tier bonus and hits until
-      // the NEXT evolution, where the ramp number used to live
+      // round 17.2: the quest counter — banked points, earned damage, and
+      // points until the next (uncapped) evolution
       const f = ELEMENTS.momentum.fx;
-      const hits = Math.max(0, +m.momentumHits || 0);
-      const tiers = statAt(f.tierDmg, momLv);
-      let tier = 0;
-      for (let i = 0; i < f.tierHits.length; i++) if (hits >= f.tierHits[i]) tier = i + 1;
-      const bonus = tier > 0 ? ` · +${fmtNum(tiers[tier - 1])} dmg` : '';
-      const next = tier < f.tierHits.length
-        ? ` · ${f.tierHits[tier] - hits} hits to evolve` : ' · MAX';
-      buffs.push(`<span class="buff crit">${ELEMENTS.momentum.icon} tier ${tier}${bonus}${next}</span>`);
+      const pts = Math.max(0, +m.momentumHits || 0);
+      const evo = Math.floor(pts / f.evolveEvery);
+      buffs.push(`<span class="buff crit">${ELEMENTS.momentum.icon} +${fmtNum(evo * f.evolveDmg)} dmg` +
+        ` · ${f.evolveEvery - (pts % f.evolveEvery)} points to evolve</span>`);
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)
