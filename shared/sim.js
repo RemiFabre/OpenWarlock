@@ -39,6 +39,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     // name of whoever paused so the banner can say who, since anyone in the
     // lobby may pause or resume (same friends-lobby trust model as the bans).
     shopPaused: null,      // null = running, else the pauser's display name
+    testing: null,         // testing sandbox (versus only): {gold} — a lobby flag like draft
     mode: MODES.includes(mode) ? mode : 'elemental',
     // Draft mode (docs/ROUND12.md S7) — an INDEPENDENT flag, not a fourth mode:
     // it composes with classic, elemental and co-op alike. OFF means every field
@@ -995,11 +996,28 @@ function kill(state, target, directSourceId) {
 
 // ---- round flow ---------------------------------------------------------
 
+// Testing sandbox (Remi, 2026-08-08): a lobby FLAG over classic/elemental,
+// like draft — never a ruleset. Everyone starts with the chosen gold and the
+// game opens in a shop whose clock never runs (see step), so items can be
+// inspected and combos assembled before the first fight. Lobby only.
+export function setTesting(state, on, gold) {
+  if (state.phase !== 'lobby') return;
+  state.testing = on ? { gold: clamp(Math.round(+gold) || 0, 0, 999) } : null;
+}
+
 export function startGame(state) {
   if (state.phase !== 'lobby') return;
   // draft mode: the split is rolled ONCE here, when the ruleset can no longer
   // change, and lives on state for the whole game
   if (state.draft) rollDraftPool(state);
+  if (state.testing && state.mode !== 'coop') {
+    // sandbox: hand out the chosen gold and open the pre-game shop — round 1
+    // starts when everyone readies up (bots always count as ready)
+    for (const pl of Object.values(state.players)) pl.gold = state.testing.gold;
+    state.phase = 'shop';
+    state.phaseT = ROUND.SHOP_TIME;
+    return;
+  }
   startRound(state);
 }
 
@@ -1266,8 +1284,9 @@ export function step(state, dt) {
       return;
     case 'shop': {
       // paused freezes the clock ONLY — everyone readying up still starts the
-      // round, so a pause can never hold the lobby hostage
-      if (!state.shopPaused) state.phaseT -= dt;
+      // round, so a pause can never hold the lobby hostage. Testing mode never
+      // runs the clock at all: readying up is the only way forward.
+      if (!state.shopPaused && !state.testing) state.phaseT -= dt;
       const everyoneReady = Object.values(state.players).length > 0 &&
         Object.values(state.players).every(p => p.bot || p.spectator || p.shopReady);
       if ((state.phaseT <= 0 && !state.shopPaused) || everyoneReady) startRound(state);
@@ -2189,6 +2208,8 @@ export function snapshot(state, viewerId = null) {
     // which shelves are empty this game. Both absent while the toggle is off, so
     // a classic snapshot is unchanged.
     ...(state.draft ? { draft: true, draftPool: state.draftPool || [] } : {}),
+    // testing sandbox flag (so the lobby toggle reads back and the shop shows ∞)
+    ...(state.testing ? { testing: { gold: state.testing.gold } } : {}),
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
     pillars: (state.pillars || []).map(p => ({

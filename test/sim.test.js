@@ -3,7 +3,7 @@ import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
-  setDraft, draftPick, draftDue, MODES, pickPrey, killLead,
+  setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
@@ -3799,6 +3799,42 @@ describe('co-op: campaign scaling rule', () => {
 // DRAFT.EVERY_ROUNDS rounds. Every number below is read from DRAFT / the
 // catalogue, never hardcoded (AGENTS.md scar: round-11 tests broke on intended
 // retunes purely because they pinned constants).
+
+describe('testing sandbox 🧪', () => {
+  it('chosen gold, opens in an UNTIMED shop, ready-up starts round 1', () => {
+    const state = createGame({ seed: 42, mode: 'elemental' });
+    addPlayer(state, 'a', 'A');
+    addPlayer(state, 'b', 'B');
+    setTesting(state, true, 120);
+    startGame(state);
+    expect(state.phase).toBe('shop');
+    expect(state.round).toBe(0);              // no round fought yet
+    expect(state.players.a.gold).toBe(120);
+    expect(state.players.b.gold).toBe(120);
+    expect(snapshot(state).testing.gold).toBe(120);
+    run(state, ROUND.SHOP_TIME + 2);           // the clock never runs
+    expect(state.phase).toBe('shop');
+    expect(buy(state, 'a', 'ember').ok).toBe(true);  // and the shop is real
+    setShopReady(state, 'a');
+    setShopReady(state, 'b');
+    step(state, DT);
+    expect(state.phase).toBe('countdown');
+    expect(state.round).toBe(1);
+  });
+
+  it('is lobby-only, clamps the gold, and toggles off clean', () => {
+    const state = createGame({ seed: 42, mode: 'classic' });
+    addPlayer(state, 'a', 'A');
+    setTesting(state, true, 5000);
+    expect(state.testing.gold).toBe(999);      // clamped
+    setTesting(state, false);
+    expect(state.testing).toBe(null);
+    startGame(state);
+    expect(state.phase).toBe('countdown');     // off = the normal game
+    setTesting(state, true, 50);               // mid-game: ignored
+    expect(state.testing).toBe(null);
+  });
+});
 
 describe('draft mode 🎴', () => {
   // a game already in its first shop, with the toggle in whatever state

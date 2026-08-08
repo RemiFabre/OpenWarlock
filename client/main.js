@@ -545,6 +545,15 @@ $('modeBtn').addEventListener('click', () => {
 });
 // draft is an INDEPENDENT flag, not a fourth ruleset: it rides on top of
 // whichever of the three is selected (docs/ROUND12.md S7)
+$('testingBtn').addEventListener('click', () => {
+  const s = latest();
+  send({ t: 'testing', on: !(s && s.testing), gold: +$('testingGold').value || 0 });
+});
+$('testingGold').addEventListener('change', () => {
+  const s = latest();
+  if (s && s.testing)
+    send({ t: 'testing', on: true, gold: +$('testingGold').value || 0 });
+});
 $('draftBtn').addEventListener('click', () => {
   const s = latest();
   send({ t: 'draft', on: !(s && s.draft) });
@@ -1400,6 +1409,15 @@ function updateUi(s) {
     draftBtn.textContent = draftOn ? 'Draft: 🎴 on' : 'Draft: off';
     draftBtn.classList.toggle('elemental', draftOn);
     draftBtn.setAttribute('aria-pressed', draftOn ? 'true' : 'false');
+    // testing sandbox toggle + its gold field (a flag like draft)
+    const testBtn = $('testingBtn'), testGold = $('testingGold');
+    const testOn = !!s.testing;
+    testBtn.textContent = testOn ? 'Testing: 🧪 on' : 'Testing: off';
+    testBtn.classList.toggle('elemental', testOn);
+    testBtn.setAttribute('aria-pressed', testOn ? 'true' : 'false');
+    testGold.style.display = testOn ? '' : 'none';
+    if (testOn && document.activeElement !== testGold)
+      testGold.value = s.testing.gold;
   }
 
   if (s.phase === 'shop') {
@@ -1417,8 +1435,10 @@ function updateUi(s) {
       { showRound: true });
     const timer = $('shopTimer');
     const pausedBy = shopPausedBy;
-    timer.textContent = pausedBy ? '⏸ paused' : `${Math.ceil(phaseT)} s`;
-    timer.classList.toggle('low', !pausedBy && phaseT <= 5);
+    // testing: the shop clock never runs — only readying up moves the game on
+    timer.textContent = pausedBy ? '⏸ paused'
+      : s.testing ? '🧪 ∞' : `${Math.ceil(phaseT)} s`;
+    timer.classList.toggle('low', !pausedBy && !s.testing && phaseT <= 5);
     timer.classList.toggle('paused', !!pausedBy);
     const pauseBtn = $('shopPauseBtn');
     pauseBtn.textContent = pausedBy ? '▶ Resume' : '⏸ Pause';
@@ -1458,6 +1478,7 @@ function updateUi(s) {
   } else if (s.phase === 'shop') {
     $('phasebar').textContent = shopPausedBy
       ? `⏸ shop paused by ${shopPausedBy}`
+      : s.testing ? '🧪 testing — ready up to start the round'
       : `next round in ${Math.ceil(phaseT)} s`;
   }
 

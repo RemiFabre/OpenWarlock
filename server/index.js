@@ -11,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
-  setSpectator, fighters, setMode, setDraft, draftPick,
+  setSpectator, fighters, setMode, setDraft, setTesting, draftPick,
 } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE, BOTS, BUILDS } from '../shared/constants.js';
 
@@ -144,10 +144,12 @@ function resetToLobby() {
   ghosts.clear(); // progress stashes never outlive the game they came from
   const old = game.players;
   const wasDraft = game.draft;
+  const wasTesting = game.testing;
   // the ruleset (like avatars) survives "play again"
   game = createGame({ seed: SEED + game.round + 1, mode: game.mode });
-  // ...and so does the draft toggle (the pool itself is re-rolled per game)
+  // ...and so do the draft and testing toggles (the pool is re-rolled per game)
   game.draft = wasDraft;
+  game.testing = wasTesting;
   // the new game starts with an empty events array; a stale counter would
   // make the journal skip the first events of the new game
   journaledEvents = 0;
@@ -306,6 +308,11 @@ wss.on('connection', (ws, req) => {
         // draft mode is an INDEPENDENT flag, not a fourth ruleset: it composes
         // with classic, elemental and co-op. Lobby only, like 'mode'.
         setDraft(game, !!m.on);
+        break;
+      case 'testing':
+        // testing sandbox: chosen starting gold, game opens in an untimed
+        // shop. A flag like draft, lobby only; setTesting validates.
+        setTesting(game, !!m.on, m.gold);
         break;
       case 'draftPick': {
         const r = draftPick(game, id, String(m.id || ''));
