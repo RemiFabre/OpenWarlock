@@ -36,10 +36,8 @@ Agent context usage on this project is **CRITICAL**. The rules:
   on-hit riders, 3 procs per armed+cashed pair, levels = fireball haste
   [20,40,60]). 245 tests green, client screenshotted. Story: REMI_NOTES.md;
   numbers: BALANCE.md §Round 18.
-- **ROUND17 shipped in full and pushed** earlier the same day (all four
-  sessions + the battery + the live batch: sandbox, boltDodge, NO PASSIVE
-  REGEN, Blink, unlimited pillars, 17.2 momentum/venom/midas/Swap). Questions
-  J and G CLOSED. Evidence: `docs/history/2026-08-08-round17-battery.md`.
+- **ROUND17 shipped and pushed** earlier the same day (NO PASSIVE REGEN, the
+  17.2 batch; J and G CLOSED) — `docs/history/2026-08-08-round17-battery.md`.
 - **Waiting on Remi — questions K/L/M in BALANCE.md** (momentum on bot
   tables — reads 99.6-100% on the element mirror since the 17.2 uncapped
   ramp, flagged not nerfed; sword mandatory-by-structure; CDR bottom-third)
@@ -168,9 +166,8 @@ build step, Node ESM, only dep is `ws`.
 - `npm run host` → cloudflared quick tunnel (URL changes each restart).
 - ws heartbeat + lobby ban button handle ghost players; reconnect persistence
   restores progress by normalized name within 10 min (e2e test-locked).
-- Per-player ping (round 18): a SECOND 2 s ws ping stream with a timestamp
-  payload → `pings` blob beside snap → colored ms badge. Never fold its
-  cadence into the 15 s reaper (that would cut stall tolerance 30 s → 4 s).
+- Per-player ping (round 18): a SECOND 2 s ws ping stream (timestamp payload)
+  → `pings` beside snap → ms badge. NEVER fold its cadence into the reaper.
 - Final standings wait for every human (45 s grace). After pulling: restart
   the server AND hard-refresh clients.
 
