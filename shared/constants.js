@@ -265,7 +265,7 @@ export const ITEMS = {
   // affects ALL spells is thematically an item. `costs` is a per-level price
   // array (itemCost reads it); items without one keep their flat cost.
   hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
-            desc: 'ALL your cooldowns run faster: +10 Ability Haste, then +22 and +38' },
+            desc: 'ALL your cooldowns run faster: +8 Ability Haste, then +18 and +28' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -295,8 +295,10 @@ export const ITEM_FX = {
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
   // haste SUMS across sources — so stacking it with arcane's fireball haste
   // has diminishing returns where the old multipliers compounded (midas-cdr
-  // 86% — BALANCE.md question J). Converted value-neutral from [0.9,0.81,0.72].
-  hourglass: { haste: [10, 22, 38] },
+  // 86% — question J, closed). Value-neutral conversion was [10,22,38];
+  // trimmed to meet the "no mandatory items" ladder ruling (lv0 7.1 → 12.9%).
+  // history: docs/history/2026-08-08-round17-battery.md
+  hourglass: { haste: [8, 18, 28] },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------

@@ -31,3 +31,5 @@ is CRITICAL, so the living docs stay lean and everything historical lands here.*
 | `2026-08-08-remi-notes-rounds-1-15.md` | REMI_NOTES.md rounds 1-15 (round 16 onward stays in the living file until superseded) |
 | `2026-08-08-constants-sweeps.md` | the sweep tables and design-history comment blocks extracted from `shared/constants.js`, one section per constant |
 | `2026-08-08-round17-bot-targeting-softmax.md` | ROUND17 §11: the `BOT_TARGETING` softmax, the TEMPERATURE sweep (targeting convergence + h2h ladder), and why the new arena focus metric does not move |
+| `2026-08-08-round17-battery.md` | the ROUND17 Session B battery: mixed tables, strategy study, item ladders, the venom tick sweeps (96→56), the momentum threshold sweep, the sword structural finding, and the final tables at HEAD |
+| `2026-08-08-remi-notes-round-16.md` | REMI_NOTES.md round 16 (archived when round 17 was written) |

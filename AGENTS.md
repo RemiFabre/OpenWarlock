@@ -30,19 +30,23 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **ROUND17 Session A shipped** (2026-08-08, 4 commits): §1 co-op mothballed
-  (off the lobby button, code/tests live), §4 CDR → additive Ability Haste
-  (hourglass +10/+22/+38 all spells, arcane +18/+39 fireball-only), §3 Hook →
-  Swap (full position+velocity exchange, 1 dmg stamps the lava credit), §2
-  Lightning → telegraphed sky-bolt (2.2 zone, 0.5 s delay, falloff, radial kb,
-  ignores cover; bots lead by the delay and step out of telegraphs). ALL new
-  numbers are FIRST TRY and unmeasured. Story: REMI_NOTES.md.
-- **NEXT: `docs/ROUND17.md` Session B** (§5 midas mark → §6 momentum tiers →
-  §7 venom → §8 ember → §9 sustain, then the ONE measurement battery), then
-  Session C (§11 bots, own agent) and Session D (§12 visuals + §10, own agent).
-- **Still waiting on Remi**: the round-13/16 feel items. Questions A, C and
-  G's shape were RULED in ROUND17 (§9, §7); J (midas-cdr) is expected to be
-  resolved by §4 (shipped) + §5 — verify in Session B's battery.
+- **ROUND17 shipped IN FULL** (2026-08-08, all four sessions + battery,
+  pushed): haste, Swap, sky-bolt, midas mark, momentum tiers, venom
+  de-stacked, ember trim, sustain pass + full-stop regen lock, softmax bot
+  targeting, layered projectile visuals, shop rows, co-op mothballed. Plus
+  Remi's live requests: the 🧪 testing sandbox (lobby flag: chosen gold,
+  untimed first shop), `boltDodge` (Hard dodges 50% of sky-bolts, committed
+  per bolt), and rewritten AI strategy texts. Two measured retunes beyond the
+  plan: venom `tickDmg [0.5,1,1.5]` and hourglass `haste [8,18,28]`.
+- **Question J (midas-cdr) is CLOSED** — 86% → 24.3% (baseline). Question G
+  closed by §7 + the retune. Full evidence:
+  `docs/history/2026-08-08-round17-battery.md`.
+- **Waiting on Remi — new questions K/L/M in BALANCE.md**: momentum #1 on bot
+  tables (bot-inflation shape, lever measured), the Blood Sword mandatory by
+  STRUCTURE under the full-stop lock (knob measured, doesn't fix), CDR builds
+  now bottom-third. Plus the standing feel items (B, E, F, H).
+- ⚠ STRATEGIES.md's 25-row table predates the softmax bots + venom retune —
+  re-run `tools/strategy-study.js` before quoting it.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
