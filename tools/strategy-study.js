@@ -29,6 +29,9 @@ import fs from 'node:fs';
 import { playGame } from './arena.js';
 import { makeRng } from '../shared/sim.js';
 
+// progress ticks only for humans at a terminal (Remi's context policy)
+const progress = process.stderr.isTTY ? console.error : () => {};
+
 // One canonical breadth pass: everything a berserker/stalker can use, sustain
 // and damage first. Repeated 3x so every level of everything is eventually
 // reachable (a list entry buys at most one level per shop pass).
@@ -181,7 +184,7 @@ export function priorityList(name) {
 
 export function runStrategyStudy({
   games = 4000, seed = 1, kind = 'berserker', names = Object.keys(STRATEGIES),
-  log = console.error,
+  log = progress,
 } = {}) {
   const wins = Object.fromEntries(names.map(n => [n, 0]));
   const played = Object.fromEntries(names.map(n => [n, 0]));

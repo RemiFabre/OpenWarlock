@@ -23,6 +23,12 @@ import {
 import { ownedLevel } from '../shared/catalogue.js';
 
 const DT = 1 / 30;
+
+// Progress ticks ("400/1000 games (12s)") are for a human watching a terminal.
+// When stderr is NOT a TTY — an agent, a pipe, CI — they are pure context
+// noise, so they are silenced (Remi's context policy, 2026-08-08). The
+// one-line run banners stay: they identify what a saved output file was.
+const progress = process.stderr.isTTY ? console.error : () => {};
 const MAX_TICKS = 30 * 60 * 45; // 45 sim-minutes hard cap per game
 
 // ---- build schemes --------------------------------------------------------
@@ -127,7 +133,7 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
 // degenerate element (e.g. a midas gold snowball) shows up as a win-rate or
 // gold outlier. Not a tuning tool — a smoke alarm.
 
-export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, log = console.error } = {}) {
+export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const elements = Object.keys(ELEMENTS);
   const wins = Object.fromEntries(elements.map(e => [e, 0]));
   const played = Object.fromEntries(elements.map(e => [e, 0]));
@@ -203,7 +209,7 @@ function makeElo(ids) {
 // are already winning (they live long and stack gold), which inflates their
 // "winner-held" share. Buying the probe item first removes that.
 
-export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, log = console.error } = {}) {
+export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const TAIL = ['fireball', 'fireball', 'amulet', 'boots'];
   const probes = ['treads', 'cape', 'ring', 'sword', 'boots', 'amulet', 'none'];
   const priorities = (p) => (p === 'none' ? TAIL : [p, ...TAIL.filter(x => x !== p)]);
@@ -474,7 +480,7 @@ export function runLevelLadder({
 
 // ---- study ----------------------------------------------------------------------
 
-export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = console.error } = {}) {
+export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const strats = strategies();
   const elo = makeElo(strats.map(s => s.id));
   const wins = Object.fromEntries(strats.map(s => [s.id, 0]));
@@ -544,7 +550,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = con
 // profile confound (skill dwarfs shopping) and answers the real balance
 // question: within one skill tier, is any build a trap or an auto-win?
 
-export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, log = console.error } = {}) {
+export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const builds = Object.keys(BUILDS);
   const wins = Object.fromEntries(builds.map(b => [b, 0]));
   const played = Object.fromEntries(builds.map(b => [b, 0]));
@@ -670,7 +676,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     console.log('item     cost  lv0    lv1    lv2    lv3     (win%, baseline 25.0)');
     const out = [];
     for (const k of keys) {
-      const r = runLevelLadder({ thing: k, games, seed, kind, log: console.error });
+      const r = runLevelLadder({ thing: k, games, seed, kind, log: progress });
       out.push(r);
       const cells = r.rows.map(x => (x.winRate * 100).toFixed(1).padStart(5)).join('  ');
       console.log(`${k.padEnd(8)} ${String(r.cost).padStart(4)}  ${cells}`);
@@ -690,7 +696,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     // what to measure, and at which levels
     let jobs = [];
     if (isolate === 'self-test') {
-      const r = runIsolationSelfTest({ games, seed, kind, control, log: console.error });
+      const r = runIsolationSelfTest({ games, seed, kind, control, log: progress });
       console.log(`\n=== isolation SELF-TEST: all four seats carry the control ===`);
       console.log(`${r.games} games. Expected 25.0% / +0.0 by symmetry.`);
       console.log(`measured ${(r.winRate * 100).toFixed(1)}%  (isolated ${r.isolated >= 0 ? '+' : ''}${r.isolated.toFixed(1)})`);
@@ -725,7 +731,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
       `${kind}, control=${control}, seed ${seed}`);
     const rows = [];
     for (const job of jobs) {
-      const r = runIsolation({ ...job, games, seed, kind, control, tail, log: console.error });
+      const r = runIsolation({ ...job, games, seed, kind, control, tail, log: progress });
       rows.push(r);
       console.error(`  ${r.thing} lv${r.level}: ${(r.winRate * 100).toFixed(1)}%`);
     }

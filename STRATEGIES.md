@@ -54,7 +54,7 @@ reading its priorities: what it wants first is what the strategy is about.
 ## Player strategies — the round-16 study roster
 
 *Round 16 made elements the fireball's whole progression, and the strategy
-study (`node tools/strategy-study.js`, report in BALANCE.md §0) ranks complete
+study (`node tools/strategy-study.js`; current findings in BALANCE.md, full round-16 report in `docs/history/2026-08-08-round15-16-balance-full.md`) ranks complete
 SHOPPING STRATEGIES rather than the six bot builds above. A study strategy is
 an **exhaustive** ordered buy list: a core (its identity, below) plus a shared
 breadth tail over everything a bot can pilot, so there is always something to
@@ -102,7 +102,7 @@ aimed elements (midas, gale, ghost, all-cheap) reward good pilots; HP and
 lifesteal reward bad ones.
 
 **Which strategy fits which difficulty**: see the build × tier mirror table in
-`BALANCE.md` §7 (1500 mirror games per tier). It used to be restated here, which
+`docs/history/2026-08-08-round15-16-balance-full.md` §7 (1500 mirror games per tier). It used to be restated here, which
 meant every retune had to be typed into two files and the copies drifted — read
 it there. (The pointer used to say "report #4"; that report is now in git history
 at `33b64ab:BALANCE.md` and the live table is the round-15 one.)
