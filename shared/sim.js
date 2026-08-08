@@ -2337,12 +2337,27 @@ function boltEscape(state, pl) {
   for (const m of state.bolts) {
     const dd = Math.hypot(pl.x - m.x, pl.y - m.y);
     if (dd < SPELLS.lightning.radius + pl.radius + 0.6 && dd < worstD) {
+      // Not an oracle (Remi, round 17): the bot COMMITS once per bolt to
+      // whether it bothers dodging — BOTS[kind].boltDodge of the time it
+      // steps out, otherwise it eats this one on purpose. The roll is stored
+      // on the bolt per bot: re-rolling every decision tick would compound
+      // back into a near-certain dodge.
+      const rolls = m._dodge || (m._dodge = {});
+      if (rolls[pl.id] === undefined) {
+        const spec = BOTS[pl.kind];
+        const chance = spec && spec.boltDodge != null ? spec.boltDodge : 1;
+        rolls[pl.id] = rng(state) < chance;
+      }
+      if (!rolls[pl.id]) continue;
       worst = m; worstD = dd;
     }
   }
   if (!worst) return null;
-  const dd = worstD > 1e-6 ? worstD : 1;
-  const nx = (pl.x - worst.x) / dd, ny = (pl.y - worst.y) / dd;
+  // dead-centered bolt (the classic "dropped right on you"): any direction
+  // beats a zero vector, which would "escape" to the zone center itself
+  let nx = pl.x - worst.x, ny = pl.y - worst.y;
+  if (worstD > 1e-6) { nx /= worstD; ny /= worstD; }
+  else { nx = 1; ny = 0; }
   const hop = SPELLS.lightning.radius + pl.radius + 1.5;
   let ex = worst.x + nx * hop, ey = worst.y + ny * hop;
   // never step out of the bolt into the lava: cross to the far side instead

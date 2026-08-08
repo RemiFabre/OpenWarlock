@@ -3396,6 +3396,50 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
   });
 });
 
+describe('bot telegraph dodge (boltDodge)', () => {
+  // Remi, round 17: Hard dodging 100% of sky-bolts was too tough — the dodge
+  // is a committed per-bolt roll now. 0 and 1 make it deterministic to test;
+  // the shipped values live in BOTS and are the tuning surface.
+  const escapeDist = (chance) => {
+    const state = createGame({ seed: 5 });
+    addPlayer(state, 'h', 'H');
+    addPlayer(state, 'b', 'Bot', { bot: true, kind: 'berserker' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const bot = state.players.b, h = state.players.h;
+    state.pillars = [];
+    bot.x = 0; bot.y = 0; bot.vx = 0; bot.vy = 0;
+    h.x = 30; h.y = 0; h.spells.lightning = 1;
+    castSpell(state, 'h', 'lightning', 0, 0);   // bolt centered on the bot
+    const saved = BOTS.berserker.boltDodge;
+    try {
+      BOTS.berserker.boltDodge = chance;
+      bot._botT = 0;
+      stepBot(state, 'b', DT);
+    } finally {
+      BOTS.berserker.boltDodge = saved;
+    }
+    // where did the decision send it? a dodge hop lands just outside the zone
+    // (~5 u from the bolt center); the normal hunt ring is ~20 u away at the prey
+    return bot.moveTarget ? Math.hypot(bot.moveTarget.x, bot.moveTarget.y) : 0;
+  };
+
+  it('boltDodge 1 steps out of the zone; 0 commits to eating the bolt', () => {
+    expect(escapeDist(1)).toBeGreaterThan(SPELLS.lightning.radius);
+    expect(escapeDist(1)).toBeLessThan(8);
+    expect(escapeDist(0)).toBeGreaterThan(12); // went hunting instead
+  });
+
+  it('every tier carries an explicit boltDodge (grunts never dodge at all)', () => {
+    for (const kind of ['brawler', 'berserker', 'stalker']) {
+      expect(BOTS[kind].boltDodge).toBeGreaterThan(0);
+      expect(BOTS[kind].boltDodge).toBeLessThanOrEqual(1);
+    }
+    // Hard is the tier the request named: a coin flip, not an oracle
+    expect(BOTS.berserker.boltDodge).toBeLessThanOrEqual(0.5);
+  });
+});
+
 describe('vanish 👁️ (invisibility)', () => {
   const spec = SPELLS.vanish;
 

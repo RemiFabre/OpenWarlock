@@ -433,18 +433,21 @@ export const COLORS = [
 export const BOTS = {
   grunt:     { name: 'Grunt', label: 'Easy', difficulty: 1, brain: 'grunt',
                desc: 'Wanders and throws at nothing in particular. Cannon fodder.' },
+  // boltDodge (round 17, Remi: "Hard dodging 100% of lightnings is a bit
+  // tough"): the chance a bot bothers stepping out of a sky-bolt telegraph,
+  // committed ONCE per bolt. Missing = always dodges.
   brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
-               react: [0.30, 0.16], aimErr: [0.9, 0.16],
+               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35,
                desc: 'Hunts you and trades, but it reads you slowly and its aim is loose. A fair fight.' },
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
-               react: [0.16, 0.10], aimErr: [0.35, 0.10],
+               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5,
                desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well.' },
   // ⚠ stalker aimErr is [0.4, 0.05] on purpose (bigger floor, much flatter
   // distance term = accurate at range) — NOT the berserker's pair; 65f5597
   // copied that in by mistake. Corrected with no behaviour change (h2h verified).
   // history: docs/history/2026-08-08-constants-sweeps.md#bots-stalker-aimerr
   stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
-               react: [0.12, 0.08], aimErr: [0.4, 0.05],
+               react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 0.85,
                desc: 'Dodges your projectiles, leads its shots, and saves itself with teleport and shield.' },
 };
 
