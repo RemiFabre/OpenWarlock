@@ -261,6 +261,55 @@ describe('bot builds & piloting', () => {
     expect(state.projectiles.some(p => p.type === 'boomerang')).toBe(true);
   });
 
+  // Round 17 §11: two spells no bot build list contains — they reach a bot
+  // through the draft today, and through Remi's power-tier ruling tomorrow.
+  function pilotBattle(setup) {
+    const state = freshBattle(3);
+    state.pillars = [];                       // only the bot's own cover, please
+    const a = state.players.p0;
+    a.bot = true; a.kind = 'berserker'; a.x = 0; a.y = 0;
+    setup(state, a);
+    for (let i = 0; i < 60; i++) stepBot(state, 'p0', DT);
+    return state;
+  }
+
+  it('a ganged-up-on bot raises its pillar BETWEEN itself and the threat', () => {
+    const state = pilotBattle((state, a) => {
+      a.spells.pillar = 1;
+      state.players.p1.x = 12; state.players.p1.y = 0;   // two of them, both close
+      state.players.p2.x = 14; state.players.p2.y = 3;
+    });
+    const pil = state.pillars.find(p => p.placedBy === 'p0');
+    expect(pil).toBeTruthy();
+    // on the threat's side, clear of our own body, and short of the threat
+    expect(pil.x).toBeGreaterThan(state.players.p0.radius + pil.r);
+    expect(pil.x).toBeLessThan(12);
+    expect(Math.abs(pil.y)).toBeLessThan(pil.r);
+  });
+
+  it('one enemy at full health is not worth a pillar', () => {
+    const state = pilotBattle((state, a) => {
+      a.spells.pillar = 1;
+      state.players.p1.x = 12; state.players.p1.y = 0;
+      state.players.p2.x = 0; state.players.p2.y = -40;  // far away: not a gang
+    });
+    expect(state.pillars.some(p => p.placedBy === 'p0')).toBe(false);
+  });
+
+  it('Swap is the lava save: fired at somebody safely inside while flying out', () => {
+    const state = pilotBattle((state, a) => {
+      a.spells.swap = 1;
+      a.x = state.arenaRadius - 4; a.y = 0;
+      a.vx = PLAYER.SPEED * 3; a.vy = 0;                 // knocked straight out
+      state.players.p1.x = state.arenaRadius - 30;       // standing safe inside
+      state.players.p1.y = 0;
+      state.players.p2.x = state.arenaRadius - 1; state.players.p2.y = 4; // also doomed
+    });
+    const shot = state.projectiles.find(p => p.type === 'swap' && p.owner === 'p0');
+    expect(shot).toBeTruthy();
+    expect(shot.vx).toBeLessThan(0);   // aimed inward, at the one worth trading with
+  });
+
   it('unknown builds are rejected at addPlayer (no crash later)', () => {
     const state = createGame({ seed: 6 });
     const pl = addPlayer(state, 'b1', 'x', { bot: true, kind: 'grunt', build: 'nonsense' });
@@ -4117,7 +4166,7 @@ describe('draft mode 🎴', () => {
   });
 });
 
-describe('bots pressure the kill leader (BOT_TARGETING.LEADER_BIAS)', () => {
+describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () => {
   // Geometry, chosen so the ONLY thing that differs between the two candidates
   // is distance and kill count:
   //   bot at (0, -14) · "near" at (0, -4) · "leader" at (0, +4)
@@ -4146,6 +4195,22 @@ describe('bots pressure the kill leader (BOT_TARGETING.LEADER_BIAS)', () => {
     return state;
   }
 
+  // Round 17 §11: the pick is a SOFTMAX DRAW, so one call is a sample and not
+  // an answer. Every behaviour assertion below is a frequency over draws, and
+  // every threshold is derived from BOT_TARGETING — never a pinned literal.
+  const DRAWS = 2000;
+  function preyShare(state, id) {
+    let hits = 0;
+    for (let i = 0; i < DRAWS; i++) if (pickPrey(state, state.players.bot).id === id) hits++;
+    return hits / DRAWS;
+  }
+  // With exactly two candidates the softmax collapses to the plain logistic:
+  // the odds of picking the one whose score is `advantage` arena units BETTER
+  // (lower) than the other. This is the shape the draw is checked against.
+  const pick = (advantage) =>
+    1 / (1 + Math.exp(-advantage / BOT_TARGETING.TEMPERATURE));
+  const DIST_GAP = GAP * BOT_TARGETING.PROXIMITY;   // the near one's head start
+
   it('the bias only bites in the band the constant defines — spec, not literals', () => {
     // A lead of 1 must NOT cover GAP units; a runaway lead must. Everything the
     // two behaviour tests below assert follows from these two inequalities, so
@@ -4155,25 +4220,68 @@ describe('bots pressure the kill leader (BOT_TARGETING.LEADER_BIAS)', () => {
     expect((ROUND.KILLS_TO_WIN - 1) * BOT_TARGETING.LEADER_BIAS).toBeGreaterThan(GAP);
   });
 
+  it('the draw follows the spec: two candidates, odds set by TEMPERATURE', () => {
+    // The whole point of §11: the tastiest target is FAVOURED, not mandated —
+    // four bots stop converging on one victim. A level field leaves only the
+    // distance term, so the measured share must land on the logistic the
+    // constants predict, and both candidates must really get picked.
+    expect(BOT_TARGETING.TEMPERATURE).toBeGreaterThan(0);
+    const expected = pick(DIST_GAP);
+    expect(expected).toBeLessThan(0.95);   // a draw, not a disguised argmin
+    expect(preyShare(duelBattle(), 'near')).toBeCloseTo(expected, 1);
+  });
+
   it('a runaway kill leader is hunted over the closer enemy', () => {
     const state = duelBattle();
     state.players.lead.kills = ROUND.KILLS_TO_WIN - 1;
-    expect(pickPrey(state, state.players.bot).id).toBe('lead');
+    const edge = (ROUND.KILLS_TO_WIN - 1) * BOT_TARGETING.LEADER_BIAS *
+      BOT_TARGETING.PROXIMITY - DIST_GAP;
+    expect(pick(edge)).toBeGreaterThan(0.9);          // the spec makes it lopsided
+    expect(preyShare(state, 'lead')).toBeCloseTo(pick(edge), 1);
   });
 
-  it('a level field barely moves the choice: the closer enemy still wins', () => {
+  it('a level field barely moves the choice: the closer enemy is still the usual pick', () => {
     const state = duelBattle();
     // dead level: identical to having no mechanism at all
-    expect(pickPrey(state, state.players.bot).id).toBe('near');
+    expect(preyShare(state, 'near')).toBeCloseTo(pick(DIST_GAP), 1);
     // one kill ahead is "5 vs 4", which must not be enough to cross the arena
     state.players.lead.kills = 1;
-    expect(pickPrey(state, state.players.bot).id).toBe('near');
+    const oneKill = DIST_GAP - BOT_TARGETING.LEADER_BIAS * BOT_TARGETING.PROXIMITY;
+    expect(oneKill).toBeGreaterThan(0);               // still the near one's fight
+    expect(preyShare(state, 'near')).toBeCloseTo(pick(oneKill), 1);
     // and it is genuinely inert, not merely outweighed: the bot that is ITSELF
     // ahead sees a lead of 0 on everyone (the bounty's floor-at-zero rule)
     state.players.bot.kills = ROUND.KILLS_TO_WIN - 1;
     state.players.lead.kills = ROUND.KILLS_TO_WIN - 1;
     expect(killLead(state.players.bot, state.players.lead)).toBe(0);
-    expect(pickPrey(state, state.players.bot).id).toBe('near');
+    expect(preyShare(state, 'near')).toBeCloseTo(pick(DIST_GAP), 1);
+  });
+
+  it('the wounded are finished: MISSING hp pulls the pick, not absolute hp', () => {
+    const state = duelBattle();
+    // enough missing hp on the FAR one to out-weigh its distance handicap
+    const missing = Math.ceil(DIST_GAP / BOT_TARGETING.WOUNDED) + 10;
+    state.players.lead.hp = state.players.lead.maxHp - missing;
+    const edge = missing * BOT_TARGETING.WOUNDED - DIST_GAP;
+    expect(edge).toBeGreaterThan(0);
+    expect(preyShare(state, 'lead')).toBeCloseTo(pick(edge), 1);
+  });
+
+  it('my own marks pull the pick — and only mine (the stack store is private)', () => {
+    const marks = Math.ceil(DIST_GAP / BOT_TARGETING.MY_STACKS) + 2;
+    const edge = marks * BOT_TARGETING.MY_STACKS - DIST_GAP;
+    expect(edge).toBeGreaterThan(0);
+
+    const mine = duelBattle();
+    mine.players.lead.stacks = { frost: { bot: marks } };
+    expect(preyShare(mine, 'lead')).toBeCloseTo(pick(edge), 1);
+
+    // the same marks placed by SOMEBODY ELSE are invisible to this bot: they
+    // are not its investment, and knowing about them would be a free read on
+    // another player's setup
+    const theirs = duelBattle();
+    theirs.players.lead.stacks = { frost: { near: marks } };
+    expect(preyShare(theirs, 'near')).toBeCloseTo(pick(DIST_GAP), 1);
   });
 
   it('the lead is exactly the gold bounty gap: per-observer and floored at 0', () => {
@@ -4197,7 +4305,7 @@ describe('bots pressure the kill leader (BOT_TARGETING.LEADER_BIAS)', () => {
     state.players.bot._seen = {
       lead: { id: 'lead', x: lead.x, y: lead.y, hp: lead.hp, radius: lead.radius, t: state.time },
     };
-    expect(pickPrey(state, state.players.bot).id).toBe('lead');
+    expect(preyShare(state, 'lead')).toBeGreaterThan(0.8);
   });
 
   it('Extreme gets the same bias (its whole target choice is one call)', () => {
@@ -4235,25 +4343,31 @@ describe('bots pressure the kill leader (BOT_TARGETING.LEADER_BIAS)', () => {
   });
 
   it('co-op is exempt: the party is one team and a monster tally is not a race', () => {
-    const state = createGame({ seed: 5, mode: 'coop' });
-    addPlayer(state, 'a', 'Ally');
-    addPlayer(state, 'b', 'Ally2');
-    startGame(state);
-    run(state, ROUND.COUNTDOWN + DT);
-    const monsters = Object.values(state.players).filter(p => p.team === 'ai');
+    // Two identically seeded games differing ONLY in a monster's tally: same
+    // seed means the same rng stream, so if the tally were read at all the two
+    // draw sequences would diverge.
+    const build = (monsterKills) => {
+      const state = createGame({ seed: 5, mode: 'coop' });
+      addPlayer(state, 'a', 'Ally');
+      addPlayer(state, 'b', 'Ally2');
+      startGame(state);
+      run(state, ROUND.COUNTDOWN + DT);
+      state.pillars = [];
+      const monsters = Object.values(state.players).filter(p => p.team === 'ai');
+      monsters[0].kills = monsterKills;
+      return { state, monsters };
+    };
+    const { state, monsters } = build(ROUND.KILLS_TO_WIN);
     expect(monsters.length).toBeGreaterThanOrEqual(2);
     const [m1, m2] = monsters;
     // every co-op fighter, party or wave, carries a team — that is the switch
     expect(state.players.a.team).not.toBe(null);
     expect(m1.team).not.toBe(null);
-    m1.kills = ROUND.KILLS_TO_WIN;
     expect(killLead(state.players.a, m1)).toBe(0);   // a party member: no race
     expect(killLead(m2, state.players.a)).toBe(0);   // a monster: no race either
-    // and the pick is byte-identical to the pick with the leader's tally wiped
-    state.pillars = [];
-    const before = pickPrey(state, state.players.a);
-    m1.kills = 0;
-    expect(pickPrey(state, state.players.a)).toBe(before);
+    const seq = (s) => Array.from({ length: 50 },
+      () => { const p = pickPrey(s, s.players.a); return p && p.id; });
+    expect(seq(state)).toEqual(seq(build(0).state));
   });
 });
 

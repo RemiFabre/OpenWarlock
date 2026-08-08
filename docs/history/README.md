@@ -30,3 +30,4 @@ is CRITICAL, so the living docs stay lean and everything historical lands here.*
 | `2026-08-08-agents-full-pre-diet.md` | the complete AGENTS.md before the context diet (full scar stories, full rules snapshot, full debt list) |
 | `2026-08-08-remi-notes-rounds-1-15.md` | REMI_NOTES.md rounds 1-15 (round 16 onward stays in the living file until superseded) |
 | `2026-08-08-constants-sweeps.md` | the sweep tables and design-history comment blocks extracted from `shared/constants.js`, one section per constant |
+| `2026-08-08-round17-bot-targeting-softmax.md` | ROUND17 §11: the `BOT_TARGETING` softmax, the TEMPERATURE sweep (targeting convergence + h2h ladder), and why the new arena focus metric does not move |

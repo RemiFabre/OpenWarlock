@@ -454,13 +454,25 @@ export const BOTS = {
 // history: docs/history/2026-08-08-constants-sweeps.md#bot_memory
 export const BOT_MEMORY = 1.5;
 
-// ---- Bot targeting: comeback lever, a WEIGHT inside pickPrey (never an
-// override). Unit: arena units of apparent distance per kill of lead (per-
-// observer, floored at 0, FFA only). Swept: 2.5 = top of the useful range.
-// ⚠ Bots can't feel being ganged up on — if oppressive, 1.5 is the measured step down.
+// ---- Bot targeting (pickPrey). Every weight is in ARENA UNITS OF APPARENT
+// DISTANCE: a term worth 10 makes a target feel 10 units nearer. Round 17 §11:
+// the pick is a SOFTMAX DRAW over those scores, not an argmin — four bots no
+// longer all converge on one victim, which is the whole anti-focus fix.
+// ⚠ TEMPERATURE is the "how extreme" lever, same units: 0 = the old argmin, a
+// score gap of TEMPERATURE = ~73/27 odds. 6 is the SMALLEST setting that moves
+// the convergence number; the ladder was measured intact all the way to 14, so
+// raising it is cheap if bots still feel like they gang up.
+// LEADER_BIAS is per kill of lead (per-observer, floored at 0, FFA only).
 // history: docs/history/2026-08-08-constants-sweeps.md#bot_targeting
+//          docs/history/2026-08-08-round17-bot-targeting-softmax.md
 export const BOT_TARGETING = {
   LEADER_BIAS: 2.5,
+  TEMPERATURE: 6,
+  PROXIMITY: 0.8,      // per unit of real distance (the score's distance coefficient)
+  WOUNDED: 0.35,       // per missing HP — finish what someone already started
+  CROWD: 0.8,          // per unit of "how much backup this one has within 18"
+  RIM: 8,              // full bonus for standing on the edge, 0 at the centre
+  MY_STACKS: 4,        // per frost/gale/mosquito/midas mark of MINE on the body
 };
 
 // ---- Bot build strategies -------------------------------------------------
