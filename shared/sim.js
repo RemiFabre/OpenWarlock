@@ -2364,6 +2364,30 @@ function pilotOwnedSpells(state, pl, dt) {
         castSpell(state, pl.id, 'rush', 0, 0)) return; // dash is 5x walk speed
   }
 
+  // Swap as the lava save (round 17 §11): being launched at the rim is exactly
+  // what a position trade is for — hit anybody still standing safely inside and
+  // take their spot, sending them out with our momentum. Fired PREDICTIVELY,
+  // while the knockback is still carrying us: pl.vx/vy is pure knockback (walk
+  // speed lives in the move target), so a magnitude well above SPEED means we
+  // were hit hard, and the lookahead beats the projectile's own flight time.
+  // No build list contains a power spell, so today this only fires in draft.
+  const kbSpeed = Math.hypot(pl.vx, pl.vy);
+  if (arena > 2 && owns('swap') && kbSpeed > PLAYER.SPEED &&
+      Math.hypot(pl.x + pl.vx * 0.6, pl.y + pl.vy * 0.6) > arena) {
+    const reach = lvl(SPELLS.swap, 'range', pl.spells.swap);
+    let mark = null, markD = Infinity;
+    for (const e of enemiesSeen(state, pl)) {
+      if (Math.hypot(e.x, e.y) > arena - 4) continue;   // no point trading into the lava
+      const d = Math.hypot(e.x - pl.x, e.y - pl.y);
+      if (d > reach - 2 || d >= markD) continue;
+      mark = e; markD = d;
+    }
+    if (mark) {
+      const aim = interceptPoint(pl, mark, SPELLS.swap.speed);
+      if (castSpell(state, pl.id, 'swap', aim.x, aim.y)) return;
+    }
+  }
+
   // the ★ grunt is pure chaos by design (2026-08-06): it doesn't aim ANY of
   // its spells, it just lets them off in random directions. Shield is the one
   // exception — a randomly-timed shield is indistinguishable from no shield.
@@ -2396,6 +2420,21 @@ function pilotOwnedSpells(state, pl, dt) {
     let ex = pl.x - (tdx / dist) * 14, ey = pl.y - (tdy / dist) * 14;
     if (Math.hypot(ex, ey) > arena - 4) { ex = 0; ey = 0; }
     if (castSpell(state, pl.id, 'teleport', ex, ey)) return;
+  }
+
+  // Stone Pillar as cover (round 17 §11): raise it BETWEEN us and the nearest
+  // threat, but only when it is actually worth a cooldown — ganged up on (2+
+  // enemies inside the engagement ring) or hurt. Placed just outside our own
+  // body so it blocks the incoming line without shoving us, and never so close
+  // to the threat that it is behind them.
+  const GANG_R = 20, COVER_GAP = pl.radius + SPELLS.pillar.radius + 1;
+  if (owns('pillar') && dist > COVER_GAP + 4) {
+    let near = 0;
+    for (const e of enemiesSeen(state, pl))
+      if (Math.hypot(e.x - pl.x, e.y - pl.y) < GANG_R) near++;
+    const px = pl.x + (tdx / dist) * COVER_GAP, py = pl.y + (tdy / dist) * COVER_GAP;
+    if ((near >= 2 || pl.hp < pl.maxHp * 0.4) && Math.hypot(px, py) < arena - SPELLS.pillar.radius &&
+        castSpell(state, pl.id, 'pillar', px, py)) return;
   }
 
   // boomerang at anything the out-leg can reach. Aim error and engagement
@@ -2666,22 +2705,43 @@ function stepGrunt(state, pl, dt) {
   }
 }
 
+// The marks a bot can read on a body to mean "I have been working on this one":
+// every stacking element whose payoff comes from ITS OWN stacks piling up.
+// Private per attacker (stackCount), so this reads as "MY investment", never
+// "someone is about to pop this" — which would be information nobody has.
+const PREY_MARKS = ['frost', 'gale', 'mosquito', 'midas'];
+
 // Berserker target choice: closest wins, but wounded, isolated, rim-standing,
-// or FAR AHEAD ON KILLS enemies are tastier. Lower score = better prey.
+// carrying my marks, or FAR AHEAD ON KILLS enemies are tastier. Every term is
+// in arena units of apparent distance and every weight lives in BOT_TARGETING.
 //
-// The kill-lead term (2026-08-07) is deliberately one weighted term among five
-// and not a rule: at BOT_TARGETING.LEADER_BIAS = 2.5 a 10-kill lead is worth 25
-// arena units of apparent distance out of a 56-unit start radius, which flips
-// the choice between two roughly equal candidates and still loses to "half-dead
-// and 30 units nearer". That is the balance Remi asked for — a rebalancing
-// tendency, not a 3-v-1 rule.
+// Round 17 §11: this is a SOFTMAX DRAW, not an argmin. Four argmin bots in a
+// 4-player arena all compute the same "tastiest" answer and land on one victim
+// at once — the pile-on Remi asked us to break. The draw keeps the same
+// preferences (the best score is still the most likely pick) and just stops
+// them from being unanimous; BOT_TARGETING.TEMPERATURE is how far from the
+// argmin it goes. Uses the seeded rng, so a seed still replays exactly.
+//
+// The draw is FRESH ON EVERY CALL, not cached: pickPrey is called exactly once
+// per decision tick (stepBerserker, after its `_botT` clock fires), so "once
+// per call" already IS "re-rolled on the decision clock" — a cache would only
+// add a second notion of time that has to be kept in sync with the first.
+//
+// The kill-lead term (2026-08-07) is deliberately one weighted term among six
+// and not a rule: at LEADER_BIAS = 2.5 a 10-kill lead is worth 25 arena units
+// out of a 56-unit start radius, which flips the choice between two roughly
+// equal candidates and still loses to "half-dead and 30 units nearer". That is
+// the balance Remi asked for — a rebalancing tendency, not a 3-v-1 rule.
 //
 // Exported for the tests: this is THE bot-targeting seam, and the leader bias
 // is only observable here without reverse-engineering a strafe ring.
 export function pickPrey(state, pl) {
   const arena = Math.max(state.arenaRadius, 1);
+  const W = BOT_TARGETING;
   const enemies = enemiesSeen(state, pl);   // a vanished enemy is a memory or nothing
-  let best = null, bestScore = Infinity;
+  if (!enemies.length) return null;
+  const scores = [];
+  let bestScore = Infinity;
   for (const e of enemies) {
     const d = Math.hypot(e.x - pl.x, e.y - pl.y);
     let crowd = 0; // how much backup this enemy has nearby
@@ -2689,13 +2749,27 @@ export function pickPrey(state, pl) {
       if (o === e) continue;
       crowd += Math.max(0, 18 - Math.hypot(o.x - e.x, o.y - e.y));
     }
+    let mine = 0;  // marks I put on this body myself
+    for (const k of PREY_MARKS) mine += stackCount(e, k, pl.id);
     const rim = Math.min(1, Math.hypot(e.x, e.y) / arena); // 1 = at the edge
-    // 0.8 = this score's distance coefficient, so leadPull stays in arena units
-    const score = d * 0.8 + e.hp * 0.35 + crowd * 0.8 - rim * 8
-      - leadPull(pl, e) * 0.8;
-    if (score < bestScore) { best = e; bestScore = score; }
+    const missing = Math.max(0, (e.maxHp || e.hp) - e.hp);
+    const score = d * W.PROXIMITY + crowd * W.CROWD
+      - missing * W.WOUNDED - rim * W.RIM - mine * W.MY_STACKS
+      - leadPull(pl, e) * W.PROXIMITY;
+    scores.push(score);
+    if (score < bestScore) bestScore = score;
   }
-  return best;
+  // softmax over -score/T, offset by the best score so exp() never overflows.
+  // T <= 0 degenerates to the old argmin, which is a legitimate setting.
+  const t = W.TEMPERATURE;
+  if (!(t > 0)) return enemies[scores.indexOf(bestScore)];
+  const w = scores.map(s => Math.exp((bestScore - s) / t));
+  let roll = rng(state) * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < enemies.length; i++) {
+    roll -= w[i];
+    if (roll <= 0) return enemies[i];
+  }
+  return enemies[enemies.length - 1];   // float dust only
 }
 
 // -- berserker ★★: relentless brawler ---------------------------------------

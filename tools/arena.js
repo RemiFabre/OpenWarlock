@@ -50,6 +50,33 @@ export function strategies() {
   return out;
 }
 
+// ---- multi-enemy focus (round 17 §11) ---------------------------------------
+// The pain the stochastic pickPrey exists to fix: everyone converging on one
+// victim. A player is "focused" while 2+ living enemies stand inside FOCUS_R;
+// we only watch the opening FOCUS_WINDOW of each round, because that is where
+// the pile-on happens (later the field is thinned and 2+ nearby is just the
+// endgame). Sampled every FOCUS_EVERY ticks — cheap, and 5 Hz is far finer
+// than the phenomenon. Reported as the share of that window the average player
+// spends under it, so it is comparable across games of any length.
+// (Arena games are always free-for-all, so "enemy" is just "anybody else".)
+const FOCUS_R = 16, FOCUS_WINDOW = 20, FOCUS_EVERY = 6;
+
+function sampleFocus(state, acc) {
+  const alive = Object.values(state.players).filter(p => p.alive);
+  for (const p of alive) {
+    let near = 0;
+    for (const o of alive)
+      if (o !== p && Math.hypot(o.x - p.x, o.y - p.y) < FOCUS_R) near++;
+    acc.samples++;
+    if (near >= 2) acc.hits++;
+  }
+}
+
+const focusLine = (r) =>
+  `multi-enemy focus (2+ within ${r.focusRadius}u): ` +
+  `${(r.focusShare * r.focusWindow).toFixed(1)}s of the first ${r.focusWindow}s ` +
+  `(${(r.focusShare * 100).toFixed(1)}%)`;
+
 // ---- single game ------------------------------------------------------------
 // (The old harness-side boomerang assist is gone: shared/sim.js bots now
 // pilot every spell their build buys — boomerang included — so arena games
@@ -71,11 +98,13 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   let lastPhase = state.phase;
   // per-game trackers: kill causes (lava vs direct-damage) + comeback deficits
   let lavaDeaths = 0, directDeaths = 0;
+  const focus = { samples: 0, hits: 0 };
   const maxDeficit = Object.fromEntries(Object.keys(state.players).map(id => [id, 0]));
   while (state.phase !== 'gameover' && ticks++ < MAX_TICKS) {
     step(state, DT);
     if (state.phase === 'battle') {
       for (const id of Object.keys(state.players)) stepBot(state, id, DT);
+      if (state.time <= FOCUS_WINDOW && ticks % FOCUS_EVERY === 0) sampleFocus(state, focus);
     }
     // drain the transient event queue (the server normally does this) and
     // classify deaths: a death at a position outside the current arena radius
@@ -117,6 +146,7 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
     finished: state.phase === 'gameover',
     rounds: state.round,
     lavaDeaths, directDeaths,
+    focusSamples: focus.samples, focusHits: focus.hits,
     // comeback: the eventual winner was at some point >= 4 kills behind
     winnerMaxDeficit: maxDeficit[ranked[0].id],
     comeback: maxDeficit[ranked[0].id] >= 4,
@@ -488,6 +518,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = pro
   const rand = makeRng(seed);
   let unfinished = 0;
   let lavaDeaths = 0, directDeaths = 0, comebacks = 0, finished = 0;
+  let focusSamples = 0, focusHits = 0;
   const t0 = Date.now();
 
   for (let g = 0; g < games; g++) {
@@ -502,6 +533,8 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = pro
     finished++;
     lavaDeaths += res.lavaDeaths;
     directDeaths += res.directDeaths;
+    focusSamples += res.focusSamples;
+    focusHits += res.focusHits;
     if (res.comeback) comebacks++;
 
     const placement = res.ranking.map(r => lineup[r.idx].id);
@@ -541,6 +574,8 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = pro
     games, playersPerGame, unfinished, expectedWinRate,
     lavaShare: lavaDeaths / Math.max(1, lavaDeaths + directDeaths),
     comebackRate: comebacks / Math.max(1, finished),
+    focusShare: focusHits / Math.max(1, focusSamples),
+    focusWindow: FOCUS_WINDOW, focusRadius: FOCUS_R,
     seconds: (Date.now() - t0) / 1000, table, items,
   };
 }
@@ -558,6 +593,7 @@ export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, 
   const rand = makeRng(seed);
   let unfinished = 0, finished = 0;
   let lavaDeaths = 0, directDeaths = 0, comebacks = 0;
+  let focusSamples = 0, focusHits = 0;
   const t0 = Date.now();
 
   for (let g = 0; g < games; g++) {
@@ -572,6 +608,8 @@ export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, 
     finished++;
     lavaDeaths += res.lavaDeaths;
     directDeaths += res.directDeaths;
+    focusSamples += res.focusSamples;
+    focusHits += res.focusHits;
     if (res.comeback) comebacks++;
     res.ranking.forEach((r, place) => {
       const b = lineup[r.idx].build;
@@ -594,6 +632,8 @@ export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, 
     kind, games, playersPerGame, unfinished, expectedWinRate,
     lavaShare: lavaDeaths / Math.max(1, lavaDeaths + directDeaths),
     comebackRate: comebacks / Math.max(1, finished),
+    focusShare: focusHits / Math.max(1, focusSamples),
+    focusWindow: FOCUS_WINDOW, focusRadius: FOCUS_R,
     seconds: (Date.now() - t0) / 1000, table,
   };
 }
@@ -655,6 +695,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     for (const r of res.table)
       console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${String(r.games).padEnd(6)} ${r.build}`);
     console.log(`\nlava kill share: ${(res.lavaShare * 100).toFixed(1)}%   comeback rate (winner was >=4 behind): ${(res.comebackRate * 100).toFixed(1)}%`);
+    console.log(focusLine(res));
     if (res.unfinished) console.log(`(unfinished games: ${res.unfinished})`);
     console.log(`${res.seconds.toFixed(1)}s total`);
     const jsonPathM = (process.argv.find(a => a.startsWith('--json=')) || '').split('=')[1];
@@ -780,6 +821,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     console.log(`${(it.winRate * 100).toFixed(1).padStart(5)}  ${String(it.picked).padEnd(7)} ${it.thing}`);
 
   console.log(`\nlava kill share: ${(res.lavaShare * 100).toFixed(1)}%   comeback rate (winner was >=4 behind): ${(res.comebackRate * 100).toFixed(1)}%`);
+  console.log(focusLine(res));
   if (res.unfinished) console.log(`\n(unfinished games: ${res.unfinished})`);
   console.log(`\n${res.seconds.toFixed(1)}s total`);
 
