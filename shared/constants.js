@@ -357,11 +357,15 @@ export const ELEMENTS = {
   // ⚠ The burst lever is VIOLENTLY STEEP (+20% ≈ +14 points); old sweep at git c38730f.
   // ⚠ Bots never bait or time a burst — every lab number on the gust is a floor.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-gale
-  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [6, 5, 12],
+  // Round 19 (Remi): uniform across levels — stack-and-burst from LV1, gust is
+  // a flat ADD (a multiplier scaled weirdly with other push riders). Sized off
+  // the old lv3 gust (79×2.4≈190) at ~70%: 65+21+45=131. Revert: kbAdd
+  // [7,14,14], burstKbMult 2.4, burstAtLevel 3, costs [6,5,12].
+  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'More push.',
-           long: 'Wind under your fireball. Lv3: every 3rd hit on the same target is one enormous gust.',
-           fx: { kbAdd: [7, 14, 14], stacksToTrigger: 3, burstKbMult: 2.4,
-                 burstAtLevel: 3 } },
+           long: 'Wind under your fireball. Every 3rd hit on the same target is one big gust — levels raise the push and the gust.',
+           fx: { kbAdd: [7, 14, 21], stacksToTrigger: 3,
+                 burstKbAdd: [15, 30, 45] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now — the first hit on a target
   // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
   // target cashes +1 g and clears it. Halves the income RATE, which was the

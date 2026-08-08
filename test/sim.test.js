@@ -1777,50 +1777,49 @@ describe('elemental mode', () => {
   }
   const galeOn = (pl, by) => stacksOf(pl, 'gale', by);
 
-  // Round 16: gale lv1/2 is the fireball's PUSH axis — a flat kbAdd, no
-  // stacks, no burst. The stack-and-burst gust is the lv3 special
-  // (fx.burstAtLevel). Every number below is read from the spec.
-  it('gale lv1/2: a flat fireball push increase — no stacks, no burst', () => {
+  // Round 19 (Remi): gale is UNIFORM across levels — flat kbAdd per level,
+  // stack-and-burst from LEVEL 1, and the gust adds a flat VALUE (never a
+  // multiplier, which scaled weirdly with other push riders). Spec-read.
+  it('gale: a flat fireball push increase at every level', () => {
     const f = ELEMENTS.gale.fx;
     const fb = SPELLS.fireball;
     const plain = galePeaks({}, 1).peaks[0];
     expect(plain).toBeGreaterThan(0);
-    const { state, peaks } = galePeaks({ gale: 1 }, 2);
+    const { peaks } = galePeaks({ gale: 1 }, 2);
     const want = (fb.knockback[0] + f.kbAdd[0]) / fb.knockback[0];
     for (const p of peaks) expect(p / plain).toBeCloseTo(want, 1);
-    expect(galeOn(state.players.p1, 'p0')).toBe(0);   // no stacks below lv3
-    expect(state.events.some(e => e.t === 'gale' || e.t === 'galeBurst')).toBe(false);
   });
 
-  it('gale lv3: push is the flat boost while stacking, and the 3rd stack bursts', () => {
+  it('gale: stacking lives at LEVEL 1 — the 3rd hit gusts by a flat value', () => {
     const f = ELEMENTS.gale.fx;
+    const fb = SPELLS.fireball;
     const need = f.stacksToTrigger;
-    const { state, peaks } = galePeaks({ gale: 3 }, need);
+    const { state, peaks } = galePeaks({ gale: 1 }, need);
     const b = state.players.p1;
-    // every hit before the last is the ordinary lv3 shove (kbAdd only) — the
-    // gust must not leak into the stacking hits
+    // hits before the last are the ordinary lv1 shove — no gust leak
     for (let i = 0; i < need - 1; i++) expect(peaks[i] / peaks[0]).toBeCloseTo(1, 1);
-    // ...and the last one is the gust, at the spec's multiplier
-    expect(peaks[need - 1] / peaks[0]).toBeCloseTo(f.burstKbMult, 1);
-    // the stack was SPENT, so the next three start the count again
-    expect(galeOn(b, 'p0')).toBe(0);
-    // and it is legible: one pip event per hit, exactly one burst
+    // ...and the last adds the spec's flat gust value on top
+    const base = fb.knockback[0] + f.kbAdd[0];
+    expect(peaks[need - 1] / peaks[0]).toBeCloseTo((base + f.burstKbAdd[0]) / base, 1);
+    expect(galeOn(b, 'p0')).toBe(0);   // spent
     expect(state.events.filter(e => e.t === 'gale').length).toBe(need);
     expect(state.events.filter(e => e.t === 'galeBurst').length).toBe(1);
   });
 
-  it('gale: stopping one short leaves stacks on the body and no burst', () => {
-    const need = ELEMENTS.gale.fx.stacksToTrigger;
-    const { state } = galePeaks({ gale: 3 }, need - 1);
-    expect(galeOn(state.players.p1, 'p0')).toBe(need - 1);
-    expect(state.events.some(e => e.t === 'galeBurst')).toBe(false);
+  it('gale: the gust value ladders by level (lv3 > lv1, both flat)', () => {
+    const f = ELEMENTS.gale.fx;
+    const fb = SPELLS.fireball;
+    const need = f.stacksToTrigger;
+    const lv3 = galePeaks({ gale: 3 }, need).peaks;
+    const base3 = fb.knockback[0] + f.kbAdd[2];
+    expect(lv3[need - 1] / lv3[0]).toBeCloseTo((base3 + f.burstKbAdd[2]) / base3, 1);
+    expect(f.burstKbAdd[2]).toBeGreaterThan(f.burstKbAdd[0]);
   });
 
-  it('the gust exists only from burstAtLevel up: lv2 hits place no stacks', () => {
-    const f = ELEMENTS.gale.fx;
-    const below = f.burstAtLevel - 1;
-    const { state } = galePeaks({ gale: below }, f.stacksToTrigger + 1);
-    expect(galeOn(state.players.p1, 'p0')).toBe(0);
+  it('gale: stopping one short leaves stacks on the body and no burst', () => {
+    const need = ELEMENTS.gale.fx.stacksToTrigger;
+    const { state } = galePeaks({ gale: 1 }, need - 1);
+    expect(galeOn(state.players.p1, 'p0')).toBe(need - 1);
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(false);
   });
 
@@ -1862,7 +1861,11 @@ describe('elemental mode', () => {
     for (let t = 0; t < 12; t++) { step(state, DT); peak = Math.max(peak, b.vx); }
     expect(galeOn(b, 'p0')).toBe(0);
     expect(galeOn(b, 'p2')).toBe(1);          // c's pile is untouched
-    expect(peak / plainPeak).toBeCloseTo(ELEMENTS.gale.fx.burstKbMult, 1);
+    // plainPeak is itself a lv3 gale hit (kbAdd included), so the burst ratio
+    // is (base + gust) / base with base = fireball kb + kbAdd[2]
+    const gf = ELEMENTS.gale.fx;
+    const base = SPELLS.fireball.knockback[0] + gf.kbAdd[2];
+    expect(peak / plainPeak).toBeCloseTo((base + gf.burstKbAdd[2]) / base, 1);
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(true);
   });
 

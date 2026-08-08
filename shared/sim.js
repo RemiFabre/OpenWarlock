@@ -1826,16 +1826,13 @@ function stepProjectiles(state, dt) {
           // midas test caught it.
           if (f.kbMult) kb *= efxV(f.kbMult, el);
         }
-        // Gale lv3 (elemental): stack-and-burst, so its multiplier is NOT a
-        // constant and cannot be folded into the loop above — it depends on how
-        // many of THIS owner's stacks the victim is already carrying. Resolved
-        // here because knockback is applied a few lines below, before the
-        // on-hit riders run. Multiplies whatever the loop produced, so a
-        // gale+midas build still pays midas's push penalty on the gust.
-        // Levels 1-2 are the flat kbAdd in the loop above; the gust (and its
-        // stacking) exists only from burstAtLevel up.
-        if (pr.elements.gale >= (ELEMENTS.gale.fx.burstAtLevel || 1))
-          kb *= galeHit(state, pr, other, pr.elements.gale);
+        // Gale (round 19): stack-and-burst at EVERY level, and the gust is a
+        // flat ADD, not a multiplier (a % gust scaled weirdly with other push
+        // riders — Remi). Resolved here because knockback is applied below,
+        // before the on-hit riders run. Added AFTER the multiplier loop so the
+        // gust value is truly constant whatever else rides the ball.
+        if (pr.elements.gale)
+          kb += galeHit(state, pr, other, pr.elements.gale);
       }
       // (Ghost's old behind-the-first-victim damage/push bonus was removed in
       // round 16 — a pierced ball now lands a full ordinary hit on everyone.)
@@ -1997,8 +1994,8 @@ function turnBoomerangHome(state, pr) {
 // applyElementsHit next to frost and venom: gale's payload is KNOCKBACK, and
 // knockback is computed and applied BEFORE the on-hit riders run. So gale has to
 // resolve at the same point mosquito's mark does — decided on the way in, not on
-// the way out. Returns the knockback multiplier for THIS hit: 1 while stacking,
-// the level's burst multiplier on the 3rd.
+// the way out. Returns the flat knockback ADD for THIS hit: 0 while stacking,
+// the level's burst value on the 3rd (round 19 — was a multiplier).
 //
 // The counter is the generic per-attacker store (addStack/clearStacks), so
 // "private to whoever applied them" is the same one mechanism frost and mosquito
@@ -2006,7 +2003,7 @@ function turnBoomerangHome(state, pr) {
 // can neither place nor spend a stack: there is nobody to own the counter.
 function galeHit(state, pr, target, level) {
   const f = ELEMENTS.gale.fx;
-  if (pr.owner == null) return 1;
+  if (pr.owner == null) return 0;
   const n = addStack(target, 'gale', pr.owner);
   // every landing is an event, exactly like frost's pips: the player has to be
   // able to watch the gust winding up or this reads as a random shove
@@ -2014,12 +2011,12 @@ function galeHit(state, pr, target, level) {
     t: 'gale', id: target.id, stacks: n, by: pr.owner,
     of: f.stacksToTrigger, x: target.x, y: target.y,
   });
-  if (n < f.stacksToTrigger) return 1;
+  if (n < f.stacksToTrigger) return 0;
   clearStacks(target, 'gale', pr.owner);
   state.events.push({
     t: 'galeBurst', id: target.id, by: pr.owner, x: target.x, y: target.y,
   });
-  return efxV(f.burstKbMult, level);
+  return efxV(f.burstKbAdd, level);
 }
 
 // Elemental on-hit riders (frost / venom / midas / terra), each at its own

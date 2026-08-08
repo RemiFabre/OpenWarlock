@@ -719,8 +719,8 @@ const FX_FIELDS = {
   projRadiusMult: ['fireball size', fmtMult],
   projSpeedMult: ['fireball speed', fmtMult],
   stacksToTrigger: ['stacks to detonate', fmtNum],
-  burstKbMult: ['the gust pushes', fmtMult],
-  burstAtLevel: ['gust unlocks at', (v) => `lv ${fmtNum(v)}`],
+  burstKbMult: ['the gust pushes', fmtMult],   // dormant: pre-round-19 revert path
+  burstKbAdd: ['the gust adds', (v) => `+${fmtNum(v)} push`],
   hitRefund: ['fireball hit refunds', (v) => (+v > 0 ? `−${fmtSec(v)} off every cooldown` : '—')],
   pierceAtLevel: ['passthrough unlocks at', (v) => `lv ${fmtNum(v)}`],
   slowMult: ['victim speed', fmtMult],
