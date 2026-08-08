@@ -9,8 +9,9 @@ you asked before leaving.*
 ## ROUND 16 — Elements ARE the fireball, the strategy ranking you asked for (2026-08-08, overnight)
 
 Everything you listed is done, tested (219/219 + harness + browser + reconnect
-+ co-op), and committed. Then I ran the strategy study — ~20,000 full 4-player
-lobbies. The full report is **BALANCE.md §0**; this is the short version.
++ co-op), and committed. Then I ran the strategy study — ~35,000 full 4-player
+lobbies across two waves plus the retune sweeps. The full report is
+**BALANCE.md §0**; this is the short version.
 
 ### The rework, as shipped
 
@@ -52,50 +53,65 @@ fireball stuck at 7 damage the old ramp measured 80-87% (it used to compete
 with 14-damage fireballs). Swept and confirmed at 800 games × 3 seeds; the
 1:1.5:2 level ratio and the permanence are untouched.
 
-### The strategy ranking (4 identical Hard bots, full buy lists, 8,000 games, baseline 25%)
+### The strategy ranking (25 strategies, 4 identical Hard bots, full buy lists, ~23,000 games total, baseline 25%)
 
 Every strategy is an exhaustive list — there is always something to buy, per
-your instruction — with its identity up front. Full table + descriptions in
+your instruction. I ran it in two waves: 17 archetypes first, then 8 hybrids
+designed from what wave 1 found. Full 25-row table + descriptions in
 BALANCE.md §0 and STRATEGIES.md. The podium and the floor:
 
 | win% | strategy | in one line |
 |---|---|---|
-| **63.6** | double-cdr | arcane × Hourglass: a ~1.1 s fireball whose hits hasten the lightning |
-| **53.4** | midas-economy | midas first, convert income into the deepest build (midas WORKS now — it just needed a list that never runs dry) |
-| **52.7** | balanced | alternate offense/defense every purchase: ember, amulet, arcane, sword… |
-| **52.3** | cadence | double-cdr + Echo Stone |
-| 37.8 / 36.7 | mosquito-combo / venom-dot | the setup and DoT engines |
+| **86.2** ⚠ | midas-cdr | midas income funding the arcane×Hourglass CDR stack — **the one true auto-win, see below** |
+| **70.0** ⚠ | mosquito-midas | every cashed sting procs midas twice: a gold machine |
+| **49.1** | double-cdr | arcane × Hourglass: a ~1.1 s fireball whose hits hasten the lightning |
+| **48.5** | venom-balanced | venom alternated with amulet/sword every purchase |
+| **39.9** | cadence | double-cdr + Echo Stone |
 | … | … | … |
-| **5.6** | tank-sustain | all defense first — dead last tier |
-| **4.2** | momentum-scaling | rushing the (re-nerfed) ramp first is now a bad bet |
-| **4.2** | item-breadth | one of every item before any element |
+| **3.8** | tank-sustain | all defense first — dead last tier |
+| **2.7** | momentum-scaling | rushing the (re-nerfed) ramp first is a bad bet |
+| **2.6** | gale-launcher | ring-out plan; quadruples on Extreme pilots |
+| **2.5** | item-breadth | one of every item before any element |
 
-The two most useful lines for a human: **offense-first wins, defense-first
-collapses** (everyone owns the amulet eventually; the losers bought it first) —
-and **order is worth ~35 points at equal contents**: `balanced` (52.7) and
-`glass-cannon` (18.1) buy nearly the same things.
+The three most useful lines for a human:
+
+- **⚠ midas-cdr is degenerate (86% Hard, 95% Extreme) and I could NOT fix it
+  politely**: the hourglass trim, deeper midas penalties — all measured, all
+  miss, because the engine is the INCOME (+1 g per hit is capped per hit but
+  not per second, so cadence multiplies your economy and walks around your
+  anti-snowball cap). The real fixes touch your explicit rulings (the +1 g
+  cap, mosquito's visible "+1 g twice"), so it's your call — options with
+  numbers in BALANCE.md Finding 16A / open question J. Until then: that combo
+  is the known broken build in your lobby.
+- **Offense-first wins, defense-first collapses** (everyone owns the amulet
+  eventually; the losers bought it first).
+- **Order is worth 25-35 points at identical contents**: venom-dot 22.9 →
+  venom-balanced 48.5 just by interleaving amulet/sword with the venom levels.
+  The one exception: the CDR rush hates interruption (it compounds with
+  itself).
 
 ### Same lists on Extreme bots (your 10% skill question — big differences)
 
-**midas 79%** (best strategy in skilled hands), all-cheap 10→50,
-gale-launcher 6→27, ghost-sniper 8→26 (the "aim" elements need aim),
-while balanced 53→16 and vampire 17→8 (HP and lifesteal are worth far less to
-a pilot that dodges). Offense-first holds at both tiers.
+midas-cdr 95% (skill makes it worse), midas-economy 36→67, all-cheap 6→39,
+gale-launcher 3→20, ghost-sniper 5→20 (the "aim" elements need aim), while
+balanced 37→15 and vampire-brawler 11→8 (HP and lifesteal are worth far less
+to a pilot that dodges). Economy-then-offense holds at both tiers.
 
 ### Buff/nerf guidelines (nothing applied — your call, evidence in BALANCE.md §0)
 
+0. **Rule on midas-cdr first** (above). Options: cap midas income by RATE
+   (needs a same-frame exemption to keep the mosquito "+1 g twice" ruling),
+   cap it per ROUND, or accept it as the economy archetype.
 1. **Venom needs a design-level nerf** — 92% as a lone element, and tick nerfs
    barely dent it (−30% ticks → still 77%). The power is the stacking:
    `stackCap` / `dotTime` / a deeper direct-damage penalty are the honest levers.
 2. **Ember is the best 6 g in the game** (+39.8 points isolated at lv1) —
    consider `[2,3,5]` damage instead of `[2,4,6]`.
-3. **Don't number-buff terra/gale/ghost off the Hard tables** — they triple or
-   better on Extreme; they're aim-rewarding by design. If they FEEL weak in
-   your hands, buff the specials, not the stat lines.
+3. **Don't number-buff terra/gale/ghost off the Hard tables** — they quadruple
+   on Extreme; they're aim-rewarding by design. If they FEEL weak in your
+   hands, buff the specials, not the stat lines.
 4. **If CDR stacking dominates your lobby**: hourglass `[0.92, 0.85, 0.78]` is
-   measured (−11 on double-cdr) — but the crown just moves to `balanced`.
-5. **Watch midas** — if it takes over, the lever is the damage-penalty buyback,
-   never the +1 g income.
+   measured (−10 on the CDR builds) — a trim, not a fix.
 
 ### Two things I found and fixed on the way
 

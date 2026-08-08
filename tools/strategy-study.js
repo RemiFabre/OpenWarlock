@@ -129,6 +129,47 @@ export const STRATEGIES = {
       'shield', 'teleport', 'cape', 'treads', 'hourglass', 'echo'],
     noExhaust: true, // the core IS the exhaust, minus the element shelf
   },
+  // ---- wave 2 (round 16): hybrids and order-variants informed by wave 1 ----
+  'venom-ember': {
+    desc: 'The two strongest elements stacked: venom DoT on an ember-boosted ball, sustain after.',
+    core: ['venom', 'ember', 'venom', 'ember', 'venom', 'ember',
+      'amulet', 'sword', 'amulet'],
+  },
+  'venom-balanced': {
+    desc: 'Wave-1 lesson applied to venom: alternate the DoT with defense every purchase.',
+    core: ['venom', 'amulet', 'venom', 'sword', 'venom', 'amulet',
+      'ember', 'sword', 'ember'],
+  },
+  'cdr-balanced': {
+    desc: 'The wave-1 king reordered: arcane and hourglass with an amulet/sword level between each — does the balanced ordering improve even double-cdr?',
+    core: ['arcane', 'amulet', 'arcane', 'sword', 'hourglass', 'amulet',
+      'arcane', 'sword', 'hourglass', 'amulet', 'hourglass'],
+  },
+  'midas-cdr': {
+    desc: 'Economy into cadence: midas income buys the CDR stack faster than anyone else can.',
+    core: ['midas', 'midas', 'midas', 'arcane', 'hourglass', 'arcane',
+      'hourglass', 'arcane', 'hourglass'],
+  },
+  'mosquito-midas': {
+    desc: 'Gold machine: every cashed sting procs midas TWICE (+2 g a hit), and the sting itself is cheap to land.',
+    core: ['mosquito', 'midas', 'mosquito', 'midas', 'mosquito', 'midas',
+      'amulet', 'sword', 'amulet'],
+  },
+  'frost-gale': {
+    desc: 'Stack synergy bet: gale lv3 gust to throw them at the rim, frost lv3 freeze to keep them there.',
+    core: ['gale', 'gale', 'gale', 'frost', 'frost', 'frost',
+      'amulet', 'sword', 'amulet'],
+  },
+  'ember-tank': {
+    desc: 'Minimal offense first, then the full turtle: one cheap damage dip before amulet/ring/sword depth.',
+    core: ['ember', 'ember', 'amulet', 'ring', 'amulet', 'sword', 'ring',
+      'amulet', 'sword', 'treads', 'ember'],
+  },
+  'vampire-cadence': {
+    desc: 'Sustain through volume: vampire every-5th heals arrive faster under the CDR stack.',
+    core: ['vampire', 'vampire', 'vampire', 'arcane', 'hourglass', 'arcane',
+      'hourglass', 'arcane', 'amulet'],
+  },
 };
 
 export function priorityList(name) {

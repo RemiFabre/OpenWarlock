@@ -80,69 +80,115 @@ enormously: it is what finally made midas measurable (see below). Games are
 number far above 25% means "beats the rest of this field", not "broken in
 absolute terms".
 
-**Sample sizes**: 4,000 games per seed × 2 seeds on Hard → ~950 games per
-strategy per seed, 2σ ≈ ±2.8 points on one seed's cell. The two seeds agree
-within that band on every row, so the mean is quoted.
+**Sample sizes**: two waves. Wave 1: 17 strategies, 4,000 games × 2 seeds.
+Wave 2 added 8 hybrids **designed from wave 1's findings** and re-ran the full
+pool of 25: 5,000 games × 2 seeds on Hard (~800 games per strategy per seed,
+2σ ≈ ±3.0) plus 2,500 on Extreme. The seeds agree within noise on every row.
+The table below is the final (wave-2) ranking — note that win rates are
+zero-sum against THIS pool, so wave-1 numbers (e.g. double-cdr's 63.6%) shrank
+when stronger hybrids joined; the ORDER of the survivors barely moved.
 
-### The ranking — Hard (berserker) mirrors, 8,000 games
+### The final ranking — Hard (berserker) mirrors, 10,000 games, 25 strategies
 
 | # | strategy | win% (seeds 1/7 → mean) | the build, in one line |
 |---|---|---|---|
-| 1 | **double-cdr** | 62.4 / 64.7 → **63.6** | arcane maxed (fireball CDR + lv3 kit refund) × Hourglass — the fireball lands at ~1.1 s and every hit hastens the lightning |
-| 2 | **midas-economy** | 56.8 / 49.9 → **53.4** | midas maxed first, then convert the income lead into the deepest full build in the lobby |
-| 3 | **balanced** | 53.4 / 52.0 → **52.7** | strict one-for-one alternation: ember, amulet, arcane, sword, repeat |
-| 4 | **cadence** | 53.1 / 51.5 → **52.3** | double-cdr plus the Echo Stone and deeper lightning |
-| 5 | **mosquito-combo** | 35.0 / 40.6 → **37.8** | mosquito maxed, venom behind it (a cashed sting procs the poison twice), arcane cadence |
-| 6 | **venom-dot** | 37.0 / 36.3 → **36.7** | venom maxed, terra so the weaker direct hits land, then max HP |
-| 7 | **spell-kit** | 28.7 / 31.3 → **30.0** | lightning + boomerang + rush + shield at lv1 before anything deep, ember on top |
-| 8 | **frost-control** | 20.4 / 19.6 → **20.0** | frost to the lv3 freeze, lightning to punish it, HP to survive the setup |
-| 9 | **glass-cannon** | 17.8 / 18.4 → **18.1** | all three cheap offense axes (ember/arcane/gale) maxed before any HP |
-| 10 | **vampire-brawler** | 17.2 / 16.1 → **16.7** | vampire maxed + amulet + Blood Sword; wins long point-blank trades |
-| 11 | **all-cheap** | 10.8 / 9.4 → **10.1** | lv1-2 of every cheap element axis before anything expensive |
-| 12 | **ghost-sniper** | 8.5 / 7.9 → **8.2** | ghost speed into the lv3 passthrough, ember damage |
-| 13 | **gale-launcher** | 5.6 / 6.7 → **6.2** | gale push into the lv3 burst, terra to land it, boots — wins by ring-outs |
-| 14 | **tank-sustain** | 5.7 / 5.5 → **5.6** | amulet/ring/sword/treads before any element |
-| 15 | **no-elements** | 4.5 / 5.9 → **5.2** | control: refuses the element shelf entirely |
-| 16 | **momentum-scaling** | 4.4 / 4.0 → **4.2** | momentum maxed first, terra to feed the ramp, bank on a late cannon |
-| 17 | **item-breadth** | 4.3 / 4.1 → **4.2** | one level of every item before any second level or element |
+| 1 | **midas-cdr** ⚠ | 86.8 / 85.6 → **86.2** | midas income funding the arcane×Hourglass cooldown stack — see the finding below |
+| 2 | **mosquito-midas** ⚠ | 70.6 / 69.4 → **70.0** | gold machine: every cashed sting procs midas twice, the sting itself is cheap to land |
+| 3 | **double-cdr** | 50.4 / 47.7 → **49.1** | arcane maxed (fireball CDR + lv3 kit refund) × Hourglass — a ~1.1 s fireball whose hits hasten the lightning |
+| 4 | **venom-balanced** | 47.3 / 49.6 → **48.5** | venom alternated with amulet/sword every purchase |
+| 5 | **cadence** | 38.5 / 41.3 → **39.9** | double-cdr plus the Echo Stone and deeper lightning |
+| 6 | **vampire-cadence** | 38.2 / 36.5 → **37.4** | vampire's every-5th heal arriving faster under the CDR stack |
+| 7 | **venom-ember** | 35.5 / 37.8 → **36.7** | the two strongest elements stacked, sustain after |
+| 8 | **balanced** | 36.5 / 36.8 → **36.7** | strict one-for-one alternation: ember, amulet, arcane, sword, repeat |
+| 9 | **midas-economy** | 37.4 / 34.0 → **35.7** | midas first, income into a generic deep build |
+| 10 | **cdr-balanced** | 35.9 / 34.3 → **35.1** | double-cdr with defense interleaved |
+| 11 | **mosquito-combo** | 26.2 / 28.2 → **27.2** | mosquito maxed, venom behind it (a cashed sting procs the poison twice) |
+| 12 | **spell-kit** | 23.4 / 22.8 → **23.1** | lightning/boomerang/rush/shield at lv1 before anything deep |
+| 13 | **venom-dot** | 22.4 / 23.3 → **22.9** | venom maxed, terra so the weaker direct hits land, then max HP |
+| 14 | **glass-cannon** | 13.2 / 12.1 → **12.7** | all three cheap offense axes maxed before any HP |
+| 15 | **frost-control** | 12.8 / 12.4 → **12.6** | frost to the lv3 freeze, lightning to punish it |
+| 16 | **vampire-brawler** | 10.8 / 10.3 → **10.6** | vampire + amulet + Blood Sword; wins long point-blank trades |
+| 17 | **ember-tank** | 7.9 / 8.0 → **8.0** | two cheap ember levels, then the full turtle |
+| 18 | **frost-gale** | 7.9 / 7.3 → **7.6** | gust them to the rim, freeze them there — the stack-synergy bet, and it loses |
+| 19 | **all-cheap** | 4.6 / 6.8 → **5.7** | lv1-2 of every cheap element axis before anything expensive |
+| 20 | **ghost-sniper** | 5.5 / 4.3 → **4.9** | ghost speed into the lv3 passthrough, ember damage |
+| 21 | **tank-sustain** | 3.7 / 3.9 → **3.8** | amulet/ring/sword/treads before any element |
+| 22 | **no-elements** | 2.7 / 3.1 → **2.9** | control: refuses the element shelf entirely |
+| 23 | **momentum-scaling** | 2.3 / 3.0 → **2.7** | momentum maxed first, banking on a late cannon |
+| 24 | **gale-launcher** | 2.6 / 2.6 → **2.6** | gale push into the lv3 burst; wins by ring-outs |
+| 25 | **item-breadth** | 2.5 / 2.4 → **2.5** | one level of every item before any second level or element |
 
-Gold-left at game end is 11-15 g for every strategy (28 for midas — see below),
-so **every list really does go all the way**: nobody wins or loses because they
-ran out of things to buy.
+Gold-left at game end is 11-14 g for every strategy except the midas builds
+(27-32 g), so **every list really does go all the way**: nobody wins or loses
+because they ran out of things to buy.
+
+### ⚠ Finding 16A — midas-cdr is a degenerate build, and no knob I'm allowed to turn fixes it
+
+`midas-cdr` wins **86.2% on Hard and 95.2% on Extreme** — reproducible across
+seeds and tiers, and a human can copy it off this page. The engine: midas's
++1 g per hit is capped per HIT but not per SECOND, so anything that raises hit
+*rate* raises income — and the CDR stack is both the best thing to buy *and* a
+hit-rate multiplier. The result roughly **doubles the economy** (midas seats
+end games ~+12 g/round over the field, walking straight around the
+anti-snowball income cap, which only governs round income) and converts the
+lead into having lv3 arcane + Hourglass + a full build rounds before anyone
+else.
+
+Every polite lever was measured and none of them fixes it:
+
+| candidate nerf | midas-cdr becomes |
+|---|---|
+| shipped values | 86.8% |
+| hourglass trimmed `[0.92, 0.85, 0.78]` | 78.5% |
+| midas penalty deepened `[0.5, 0.55, 0.62]` | 80.1% |
+| midas penalty deepened `[0.45, 0.5, 0.55]` | 76.7% |
+
+The damage penalty misses because midas-cdr's damage comes from cast rate, not
+per-ball damage; the CDR trim misses because the income is the bigger half.
+The honest fixes all touch **Remi's explicit design rulings**, which is why
+nothing shipped: (a) an income *rate* cap (e.g. one payout per victim per
+second — but a cashed mosquito sting must still visibly pay "+1 g twice",
+his named acceptance criterion, so same-frame hits would need an exemption);
+(b) a per-round midas income cap (bends "every hit pays +1 g — never more");
+(c) accepting it as the economy archetype and letting lobbies ban it. This is
+**open question J in §10** and the first thing to rule on.
 
 ### What the ranking says (each claim is measured unless marked `INFERRED`)
 
-1. **Offense-first wins; defense-first collapses.** The bottom third is every
-   strategy that spends its early gold on survival (tank-sustain 5.6,
-   item-breadth 4.2, no-elements 5.2). The exhaust tail means *everyone* owns
-   the amulet and the sword eventually — the losers are the ones who bought
-   them *first*. `INFERRED`: with the fireball flat at 7 damage, early offense
-   compounds (kills → gold → more offense) while early HP just delays losses.
-2. **…but pure offense with no HP is also a trap.** glass-cannon (18.1) is the
-   same three cheap axes as `balanced` (52.7) — the only difference is that
-   balanced buys an amulet level between each offense purchase. **Order is
-   worth ~35 points at equal contents.** This is the single most useful line in
-   the table for a human player.
-3. **CDR stacking is the strongest axis** (double-cdr 63.6, cadence 52.3), even
-   after the refund exclusion below. Arcane lv1/2 (×0.72 on the fireball) and
-   the Hourglass (×0.72 on everything) multiply to a 1.09 s fireball. A
-   measured trim exists if human play confirms it dominates: hourglass
-   `[0.92, 0.85, 0.78]` moves double-cdr −11 and cadence −19 points — but in
-   the same run `balanced` simply took the throne at 60.5, so the trim
-   reshuffles kings rather than flattening the field. **Not applied.**
-4. **Midas is finally real, and the exhaust tail is why.** Three rounds of
-   reports called midas dead (0.0%); its round-15 diagnosis was "the income has
-   nowhere to go". Give it a list that never runs dry and it places 2nd (53.4)
-   while *still* ending games on 28 g of change. `INFERRED`: a human with a
-   plan is even better at spending than the tail is. Watch it.
-5. **momentum-scaling (4.2) is the price of the momentum re-nerf** (below) —
+1. **The economy is the strongest axis in the game** — see Finding 16A. All
+   three midas builds beat or match everything that doesn't touch midas.
+2. **Offense-first wins; defense-first collapses.** The bottom third is every
+   strategy that spends its early gold on survival (tank-sustain 3.8,
+   item-breadth 2.5, no-elements 2.9, ember-tank 8.0). The exhaust tail means
+   *everyone* owns the amulet and the sword eventually — the losers are the
+   ones who bought them *first*. `INFERRED`: with the fireball flat at 7
+   damage, early offense compounds (kills → gold → more offense) while early
+   HP just delays losses.
+3. **…but pure offense with no HP is also a trap, and ORDER is the lesson.**
+   glass-cannon (12.7) buys nearly the same things as `balanced` (36.7) — the
+   difference is an amulet level between each offense purchase. The same move
+   works on venom: `venom-dot` 22.9 → `venom-balanced` 48.5, **+26 points from
+   re-ordering the identical core**. The one place it FAILS is the CDR stack
+   (cdr-balanced 35.1 vs double-cdr 49.1): cooldown reduction compounds with
+   itself, so interrupting the rush costs more than the amulet pays.
+4. **CDR stacking is the strongest non-economy axis** (double-cdr 49.1,
+   cadence 39.9, and it is the multiplier inside midas-cdr). Arcane lv1/2
+   (×0.72 on the fireball) and the Hourglass (×0.72 on everything) multiply to
+   a 1.09 s fireball. The measured hourglass trim `[0.92, 0.85, 0.78]` shaves
+   ~10 points off the CDR builds and reshuffles rather than flattens. **Not
+   applied.**
+5. **Element synergy bets mostly lose to raw-value stacking**: venom-ember
+   (36.7, two strong elements) beats mosquito-combo (27.2) and crushes
+   frost-gale (7.6, the thematic gust-then-freeze combo). The exception is
+   mosquito-midas (70.0) — a genuine emergent combo, and it is an economy one.
+6. **momentum-scaling (2.7) is the price of the momentum re-nerf** (below) —
    rushing a 26 g ramp that only pays after ~80 landed hits is now a bad plan.
-   Its element-level number is fine (24% when it is one purchase among many);
-   it is *rushing it first* that died. `INFERRED`: acceptable for a late-game
-   bet, but if Remi wants "momentum rush" to be a real archetype, the lever is
-   its 10+8+8 price (the cheap axes are 6+5+5), not the ramp.
+   Its element-level number is fine (24% as one purchase among many); it is
+   *rushing it first* that died. `INFERRED`: if Remi wants "momentum rush" to
+   be a real archetype, the lever is its 10+8+8 price (the cheap axes are
+   6+5+5), not the ramp.
 
-### The same strategies on Extreme (stalker) pilots — 2,000 games
+### The same strategies on Extreme (stalker) pilots — 2,500 games
 
 *The 10%-effort skill check Remi asked for. Same lists, same lab, better
 pilots (dodging, kiting, teleport saves). The differences are large and
@@ -150,22 +196,24 @@ informative:*
 
 | strategy | Hard | Extreme | reading |
 |---|---|---|---|
-| midas-economy | 53.4 | **79.3** | a pilot that survives longer lands more hits → more gold; midas is the best strategy in skilled hands |
-| all-cheap | 10.1 | **49.5** | breadth of small stats compounds with a pilot that doesn't die |
-| gale-launcher | 6.2 | **27.1** | the burst needs aim; Hard bots spray, stalkers place it |
-| ghost-sniper | 8.2 | **25.8** | projectile speed only matters if your aim was going to be dodged |
-| momentum-scaling | 4.2 | **14.1** | more landed hits per game feed the ramp faster |
-| balanced | 52.7 | **15.5** | HP is worth far less to a pilot that dodges — the amulet half of the alternation is wasted on a stalker |
-| vampire-brawler | 16.7 | **8.3** | lifesteal pays on trades; stalkers refuse trades |
-| double-cdr | 63.6 | **36.1** | still strong, no longer king |
+| midas-cdr | 86.2 | **95.2** | a pilot that survives longer lands more hits → more gold; the degenerate build gets worse with skill |
+| midas-economy | 35.7 | **67.4** | same story without the CDR stack |
+| all-cheap | 5.7 | **38.7** | breadth of small stats compounds with a pilot that doesn't die |
+| gale-launcher | 2.6 | **19.9** | the burst needs aim; Hard bots spray, stalkers place it |
+| ghost-sniper | 4.9 | **19.6** | projectile speed only matters if your aim was going to be dodged |
+| glass-cannon | 12.7 | **22.9** | all-in offense is safer when you can dodge |
+| momentum-scaling | 2.7 | **9.6** | more landed hits per game feed the ramp faster |
+| balanced | 36.7 | **14.5** | HP is worth far less to a pilot that dodges — the amulet half of the alternation is wasted on a stalker |
+| cdr-balanced | 35.1 | **12.6** | same |
+| vampire-brawler | 10.6 | **7.9** | lifesteal pays on trades; stalkers refuse trades |
 
 `INFERRED`: a human sits between these two columns, and closer to Extreme the
-better they are. The practical read for Remi's lobby: **the offense-first rule
-holds at both tiers** (tank-sustain/no-elements/item-breadth are last
-everywhere), but *which* offense is best flips with skill — cooldown stacking
-for brawlers, economy and aimed bursts (midas, gale, ghost) for good aim.
-Lava kill share is 18.9% in Hard mirrors and 44.3% in Extreme ones — same
-spread as round 15, now with the whole elemental meta on top.
+better they are. The practical read for Remi's lobby: **economy first, then
+offense, holds at both tiers** (tank-sustain / no-elements / item-breadth are
+last everywhere), but *which* offense is best flips with skill — cooldown
+stacking and HP-backed trades for brawlers, aimed elements (gale, ghost) and
+cheap breadth for good aim. Lava kill share is 18.3% in Hard mirrors and
+43.9% in Extreme ones.
 
 ### The two retunes the rework forced (measured, shipped)
 
@@ -190,15 +238,20 @@ spread as round 15, now with the whole elemental meta on top.
 
 Ranked by how much they matter. Each carries its evidence and its lever.
 
-1. **Venom is the #1 nerf candidate.** In the single-element study it now wins
-   **91.4 / 92.1%** (seeds 1/7) — the field around it weakened while its DoT
-   ignores everything round 16 changed. But the obvious knob barely moves it:
-   ticks −20% → 84%, ticks −30% → 77%. The dominance lives in the *stacking*
-   (re-hits refresh the 5 s clock AND grow the tick toward `stackCap`), so the
-   honest levers are `stackCap` `[3, 4.5, 6]`, `dotTime` 5, or deepening the
-   −15% direct-damage penalty. Note the strategy table disagrees about
-   severity (venom-dot ranks 6th at 36.7% once everyone else has real builds
-   too), so this is "clearly strongest element", not "auto-win strategy".
+0. **Rule on midas-cdr first** (Finding 16A). It is the one copyable auto-win
+   in the game (86% Hard / 95% Extreme), every polite knob was measured and
+   missed, and the real fixes — an income *rate* cap, a per-round midas cap,
+   or acceptance — all touch your own design rulings. Until then, treat
+   "midas + cooldown stacking" as the known broken combo.
+1. **Venom is the #1 element-level nerf candidate.** In the single-element
+   study it now wins **91.4 / 92.1%** (seeds 1/7) — the field around it
+   weakened while its DoT ignores everything round 16 changed. But the obvious
+   knob barely moves it: ticks −20% → 84%, ticks −30% → 77%. The dominance
+   lives in the *stacking* (re-hits refresh the 5 s clock AND grow the tick
+   toward `stackCap`), so the honest levers are `stackCap` `[3, 4.5, 6]`,
+   `dotTime` 5, or deepening the −15% direct-damage penalty. The strategy
+   table softens the severity (venom-balanced peaks at 48.5% once everyone
+   has real builds), so this is "clearly strongest element", not "auto-win".
 2. **Ember probably needs a trim; it is the second face of the same coin**
    (61.5% single-element, +39.8 isolated at lv1 for 6 g — the best
    gold-for-points purchase in the game). Lever: `dmgAdd` `[2, 4, 6]` →
@@ -221,9 +274,12 @@ Ranked by how much they matter. Each carries its evidence and its lever.
    axis is worth less in the flat-fireball meta. If sustain-brawling should be
    an archetype, `chargeLifesteal` is the lever — but read open question §10
    first: Remi may prefer the offense-first meta as-is.
-7. **Watch midas in human hands** (53% Hard / 79% Extreme with a full list).
-   If it takes over, the lever is NOT the income (+1 g cap is load-bearing) but
-   the penalty buyback `dmgMult [0.5, 0.62, 0.72]`.
+7. **Midas alone (without the CDR stack) is merely strong** (35.7% Hard /
+   67.4% Extreme with a full list) — the round-15 diagnosis was right: it just
+   needed somewhere for the gold to go. If guideline #0 is settled by a rate
+   or round cap, plain midas likely lands in a healthy place without further
+   touches; the penalty buyback (`dmgMult`) is measured to be a weak lever
+   (−7 to −10 points for very deep cuts).
 
 ### ⚠ Bot caveats on all of the above
 
@@ -822,6 +878,15 @@ keeps the classic hold-then-sudden-death ring at its own 65 s journey
 (`ARENA.COOP_SHRINK_TIME`). If you'd rather the campaign ALSO play under the
 never-stopping ring, the guard is one line in `stepBattle` — but the whole back
 half of the campaign then needs re-pricing.
+
+**J. (round 16) midas-cdr needs a ruling — it is the one copyable auto-win.**
+86% Hard / 95% Extreme (Finding 16A). The measured non-fixes: hourglass trim
+−8, deep midas penalty −7/−10. The real options touch your rulings: (a) cap
+midas income by RATE (one payout per victim per second — but a cashed mosquito
+sting must still show "+1 g twice", your named acceptance criterion, so
+same-frame hits need an exemption); (b) cap midas income per ROUND; (c) accept
+it as the economy archetype. Until ruled, "midas + cooldown stacking" is the
+known broken combo.
 
 ---
 

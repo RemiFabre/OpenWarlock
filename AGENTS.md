@@ -16,9 +16,12 @@ round-16 report). Read this first; it replaces digging through history.*
   removed** (arcane lv3 is its heir); **arcane's old global CDR became the
   Hourglass of Haste item** (items can carry per-level `costs` arrays now);
   **Cinder Crown removed**; lifesteal pops a green +N on every heal ≥ 1 hp;
-  the live scoreboard has an ❤️ HP `current/max` column. Then ~20k games of
-  strategy study (`tools/strategy-study.js`, NEW) produced the ranking and the
-  buff/nerf guidelines in BALANCE.md §0. Two measured retunes shipped with it:
+  the live scoreboard has an ❤️ HP `current/max` column. Then ~35k games of
+  strategy study (`tools/strategy-study.js`, NEW; 25 strategies in two waves)
+  produced the ranking and the buff/nerf guidelines in BALANCE.md §0 — its
+  headline: **midas-cdr is a copyable auto-win (86% Hard / 95% Extreme), every
+  polite nerf was measured and missed, and the real fixes need Remi's ruling**
+  (Finding 16A / open question J). Two measured retunes shipped with it:
   momentum `rampDmg 0.06 → 0.022` (the flat fireball tripled the ramp's
   relative power) and the arcane refund excluding the fireball's own cooldown
   (self-refund was a 74%-win feedback loop). Verified: **219 vitest**, both
