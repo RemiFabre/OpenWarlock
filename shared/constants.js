@@ -63,7 +63,12 @@ export const PLAYER = {
   // at 70% HP. Set to null to restore true HP-scaled knockback — that one line
   // is the whole revert, deliberately.
   KB_CONSTANT_MISSING: 0.30,
-  REGEN: 1.2,             // baseline hp/s for everyone (ring stacks on top)
+  // Round 17 (Remi): passive regen REMOVED — HP resets every round anyway,
+  // and within a round regen mostly fed stalemates (which we then paid MORE
+  // complexity to suppress, via the lock). Measured at removal: round-1 first
+  // death 34.8 s (unchanged), venom −20 pts (its regen-denial premium became
+  // universal), midfield healthier. Revert = 1.2 + restore the Ring.
+  REGEN: 0,               // baseline hp/s (the Ring of Regeneration left with it)
   // Regen lock (2026-08-06): taking damage throttles regen for a moment.
   // Diagnosis behind it — a lv1 fireball is 5 dmg / 2.1 s = 2.38 dps if EVERY
   // shot lands, against 1.2 hp/s of passive regen, so two players trading lv1
@@ -75,6 +80,8 @@ export const PLAYER = {
   // value and unexplainable). Applies to lava damage too, on purpose.
   // ⚠ Re-check the round-1 first-death median (~31 s) — that number is WHY
   // the lock exists.
+  // ⚠ INERT while REGEN is 0 and nothing grants regen — kept as the one-line
+  // revert path for the whole regen system
   REGEN_LOCK: 2.0,        // seconds of paused regen after taking damage
   REGEN_LOCK_MULT: 0,     // regen multiplier while the lock is up (full stop)
 };
@@ -245,7 +252,7 @@ export const ITEMS = {
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
   amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: 'Max HP.' },
-  ring:   { name: 'Ring of Regeneration', cost: 12, maxLevel: 3, desc: 'HP regen. Taking damage pauses regen for 2 s.' },
+  // (Ring of Regeneration removed with passive regen, round 17 — see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
@@ -289,7 +296,6 @@ export const ITEM_FX = {
   boots: { speedMult: [1.15, 1.29, 1.42] },
   treads: { lavaMult: [0.50, 0.36, 0.28] },
   amulet: { maxHp: [18, 32, 42] },   // round 17 §9 trim (was [25, 43, 56])
-  ring: { regen: [0.5, 0.85, 1.1] }, // round 17 §9 trim (was [0.7, 1.2, 1.55])
   cape: { kbMult: [0.92, 0.85, 0.80] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
@@ -498,20 +504,20 @@ export const BOT_TARGETING = {
 export const BUILDS = {
   bruiser: { name: 'Bruiser',
     desc: 'Stands its ground and trades: HP and lifesteal under the fireball. Elemental picks: vampire, ember, momentum — it heals through you now and out-damages you later.',
-    order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'ring', 'cape', 'treads'] },
+    order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'cape', 'treads'] },
   sniper:  { name: 'Sniper',
     desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: venom, ghost, momentum — the poison keeps working while it repositions.',
-    order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape', 'ring'] },
+    order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape'] },
   escape:  { name: 'Escape artist',
     desc: 'A fireball with an escape button: slippery, never where you aimed. Elemental picks: arcane, ghost, mosquito — fast, faster, and a trap on your body.',
-    order: ['boots', 'fireball', 'teleport', 'fireball', 'fireball', 'cape', 'teleport', 'ring'] },
+    order: ['boots', 'fireball', 'teleport', 'fireball', 'fireball', 'cape', 'teleport'] },
   turtle:  { name: 'Turtle',
-    desc: 'Shield, regen and HP: outlasts you and lets the lava do the work. Elemental picks: frost, terra, venom — slow you, hit big, and bleed you out.',
-    order: ['shield', 'amulet', 'ring', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
+    desc: 'Shield and HP: outlasts you and lets the lava do the work. Elemental picks: frost, terra, venom — slow you, hit big, and bleed you out.',
+    order: ['shield', 'amulet', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
   rusher:  { name: 'Rusher',
     desc: 'Rush and lifesteal: dives in and shoves you toward the lava. Elemental picks: gale, terra, ember — every hit pushes, and the big ones push HARD.',
     order: ['rush', 'fireball', 'boots', 'sword', 'fireball', 'rush', 'amulet', 'cape'] },
   boomer:  { name: 'Boomer',
     desc: 'Boomerang stacking: wide throws that hit going out AND coming back. Elemental picks: arcane, midas, ember — volume, income, damage.',
-    order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'ring', 'sword'] },
+    order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'sword'] },
 };

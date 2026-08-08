@@ -36,7 +36,7 @@ const progress = process.stderr.isTTY ? console.error : () => {};
 // and damage first. Repeated 3x so every level of everything is eventually
 // reachable (a list entry buys at most one level per shop pass).
 const EXHAUST_PASS = [
-  'amulet', 'sword', 'boots', 'ring', 'lightning', 'cape', 'treads',
+  'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
   'hourglass', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'venom',
   'vampire', 'momentum', 'boomerang', 'rush', 'shield', 'teleport', 'echo',
   'frost', 'mosquito', 'midas',
@@ -77,7 +77,7 @@ export const STRATEGIES = {
   'momentum-scaling': {
     desc: 'Late-game scaling: max momentum immediately and feed the permanent ramp with terra (a bigger ball lands more hits), banking on a cannon by round 10.',
     core: ['momentum', 'momentum', 'momentum', 'terra', 'terra', 'terra',
-      'amulet', 'ring', 'amulet'],
+      'amulet', 'amulet'],
   },
   'mosquito-combo': {
     desc: 'Trap setup: max mosquito, then venom so every cashed sting doubles the poison, then arcane cadence for more stings per fight.',
@@ -100,9 +100,8 @@ export const STRATEGIES = {
       'boots', 'boots', 'amulet'],
   },
   'tank-sustain': {
-    desc: 'Classic turtle: amulet, ring and sword before any element, treads to swim safely; buys its (ember) offense only once unkillable.',
-    core: ['amulet', 'ring', 'amulet', 'ring', 'sword', 'amulet', 'ring',
-      'treads', 'sword', 'sword', 'ember', 'ember'],
+    desc: 'Classic turtle: amulet and sword before any element, treads to swim safely; buys its (ember) offense only once unkillable.',
+    core: ['amulet', 'amulet', 'sword', 'amulet', 'treads', 'sword', 'sword', 'ember', 'ember'],
   },
   'midas-economy': {
     desc: 'Economy: max midas first (every hit pays +1g, fireball halved until the levels buy it back) and convert the income lead into the deepest full build.',
@@ -110,7 +109,7 @@ export const STRATEGIES = {
   },
   'item-breadth': {
     desc: 'Breadth-first shopper: one level of every item before any second level or element — the round-15 finding that breadth beats depth, taken literally.',
-    core: ['amulet', 'sword', 'boots', 'ring', 'cape', 'treads', 'hourglass',
+    core: ['amulet', 'sword', 'boots', 'cape', 'treads', 'hourglass',
       'ember', 'terra'],
   },
   'spell-kit': {
@@ -125,9 +124,9 @@ export const STRATEGIES = {
   },
   'no-elements': {
     desc: 'Control strategy: refuses elements entirely — items and pilotable spells only. Prices "the element shelf" as a class: every point below baseline is what skipping it costs.',
-    core: ['amulet', 'sword', 'boots', 'lightning', 'ring', 'amulet', 'sword',
+    core: ['amulet', 'sword', 'boots', 'lightning', 'amulet', 'sword',
       'boomerang', 'cape', 'treads', 'hourglass', 'amulet', 'sword', 'lightning',
-      'boots', 'ring', 'boots', 'ring', 'cape', 'treads', 'hourglass', 'rush',
+      'boots', 'boots', 'cape', 'treads', 'hourglass', 'rush',
       'shield', 'teleport', 'lightning', 'boomerang', 'boomerang', 'rush',
       'shield', 'teleport', 'cape', 'treads', 'hourglass', 'echo'],
     noExhaust: true, // the core IS the exhaust, minus the element shelf
@@ -164,9 +163,8 @@ export const STRATEGIES = {
       'amulet', 'sword', 'amulet'],
   },
   'ember-tank': {
-    desc: 'Minimal offense first, then the full turtle: one cheap damage dip before amulet/ring/sword depth.',
-    core: ['ember', 'ember', 'amulet', 'ring', 'amulet', 'sword', 'ring',
-      'amulet', 'sword', 'treads', 'ember'],
+    desc: 'Minimal offense first, then the full turtle: one cheap damage dip before amulet/sword depth.',
+    core: ['ember', 'ember', 'amulet', 'amulet', 'sword', 'amulet', 'sword', 'treads', 'ember'],
   },
   'vampire-cadence': {
     desc: 'Sustain through volume: vampire every-5th heals arrive faster under the CDR stack.',

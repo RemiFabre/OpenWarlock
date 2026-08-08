@@ -156,3 +156,20 @@ Options are design-shaped (lifesteal under some lock of its own; a weaker
 lock; accept the sword as the one true item) — Remi rules. §9's own letter
 protects it: "touch the sword only if active lifesteal fails to out-heal
 passive play" — it does not fail.
+
+## Late experiments (Remi live, post-battery — 600-game mixed tables, seed 1)
+
+| variant | momentum | venom | ember | vampire | first death |
+|---|---|---|---|---|---|
+| live baseline (lock, regen 1.2) | 85.9 | 64.7 | 28.9 | 20.8 | 34.3 s |
+| regen lock removed | 98.7 | 30.8 | 33.5 | 27.6 | 51.4 s |
+| ALL passive regen removed (SHIPPED) | 86.1 | 44.3 | 36.1 | 31.8 | 34.8 s |
+| arcane refunds its own fireball (NOT shipped) | 77.2 | 54.7 | 18.9 | 15.1 | — |
+
+- No-lock: round 1 reverts to the 51 s stalemate and momentum runs away
+  (98.7%) — chip damage stops existing, only burst kills. The lock was
+  load-bearing for both.
+- No-regen (shipped): pacing identical, venom loses its regen-denial premium
+  (now universal), the midfield compresses. The Ring left the game with it.
+- Arcane self-refund: 66.4% as a lone element (13.7 at HEAD) — the round-16
+  feedback loop survives the haste conversion. Held for Remi's ruling.

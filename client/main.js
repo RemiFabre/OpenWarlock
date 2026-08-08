@@ -751,7 +751,6 @@ const ITEM_FIELDS = {
   lavaMult: ['lava damage taken', fmtMult],
   kbMult: ['knockback taken', fmtMult],
   maxHp: ['max HP', (v) => `+${fmtNum(v)}`],
-  regen: ['regeneration', (v) => `+${fmtNum(v)} hp/s`],
   lifesteal: ['lifesteal', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
   every: ['echo cadence', (v) => `every ${fmtNum(v)}th fireball`],
   delay: ['echo delay', fmtSec],
@@ -768,7 +767,6 @@ const ITEM_LIVE = {
   boots: (lv) => `you move at ${fmtNum(PLAYER.SPEED * itemFxAt('boots', 'speedMult', lv))} u/s (base ${fmtNum(PLAYER.SPEED)})`,
   treads: (lv) => `lava burns you for ${fmtNum(LAVA.DPS * itemFxAt('treads', 'lavaMult', lv))} hp/s (base ${fmtNum(LAVA.DPS)})`,
   amulet: (lv) => `you have ${fmtNum(PLAYER.MAX_HP + itemFxAt('amulet', 'maxHp', lv))} max HP (base ${fmtNum(PLAYER.MAX_HP)})`,
-  ring: (lv) => `you regenerate ${fmtNum(PLAYER.REGEN + itemFxAt('ring', 'regen', lv))} hp/s (base ${fmtNum(PLAYER.REGEN)}) — taking damage pauses it for ${fmtNum(PLAYER.REGEN_LOCK)} s`,
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
@@ -780,7 +778,6 @@ const ITEM_NEXT = {
   boots: (lv) => `+${fmtNum(Math.round((itemFxAt('boots', 'speedMult', lv) - 1) * 100))}% move speed`,
   treads: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('treads', 'lavaMult', lv)) * 100))}% lava damage`,
   amulet: (lv) => `+${fmtNum(itemFxAt('amulet', 'maxHp', lv))} max HP`,
-  ring: (lv) => `+${fmtNum(itemFxAt('ring', 'regen', lv))} HP every second`,
   cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback taken`,
   sword: (lv) => `heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% of damage you deal`,
   hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} Ability Haste`,
@@ -1311,7 +1308,7 @@ function statsTable(fighters, specs, opts = {}) {
   const head = `<thead>
     <tr class="grp"><th colspan="${6 + roundCols}"></th>
       <th class="g" colspan="3">Damage dealt</th>
-      <th class="g" colspan="2">HP healed</th>
+      <th class="g" colspan="1">HP healed</th>
       <th class="g" colspan="${goldCols}">Gold</th>
       <th class="c-kit"></th></tr>
     <tr><th></th><th>Warlock</th>
@@ -1324,7 +1321,6 @@ function statsTable(fighters, specs, opts = {}) {
       ${th('Lava', 'lava burn credited to you for shoving someone in')}
       ${th('Total', 'direct + lava')}
       ${th('Lifesteal', 'HP the Blood Sword clawed back')}
-      ${th('Regen', 'HP regenerated (baseline + rings)')}
       ${showRound ? th('Round', 'gold earned since the last shop — the CURRENT round only') : ''}
       ${th('Wallet', 'gold you can spend right now')}
       ${th('Earned', 'gold earned all game, spent or not')}
@@ -1345,7 +1341,7 @@ function statsTable(fighters, specs, opts = {}) {
       ${cell(p.kills)}${showRound ? cell(p.roundKills, 'g-round') : ''}${cell(p.deaths)}
       <td class="n">${mk >= 2 ? `<span class="mk">×${mk}</span>` : '<span class="dim">–</span>'}</td>
       ${cell(direct)}${cell(lava, 'g-lava')}${cell(direct != null && lava != null ? direct + lava : null)}
-      ${cell(p.healLifesteal, 'g-heal')}${cell(p.healRegen, 'g-heal')}
+      ${cell(p.healLifesteal, 'g-heal')}
       ${showRound ? cell(p.roundGold, 'g-round') : ''}
       ${cell(p.gold, 'g-gold')}${cell(p.goldEarned ?? p.gold, 'g-gold')}
       <td class="kit c-kit">${kitIcons(p)}</td></tr>`;

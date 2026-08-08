@@ -188,7 +188,7 @@ const CHAMPION = {
   // so the measured lever was his HP (above) and the size of his honour guard.
   // These stay at level 1; if a future pass needs him stronger, raise them and
   // re-measure — the sweep above is the template.
-  items: { boots: 1, cape: 1, ring: 1, sword: 1, treads: 1 },
+  items: { boots: 1, cape: 1, sword: 1, treads: 1 }, // ring removed with regen (round 17)
 };
 
 // ---- the 10 levels ---------------------------------------------------------

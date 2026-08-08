@@ -33,6 +33,13 @@ retunes beyond the plan's FIRST TRY values, both one-line reverts:
 sweep is monotone now that stacking is gone) and **hourglass
 `haste [8, 18, 28]`** (the ladder ruling).
 
+**LATE round-17 changes (Remi live, all measured)**: passive regen REMOVED
+(`PLAYER.REGEN 0`, Ring deleted; round-1 first death 34.8 s unchanged, venom
+−20 to ~44%, midfield healthier — full numbers in the battery history file
+§no-regen); power spells cheaper (12-14 g) with infinite ground-target range;
+vanish 1/2/3 s; hourglass [10,18,26]. ⚠ The mixed/ladder tables above predate
+these — momentum's row is the stable read, the sustain rows are not.
+
 **Question J is CLOSED**: midas-cdr 86.2 → **24.3%** (both seeds — exactly
 baseline), double-cdr 49.1 → 10.5/12.9, mosquito-midas 70.0 → 29.8. Haste
 sums where CDR compounded, and the mark halves midas's income rate; nothing

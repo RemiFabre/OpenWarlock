@@ -3074,7 +3074,7 @@ function stepStalker(state, pl, dt) {
 // or already owns, so re-running the list every shop just fills the gaps.
 const BOT_BUILDS = {
   grunt: ['boots', 'fireball', 'amulet', 'teleport', 'fireball', 'cape',
-    'lightning', 'ring', 'sword', 'treads', 'lightning', 'teleport'],
+    'lightning', 'sword', 'treads', 'lightning', 'teleport'],
   berserker: ['fireball', 'fireball', 'rush', 'sword', 'amulet', 'boots',
     'rush', 'cape', 'treads'],
   // brawler (Normal) shares the berserker brain, so it shares its shopping
@@ -3082,7 +3082,7 @@ const BOT_BUILDS = {
   brawler: ['fireball', 'fireball', 'rush', 'sword', 'amulet', 'boots',
     'rush', 'cape', 'treads'],
   stalker: ['teleport', 'fireball', 'lightning', 'boots', 'fireball',
-    'shield', 'lightning', 'cape', 'ring', 'teleport', 'lightning', 'shield'],
+    'shield', 'lightning', 'cape', 'teleport', 'lightning', 'shield'],
 };
 
 // In elemental mode each bot kind commits to a fixed element (bought as soon

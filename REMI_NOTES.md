@@ -62,12 +62,28 @@ target). Two things you should know:
 3. **CDR builds landed bottom-third** (~11%) after the un-degeneration. If
    you want cadence viable-but-honest, say so. (Question M.)
 
+### Late additions (your live requests, all measured before shipping)
+
+- **Passive regen is GONE — and the Ring of Regeneration with it.** Your
+  instinct measured out: with HP resetting every round, regen's only in-round
+  job was feeding stalemates. Removal: round-1 first blood unchanged
+  (34.8 s), venom drops another 20 pts (its regen-denial premium became
+  universal), ember/vampire/mosquito rise into a healthier midfield. The lock
+  machinery stays in the code as the one-line revert (`PLAYER.REGEN` back to
+  1.2). The no-lock experiment you asked about is archived too: without the
+  lock, round 1 was a 51 s stalemate and momentum hit 98.7%.
+- **The readability batch** (short descs, hover details, next-level buy
+  lines, no Powerful shelf, infinite ground-target range, Blink, unlimited
+  pillars, vanish 1/2/3 s, flat haste deltas, stable lobby). Two holds,
+  both measured: arcane self-refund = 66.4% as a lone element (the old
+  feedback loop survives in the haste world — your call), and the ring was
+  measurably WEAK, not strong (now moot — it's gone).
+
 ### Everything else that shipped, one line each
 
-- Sustain: amulet [18,32,42], ring [0.5,0.85,1.1], hourglass haste [8,18,28]
-  (ladder-measured) — amulet seat 0.4% → 12.9%, ring is a free choice now.
-- Regen lock: a plain full stop for 2 s, said in the descs and stats panel;
-  round-1 first blood re-measured at 34.3 s median (safe).
+- Sustain: amulet [18,32,42]; hourglass haste [10,18,26] (your flat-delta
+  ruling; the ladder-measured [8,18,28] was the same ballpark) — amulet's
+  forbidden ladder seat went 0.4% → 12.9%. (Ring: later removed with regen.)
 - Momentum HUD shows tier + hits-to-next-evolution; the ball itself grows
   flame wings and motes per tier (Session D's layered visual system — every
   element paints its own tell, the engorged ball owns the color war).

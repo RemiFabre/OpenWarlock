@@ -172,16 +172,13 @@ describe('lava', () => {
     run(state, 1);
     expect(pl.hp).toBeLessThan(hp0 - 10);    // ~14 dps minus baseline regen
     expect(pl.hp).toBeGreaterThan(hp0 - 16);
-    // step out: the damage stops immediately, but regen stays PAUSED for the
-    // full lock (round 17 §9: "taking damage pauses your regen for 2 s",
-    // lava damage included) — only then does healing take over
+    // step out: the damage stops immediately — and stays (round 17: passive
+    // regen is REMOVED, so lava scars don't heal back between fights)
     pl.x = 0; pl.y = 0;
     run(state, DT * 2);
     const hp1 = pl.hp;
-    run(state, 1);
-    expect(pl.hp).toBeCloseTo(hp1, 5);  // inside the lock: no healing, no burning
-    run(state, PLAYER.REGEN_LOCK);
-    expect(pl.hp).toBeGreaterThan(hp1); // lock over: healing
+    run(state, 3);
+    expect(pl.hp).toBeCloseTo(hp1, 5);  // no lingering burn, no free healing
   });
 
   it('lava kill credits the last hitter', () => {
@@ -691,14 +688,14 @@ describe('shop & economy', () => {
     const state = shopState();
     const a = state.players.a;
     a.gold = 999;
-    for (const key of ['boots', 'treads', 'amulet', 'ring', 'cape', 'sword'])
+    for (const key of ['boots', 'treads', 'amulet', 'cape', 'sword'])
       for (let i = 0; i < 3; i++) buy(state, 'a', key);
     const s = playerStats(a);
     const last = (k, f) => ITEM_FX[k][f][ITEMS[k].maxLevel - 1];
     expect(s.speed).toBeCloseTo(PLAYER.SPEED * last('boots', 'speedMult'), 6);
     expect(s.lavaMult).toBeCloseTo(last('treads', 'lavaMult'), 6);
     expect(s.kbMult).toBeCloseTo(last('cape', 'kbMult'), 6);
-    expect(s.regen).toBeCloseTo(PLAYER.REGEN + last('ring', 'regen'), 6);
+    expect(s.regen).toBeCloseTo(PLAYER.REGEN, 6); // 0 since round 17 — no regen items exist
     expect(s.lifesteal).toBeCloseTo(last('sword', 'lifesteal'), 6);
     expect(s.maxHp).toBe(PLAYER.MAX_HP + last('amulet', 'maxHp'));
   });
@@ -3140,12 +3137,12 @@ describe('v5 mechanics', () => {
     expect(allAlive.arenaRadius).toBeGreaterThan(ARENA.MIN_RADIUS);
   });
 
-  it('baseline regen heals a damaged idle player', () => {
+  it('a damaged idle player STAYS damaged (round 17: no passive regen)', () => {
     const state = freshBattle(2);
     state.players.p0.hp = 50;
     run(state, 5); // idle at spawn, no lava, no items
-    expect(state.players.p0.hp).toBeGreaterThan(54.5); // ~50 + 1.2*5
-    expect(state.players.p0.hp).toBeLessThan(57.5);
+    expect(state.players.p0.hp).toBeCloseTo(50, 5); // damage is permanent now
+    expect(PLAYER.REGEN).toBe(0);
   });
 
   it('a pillar blocks a fireball (no damage to the player behind it)', () => {
