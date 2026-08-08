@@ -188,13 +188,15 @@ export const SPELLS = {
     damage: [16, 24], knockback: [110, 130],
     desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast.',
   },
-  hook: {
-    // 2026-08-06 (Remi: "very hard to hit"): range +30% and the projectile
-    // is 20% slower, so you can actually read and lead it
-    name: 'Hook', hotkey: 'G', tier: 'power', maxLevel: 2, costs: [20, 8],
+  swap: {
+    // Round 17 (docs/ROUND17.md §3): the hook's yank became a full position
+    // exchange — x/y AND velocity, both ways. Same projectile shell.
+    // The 1 damage exists to stamp the last-hitter (a following lava death
+    // credits the caster); no knockback, no on-hit riders — not a fireball.
+    name: 'Swap', hotkey: 'G', tier: 'power', maxLevel: 2, costs: [20, 8],
     cooldown: [13, 10], speed: 38, radius: 0.9, range: [34, 44],
-    damage: [4, 6],
-    desc: '🪝 Skewer the first enemy hit and yank them BEHIND you.',
+    damage: [1, 1],
+    desc: '🔀 Hit an enemy to TRADE PLACES with them — position and momentum both. The ultimate lava save, or the ultimate shove.',
   },
   repulse: {
     name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [20, 8],

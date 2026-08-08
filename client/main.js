@@ -21,7 +21,7 @@ window.addEventListener('resize', () => view.resize());
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
-  meteor: '☄️', hook: '🪝', repulse: '💥', wall: '🪞',
+  meteor: '☄️', swap: '🔀', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   echo: '🔁', hourglass: '⏳',
 };
@@ -36,9 +36,9 @@ const ICONS = {
 // client comes up blank. Add the spell here in the same commit you add it there.
 const KEY_PRESETS = {
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', vanish: 'v', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
+            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', vanish: 'v', meteor: 't', hook: 'g', repulse: 'x', wall: 'c' },
+            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c' },
 };
 
 function loadKeys() {
@@ -220,7 +220,13 @@ function onEvent(e) {
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
-    case 'hooked': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('zap'); break;
+    // swap: one flash at EACH end of the trade, plus its own crossing sound —
+    // "we traded places" must read instantly on both screens
+    case 'swapped':
+      fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.45 });
+      fx.push({ x: e.x2, y: e.y2, type: 'teleport', at: now, dur: 0.45 });
+      playSfx('swap');
+      break;
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
     case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;

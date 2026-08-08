@@ -510,14 +510,14 @@ export function castSpell(state, id, key, tx, ty) {
       });
       break;
     }
-    case 'hook': {
+    case 'swap': {
       state.projectiles.push({
-        id: state.nextId++, type: 'hook', owner: id, level,
+        id: state.nextId++, type: 'swap', owner: id, level,
         x: pl.x + dx * pl.radius * 0.5,
         y: pl.y + dy * pl.radius * 0.5,
         vx: dx * spec.speed, vy: dy * spec.speed,
         traveled: 0, returning: false, hit: {},
-        pierce: false, pierced: 0,   // skewers the FIRST body and stops there
+        pierce: false, pierced: 0,   // trades with the FIRST body and stops there
       });
       break;
     }
@@ -1652,7 +1652,7 @@ function stepProjectiles(state, dt) {
 
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
-    if (pr.type === 'hook' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
+    if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
     if (Math.hypot(pr.x, pr.y) > ARENA.START_RADIUS * 2) continue;
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance)
       turnBoomerangHome(state, pr); // hit the ceiling without being recalled
@@ -1802,19 +1802,25 @@ function stepProjectiles(state, dt) {
       if (procMosq) fireMosquitoProc(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
-      // hook: yank the (surviving) victim to right BEHIND the caster —
-      // momentum wiped, pillars still respected
-      if (pr.type === 'hook' && other.alive) {
+      // swap (round 17): full state exchange with the (surviving) victim —
+      // position AND velocity. Velocities must swap too, or the caster would
+      // keep their own lava-bound momentum from the new spot and the lava-save
+      // fantasy breaks. moveTarget/dash/charging are cleared on BOTH: each
+      // player wakes up somewhere new with no stale intent.
+      if (pr.type === 'swap' && other.alive) {
         const owner = state.players[pr.owner];
         if (owner && owner.alive) {
-          // land them a full body clear behind (0.6 → 1.4 2026-08-05: at 0.6
-          // the swap read as "next to me", not "behind me")
-          other.x = owner.x - (pr.vx / v) * (owner.radius + other.radius + 1.4);
-          other.y = owner.y - (pr.vy / v) * (owner.radius + other.radius + 1.4);
-          other.vx = 0; other.vy = 0;
-          other.moveTarget = null;
-          resolvePillarHit(state, other);
-          state.events.push({ t: 'hooked', id: other.id, x: other.x, y: other.y });
+          [owner.x, other.x] = [other.x, owner.x];
+          [owner.y, other.y] = [other.y, owner.y];
+          [owner.vx, other.vx] = [other.vx, owner.vx];
+          [owner.vy, other.vy] = [other.vy, owner.vy];
+          for (const p of [owner, other]) {
+            p.moveTarget = null; p.dash = null; p.charging = null;
+          }
+          // no `id` field on purpose: a swap always shows both ends, even if
+          // one of them is vanished (revealing is the accepted cost)
+          state.events.push({ t: 'swapped', a: owner.id, b: other.id,
+            x: owner.x, y: owner.y, x2: other.x, y2: other.y });
         }
       }
 

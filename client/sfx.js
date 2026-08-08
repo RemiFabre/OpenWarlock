@@ -153,6 +153,14 @@ const FX = {
     tone({ type: 'square', f0: 1180, f1: 780, dur: 0.07, vol: 0.13, t0: 0.06 });
   },
 
+  // swap: two voices CROSSING — one falls while the other rises, the sound of
+  // trading places. A breath of noise marks the instant they pass each other.
+  swap() {
+    tone({ type: 'triangle', f0: 1250, f1: 320, dur: 0.24, vol: 0.3 });
+    tone({ type: 'triangle', f0: 320, f1: 1250, dur: 0.24, vol: 0.3 });
+    noise({ dur: 0.1, vol: 0.14, filter: 'highpass', f0: 2500, q: 0.8, t0: 0.08 });
+  },
+
   // gale detonation: a whoosh — filtered noise sweeping UP and out, with a short
   // low thump under it for the shove. Deliberately unlike freeze()'s glassy
   // shatter: the two elements stack, so their bursts must not sound alike.

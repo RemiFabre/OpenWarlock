@@ -287,12 +287,12 @@ export function draw(view, vs, fx, myId, moveMark, now) {
           r * 1.5, 0, Math.PI * 2);
         ctx.stroke();
       }
-    } else if (pr.type === 'hook') {
-      // taut chain from the caster to the hook head — the range is VISIBLE
-      // (hooks used to fly invisible: no render branch for the type)
+    } else if (pr.type === 'swap') {
+      // dashed tether from the caster to the swap bolt — the link the trade
+      // will travel is VISIBLE (the hook's chain, recolored arcane violet)
       const owner = players.find(p => p && p.id === pr.owner);
       if (owner && fin(owner.x) && fin(owner.y)) {
-        ctx.strokeStyle = 'rgba(215, 205, 180, 0.85)';
+        ctx.strokeStyle = 'rgba(200, 160, 255, 0.85)';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 4]);
         ctx.beginPath();
@@ -301,11 +301,11 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         ctx.stroke();
         ctx.setLineDash([]);
       }
-      const hr = Math.max(9, SPELLS.hook.radius * 2.2 * scale);
+      const hr = Math.max(9, SPELLS.swap.radius * 2.2 * scale);
       ctx.font = `${Math.round(hr * 2)}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🪝', x, y);
+      ctx.fillText('🔀', x, y);
       ctx.textBaseline = 'alphabetic';
     } else if (pr.type === 'boomerang') {
       const r = SPELLS.boomerang.radius * 0.9 * scale; // drawn a hair inside the hitbox

@@ -2374,7 +2374,7 @@ describe('elemental mode', () => {
     expect(state.projectiles.length).toBe(0);
   });
 
-  it('a plain fireball still POPS on the first body, and so does a hook', () => {
+  it('a plain fireball still POPS on the first body, and so does a swap bolt', () => {
     // regression for replacing the hardcoded type list with a per-projectile flag
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2386,9 +2386,9 @@ describe('elemental mode', () => {
     expect(state.projectiles[0].pierce).toBe(false);
     run(state, 0.4);
     expect(state.projectiles.length).toBe(0);
-    a.spells.hook = 1; a.cooldowns = {};
+    a.spells.swap = 1; a.cooldowns = {};
     b.x = 8; b.y = 0; b.vx = b.vy = 0;
-    castSpell(state, 'p0', 'hook', 20, 0);
+    castSpell(state, 'p0', 'swap', 20, 0);
     expect(state.projectiles[0].pierce).toBe(false);
     run(state, 0.4);
     expect(state.projectiles.length).toBe(0);
@@ -2567,7 +2567,7 @@ describe('power spells & pillar', () => {
     const state = freshBattle(2);
     state.phase = 'shop';
     state.players.p0.gold = 999;
-    for (const key of ['meteor', 'hook', 'repulse', 'wall']) {
+    for (const key of ['meteor', 'swap', 'repulse', 'wall']) {
       expect(SPELLS[key].minRound).toBeUndefined();
       expect(buy(state, 'p0', key).ok).toBe(true);
     }
@@ -2599,10 +2599,10 @@ describe('power spells & pillar', () => {
     // omission, is what protects us
     const orig = BUILDS.bruiser.order;
     try {
-      BUILDS.bruiser.order = ['meteor', 'hook', 'repulse', 'wall', 'fireball'];
+      BUILDS.bruiser.order = ['meteor', 'swap', 'repulse', 'wall', 'fireball'];
       bot.build = 'bruiser';
       botShop(state, 'p0');
-      for (const key of ['meteor', 'hook', 'repulse', 'wall'])
+      for (const key of ['meteor', 'swap', 'repulse', 'wall'])
         expect(bot.spells[key] || 0).toBe(0);
       expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
     } finally {
@@ -2650,33 +2650,123 @@ describe('power spells & pillar', () => {
     expect(Math.abs(b.vx) + Math.abs(b.vy)).toBeGreaterThan(20); // blasted
   });
 
-  it('hook: yanks the victim to right behind the caster', () => {
+  // ---- swap 🔀 (round 17: the hook's yank became a full state exchange) ----
+
+  // step until the swap lands (or the cap runs out); returns the event
+  function stepToSwap(state, ticks = 60) {
+    for (let i = 0; i < ticks; i++) {
+      state.events = [];
+      step(state, DT);
+      const e = state.events.find(ev => ev.t === 'swapped');
+      if (e) return e;
+    }
+    return null;
+  }
+
+  it('swap: trades position AND velocity, and clears intent on both sides', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
-    a.spells.hook = 1;
+    a.spells.swap = 1;
     state.pillars = [];
-    a.x = 0; a.y = 0; b.x = 15; b.y = 0;
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0;
+    b.x = 15; b.y = 0; b.vx = -12; b.vy = 0; b.moveTarget = { x: 0, y: 0 };
     state.players.p2.y = -40;
-    castSpell(state, 'p0', 'hook', 20, 0);
-    run(state, 0.6);
-    expect(b.x).toBeLessThan(-1);          // hook flew +x, victim lands a full
-    expect(b.x).toBeGreaterThan(-8);       // body BEHIND the caster (throw side flipped)
-    expect(Math.abs(b.y)).toBeLessThan(1);
-    expect(Math.hypot(b.vx, b.vy)).toBeLessThan(1); // momentum wiped
-    expect(b.hp).toBeLessThan(b.maxHp);
+    castSpell(state, 'p0', 'swap', 20, 0);
+    a.moveTarget = { x: -10, y: 0 };
+    const e = stepToSwap(state);
+    expect(e).toBeTruthy();
+    expect(e.a).toBe('p0');
+    expect(e.id).toBeUndefined(); // no anchor: both ends show even mid-Vanish
+    expect(a.x).toBeGreaterThan(10);                 // caster stands where b stood
+    expect(Math.abs(b.x)).toBeLessThan(3);           // b stands where a stood
+    expect(a.vx).toBeLessThan(-5);                   // and momentum traded too
+    expect(Math.abs(b.vx)).toBeLessThan(1);
+    expect(a.moveTarget).toBe(null);                 // stale intent wiped on both
+    expect(b.moveTarget).toBe(null);
+    expect(b.hp).toBeLessThan(b.maxHp);              // the 1 damage landed
   });
 
-  it('hook: a victim killed by the hook damage is not yanked', () => {
+  it('swap: the lava save — and the victim burning to death credits the caster', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
-    a.spells.hook = 1;
+    a.spells.swap = 1;
     state.pillars = [];
-    a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.hp = 1;
+    a.x = 20; a.y = 0; a.vx = 0; a.vy = 0;           // caster is IN the lava
+    b.x = 0; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    b.hp = 15;
+    state.players.p2.x = 0; state.players.p2.y = -8;
+    state.arenaRadius = 12;
+    castSpell(state, 'p0', 'swap', 0, 0);
+    const kills0 = a.kills;
+    expect(stepToSwap(state)).toBeTruthy();
+    expect(Math.hypot(a.x, a.y)).toBeLessThan(3);    // saved: standing on b's spot
+    expect(Math.hypot(b.x, b.y)).toBeGreaterThan(12); // b inherited the lava
+    run(state, 2);                                    // 15 hp vs 14 dps
+    expect(b.alive).toBe(false);
+    expect(a.kills).toBe(kills0 + 1);   // the 1-damage stamp owns the lava death
+  });
+
+  it('swap: a victim killed by the 1 damage is not swapped', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.hp = 0.5;
     state.players.p2.y = -40;
-    castSpell(state, 'p0', 'hook', 20, 0);
+    castSpell(state, 'p0', 'swap', 20, 0);
     run(state, 0.6);
     expect(b.alive).toBe(false);
-    expect(b.x).toBeGreaterThan(5); // died where the hook found them
+    expect(b.x).toBeGreaterThan(5);        // died where the bolt found them
+    expect(Math.abs(a.x)).toBeLessThan(3); // caster went nowhere
+  });
+
+  it('swap: interrupts the victim mid-dash and the caster mid-charge', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.vx = 0; b.moveTarget = null;
+    state.players.p2.y = -40;
+    castSpell(state, 'p0', 'swap', 20, 0);
+    a.charging = { left: 1.8, level: 1 };            // repulse wind-up, post-cast
+    // dash TOWARD the bolt so the two meet mid-flight, still mid-dash
+    b.dash = { dx: -1, dy: 0, left: 12, level: 1, hit: {} };
+    expect(stepToSwap(state)).toBeTruthy();
+    expect(a.charging).toBe(null);
+    expect(b.dash).toBe(null);
+  });
+
+  it('swap: connects with a vanished victim (revealing them is fine)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.vx = 0; b.moveTarget = null;
+    b.vanishT = 2;
+    state.players.p2.y = -40;
+    castSpell(state, 'p0', 'swap', 20, 0);
+    expect(stepToSwap(state)).toBeTruthy();
+    expect(a.x).toBeGreaterThan(10);
+    expect(b.vanishT).toBeGreaterThan(0);  // swapped, not un-vanished
+  });
+
+  it('swap: no on-hit riders — elements never ride it, knockback never fires', () => {
+    const state = createGame({ seed: 42, mode: 'elemental' });
+    for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    a.elements = { venom: 1, midas: 1 };
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 15; b.y = 0; b.vx = 0; b.moveTarget = null;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    const gold0 = a.gold;
+    castSpell(state, 'p0', 'swap', 20, 0);
+    expect(stepToSwap(state)).toBeTruthy();
+    expect(b.poisonT || 0).toBe(0);        // no venom
+    expect(a.gold).toBe(gold0);            // no midas
+    expect(Math.abs(b.vx)).toBeLessThan(1); // no knockback: b got a's rest state
   });
 
   it('repulse: 2 s visible charge (spell-locked), then a radial blast', () => {
