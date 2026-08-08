@@ -70,8 +70,13 @@ export const PLAYER = {
   // fireballs literally could not kill each other. Round 1 (nobody has
   // upgrades yet) measured a median 51.9 s to the first death vs ~20 s in
   // round 3 — the lava did all the work. This makes landed hits stick.
-  REGEN_LOCK: 2.5,        // seconds of throttled regen after taking damage
-  REGEN_LOCK_MULT: 0.25,  // regen multiplier while the lock is up
+  // Round 17 §9: the lock is a FULL STOP now — "taking damage pauses your
+  // regen for 2 s" is one human sentence (×0.25-for-2.5 s was near-identical
+  // value and unexplainable). Applies to lava damage too, on purpose.
+  // ⚠ Re-check the round-1 first-death median (~31 s) — that number is WHY
+  // the lock exists.
+  REGEN_LOCK: 2.0,        // seconds of paused regen after taking damage
+  REGEN_LOCK_MULT: 0,     // regen multiplier while the lock is up (full stop)
 };
 
 export const LAVA = {
@@ -235,8 +240,11 @@ export const SPELLS = {
 export const ITEMS = {
   boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: '+15% move speed, then +29% and +42%' },
   treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: '-50% lava damage, then -64% and -72%' },
-  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: '+25 max HP, then +43 and +56' },
-  ring:   { name: 'Ring of Regeneration', cost: 12, maxLevel: 3, desc: '+0.7 HP/s, then +1.2 and +1.55' },
+  // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
+  // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
+  // Target: any forbidden-item ladder seat stays ≥ ~15%.
+  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: '+18 max HP, then +32 and +42. Taking damage pauses your regen for 2 s.' },
+  ring:   { name: 'Ring of Regeneration', cost: 12, maxLevel: 3, desc: '+0.5 HP/s, then +0.85 and +1.1. Taking damage pauses your regen for 2 s (lava too).' },
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
@@ -279,8 +287,8 @@ export function itemCost(key, owned = 0) {
 export const ITEM_FX = {
   boots: { speedMult: [1.15, 1.29, 1.42] },
   treads: { lavaMult: [0.50, 0.36, 0.28] },
-  amulet: { maxHp: [25, 43, 56] },
-  ring: { regen: [0.7, 1.2, 1.55] },
+  amulet: { maxHp: [18, 32, 42] },   // round 17 §9 trim (was [25, 43, 56])
+  ring: { regen: [0.5, 0.85, 1.1] }, // round 17 §9 trim (was [0.7, 1.2, 1.55])
   cape: { kbMult: [0.92, 0.85, 0.80] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
@@ -297,9 +305,12 @@ export const ITEM_FX = {
 // each — ember=damage · gale=push · arcane=cadence · terra=size · ghost=speed.
 // history: docs/history/2026-08-08-constants-sweeps.md#elements
 export const ELEMENTS = {
+  // Round 17 §8: [2,4,6] → [1,2,4] — ember was the best 6 g in the game
+  // (+39.8 isolated). Linear cost↔gain with the premium last step (the
+  // general tuning principle: going all-in deserves the reward).
   ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [6, 5, 5],
-           desc: 'Pure fire: +2 fireball damage, then +4 and +6. Cheap, no tricks.',
-           fx: { dmgAdd: [2, 4, 6] } },
+           desc: 'Pure fire: +1 fireball damage, then +2 and +4. Cheap, no tricks.',
+           fx: { dmgAdd: [1, 2, 4] } },
   // Stack-and-detonate (2026-08-06 rework): stacks never melt, the 3rd triggers;
   // stacks PRIVATE per attacker since round 12. The ~17% mixed-table read is
   // mostly pre-existing variance; mid-strength in the absolute lab — NOT retuned.
@@ -309,14 +320,14 @@ export const ELEMENTS = {
            desc: 'Hits leave a frost stack that never melts. The 3rd stack detonates: lv1 −30% speed 3 s · lv2 −50% speed 3 s · lv3 FROZEN SOLID 2 s. Everyone\'s stacks count toward the same 3.',
            fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
                  stunT: [0, 0, 2] } },
-  // 2026-08-05 rework: the DoT is now DISCRETE ticks (1/s for 5 s) and
-  // re-hits refresh the clock AND stack the tick damage (capped). A lethal
-  // tick gives the poisoner the kill — even in lava — but ticks still never
-  // stamp the last-hitter slot (the round-9 credit rule).
+  // Round 17 §7: tick STACKING deleted (it was the 92% engine) — re-hits only
+  // refresh the clock. Identity: venom deals LESS total than ember; its edge
+  // is that the DoT ticks after you disengage and a lethal tick TAKES the
+  // kill, even in lava (test-locked credit rule — it IS the identity).
+  // Balance target: top-third of the mixed table, never #1.
   venom: { name: 'Venom', icon: '🐍', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hits poison: 1 tick/s for 5 s. Re-hits refresh the clock AND strengthen the ticks. Trail on the ground. −15% direct damage.',
-           fx: { dmgMult: 0.85, tickDmg: [1, 1.5, 2], stackAdd: [0.4, 0.6, 0.8],
-                 stackCap: [3, 4.5, 6], dotTime: 5, tickEvery: 1,
+           desc: 'Hits poison: 1 / 2 / 3 damage per second for 5 s. Re-hits refresh the clock. The poison keeps working after you run — and a lethal tick is YOUR kill, even in lava. Trail on the ground. −15% direct damage.',
+           fx: { dmgMult: 0.85, tickDmg: [1, 2, 3], dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
@@ -327,13 +338,14 @@ export const ELEMENTS = {
            desc: 'Wind under your fireball: +7 push, then +14. Lv3 unlocks the gust: your hits leave a stack, and the 3rd is spent on one enormous shove (×2.4). Only YOUR stacks count.',
            fx: { kbAdd: [7, 14, 14], stacksToTrigger: 3, burstKbMult: 2.4,
                  burstAtLevel: 3 } },
-  // +1 g per hit, capped there forever; levels buy back the −50% damage/push
-  // penalty. Lab 0.0% is a gold-saturation FLOOR (every gold-scarcity axis moves
-  // it up monotonically), not a measurement of the element.
-  // ⚠ Calibration: a do-nothing 26 g element scores 2.7% — do not act on a 0.0%.
+  // Round 17 §5: the +1 g is a TWO-HIT rhythm now — the first hit on a target
+  // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
+  // target cashes +1 g and clears it. Halves the income RATE, which was the
+  // engine of the midas-cdr 86% auto-win (question J). +1 g cap unchanged
+  // forever; levels still only buy back the damage/push penalty.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Every hit pays +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −38% at lv2, −28% at lv3.',
+           desc: 'Your first hit on someone plants a 🪙 mark; your NEXT hit on them cashes +1 g — never more, at any level. The price: your fireball is HALVED at lv1 (−50% damage and push). Levels buy the penalty back: −38% at lv2, −28% at lv3.',
            fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.62, 0.72], kbMult: [0.5, 0.62, 0.72] } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else — the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
@@ -342,14 +354,18 @@ export const ELEMENTS = {
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 5, 5],
            desc: 'A bigger fireball each level (+25%, +45%, +65% radius): much easier to land. Cheap, no tricks.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
-  // Permanent whole-game ramp on LANDED fireballs, damage only (round 12 rework
-  // of 'critical'); rampDmg re-swept round 16 at 0.022, 1:1.5:2 ratio kept.
-  // ⚠ Violently steep: re-run 800×3 after ANY fireball/ember/knockback/lava change.
-  // ⚠ If it feels slow raise rampDmg only — game-long permanence is Remi's design.
+  // Round 17 §6: the per-hit ramp became visible EVOLUTION TIERS — landed
+  // fireballs still count all game (permanence is Remi's design), and at
+  // tierHits thresholds the ball evolves for a flat cumulative bonus
+  // (tierDmg[level-1][tier-1], totals not increments). No early penalty any
+  // more. FIRST TRY numbers; calibration: a bot carrier lands a median 172
+  // hits/game, humans far fewer.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Starts at 80% damage. EVERY fireball you LAND makes your fireball permanently stronger — for the whole game, not just the round, with no ceiling. Damage only: your push never changes.',
-           fx: { dmgMult: 0.8, rampDmg: [0.022, 0.033, 0.044], rampPermanent: true } },
+           desc: 'EVERY fireball you LAND counts, all game. At 40 / 90 / 150 landed hits your fireball EVOLVES: permanently +2, +5, then +9 damage (higher levels evolve harder, up to +3/+7/+12). Damage only: your push never changes.',
+           fx: { tierHits: [40, 90, 150],
+                 tierDmg: [[2, 5, 9], [2.5, 6, 10.5], [3, 7, 12]],
+                 rampPermanent: true } },
   // Round 12: sting leaves ONE private stack; hitting a stacked target spends it
   // — two co-located fireballs, every on-hit pays TWICE, knockback happens ONCE.
   // ⚠ Proc balls must NOT place stacks (chains forever) — test-locked, ROUND12 S3.

@@ -240,6 +240,8 @@ function onEvent(e) {
       break;
     }
     case 'frost': pushFloater(e, 'frost', 0.7, now); break;
+    // midas: the mark planted (quiet — the cash's +1 g popup is the loud half)
+    case 'midasMark': fx.push({ ...e, type: 'midasMark', at: now, dur: 0.5 }); break;
     // gale: a gust stacked. Silent on purpose — it fires on every gale hit, and
     // a sound on each one would drown the burst it is counting down to.
     case 'gale': pushFloater(e, 'gale', 0.7, now); break;
@@ -684,6 +686,9 @@ const SPELL_FIELDS = {
   length: ['wall length', fmtNum],
 };
 const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'tier', 'minRound']);
+// element fx whose array is NOT per-level (tierHits columns are tiers) —
+// their reading lives in another row's label instead
+const ELEM_FX_SKIP = new Set(['tierHits']);
 
 const FX_FIELDS = {
   dmgAdd: ['fireball damage', (v) => `+${fmtNum(v)}`],
@@ -703,17 +708,18 @@ const FX_FIELDS = {
   slowT: ['slow lasts', fmtSec],
   stunT: ['stun lasts', fmtSec],
   tickDmg: ['poison per tick', fmtNum],
-  stackAdd: ['re-hit adds', (v) => `+${fmtNum(v)}/tick`],
-  stackCap: ['tick damage cap', fmtNum],
   dotTime: ['poison lasts', fmtSec],
   tickEvery: ['ticks every', fmtSec],
   trailT: ['trail lasts', fmtSec],
   trailDps: ['trail damage', (v) => `${fmtNum(v)}/s`],
   trailStep: ['trail spacing', fmtNum],
   trailR: ['trail radius', fmtNum],
-  goldOnHit: ['gold per hit', (v) => `+${fmtNum(v)} g`],
-  rampDmg: ['damage per landed hit', (v) => `+${fmtNum(v)}`],
-  rampPermanent: ['the ramp', (v) => (v ? 'never resets — it is yours for the game' : 'resets each round')],
+  goldOnHit: ['gold per cashed mark', (v) => `+${fmtNum(v)} g`],
+  // tierHits is skipped below (its columns are TIERS, not levels); the label
+  // here carries the thresholds instead, read off the spec
+  tierDmg: [`evolution bonus (at ${ELEMENTS.momentum.fx.tierHits.join(' / ')} hits)`,
+    (v) => (Array.isArray(v) ? `+${v.join(' / +')} dmg` : `+${fmtNum(v)}`)],
+  rampPermanent: ['your landed hits', (v) => (v ? 'never reset — they are yours for the game' : 'reset each round')],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
@@ -750,7 +756,7 @@ const ITEM_LIVE = {
   boots: (lv) => `you move at ${fmtNum(PLAYER.SPEED * itemFxAt('boots', 'speedMult', lv))} u/s (base ${fmtNum(PLAYER.SPEED)})`,
   treads: (lv) => `lava burns you for ${fmtNum(LAVA.DPS * itemFxAt('treads', 'lavaMult', lv))} hp/s (base ${fmtNum(LAVA.DPS)})`,
   amulet: (lv) => `you have ${fmtNum(PLAYER.MAX_HP + itemFxAt('amulet', 'maxHp', lv))} max HP (base ${fmtNum(PLAYER.MAX_HP)})`,
-  ring: (lv) => `you regenerate ${fmtNum(PLAYER.REGEN + itemFxAt('ring', 'regen', lv))} hp/s (base ${fmtNum(PLAYER.REGEN)})`,
+  ring: (lv) => `you regenerate ${fmtNum(PLAYER.REGEN + itemFxAt('ring', 'regen', lv))} hp/s (base ${fmtNum(PLAYER.REGEN)}) — taking damage pauses it for ${fmtNum(PLAYER.REGEN_LOCK)} s`,
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
@@ -811,7 +817,7 @@ function elementTip(key, spec, level) {
   const cols = spec.maxLevel;
   let rows = '';
   const fxSpec = spec.fx || {};
-  for (const field of orderedFields(fxSpec, FX_FIELDS)) {
+  for (const field of orderedFields(fxSpec, FX_FIELDS, ELEM_FX_SKIP)) {
     const [label, fmt] = FX_FIELDS[field] || [field, fmtNum];
     rows += tipRow(label, fxSpec[field], cols, fmt, level);
   }
@@ -1517,11 +1523,17 @@ function updateUi(s) {
   if (inGame && m && !m.spectator) {
     const momLv = (m.elements && m.elements.momentum) || 0;
     if (momLv > 0) {
-      // no cap to show any more (the ramp is uncapped AND permanent): the
-      // number that matters is the damage it has actually bought you
+      // round 17 §6: the quest counter — current tier bonus and hits until
+      // the NEXT evolution, where the ramp number used to live
+      const f = ELEMENTS.momentum.fx;
       const hits = Math.max(0, +m.momentumHits || 0);
-      buffs.push(`<span class="buff crit">${ELEMENTS.momentum.icon} ${hits} hits` +
-        ` · +${fmtNum(statAt(ELEMENTS.momentum.fx.rampDmg, momLv) * hits)} dmg</span>`);
+      const tiers = statAt(f.tierDmg, momLv);
+      let tier = 0;
+      for (let i = 0; i < f.tierHits.length; i++) if (hits >= f.tierHits[i]) tier = i + 1;
+      const bonus = tier > 0 ? ` · +${fmtNum(tiers[tier - 1])} dmg` : '';
+      const next = tier < f.tierHits.length
+        ? ` · ${f.tierHits[tier] - hits} hits to evolve` : ' · MAX';
+      buffs.push(`<span class="buff crit">${ELEMENTS.momentum.icon} tier ${tier}${bonus}${next}</span>`);
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)

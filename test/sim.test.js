@@ -172,12 +172,16 @@ describe('lava', () => {
     run(state, 1);
     expect(pl.hp).toBeLessThan(hp0 - 10);    // ~14 dps minus baseline regen
     expect(pl.hp).toBeGreaterThan(hp0 - 16);
-    // step out: the damage stops immediately and regen takes over
+    // step out: the damage stops immediately, but regen stays PAUSED for the
+    // full lock (round 17 §9: "taking damage pauses your regen for 2 s",
+    // lava damage included) — only then does healing take over
     pl.x = 0; pl.y = 0;
     run(state, DT * 2);
     const hp1 = pl.hp;
     run(state, 1);
-    expect(pl.hp).toBeGreaterThan(hp1); // healing, not burning
+    expect(pl.hp).toBeCloseTo(hp1, 5);  // inside the lock: no healing, no burning
+    run(state, PLAYER.REGEN_LOCK);
+    expect(pl.hp).toBeGreaterThan(hp1); // lock over: healing
   });
 
   it('lava kill credits the last hitter', () => {
@@ -1103,9 +1107,10 @@ describe('elemental mode', () => {
     const state = hitWith({ frost: 1, ember: 1 });
     const b = state.players.p1;
     expect(frostOn(b, 'p0')).toBe(1);                   // frost rider applied
-    // ember lv1 +2 dmg on the same hit: 7+2 = 9, minus a hair of regen
-    expect(b.maxHp - b.hp).toBeGreaterThan(8.0);
-    expect(b.maxHp - b.hp).toBeLessThan(9.5);
+    // ember lv1 dmgAdd on the same hit (regen is fully locked after damage,
+    // so the number is exact)
+    expect(b.maxHp - b.hp).toBeCloseTo(
+      SPELLS.fireball.damage[0] + ELEMENTS.ember.fx.dmgAdd[0], 1);
   });
 
   it('arcane hastens the fireball', () => {
@@ -1274,7 +1279,7 @@ describe('elemental mode', () => {
     expect(c.hp).toBeGreaterThan(b.hp);     // the victim really is down on hp
   });
 
-  it('venom re-hits REFRESH the clock and STACK the tick damage', () => {
+  it('venom re-hits REFRESH the clock — the tick never stacks (round 17)', () => {
     const state = hitWith('venom');
     const b = state.players.p1;
     expect(b.poisonT).toBeGreaterThan(4.5);
@@ -1287,8 +1292,10 @@ describe('elemental mode', () => {
     run(state, 0.4);
     expect(b.poisonT).toBeGreaterThan(4.5); // refreshed to the full 5 s
     expect(b.poisonT).toBeLessThanOrEqual(ELEMENTS.venom.fx.dotTime);
-    expect(b.poisonTick).toBeCloseTo(       // and STRONGER: base + one stack
-      ELEMENTS.venom.fx.tickDmg[0] + ELEMENTS.venom.fx.stackAdd[0], 5);
+    expect(b.poisonTick).toBe(ELEMENTS.venom.fx.tickDmg[0]); // NOT stronger
+    // the stacking machinery is deleted from the spec, not just unused
+    expect(ELEMENTS.venom.fx.stackAdd).toBeUndefined();
+    expect(ELEMENTS.venom.fx.stackCap).toBeUndefined();
   });
 
   it('a lethal poison tick gives the poisoner the kill — without stamping lastHitBy', () => {
@@ -1317,62 +1324,42 @@ describe('elemental mode', () => {
   // ---- momentum ⚙️ ------------------------------------------------------
   // Every number below is read out of ELEMENTS.momentum.fx: AGENTS.md — balance
   // tests must not pin constants the owner is still tuning.
-  it('momentum ⚙️: starts weak, every landed hit permanently ramps DAMAGE', () => {
+  it('momentum ⚙️: landed hits unlock permanent EVOLUTION TIERS (round 17)', () => {
     const f = ELEMENTS.momentum.fx;
     const base = SPELLS.fireball.damage[0];
-    // hit 1: no ramp yet — a fraction of a normal fireball
+    // hit 1: tier 0 — exactly a plain fireball (the 0.8 early penalty is gone)
     const s1 = hitWith('momentum');
     const b1 = s1.players.p1;
-    const first = b1.maxHp - b1.hp;
-    expect(first).toBeGreaterThan(base * f.dmgMult - 0.8);
-    expect(first).toBeLessThan(base * f.dmgMult + 0.5);
-    expect(first).toBeLessThan(base);          // strictly weaker to start
+    expect(b1.maxHp - b1.hp).toBeCloseTo(base, 1);
     expect(s1.players.p0.momentumHits).toBe(1);
-    // after 10 landed hits the ramp is doing real work
-    const s2 = hitWith('momentum');
-    const a2 = s2.players.p0, b2 = s2.players.p1;
-    a2.momentumHits = 10;
-    b2.hp = b2.maxHp; b2.x = 8; b2.y = 0; b2.vx = 0; b2.vy = 0;
-    a2.cooldowns = {};
-    castSpell(s2, 'p0', 'fireball', 20, 0);
-    run(s2, 0.4);
-    const dealt = b2.maxHp - b2.hp;
-    const expected = (base + 10 * f.rampDmg[0]) * f.dmgMult;
-    expect(dealt).toBeGreaterThan(expected - 0.8); // regen nibbles a little
-    expect(dealt).toBeLessThan(expected + 0.5);
-    expect(dealt).toBeGreaterThan(first);          // strictly ramping
-    expect(a2.momentumHits).toBe(11);
-    // The payoff is a WHOLE GAME, not ten hits: a momentum seat lands a median
-    // 172 fireballs per game (re-measured 2026-08-08 — it was 78 in round 13;
-    // the lv1-locked elemental fireball means longer fights and many more
-    // casts), which is where the "you earned a cannon" fantasy actually lands.
-    // Deriving the hit count from the spec would be circular, so 172 is the
-    // measured median, stated as such.
-    const GAME_HITS = 172;
-    const s3 = hitWith('momentum');
-    s3.players.p0.momentumHits = GAME_HITS;
-    const b3 = s3.players.p1;
-    b3.maxHp = 999; b3.hp = b3.maxHp; b3.x = 8; b3.y = 0; b3.vx = 0; b3.vy = 0;
-    s3.players.p0.cooldowns = {};
-    castSpell(s3, 'p0', 'fireball', 20, 0);
-    run(s3, 0.4);
-    const lateGame = (base + GAME_HITS * f.rampDmg[0]) * f.dmgMult;
-    expect(b3.maxHp - b3.hp).toBeGreaterThan(lateGame - 1);
-    expect(b3.maxHp - b3.hp).toBeLessThan(lateGame + 1);
-    // ...and by then it must genuinely beat a plain fireball, or the whole
-    // element is pointless (it starts at dmgMult, so it has to climb back out).
-    // The threshold is DERIVED from the spec, not pinned: break-even is the hit
-    // count at which the ramp has paid off dmgMult, and a whole game has to be
-    // comfortably past it. (2026-08-07: this used to assert a hardcoded 1.4x and
-    // failed the moment rampDmg was re-swept 0.08 -> 0.06 — exactly the pinned-
-    // constant trap AGENTS.md warns about. The PROPERTY is "it climbs back out
-    // well inside one game"; break-even moved 22 -> 29 landed hits.)
-    const breakEven = (base * (1 - f.dmgMult)) / (f.rampDmg[0] * f.dmgMult);
-    expect(breakEven).toBeLessThan(GAME_HITS / 2);
-    expect(lateGame).toBeGreaterThan(base);
-    // no ceiling: twice the hits keeps climbing, it never plateaus
-    const twice = (base + 2 * GAME_HITS * f.rampDmg[0]) * f.dmgMult;
-    expect(twice).toBeGreaterThan(lateGame * 1.3);
+    expect(f.dmgMult).toBeUndefined();
+    // damage dealt with `hits` already banked (element lv1)
+    const dealtAt = (hits) => {
+      const s = hitWith('momentum');
+      const a = s.players.p0, b = s.players.p1;
+      a.momentumHits = hits;
+      b.maxHp = 999; b.hp = 999; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
+      a.cooldowns = {};
+      castSpell(s, 'p0', 'fireball', 20, 0);
+      run(s, 0.4);
+      return 999 - b.hp;
+    };
+    // tierDmg values are CUMULATIVE TOTALS per tier, not increments
+    const tiers = f.tierDmg[0];
+    expect(dealtAt(f.tierHits[0] - 1)).toBeCloseTo(base, 1);            // not yet
+    expect(dealtAt(f.tierHits[0])).toBeCloseTo(base + tiers[0], 1);     // evolved
+    expect(dealtAt(f.tierHits[1])).toBeCloseTo(base + tiers[1], 1);
+    expect(dealtAt(f.tierHits[2])).toBeCloseTo(base + tiers[2], 1);
+    expect(dealtAt(f.tierHits[2] * 3)).toBeCloseTo(base + tiers[2], 1); // tier 3 is the top
+    // element levels buy the tier bonuses UP, monotonically per tier
+    for (let i = 0; i < f.tierHits.length; i++) {
+      expect(f.tierDmg[1][i]).toBeGreaterThan(f.tierDmg[0][i]);
+      expect(f.tierDmg[2][i]).toBeGreaterThan(f.tierDmg[1][i]);
+    }
+    // calibration guard: the first evolution must land well inside a game —
+    // a bot carrier banks a median 172 hits/game (measured 2026-08-08), and
+    // humans land far fewer, so tier 1 has to sit in the first half of that
+    expect(f.tierHits[0]).toBeLessThan(172 / 2);
   });
 
   it('momentum is DAMAGE ONLY: a huge stack pushes exactly as hard as none', () => {
@@ -1401,8 +1388,7 @@ describe('elemental mode', () => {
     const base = SPELLS.fireball.damage[0];
     const state = hitWith('momentum');
     const a = state.players.p0, b = state.players.p1;
-    const hits = 10;
-    a.momentumHits = hits;
+    a.momentumHits = f.tierHits[0];          // tier 1 unlocked
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
     a.cooldowns = {};
     state.events = [];
@@ -1410,8 +1396,8 @@ describe('elemental mode', () => {
     run(state, 0.4);
     const hit = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(hit).toBeTruthy();
-    expect(hit.bonus).toBeCloseTo(hits * f.rampDmg[0] * f.dmgMult, 5);
-    expect(hit.amount - hit.bonus).toBeCloseTo(base * f.dmgMult, 5);
+    expect(hit.bonus).toBeCloseTo(f.tierDmg[0][0], 5);  // the tier IS the white number
+    expect(hit.amount - hit.bonus).toBeCloseTo(base, 5);
     // a plain fireball carries no bonus field at all
     const plain = hitWith('ember');
     expect(plain.events.find(e => e.t === 'hit' && e.id === 'p1').bonus).toBeUndefined();
@@ -1797,28 +1783,51 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(true);
   });
 
-  it('midas pays gold per fireball hit (and hits much softer now)', () => {
+  it('midas (round 17): the first hit plants a 🪙 mark, the SECOND cashes +1 g', () => {
     const state = hitWith('midas');
     const a = state.players.p0, b = state.players.p1;
-    expect(a.gold).toBe(GOLD.START + ELEMENTS.midas.fx.goldOnHit[0]); // lv1: +1 g
-    expect(b.maxHp - b.hp).toBeGreaterThan(3.3); // 5 * 0.85 = 4.25, minus a hair of regen
+    // hit 1: no gold yet — the mark is planted (private, on the stack store)
+    expect(a.gold).toBe(GOLD.START);
+    expect(stacksOf(b, 'midas', 'p0')).toBe(1);
+    expect(state.events.some(e => e.t === 'midasMark' && e.id === 'p1')).toBe(true);
+    expect(b.maxHp - b.hp).toBeGreaterThan(3.3); // the −50% penalty still applies
     expect(b.maxHp - b.hp).toBeLessThan(4.7);
+    // hit 2 on the SAME target: cash — and the mark is spent
+    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(a.gold).toBe(GOLD.START + ELEMENTS.midas.fx.goldOnHit[0]);
+    expect(stacksOf(b, 'midas', 'p0')).toBe(0);
     expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
   });
 
-  it('midas pays a flat +1 g per hit at EVERY level — never more', () => {
+  it('midas marks are per-target and private per attacker', () => {
+    // a mark on b does not pay out on c: hitting c plants c's OWN mark
+    const state = hitWith('midas');
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    expect(stacksOf(b, 'midas', 'p0')).toBe(1);
+    c.x = 8; c.y = 0; c.vx = 0; c.vy = 0; c.moveTarget = null; c.maxHp = 500; c.hp = 500;
+    b.x = 0; b.y = 30; b.vx = 0; b.vy = 0;   // parked out of the shot line
+    a.x = 0; a.y = 0; a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(a.gold).toBe(GOLD.START);          // no cash: c had no mark
+    expect(stacksOf(c, 'midas', 'p0')).toBe(1);
+    expect(stacksOf(b, 'midas', 'p0')).toBe(1); // b's mark still waiting
+  });
+
+  it('midas cashes +1 g at EVERY level — never more', () => {
     for (const level of [1, 2, 3]) {
       const state = hitWith({ midas: level });
       const a = state.players.p0, b = state.players.p1;
-      expect(a.gold).toBe(GOLD.START + 1);
-      expect(a.roundGold).toBe(1);
-      // a second hit on the same victim pays the same flat 1 g
+      // two hits = plant + cash, at every level the same flat +1 g
       b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
       a.cooldowns = {};
       castSpell(state, 'p0', 'fireball', 20, 0);
       run(state, 0.4);
-      expect(a.gold).toBe(GOLD.START + 2);
-      expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
+      expect(a.gold).toBe(GOLD.START + 1);
+      expect(a.roundGold).toBe(1);
     }
   });
 
@@ -3157,7 +3166,10 @@ describe('v5 mechanics', () => {
       t += DT;
     }
     expect(b.alive).toBe(false);     // it CAN kill...
-    expect(t).toBeGreaterThan(30);   // ...but regen makes it a long grind
+    // round 17 §9: the full-stop regen lock makes hits stick harder, so the
+    // grind shortened (~29.5 s, was >30 under the ×0.25 throttle) — the
+    // PROPERTY is "slow, not a burst kill", so the floor moved with it
+    expect(t).toBeGreaterThan(25);   // ...but regen makes it a long grind
   }, 15000);
 });
 

@@ -463,6 +463,17 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         ctx.stroke();
       }
     }
+    // Midas mark (round 17 §5): this body owes you gold — your next hit
+    // cashes it. One gold pip on the RIGHT side: frost owns the top arc,
+    // gale the bottom dashes, mosquito the low center.
+    if (mine && mine.midas > 0) {
+      ctx.fillStyle = 'rgba(255, 208, 70, 0.95)';
+      ctx.strokeStyle = 'rgba(120, 85, 0, 0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x + r * 1.75, y, 3.2, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
     if (mine && mine.mosquito > 0) {
       // the trap is armed: your next fireball on this body doubles.
       // Sits BELOW the gale dashes' outer end (1.85r) rather than at 1.6r, where
@@ -900,6 +911,15 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)'; ctx.shadowBlur = 10;
         ctx.fillText('gust!', x, y - 40 - 16 * k);
         ctx.restore();
+        break;
+      }
+      case 'midasMark': {
+        // a mark just landed: one quiet gold ring — the LOUD cue is the +1 g
+        // popup when it cashes (the existing 'gold' floater)
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.strokeStyle = `rgba(255, 208, 70, ${a * 0.9})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(x, y, (2.4 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
         break;
       }
       case 'biteHit': {

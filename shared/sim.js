@@ -1735,12 +1735,18 @@ function stepProjectiles(state, dt) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
           if (f.kbAdd) kb += efxV(f.kbAdd, el);
-          if (f.rampDmg) {
-            // momentum: the ramp counts every fireball this owner has landed
-            // ALL GAME, read at hit time. Damage only — knockback is untouched
-            // on purpose, so a big stack melts people instead of launching them.
+          if (f.tierHits) {
+            // momentum (round 17 §6): landed hits ALL GAME unlock evolution
+            // tiers; the bonus is the CURRENT tier's flat value (cumulative
+            // totals, not increments), read at hit time. Damage only —
+            // knockback is untouched so a big tier melts, never launches.
             const own = state.players[pr.owner];
-            ramp += ((own && own.momentumHits) || 0) * efxV(f.rampDmg, el);
+            const hits = (own && own.momentumHits) || 0;
+            const tiers = efxV(f.tierDmg, el);
+            let tier = 0;
+            for (let i = 0; i < f.tierHits.length; i++)
+              if (hits >= f.tierHits[i]) tier = i + 1;
+            if (tier > 0) ramp += tiers[tier - 1];
           }
           if (f.dmgMult) { dmg *= efxV(f.dmgMult, el); ramp *= efxV(f.dmgMult, el); }
           // flat knockback multiplier. Gale used to be the loud user of this;
@@ -1985,33 +1991,42 @@ function applyElementsHit(state, pr, target) {
       }
     }
     if (f.tickDmg) {
-      // re-hits REFRESH the clock and STACK the tick damage (capped);
-      // a fresh victim starts a new clock with the base tick
-      if (target.poisonT > 0) {
-        target.poisonTick = Math.min(efxV(f.stackCap, el),
-          (target.poisonTick || 0) + efxV(f.stackAdd, el));
-      } else {
-        target.poisonTick = efxV(f.tickDmg, el);
-        target._poisonNext = f.tickEvery;
-      }
+      // Round 17 §7: re-hits only REFRESH the clock — the stacking is deleted
+      // (it was the 92% engine). The tick is the level's flat value; venom's
+      // edge is credit, not volume: the DoT works after you disengage and a
+      // lethal tick takes the kill (the test-locked rule below in stepBattle).
+      if (!(target.poisonT > 0)) target._poisonNext = f.tickEvery;
+      target.poisonTick = efxV(f.tickDmg, el);
       target.poisonT = f.dotTime;
       target.poisonBy = pr.owner;
     }
     if (f.goldOnHit && pr.owner != null) {
       const owner = state.players[pr.owner];
       if (owner) {
-        // capped at +1 g per hit at every level, forever (2026-08-06): the
-        // levels buy back the damage/push penalty instead of raising income
-        const pay = efxV(f.goldOnHit, el);
-        owner.gold += pay;
-        owner.goldEarned += pay;
-        owner.roundGold += pay;
-        state.events.push({ t: 'gold', id: pr.owner, amount: pay, x: pr.x, y: pr.y });
+        // Round 17 §5: a two-hit rhythm on the private-stack store. First hit
+        // plants a 🪙 mark on THIS target; the next hit on the same target
+        // cashes +1 g (still capped there forever) and clears it. Halves the
+        // income RATE — the midas-cdr engine (question J). Deliberately not
+        // gated on `noStacks`: that flag is mosquito's anti-chain rule, and
+        // the ruling says proc balls are real fireballs to midas — a cashed
+        // sting may plant and/or cash marks like any other pair of hits.
+        if (stackCount(target, 'midas', pr.owner) > 0) {
+          clearStacks(target, 'midas', pr.owner);
+          const pay = efxV(f.goldOnHit, el);
+          owner.gold += pay;
+          owner.goldEarned += pay;
+          owner.roundGold += pay;
+          state.events.push({ t: 'gold', id: pr.owner, amount: pay, x: pr.x, y: pr.y });
+        } else {
+          addStack(target, 'midas', pr.owner);
+          state.events.push({ t: 'midasMark', id: target.id, by: pr.owner,
+            x: target.x, y: target.y });
+        }
       }
     }
-    if (f.rampDmg && pr.owner != null) {
-      // momentum: one more permanent point of fireball damage, banked for the
-      // rest of the GAME (never reset in startRound)
+    if (f.tierHits && pr.owner != null) {
+      // momentum: one more landed hit banked toward the next evolution tier,
+      // for the rest of the GAME (never reset in startRound)
       const owner = state.players[pr.owner];
       if (owner) owner.momentumHits = (owner.momentumHits || 0) + 1;
     }
