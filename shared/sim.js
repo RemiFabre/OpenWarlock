@@ -324,11 +324,15 @@ function hasteOf(state, pl) {
   return add.haste || 0;
 }
 
-// Arcane (elemental, round 16): extra haste on the fireball only.
+// Extra haste on the fireball only: arcane (round 16) + mosquito (round 18,
+// ex-cdMult — one additive pool, so it can never re-open question J's
+// compounding).
 function fireballHasteOf(state, pl) {
-  if (state.mode !== 'elemental') return 0;
-  const el = pl.elements && pl.elements.arcane;
-  return el ? efxV(ELEMENTS.arcane.fx.haste, el) : 0;
+  if (state.mode !== 'elemental' || !pl.elements) return 0;
+  let h = 0;
+  if (pl.elements.arcane) h += efxV(ELEMENTS.arcane.fx.haste, pl.elements.arcane);
+  if (pl.elements.mosquito) h += efxV(ELEMENTS.mosquito.fx.haste, pl.elements.mosquito);
+  return h;
 }
 
 // Arcane lv3 (elemental, round 16 — chronos's old effect, narrowed to fireball
@@ -403,10 +407,7 @@ export function castSpell(state, id, key, tx, ty) {
   let haste = hasteOf(state, pl);
   // arcane (round 16): the fireball's own cadence axis
   if (key === 'fireball') haste += fireballHasteOf(state, pl);
-  let cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
-  // the mosquito is a pest, not a cannon: it stings for 1 at double the rate
-  if (key === 'fireball' && mosquitoLevel(state, pl))
-    cd *= efxV(ELEMENTS.mosquito.fx.cdMult, mosquitoLevel(state, pl));
+  const cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
   pl.cooldowns[key] = cd;
 
   switch (key) {
@@ -576,12 +577,20 @@ export function castSpell(state, id, key, tx, ty) {
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
+  let stingRiders = null;
   const mosq = opts.plain ? 0 : mosquitoLevel(state, pl);
   if (mosq) {
-    // the mosquito REPLACES the fireball and carries nothing else: a 1-damage
-    // pellet on a much shorter cooldown would otherwise farm midas gold, venom
-    // stacks and the momentum ramp for free
+    // The mosquito REPLACES the fireball: the projectile itself stays a plain
+    // 1-damage pellet (no terra size, ghost speed or pierce). Round 18 (Remi):
+    // it now CARRIES the owner's riders separately, to apply as on-hit effects
+    // when the sting ARMS — the on-hit amp identity. The old "carries nothing,
+    // no midas/venom farming" rule is deliberately reversed; the anti-farm
+    // guard is that the cashing sting applies nothing (see the hit code).
     elements = { mosquito: mosq };
+    for (const [k, v] of Object.entries(pl.elements)) {
+      if (!(v > 0) || k === 'mosquito') continue;
+      (stingRiders = stingRiders || {})[k] = v;
+    }
   } else if (state.mode === 'elemental' && pl.elements) {
     for (const [k, v] of Object.entries(pl.elements)) {
       if (!(v > 0)) continue;
@@ -616,6 +625,7 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
     pierced: 0,
     elements, radius, mosquito: mosq || 0,
+    ...(stingRiders ? { stingRiders } : {}),
     ...(opts.noStacks ? { noStacks: true } : {}),
     ...(opts.dmgMult != null ? { dmgMult: opts.dmgMult } : {}),
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
@@ -1808,6 +1818,13 @@ function stepProjectiles(state, dt) {
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
+      // Round 18 (Remi): the sting is an on-hit APPLICATOR — 1 damage, no
+      // push, but the owner's riders land like a real fireball's. Only the
+      // ARMING sting applies them; the cashing sting hands that job to its
+      // proc balls, so one armed+cashed pair = exactly 3 on-hit procs for 2
+      // landed casts (and a sting stream can never double-farm midas/venom).
+      if (pr.stingRiders && !procMosq)
+        applyElementsHit(state, { ...pr, elements: pr.stingRiders }, other);
       // the sting arms the trap: one mosquito stack of this attacker only.
       // `noStacks` balls (the proc's own fireballs) can never arm anything —
       // that is the hard rule that stops the effect chaining forever.

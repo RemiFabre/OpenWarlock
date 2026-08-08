@@ -1469,11 +1469,21 @@ describe('elemental mode', () => {
     const a = state.players.p0, b = state.players.p1;
     expect(b.maxHp - b.hp).toBeCloseTo(f.stingDmg, 0);
     expect(Math.abs(b.vx)).toBeLessThan(0.5);   // no knockback at all
-    // the cooldown it sets is the mosquito's, not the fireball's
+    // round 18: the levels are fireball HASTE (additive, like arcane's)
     const full = SPELLS.fireball.cooldown[0];
     a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(a.cooldowns.fireball).toBeCloseTo(full * f.cdMult[0], 5);
+    expect(a.cooldowns.fireball).toBeCloseTo(full / (1 + f.haste[0] / 100), 5);
+  });
+
+  it('mosquito haste SUMS with arcane haste (one additive pool, question J)', () => {
+    const state = hitWith({ mosquito: 1, arcane: 1 });
+    const a = state.players.p0;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    const haste = ELEMENTS.mosquito.fx.haste[0] + ELEMENTS.arcane.fx.haste[0];
+    expect(a.cooldowns.fireball).toBeCloseTo(
+      SPELLS.fireball.cooldown[0] / (1 + haste / 100), 5);
   });
 
   it('a mosquito stack is PRIVATE to its attacker, and lasts the round', () => {
@@ -1497,13 +1507,26 @@ describe('elemental mode', () => {
     expect(mosqOn(b, 'p2')).toBe(1);
   });
 
-  it('mosquito carries NO other element riders (no midas/venom farming)', () => {
+  it('round 18: the ARMING sting applies every on-hit rider (1 dmg, no push)', () => {
+    // Reverses the round-12 "carries NO other riders" rule (Remi, 2026-08-08:
+    // on-hit amp identity). Damage stays the 1-point sting, knockback stays
+    // zero — but venom/midas/momentum land as if a real fireball had hit.
     const state = hitWith({ mosquito: 1, midas: 3, venom: 3, momentum: 3 });
     const a = state.players.p0, b = state.players.p1;
-    expect(a.gold).toBe(GOLD.START);       // midas paid nothing
-    expect(b.poisonT).toBe(0);             // venom applied nothing
-    expect(a.momentumHits).toBe(0);        // the ramp counted nothing
+    expect(b.poisonT).toBeGreaterThan(0);            // venom applied
+    expect(stacksOf(b, 'midas', 'p0')).toBe(1);      // mark planted...
+    expect(a.gold).toBe(GOLD.START);                 // ...but not yet cashed
+    expect(a.momentumHits).toBe(3);                  // lv3 banks 3 points
     expect(b.maxHp - b.hp).toBeCloseTo(ELEMENTS.mosquito.fx.stingDmg, 0);
+    expect(Math.abs(b.vx)).toBeLessThan(0.5);        // still no push
+  });
+
+  it('round 18: one armed+cashed pair = exactly 3 on-hit procs (2 landed casts)', () => {
+    // The arming sting applies riders once; the CASHING sting does not (its
+    // two proc balls carry them instead). Momentum lv1 banks 1 point per
+    // on-hit application, so the whole pair must bank exactly 3.
+    const state = mosquitoProc({ mosquito: 1, momentum: 1 }, { hp: 9999 });
+    expect(state.players.p0.momentumHits).toBe(3);
   });
 
   // Sting `b` twice from `a`: the first arms the trap, the second spends it.
@@ -1685,14 +1708,16 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'biteHit')).toBe(false);
   });
 
-  it('the proc doubles every rider you own: two frost stacks, not one', () => {
-    // the point of the element: your own kit procs twice. Frost is the readable
-    // proof — the sting carries nothing, the two proc balls carry frost.
-    const state = mosquitoProc({ mosquito: 1, frost: 1 });
+  it('the pair totals 3 rider procs: mosquito+frost DETONATES every cycle', () => {
+    // Round 18 arithmetic: arming sting applies frost once, the two proc balls
+    // twice more — 3 stacks = exactly frost's trigger, so the cycle ends in a
+    // break, not a pile of 2 (the old "sting carries nothing" count).
+    expect(ELEMENTS.frost.fx.stacksToTrigger).toBe(3); // the premise
+    const state = mosquitoProc({ mosquito: 1, frost: 1 }, { hp: 9999 });
     const b = state.players.p1;
-    b.hp = 9999; b.maxHp = 9999;
-    run(state, 0.6);
-    expect(frostOn(b, 'p0')).toBe(ELEMENTS.mosquito.fx.procBalls);
+    expect(state.events.some(e => e.t === 'frostBreak')).toBe(true);
+    expect(frostOn(b, 'p0')).toBe(0);       // spent by the detonation
+    expect(b.slowT).toBeGreaterThan(0);     // lv1 break = the slow
   });
 
   it('venom fireballs drip a trail that burns whoever stands in it', () => {
@@ -2059,8 +2084,10 @@ describe('elemental mode', () => {
       expect(hits.length).toBe(f.procBalls);          // still procBalls events
       for (const h of hits)
         expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0] * k, 5);
-      // and the on-hit effects are untouched: still one frost stack per ball
-      expect(frostOn(state.players.p1, 'p0')).toBe(f.procBalls);
+      // and the on-hit effects are untouched: arm + 2 balls = 3 frost
+      // applications, which is exactly a detonation (round 18 arithmetic)
+      expect(state.events.some(e => e.t === 'frostBreak')).toBe(true);
+      expect(state.players.p1.slowT).toBeGreaterThan(0);
     } finally {
       delete f.procDmgMult;
     }
