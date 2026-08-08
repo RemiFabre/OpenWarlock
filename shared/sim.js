@@ -399,7 +399,10 @@ export function castSpell(state, id, key, tx, ty) {
   // teleport/rush into the pack and let the burst land there. Everything
   // else stays locked, and mid-dash you may only START the charge.
   if (pl.dash && key !== 'repulse') return false;
-  if (pl.charging && key !== 'teleport' && key !== 'rush') return false;
+  // vanish joined the mid-charge whitelist in round 19: charge VISIBLY, then
+  // disappear — the burst fires from stealth but everyone saw the windup start
+  // (the reverse order, vanish-then-charge, now reveals at the repulse press).
+  if (pl.charging && key !== 'teleport' && key !== 'rush' && key !== 'vanish') return false;
 
   let dx = tx - pl.x, dy = ty - pl.y;
   const d = Math.hypot(dx, dy) || 1;

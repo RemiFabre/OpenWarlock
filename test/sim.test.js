@@ -3667,11 +3667,14 @@ describe('vanish 👁️ (invisibility)', () => {
     const state = vanishBattle();
     const a = state.players.a;
     a.spells.repulse = 1;
-    // charging first: everything except teleport/rush is locked mid-charge, and
-    // vanish is deliberately part of "everything" (no special case was added)
+    // charging first (round 19): vanish joined the mid-charge whitelist — you
+    // charge VISIBLY, disappear, and the burst fires from stealth. Everyone
+    // saw the windup start, which is the point of the reveal rule.
     expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
-    expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(false);
-    a.charging = null;
+    expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
+    expect(a.charging).toBeTruthy();     // the charge survives the vanish
+    expect(a.vanishT).toBeGreaterThan(0); // and vanishing never reveals itself
+    a.charging = null; a.vanishT = 0;
     // vanishing first: the repulse cast still works, but since round 18.1 the
     // cast itself REVEALS you (it used to stay hidden through the wind-up)
     a.cooldowns = {};
