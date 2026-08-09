@@ -2,7 +2,7 @@
 // except through state.rng (seeded). Runs on the server; unit-testable.
 
 import {
-  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
+  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
   DRAFT, itemCost,
 } from './constants.js';
@@ -56,7 +56,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     pillars: [],           // [{x, y, r, sunk}] set each round start
     players: {},
     projectiles: [],
-    delayedShots: [],      // Echo Stone: fireballs waiting to fire (elemental)
+    delayedShots: [],      // mosquito: trailing balls waiting to fire (elemental)
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     novas: [],             // nova bombs: {id,x,y,tx,ty,t,owner,level} — t null while flying
@@ -163,7 +163,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // Per-attacker stack store: {kind: {attackerId: n}}. Stacks are PRIVATE to
     // whoever applied them (2026-08-07, round 12 — reverses the shared-counter
     // decision: your element's power must not depend on what everyone else
-    // picked). One generic store, three users today: frost, gale and mosquito.
+    // picked). One generic store, users today: frost, gale, midas, malady, anger.
     stacks: {},
     stunT: 0,              // frost lv3: seconds frozen solid (no move, no cast)
     poisonT: 0,            // malady: seconds of sickness remaining (the DoT engine)
@@ -176,7 +176,8 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     angerMarks: 0,
     _angerTarget: null,    // anger: who carries my mark right now (round-scoped)
     _angerNext: Infinity,  // anger: state.time the next mark may land (startRound arms it)
-    echoN: 0,              // echo stone: fireballs cast this round
+    mosqN: 0,              // mosquito: fireballs cast since the last pair
+    mosqDue: false,        // mosquito: a threshold crossed on a trailing ball, owed to the next real cast
     dash: null,            // {dx, dy, left, hit:Set-as-object}
     lastHitBy: null,       // {id, t}  t = state.time when hit
     diedFirst: false,
@@ -324,8 +325,8 @@ function worstStack(target, kind) {
 }
 
 // Vampire's cast counter: advance it and return this ball's engorged
-// lifesteal fraction (0 = plain). Shared by castSpell and the mosquito proc
-// (round 19.5 — proc balls count as casts, Remi's ruling).
+// lifesteal fraction (0 = plain). Shared by castSpell and mosquito's trailing
+// ball (round 20.1, Remi: every every-N counter counts the trailing ball).
 function vampireCharge(state, pl) {
   const vampLv = state.mode === 'elemental' && pl.elements
     ? (pl.elements.vampire || 0) : 0;
@@ -440,21 +441,25 @@ export function castSpell(state, id, key, tx, ty) {
 
   switch (key) {
     case 'fireball': {
-      // Vampire (elemental): the counter runs on YOUR CASTS, so unlike mosquito
-      // it needs no setup on a particular target — every chargeEvery'th fireball
-      // flies engorged and pays back a multiple of the damage it deals.
-      // Round 19.5 (Remi): MOSQUITO PROC BALLS COUNT AS CASTS too — the
-      // volley advances the counter by 2 and an on-threshold proc ball IS
-      // engorged (it won't render red, accepted; the green heal + counter
-      // reset tell the story). The Echo Stone's second ball remains an extra
-      // shot, not a cast — unchanged.
-      spawnFireball(state, pl, level, dx, dy, { engorged: vampireCharge(state, pl) });
-      // Echo Stone (elemental): every Nth fireball fires a second one shortly
-      // after, along the same aim direction
-      if (state.mode === 'elemental' && (pl.items.echo || 0) > 0) {
-        pl.echoN = (pl.echoN || 0) + 1;
-        if (pl.echoN % ITEM_FX.echo.every === 0)
-          state.delayedShots.push({ t: ITEM_FX.echo.delay, owner: id, level, dx, dy });
+      // Vampire (elemental): the counter runs on YOUR CASTS — every
+      // chargeEvery'th fireball flies engorged and pays back a multiple of the
+      // damage it deals. Round 20.1 (Remi's ruling, "all every-N counters
+      // count"): a mosquito TRAILING ball counts as a cast here too, so it can
+      // itself be the engorged one (it won't render red, accepted; the green
+      // heal tells the story) — see the delayed-shot queue in stepBattle.
+      //
+      // Mosquito (elemental): on the doubleEvery'th cast this ball is the PAIR's
+      // LEAD — kbScale 0 (zero knockback from every source: base, kbAdd riders
+      // and gale's gust alike; damage and every on-hit rider are untouched) —
+      // and the trailing ball is queued a beat behind on the same aim.
+      const pair = mosquitoPair(state, pl, false);
+      spawnFireball(state, pl, level, dx, dy, {
+        engorged: vampireCharge(state, pl),
+        ...(pair ? { kbScale: 0 } : {}),
+      });
+      if (pair) {
+        state.delayedShots.push(
+          { t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy });
       }
       break;
     }
@@ -590,23 +595,14 @@ export function castSpell(state, id, key, tx, ty) {
   return true;
 }
 
-// Fireball factory shared by castSpell, the Echo Stone delayed shot and the
-// mosquito proc. Spawns at the caster (owner is excluded from collisions;
-// point-blank shots connect). In elemental mode ALL the caster's rider elements
-// ride on the projectile at their current levels — mosquito included since
-// round 18.2: it is an ordinary rider now (dmgMult/kbMult penalty in the hit
-// code, plus the arm/cash trap keyed on elements.mosquito there).
+// Fireball factory shared by castSpell and the mosquito trailing shot. Spawns
+// at the caster (owner is excluded from collisions; point-blank shots connect).
+// In elemental mode ALL the caster's rider elements ride on the projectile at
+// their current levels.
 //
-// opts, all used by the mosquito proc (ELEMENTS.mosquito):
-//   noStacks — HARD RULE: this ball can neither place nor spend a mosquito
-//              stack. Without it the proc chains forever (test-locked).
-//   x, y     — spawn origin override (the proc fires from the trigger's contact point)
-//   dmgMult  — scales this ball's damage only (the mosquito proc's optional
-//              nerf lever, ELEMENTS.mosquito.fx.procDmgMult; unset = 1)
-//   kbScale  — scales this ball's KNOCKBACK only (unset = 1). The proc passes
-//              1/procBalls so that all its co-located balls TOGETHER shove for
-//              exactly one ordinary fireball: Remi's ruling is that the mosquito
-//              draws its strength from damage, never from push.
+// opts.kbScale scales this ball's KNOCKBACK only (unset = 1), applied after
+// every element multiplier and after gale's gust — so it is a true kill switch.
+// One user today: mosquito's pair LEAD passes 0 (ELEMENTS.mosquito).
 //
 // opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
 // pays, resolved at cast time so the projectile carries everything it needs.
@@ -626,10 +622,9 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
-    // an explicit origin is used verbatim (the proc places its own muzzle);
-    // otherwise the ball starts half a body ahead of the caster
-    x: opts.x != null ? opts.x : pl.x + dx * pl.radius * 0.5,
-    y: opts.y != null ? opts.y : pl.y + dy * pl.radius * 0.5,
+    // half a body ahead of the caster
+    x: pl.x + dx * pl.radius * 0.5,
+    y: pl.y + dy * pl.radius * 0.5,
     vx: dx * speed, vy: dy * speed,
     traveled: 0,
     returning: false,
@@ -646,8 +641,6 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
     pierced: 0,
     elements, radius,
-    ...(opts.noStacks ? { noStacks: true } : {}),
-    ...(opts.dmgMult != null ? { dmgMult: opts.dmgMult } : {}),
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
@@ -702,9 +695,8 @@ export function buy(state, id, thing) {
     if (ITEMS[thing].mode === 'elemental' && state.mode !== 'elemental')
       return { ok: false, err: 'elemental mode only' };
     // items are LEVELLED like spells: 1..maxLevel, usually the same flat cost
-    // every level with each level worth less than the last (echo is maxLevel 1,
-    // which is what used to be the `unique` flag; the hourglass has a per-level
-    // costs array — itemCost handles both).
+    // every level with each level worth less than the last (a spec may carry a
+    // per-level `costs` array instead — itemCost handles both).
     const level = pl.items[thing] || 0;
     if (level >= ITEMS[thing].maxLevel) return { ok: false, err: 'max level' };
     const cost = itemCost(thing, level);
@@ -1101,12 +1093,12 @@ function startRound(state) {
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
-    pl.stacks = {};   // frost/gale/mosquito stacks are round-long, like the hp bar
+    pl.stacks = {};   // frost/gale/midas stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.malady = null; // infections die with the round (instances go with them)
-    pl.echoN = 0;
-    // vampire's charge counter resets with the round, exactly like the Echo
-    // Stone's (the other "every Nth cast" mechanic). Deliberate: the rhythm you
+    pl.mosqN = 0; pl.mosqDue = false;
+    // vampire's charge counter resets with the round, exactly like mosquito's
+    // (the other "every Nth cast" mechanic). Deliberate: the rhythm you
     // are asked to count is "my 3rd fireball of this fight", and carrying a
     // half-charged counter across a shop would make the first shot of a round
     // randomly engorged with nothing on screen having explained why. Anger is
@@ -1677,10 +1669,11 @@ function stepBattle(state, dt) {
     }
   }
 
-  // Echo Stone delayed fireballs (elemental; the list is empty in classic).
-  // The mosquito proc used to ride this queue too; it doesn't any more — its
-  // balls all leave at once from the same muzzle (see fireMosquitoProc), so this
-  // is back to the one thing it was written for.
+  // Mosquito's TRAILING balls (elemental; the list is empty in classic — the
+  // queue is the ex-Echo Stone's, which round 20.1 merged into the element).
+  // A trailing ball is a fully NORMAL fireball: knockback included, and it
+  // counts for BOTH every-N counters (vampire may engorge it, mosquito's own
+  // counter advances) — but mosquitoPair's guard means it can never double.
   if (state.delayedShots && state.delayedShots.length) {
     const rest = [];
     for (const ds of state.delayedShots) {
@@ -1688,7 +1681,9 @@ function stepBattle(state, dt) {
       if (ds.t > 0) { rest.push(ds); continue; }
       const owner = state.players[ds.owner];
       if (owner && owner.alive) {
-        spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
+        mosquitoPair(state, owner, true);
+        spawnFireball(state, owner, ds.level, ds.dx, ds.dy,
+          { engorged: vampireCharge(state, owner) });
         state.events.push({ t: 'cast', id: owner.id, spell: 'fireball', x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy });
       }
     }
@@ -1868,16 +1863,6 @@ function stepProjectiles(state, dt) {
       // damage multiplier applies to both halves, so the split is exact and
       // does not depend on which order the riders happen to be iterated in.
       let ramp = 0;
-      // Mosquito payoff: does this hit land on a victim already carrying THIS
-      // owner's stack? Decided BEFORE this hit plants its own, or a single
-      // ball would arm and cash itself in the same frame. A proccing hit does
-      // not re-arm — you have to land another ball to set the next one up.
-      // FIREBALLS ONLY: the 2026-08-06 version let any other spell cash the mark
-      // in, and the owner killed that outright ("mosquito+lightning becomes THE
-      // meta"). A boomerang must not spend the stack either.
-      const procMosq = pr.type === 'fireball' && !pr.noStacks && pr.owner != null &&
-        stackCount(other, 'mosquito', pr.owner) > 0;
-      if (procMosq) clearStacks(other, 'mosquito', pr.owner);
       if (pr.elements) { // every rider element bends the numbers, stacking
         for (const [ek, el] of Object.entries(pr.elements)) {
           const f = ELEMENTS[ek].fx;
@@ -1908,30 +1893,16 @@ function stepProjectiles(state, dt) {
       }
       // (Ghost's old behind-the-first-victim damage/push bonus was removed in
       // round 16 — a pierced ball now lands a full ordinary hit on everyone.)
-      // per-ball damage scale (mosquito's proc balls, if the lever is set).
-      // Damage only: knockback and every on-hit effect are untouched, because the
-      // stated fantasy is "every on-hit effect procs twice", not "double damage".
-      if (pr.dmgMult != null) { dmg *= pr.dmgMult; ramp *= pr.dmgMult; }
-      // per-ball knockback scale. The mosquito proc sets 1/procBalls on every
-      // ball it fires, so its co-located volley adds up to exactly ONE
-      // fireball's impulse (Remi's ruling: damage and every on-hit effect proc
-      // procBalls times, the SHOVE happens once). Applies after every element
-      // multiplier, so gale/critical still price the total the same way they
-      // price a single fireball.
+      // Per-ball knockback scale, applied LAST — after every element multiplier
+      // AND after gale's flat gust, so 0 really is "no push from any source".
+      // Mosquito's pair lead is the only user (ELEMENTS.mosquito): the lead
+      // stings for full damage with every rider, and pushes nobody out of the
+      // trailing ball's path.
       if (pr.kbScale != null) kb *= pr.kbScale;
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
-      // Round 18.2 (Remi): every mosquito ball is a NORMAL fireball (riders,
-      // knockback, lastHitBy — the penalty above is the whole tax). A hit that
-      // did not cash arms the trap: one private stack of this attacker.
-      // `noStacks` balls (the proc's own fireballs) can never arm anything —
-      // that is the hard rule that stops the effect chaining forever. One
-      // armed+cashed pair = 4 on-hit rider applications for 2 landed casts.
-      if (pr.elements && pr.elements.mosquito && !pr.noStacks && !procMosq)
-        plantMosquitoStack(state, other, pr.owner);
-      if (procMosq) fireMosquitoProc(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // swap (round 17): full state exchange with the (surviving) victim —
@@ -1975,72 +1946,30 @@ function stepProjectiles(state, dt) {
 }
 
 // ---- mosquito (elemental) -------------------------------------------------
-// Round 18.2: a landed fireball leaves ONE stack of its owner on the victim
-// (the same private store frost uses); the owner's next fireball on that
-// victim spends it and buys them procBalls of their own normal fireballs,
-// co-located at the contact point. Every on-hit effect the owner has fires
-// once per ball — 4 applications per armed+cashed pair.
-
-function plantMosquitoStack(state, target, ownerId) {
-  if (ownerId == null) return;
-  // one stack, not a growing pile: the trap is either armed or it is not
-  const store = target.stacks || (target.stacks = {});
-  const s = store.mosquito || (store.mosquito = {});
-  if (s[ownerId]) return;
-  s[ownerId] = 1;
-  state.events.push({ t: 'bite', id: target.id, by: ownerId, x: target.x, y: target.y });
-}
-
-// Spend already done by the caller: fire `procBalls` of the owner's NORMAL
-// fireballs. 2026-08-07, Remi's call — ALL of them leave from the SAME point
-// with the SAME vector, so they land together and there is nothing to aim, chase
-// or re-solve. (The previous version staggered them by `procGap` and re-aimed
-// each release at the victim's live position; the stagger is what let constant
-// knockback carry the victim out of the second ball's path, and the fix for that
-// was more machinery than the whole effect is worth. His framing: *"put the 2
-// balls at exactly the same place — we'd just need to clearly see all the on-hit
-// indicators pop twice"*. The feedback IS the feature, so it moved to the
-// client: co-located popups fan out and stagger there — see pushFloater in
-// client/main.js — and the sim just fires N identical balls.)
+// Round 20.1 rework (Remi, final — the Echo Stone item was merged in here and
+// deleted): every doubleEvery'th CAST fireball fires as a PAIR. This function
+// IS the counter; call it once per fireball leaving the caster. Returns true
+// only for the pair's LEAD ball, which castSpell then fires with kbScale 0 (no
+// push from any source) and follows with a trailing ball trailDelay s later.
 //
-// The muzzle is the CONTACT point of the trigger hit, not the end of its
-// tick's travel: the ball that cashed the mark may have swept a little past the
-// body this frame, and a grazing hit released from there would fly on and miss.
-// Every ball therefore starts exactly where the trigger touched, which puts the
-// victim on its path by construction. All of them carry `noStacks`, the hard
-// rule that stops the proc triggering itself.
-function fireMosquitoProc(state, pr, target) {
-  const owner = state.players[pr.owner];
-  if (!owner) return;
-  const f = ELEMENTS.mosquito.fx;
-  const v = Math.hypot(pr.vx, pr.vy) || 1;
-  const dx = pr.vx / v, dy = pr.vy / v;
-  const level = owner.spells.fireball || pr.level || 1;
-  // how far past the victim's closest approach this tick's travel carried us
-  const ahead = Math.max(0, (pr.x - target.x) * dx + (pr.y - target.y) * dy);
-  const x = pr.x - dx * ahead, y = pr.y - dy * ahead;
-  state.events.push({ t: 'biteHit', id: target.id, by: pr.owner, x, y });
-  for (let i = 0; i < f.procBalls; i++) {
-    spawnFireball(state, owner, level, dx, dy, {
-      // full element set rides (round 18.2: mosquito's penalty included) —
-      // noStacks alone is the chain guard
-      x, y, noStacks: true,
-      // round 19.5 (Remi): proc balls COUNT AS CASTS for vampire — the
-      // volley advances the counter by procBalls, an on-threshold ball heals
-      engorged: vampireCharge(state, owner),
-      // OPTIONAL nerf lever, absent from the spec by default (see ELEMENTS
-      // .mosquito): scales the proc balls' damage only, leaving every on-hit
-      // effect procing `procBalls` times.
-      ...(f.procDmgMult != null ? { dmgMult: f.procDmgMult } : {}),
-      // KNOCKBACK ONCE (Remi, 2026-08-07): impulses add linearly, so N
-      // co-located balls at 1/N each shove for exactly one fireball, whatever
-      // procBalls is. Damage and every on-hit effect still fire N times.
-      kbScale: 1 / f.procBalls,
-    });
-    state.events.push({
-      t: 'cast', id: owner.id, spell: 'fireball', x, y, dx, dy,
-    });
-  }
+// HARD CHAIN GUARD (`trailing`) — the descendant of the old trap's `noStacks`
+// scar, whose failure mode was unbounded self-triggering: a trailing ball
+// ADVANCES the counter (Remi: "all every-N counters count") but can never
+// double. A threshold crossed on one is remembered in `mosqDue` and paid by the
+// next player-initiated cast instead. Test-locked.
+function mosquitoPair(state, pl, trailing) {
+  const lv = state.mode === 'elemental' && pl.elements
+    ? (pl.elements.mosquito || 0) : 0;
+  if (!lv) return false;
+  const every = efxV(ELEMENTS.mosquito.fx.doubleEvery, lv);
+  pl.mosqN = (pl.mosqN || 0) + 1;
+  let due = !!pl.mosqDue;
+  // `>=`, not `===`: buying a level shortens the cadence under a counter that
+  // is already past the new threshold, and that ball should still pair.
+  if (pl.mosqN >= every) { pl.mosqN = 0; due = true; }
+  if (!due) return false;
+  pl.mosqDue = trailing;   // carried to the next real cast, or spent here
+  return !trailing;
 }
 
 // Turn a boomerang around toward its LAUNCH POINT (not the thrower — standing
@@ -2071,12 +2000,13 @@ function turnBoomerangHome(state, pr) {
 // Why this is a function of its own instead of another branch in
 // applyElementsHit next to frost and malady: gale's payload is KNOCKBACK, and
 // knockback is computed and applied BEFORE the on-hit riders run. So gale has to
-// resolve at the same point mosquito's mark does — decided on the way in, not on
-// the way out. Returns the flat knockback ADD for THIS hit: 0 while stacking,
-// the level's burst value on the 3rd (round 19 — was a multiplier).
+// resolve on the way in, not on the way out. Returns the flat knockback ADD for
+// THIS hit: 0 while stacking, the level's burst value on the 3rd (round 19 —
+// was a multiplier). ⚠ Mosquito's pair lead zeroes this along with every other
+// push source (kbScale 0 in the hit code) — the stack still lands.
 //
 // The counter is the generic per-attacker store (addStack/clearStacks), so
-// "private to whoever applied them" is the same one mechanism frost and mosquito
+// "private to whoever applied them" is the same one mechanism frost and midas
 // use rather than a third implementation. An ownerless ball (its caster left)
 // can neither place nor spend a stack: there is nobody to own the counter.
 function galeHit(state, pr, target, level) {
@@ -2179,10 +2109,8 @@ function applyElementsHit(state, pr, target) {
         // Round 17 §5: a two-hit rhythm on the private-stack store. First hit
         // plants a 🪙 mark on THIS target; the next hit on the same target
         // cashes +1 g (still capped there forever) and clears it. Halves the
-        // income RATE — the midas-cdr engine (question J). Deliberately not
-        // gated on `noStacks`: that flag is mosquito's anti-chain rule, and
-        // the ruling says proc balls are real fireballs to midas — they may
-        // plant and/or cash 🪙 marks like any other pair of hits.
+        // income RATE — the midas-cdr engine (question J). Mosquito's pair is
+        // two real fireballs here: lead plants, trailing cashes.
         if (stackCount(target, 'midas', pr.owner) > 0) {
           clearStacks(target, 'midas', pr.owner);
           const pay = efxV(f.goldOnHit, el);
@@ -2199,8 +2127,8 @@ function applyElementsHit(state, pr, target) {
     }
     // anger: a FIREBALL hit on YOUR marked target claims the mark — +1 to the
     // permanent bank (never reset in startRound), and the next mark waits
-    // markEvery s from NOW. FIREBALLS ONLY, the mosquito precedent — and its
-    // proc balls are real fireballs here too, like they are to midas.
+    // markEvery s from NOW. FIREBALLS ONLY (the round-12 ruling that stopped
+    // "lightning claims the mark" from being the whole meta).
     if (f.markDmg && pr.owner != null && pr.type === 'fireball' &&
         stackCount(target, 'anger', pr.owner) > 0) {
       const owner = state.players[pr.owner];
@@ -2358,7 +2286,7 @@ export function snapshot(state, viewerId = null) {
         vampN: p.vampN || 0,
         // PRIVATE: only the stacks the VIEWER put on this body. This is the one
         // thing you need to see to play a stacking element — is my frost
-        // detonation one hit away, is my mosquito trap armed on that target —
+        // detonation one hit away, is my midas mark waiting on that target —
         // and nobody else's counter is on the wire at all.
         ...(viewerId != null && p.id !== viewerId
           ? viewStacks(p, viewerId) : {}),
@@ -2972,7 +2900,7 @@ function stepGrunt(state, pl, dt) {
 // every stacking element whose payoff comes from ITS OWN stacks piling up.
 // Private per attacker (stackCount), so this reads as "MY investment", never
 // "someone is about to pop this" — which would be information nobody has.
-const PREY_MARKS = ['frost', 'gale', 'mosquito', 'midas', 'malady'];
+const PREY_MARKS = ['frost', 'gale', 'midas', 'malady'];
 
 // Berserker target choice: closest wins, but wounded, isolated, rim-standing,
 // carrying my marks, or FAR AHEAD ON KILLS enemies are tastier. Every term is
@@ -3367,14 +3295,11 @@ function botShopPass(state, id) {
     BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   if (state.mode === 'elemental') {
     // pinned at seat time so a bot never drifts between elements mid-game.
-    // Round 19.5 (Remi): mosquito is an AMPLIFIER — a bot must never open on
-    // it; if the seat draw lands there, take the next element in the list
-    // (the walk still reaches mosquito after an on-hit user is maxed).
+    // (Round 20.1: the "never open on mosquito" guard is gone with the element's
+    // tax — the reworked mosquito is pure upside, so it opens like any other.)
     if (!pl._elemPick) {
       const seat = Object.keys(state.players).indexOf(id);
-      let pick = botElementFor(pl, seat < 0 ? 0 : seat);
-      if (pick === 'mosquito') pick = botElementFor(pl, (seat < 0 ? 0 : seat) + 1);
-      pl._elemPick = pick;
+      pl._elemPick = botElementFor(pl, seat < 0 ? 0 : seat);
     }
     // one element level per shop, walking the build's themed list from the
     // seat's pick: primary to max, then the next one. Elements are the

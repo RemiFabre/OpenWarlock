@@ -39,7 +39,7 @@ const progress = process.stderr.isTTY ? console.error : () => {};
 export const EXHAUST_PASS = [
   'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
   'hourglass', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
-  'vampire', 'anger', 'boomerang', 'rush', 'shield', 'teleport', 'echo',
+  'vampire', 'anger', 'boomerang', 'rush', 'shield', 'teleport',
   'frost', 'mosquito', 'midas',
 ];
 
@@ -51,8 +51,8 @@ export const STRATEGIES = {
       'sword', 'sword', 'amulet', 'sword'],
   },
   cadence: {
-    desc: 'Cooldown machine-gun: arcane to its lv3 refund special, hourglass, echo stone and lightning — cast as often as possible and let volume win.',
-    core: ['arcane', 'arcane', 'arcane', 'hourglass', 'hourglass', 'echo',
+    desc: 'Cooldown machine-gun: arcane to its lv3 refund special, hourglass and lightning — cast as often as possible and let volume win.',
+    core: ['arcane', 'arcane', 'arcane', 'hourglass', 'hourglass',
       'lightning', 'hourglass', 'lightning', 'lightning'],
   },
   'double-cdr': {
@@ -81,7 +81,7 @@ export const STRATEGIES = {
       'amulet', 'amulet'],
   },
   'mosquito-combo': {
-    desc: 'Trap setup, on-hits first (Remi, round 19.5): malady before mosquito so the amplifier always has something to amplify, then arcane cadence.',
+    desc: 'On-hits first: malady before mosquito, so every paired fireball doubles an on-hit rider, then arcane cadence. (Pre-dates the round-20.1 rework; kept as a comparison point.)',
     core: ['malady', 'malady', 'mosquito', 'mosquito', 'mosquito', 'malady',
       'arcane', 'arcane', 'amulet'],
   },
@@ -129,7 +129,7 @@ export const STRATEGIES = {
       'boomerang', 'cape', 'treads', 'hourglass', 'amulet', 'sword', 'lightning',
       'boots', 'boots', 'cape', 'treads', 'hourglass', 'rush',
       'shield', 'teleport', 'lightning', 'boomerang', 'boomerang', 'rush',
-      'shield', 'teleport', 'cape', 'treads', 'hourglass', 'echo'],
+      'shield', 'teleport', 'cape', 'treads', 'hourglass'],
     noExhaust: true, // the core IS the exhaust, minus the element shelf
   },
   // ---- wave 2 (round 16): hybrids and order-variants informed by wave 1 ----
@@ -154,7 +154,7 @@ export const STRATEGIES = {
       'hourglass', 'arcane', 'hourglass'],
   },
   'mosquito-midas': {
-    desc: 'Gold machine: a cashed trap lands 3 hits at once, so midas marks cash twice per armed+cashed pair (+2 g).',
+    desc: 'Gold machine: mosquito pairs land two fireballs, so a midas mark plants and cashes inside one pair (+1 g per pair, twice the rate).',
     core: ['midas', 'mosquito', 'midas', 'mosquito', 'midas', 'mosquito',
       'amulet', 'sword', 'amulet'],
   },
@@ -174,7 +174,7 @@ export const STRATEGIES = {
   },
   // ---- wave 3 (round 20): Remi's live combo, both finishers ---------------
   'combo-bolt': {
-    desc: "Remi's round-20 combo, bolt finisher: frost lv1 → lightning lv1 → gale lv1 → mosquito lv1, then those four round-robin to max — frost stacks hold the target, the bolt drops dead on the body (CC-gated cast), gale launches, mosquito amplifies.",
+    desc: "Remi's round-20 combo, bolt finisher: frost lv1 → lightning lv1 → gale lv1 → mosquito lv1, then those four round-robin to max — frost stacks hold the target, the bolt drops dead on the body (CC-gated cast), gale launches, mosquito pairs the ball.",
     core: ['frost', 'lightning', 'gale', 'mosquito',
       'frost', 'lightning', 'gale', 'mosquito',
       'frost', 'lightning', 'gale', 'mosquito'],

@@ -40,15 +40,21 @@ Agent context usage on this project is **CRITICAL**. The rules:
   — NEVER bypass it; Pages lags pushes by up to ~10 min (CDN).
 - **ROUNDS 19.x shipped through the day** (Remi playtesting live): Malady 🦠
   (contagion, buffed 3/4/5 s + aura 8/12/16), Anger 🔴 (mark hunt, 15/10/5 s),
-  mosquito = amplifier with dmg/kb tax [0.5,0.6,0.7] (Remi's 3-ball
-  accounting; engine pair = 4 hits, curve noted in BALANCE), gale uniform
+  gale uniform
   buffed (kbAdd [10,20,30], gust ADD [30,60,90]), Bomb 💣 (name still
   PLACEHOLDER), Switcheroo 🎭 (1 s victim stun; name candidates in notes),
   cape [0.88,0.78,0.70], shop 2.x (uniform tiles, tags, hover-everything,
   key rebinding with owned-key guard), two-button join + manifesto, bots
-  never stop shopping + never open on mosquito, vampire counts mosquito proc
-  balls as casts. Story: REMI_NOTES.md (19.5 at top); numbers: BALANCE.md.
-- **Waiting on Remi**: mosquito curve feel (19.5), anger strength (question
+  never stop shopping. Story: REMI_NOTES.md (19.5 at top); numbers: BALANCE.md.
+- **ROUND 20.1 — MOSQUITO REWORK** (Remi, final): the dmg/kb tax and the
+  arm/cash trap are GONE, and the Echo Stone item is MERGED IN and deleted.
+  Every `doubleEvery`th cast fireball ([6,5,4] by level) fires as a PAIR: a
+  LEAD ball with ZERO knockback (full damage, every rider) plus a fully normal
+  TRAILING ball 0.15 s behind on the same aim. A trailing ball advances both
+  every-N counters (vampire's and mosquito's own) but can NEVER double — hard
+  chain guard, test-locked. Bots treat mosquito like any element again.
+  ⚠ UNMEASURED: no arena/strategy numbers exist for the new shape yet.
+- **Waiting on Remi**: mosquito pair feel (20.1), anger strength (question
   K — strategy instrument reads 78%), sword-by-structure (L), CDR (M), cape
   (B), Bomb + Switcheroo names.
 - ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-19 — re-run before
@@ -62,7 +68,9 @@ Agent context usage on this project is **CRITICAL**. The rules:
   the report. New agents: work freely, but DON'T edit tools/roster.js,
   tools/elo.js or docs/ARCHETYPES.md until the report lands, and know that
   balance-number changes land AFTER the pinned commit (the ELO measures
-  r200's numbers).
+  r200's numbers). ⚠ FOLLOW-UP OWED: round 20.1 deleted the Echo Stone, and
+  `tools/roster.js` still lists `echo` (FILLER + 3 cores) — left untouched by
+  the freeze; strip it before the next ELO run.
 
 ## What this is
 
@@ -143,8 +151,8 @@ build step, Node ESM, only dep is `ws`.
   (1 dmg/tick, spreading aura, once-per-instance immunity, creator can catch
   it back; lethal tick credits creator/spreader), frost=stacks-to-CC,
   anger=ex-momentum MARK HUNT (red mark on a random enemy every [10,7,5] s,
-  claim = +0.5 fireball dmg forever), mosquito=NORMAL balls taxed ×[.5,.75,1]
-  dmg+kb, trap arm/cash fires 2 extra balls (4 rider procs per pair),
+  claim = +0.5 fireball dmg forever), mosquito=every [6,5,4]th cast fires a
+  PAIR (no-push lead + normal trailing ball, round 20.1),
   vampire=every-5th engorged heal, midas. Classic keeps the 3-level fireball.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
@@ -242,6 +250,8 @@ first that Remi isn't hosting a live game.**
 - A single 400-game run is not a measurement: 2+ seeds, check monotonicity;
   the isolation self-test itself needs ≥1600 games.
 - Ask what a thing is FOR before nerfing its visible knob (mosquito's shove).
+- Constant knockback throws the victim out of a follow-up ball's path: a
+  multi-ball effect wants one of its balls to NOT push (mosquito's pair lead).
 - h2h for tier questions (Elo hides gaps); h2h vs Easy is no signal.
 - Bot reaction time is a perception delay — extrapolate stale observations,
   don't under-lead.

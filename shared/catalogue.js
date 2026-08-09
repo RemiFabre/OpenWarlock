@@ -40,8 +40,9 @@ export function catalogue(mode = 'classic') {
         starter: false,
       });
   for (const [key, spec] of Object.entries(ITEMS)) {
-    // the two combo items are elemental-only, exactly as buy() and buildShop
-    // already have it
+    // an item spec may be elemental-only, exactly as buy() and buildShop
+    // already have it (no item is today — the last one, the Echo Stone, was
+    // merged into ELEMENTS.mosquito in round 20.1)
     if (spec.mode === 'elemental' && !elemental) continue;
     out.push({
       key, kind: 'item', spec, cost: itemCost(key), maxLevel: spec.maxLevel,

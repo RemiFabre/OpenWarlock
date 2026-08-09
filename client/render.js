@@ -493,8 +493,8 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
       // §12: the layered stack — base → element accents → evolution → event.
-      // Round 18.2: a mosquito owner's ball is a NORMAL fireball (no sting
-      // visual) — the trap's feedback is the bite/biteHit FX and the mark pip.
+      // A mosquito owner's ball is a NORMAL fireball; the element's feedback is
+      // the PAIR itself — two balls on the same line, a heartbeat apart.
       const el = pr.elements || null;
       const terraMult = el && el.terra
         ? ELEMENTS.terra.fx.projRadiusMult[Math.min(el.terra, 3) - 1] : 1;
@@ -654,8 +654,8 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     // Stack pips. Stacks are PRIVATE (round 12), so the snapshot only ever
     // carries YOUR count on an enemy (`myStacks`) and the worst incoming pile on
     // your own body (`stacksOnMe`) — exactly one of the two is ever present,
-    // which is why one expression covers both. Frost pips arc over the head;
-    // mosquito's single pip sits under it, so an armed trap is unmistakable.
+    // which is why one expression covers both. Frost pips arc over the head,
+    // gale's dashes under it, midas right, malady left, anger upper-right.
     const mine = pl.myStacks || pl.stacksOnMe || null;
     if (mine && mine.frost > 0) {
       const of = ELEMENTS.frost.fx.stacksToTrigger;
@@ -691,8 +691,8 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       }
     }
     // Midas mark (round 17 §5): this body owes you gold — your next hit
-    // cashes it. One gold pip on the RIGHT side: frost owns the top arc,
-    // gale the bottom dashes, mosquito the low center.
+    // cashes it. One gold pip on the RIGHT side: frost owns the top arc and
+    // gale the bottom dashes.
     if (mine && mine.midas > 0) {
       ctx.fillStyle = 'rgba(255, 208, 70, 0.95)';
       ctx.strokeStyle = 'rgba(120, 85, 0, 0.9)';
@@ -703,7 +703,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     }
     // Malady mark (round 19): your first hit planted the 🦠 — your next one
     // infects. One sickly-green pip on the LEFT: midas owns the right, frost
-    // the top arc, gale the bottom dashes, mosquito the low center.
+    // the top arc, gale the bottom dashes.
     if (mine && mine.malady > 0) {
       ctx.fillStyle = 'rgba(140, 220, 110, 0.95)';
       ctx.strokeStyle = 'rgba(40, 90, 30, 0.9)';
@@ -714,8 +714,8 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     }
     // Anger mark: the hunt is on — this body wears the red orb. Upper-right
     // diagonal (a free slot: frost owns the top arc, gale the bottom dashes,
-    // midas the right, malady the left, mosquito the low center). Shown to the
-    // owner (myStacks) and the marked victim (stacksOnMe) alike.
+    // midas the right, malady the left). Shown to the owner (myStacks) and the
+    // marked victim (stacksOnMe) alike.
     if (mine && mine.anger > 0) {
       const px = x + r * 1.24, py = y - r * 1.24;
       ctx.fillStyle = 'rgba(255, 70, 55, 0.95)';
@@ -728,15 +728,6 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.fillStyle = 'rgba(255, 220, 210, 0.9)';
       ctx.beginPath();
       ctx.arc(px - 1, py - 1, 1.1, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    if (mine && mine.mosquito > 0) {
-      // the trap is armed: your next fireball on this body doubles.
-      // Sits BELOW the gale dashes' outer end (1.85r) rather than at 1.6r, where
-      // it used to be — the middle gale dash would otherwise land on top of it.
-      ctx.fillStyle = 'rgba(198, 150, 255, 0.95)';
-      ctx.beginPath();
-      ctx.arc(x, y + r * 2.15, 3.1, 0, Math.PI * 2);
       ctx.fill();
     }
     if (pl.charging) {
@@ -1208,20 +1199,6 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.textAlign = 'center';
         ctx.font = `${Math.round(11 + 5 * k)}px serif`;
         ctx.fillText('🔴', x, y - 18 - 18 * k);
-        ctx.restore();
-        break;
-      }
-      case 'biteHit': {
-        // a mosquito mark was just spent: a purple burst and the pest itself, at
-        // the point the sting connected (which is where both payoff balls launch)
-        const x = view.sx(f.x), y = view.sy(f.y);
-        ctx.save();
-        ctx.strokeStyle = `rgba(198, 150, 255, ${a})`;
-        ctx.lineWidth = 3 * a + 1;
-        ctx.beginPath(); ctx.arc(x, y, (1 + 4.5 * k) * scale, 0, Math.PI * 2); ctx.stroke();
-        ctx.textAlign = 'center';
-        ctx.font = `${Math.round(13 + 6 * k)}px serif`;
-        ctx.fillText('🦟', x, y - 18 - 20 * k);
         ctx.restore();
         break;
       }

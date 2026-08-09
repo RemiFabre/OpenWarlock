@@ -757,7 +757,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     } else if (isolate === 'items') {
       const levels = levelArg ? [Number(levelArg)] : [1, 2, 3];
       for (const k of Object.keys(ITEMS)) {
-        if (ITEMS[k].mode === 'elemental') continue; // echo/crown: elemental-only
+        if (ITEMS[k].mode === 'elemental') continue; // an elemental-only item (none today)
         for (const L of levels) jobs.push({ thing: k, level: L, mode: 'classic' });
       }
     } else if (isolate === 'spells') {

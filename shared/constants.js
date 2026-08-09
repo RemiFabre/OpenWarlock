@@ -297,8 +297,8 @@ export const ITEMS = {
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
   sword:  { name: 'Blood Sword',          cost: 8, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
-  echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
-            desc: 'Every 4th fireball echoes: a second one fires right behind it.' },
+  // (Echo Stone deleted in round 20.1 — merged into ELEMENTS.mosquito. Its old
+  // spec: `git show 58ba4e7:shared/constants.js`.)
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
   // here from the element roster — his reasoning: elements are the FIREBALL's
   // progression now, and a thing that affects ALL spells is thematically an
@@ -334,7 +334,6 @@ export const ITEM_FX = {
   // 9). History: [0.92, 0.85, 0.80] → 19.2 [0.88, 0.78, 0.70] → now.
   cape: { kbMult: [0.85, 0.74, 0.65] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
-  echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
   // haste SUMS across sources — so stacking it with arcane's fireball haste
   // has diminishing returns where the old multipliers compounded (midas-cdr
@@ -423,21 +422,23 @@ export const ELEMENTS = {
            long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
            fx: { markEvery: [20, 15, 10], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
-  // Round 18.2 (Remi): NO sting — every ball is a NORMAL fireball; the penalty
-  // is dmg AND kb × [0.5,0.75,1], multiplicative with midas like any multiplier.
-  // Trap: a stackless hit arms, the next hit cashes procBalls co-located normal
-  // balls (kbScale 1/N; noStacks = the anti-chain rule, test-locked ROUND12 S3).
-  // revert (round 18): fx { mosquito: true, haste: [20,40,60], stingDmg: 1, procBalls: 2 }
+  // Round 20.1 REWORK (Remi, final): NO tax and NO trap — every ordinary ball is
+  // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead
+  // ball (your own cast) carries ZERO knockback, the trailing one leaves
+  // trailDelay s later on the same aim and is fully normal. Damage and every
+  // on-hit rider are untouched on both. Why no push on the lead: the old
+  // design's shove threw the victim out of the second ball's path (high
+  // variance) — a no-push lead lets the pair BOTH land, for 2× damage and 1×
+  // push. The deleted Echo Stone item is merged in here (its delayed-cast
+  // queue is what fires the trailing ball).
+  // Counters (Remi): a trailing ball counts as a cast for vampire AND advances
+  // this counter, but can NEVER double — chain guard in sim.js, test-locked.
+  // Pre-rework spec (tax + arm/cash trap): `git show 58ba4e7:shared/constants.js`.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
-  // Round 19.5 (Remi's numbers, his 3-ball accounting): reductions 50/40/30%
-  // by level. ⚠ honest curve under the engine's 4-hit pair (arm + trigger +
-  // 2 procs): fully-paired damage = ×1.0 / ×1.2 / ×1.4 of two plain balls;
-  // unpaired pokes pay the full tax. Was [0.4, 0.45, 0.5] for one build.
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'On-hit amplification.',
-           long: 'Your fireballs hit softer but sting: hit a stung enemy and two extra fireballs land at once. They add damage and on-hits, never extra push.',
-           fx: { dmgMult: [0.5, 0.6, 0.7], kbMult: [0.5, 0.6, 0.7],
-                 procBalls: 2 } },
+           desc: 'Paired fireballs.',
+           long: 'Every 6th fireball you cast is a pair (5th, then 4th as it levels): the lead ball stings without pushing, and a second one lands right behind it.',
+           fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
   // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).
@@ -542,7 +543,7 @@ export const BOT_TARGETING = {
   WOUNDED: 0.35,       // per missing HP — finish what someone already started
   CROWD: 0.8,          // per unit of "how much backup this one has within 18"
   RIM: 8,              // full bonus for standing on the edge, 0 at the centre
-  MY_STACKS: 4,        // per frost/gale/mosquito/midas/malady mark of MINE on the body
+  MY_STACKS: 4,        // per frost/gale/midas/malady mark of MINE on the body
 };
 
 // ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------
@@ -572,7 +573,7 @@ export const BUILDS = {
   // tournament.md) — deliberately UNLABELED in the UI. Legacy six
   // (bruiser/sniper/escape/turtle/rusher/boomer) retired the same day.
   tycoon: { name: 'Tycoon',
-    desc: 'Gets rich, then out-shops everyone: every hit pays and the trap doubles the payroll. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
+    desc: 'Gets rich, then out-shops everyone: every hit pays and its paired fireballs double the payroll. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
     order: ['fireball', 'midas', 'mosquito', 'midas', 'hourglass', 'midas', 'mosquito',
       'sword', 'amulet', 'sword', 'amulet', 'sword', 'boots', 'amulet', 'boots'] },
   warlord: { name: 'Warlord',
@@ -580,7 +581,7 @@ export const BUILDS = {
     order: ['fireball', 'ember', 'ember', 'sword', 'amulet', 'ember', 'sword', 'amulet',
       'arcane', 'arcane', 'sword', 'amulet', 'boots', 'boots', 'cape'] },
   leech: { name: 'Leech',
-    desc: 'Heals off your face: every 5th ball is a feast and the trap volley speeds the count. Burst it down between feasts. Elemental picks: vampire, mosquito.',
+    desc: 'Heals off your face: every 5th ball is a feast and its paired fireballs speed the count. Burst it down between feasts. Elemental picks: vampire, mosquito.',
     order: ['fireball', 'vampire', 'vampire', 'mosquito', 'sword', 'vampire', 'mosquito',
       'amulet', 'sword', 'amulet', 'mosquito', 'sword', 'amulet', 'boots'] },
   executioner: { name: 'Executioner',
@@ -595,7 +596,7 @@ export const BUILDS = {
   stormcaller: { name: 'Stormcaller',
     desc: 'The sky never stops: haste on everything, a bolt every window. Use cover and punish its paper body. Elemental picks: arcane.',
     order: ['fireball', 'arcane', 'arcane', 'lightning', 'arcane', 'hourglass', 'lightning',
-      'hourglass', 'lightning', 'hourglass', 'echo', 'amulet', 'amulet', 'sword'] },
+      'hourglass', 'lightning', 'hourglass', 'boots', 'amulet', 'amulet', 'sword'] },
   phantom: { name: 'Phantom',
     desc: 'One line, three victims: fast fireballs that pass THROUGH bodies. Never queue up behind a teammate. Elemental picks: ghost, ember.',
     order: ['fireball', 'ghost', 'ghost', 'ember', 'ember', 'ghost', 'ember',

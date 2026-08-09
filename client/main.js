@@ -26,7 +26,7 @@ const ICONS = {
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
-  echo: '🔁', hourglass: '⏳',
+  hourglass: '⏳',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -209,12 +209,12 @@ function send(obj) { if (transport) transport.send(obj); }
 
 // Floating popups (damage, +1 g, lifesteal, frost pips…) that arrive at the SAME
 // spot in the SAME frame must read as N events, not one. Exactly overlapping
-// numbers are indistinguishable from a single hit, and since 2026-08-07 that is
-// not a corner case: the mosquito proc lands `procBalls` fireballs together on
-// purpose, and Remi's requirement for it is literally *"clearly see all the
-// on-hit indicators pop twice (for example seeing +1 gold twice)"*. So each extra
-// copy is fanned sideways (alternating, growing) and delayed a couple of frames,
-// which is what makes the second one legible as a second thing.
+// numbers are indistinguishable from a single hit, and that is not a corner
+// case: mosquito's pair lands two fireballs a heartbeat apart on the same body,
+// and Remi's requirement is literally *"clearly see all the on-hit indicators
+// pop twice (for example seeing +1 gold twice)"*. So each extra copy is fanned
+// sideways (alternating, growing) and delayed a couple of frames, which is what
+// makes the second one legible as a second thing.
 const FLOAT_STAGGER_MS = 70;   // ~2 frames at 30 Hz
 const FLOAT_FAN = 1.15;        // world units sideways per extra copy
 function pushFloater(e, type, dur, now) {
@@ -262,7 +262,7 @@ function onEvent(e) {
       if (e.spell === 'fireball') playSfx('whoosh');
       break;
     // midas / bounty payout. Fanned: "+1 g twice" is Remi's named acceptance
-    // criterion for the mosquito proc, and two identical popups on one pixel is
+    // criterion for mosquito's pair, and two identical popups on one pixel is
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
@@ -297,10 +297,6 @@ function onEvent(e) {
     // gale: a gust stacked. Silent on purpose — it fires on every gale hit, and
     // a sound on each one would drown the burst it is counting down to.
     case 'gale': pushFloater(e, 'gale', 0.7, now); break;
-    // mosquito: the trap just sprang. One cue for the CAUSE, then the doubled
-    // on-hit indicators (two damage numbers, two +1 g…) show the effect — without
-    // this you see the payoff and never learn what triggered it.
-    case 'biteHit': fx.push({ ...e, type: 'biteHit', at: now, dur: 0.6 }); break;
     // anger: a red mark just got claimed — small red burst on the victim, and
     // the claimant hears the kill jingle (the trophy sound; no new audio assets)
     case 'angerClaim':
@@ -944,9 +940,8 @@ const FX_FIELDS = {
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
   pierce: ['your fireball (at lv 3)', (v) => (v ? 'passes THROUGH bodies' : 'pops on the first body')],
-  procBalls: ['spending a stack fires', (v) => `${fmtNum(v)} extra fireballs, together`],
-  // only present when the optional nerf lever is set (ELEMENTS.mosquito)
-  procDmgMult: ['each of those balls hits for', fmtMult],
+  doubleEvery: ['your fireball fires as a pair', (v) => `every ${fmtNum(v)}th cast`],
+  trailDelay: ['the second ball leaves', (v) => `${fmtSec(v)} later`],
 };
 
 // Item fx fields — same shape as SPELL_FIELDS/FX_FIELDS. There is no
@@ -958,8 +953,6 @@ const ITEM_FIELDS = {
   kbMult: ['knockback taken', fmtMult],
   maxHp: ['max HP', (v) => `+${fmtNum(v)}`],
   lifesteal: ['lifesteal', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
-  every: ['echo cadence', (v) => `every ${fmtNum(v)}th fireball`],
-  delay: ['echo delay', fmtSec],
   haste: ['ability haste', (v) => `+${fmtNum(v)}`],
 };
 
@@ -988,7 +981,6 @@ const ITEM_TAG = {
   cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback`,
   sword: (lv) => `${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% lifesteal`,
   hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} haste`,
-  echo: () => `every ${fmtNum(ITEM_FX.echo.every)}th ball ×2`,
 };
 
 // One row of the per-level table. A scalar REPEATS in every level column
@@ -1371,7 +1363,7 @@ function buildShop(container, mode = 'classic') {
       } else {
         // items are levelled like spells: the level you own sits next to the
         // name, the price is flat (the hourglass carries a per-level array —
-        // itemCost handles both), and maxLevel is the wall (1 for echo).
+        // itemCost handles both), and maxLevel is the wall.
         const level = Math.min(items[w.key] || 0, w.spec.maxLevel);
         w.level = level;
         w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
@@ -1843,8 +1835,6 @@ function updateUi(s) {
     if (onMe && onMe.gale > 0)
       buffs.push(`<span class="buff frost">${ELEMENTS.gale.icon} ` +
         `${onMe.gale}/${ELEMENTS.gale.fx.stacksToTrigger}</span>`);
-    if (onMe && onMe.mosquito > 0)
-      buffs.push(`<span class="buff malady">${ELEMENTS.mosquito.icon} marked</span>`);
     // vampire: count the casts down, so "the next one is the big one" is a thing
     // you KNOW rather than something you notice afterwards
     const vampLv = (m.elements && m.elements.vampire) || 0;

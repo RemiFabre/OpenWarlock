@@ -14,9 +14,9 @@
 import { ITEM_FX } from './constants.js';
 
 // Fields that SUM across the items you own. Anything named `*Mult` multiplies
-// (by convention, so a new multiplier needs no edit here). Everything else —
-// echo's `every`/`delay`, crown's `fireballMax` — is a one-off consumed by the
-// feature that owns it, not a passive stat, so it is deliberately ignored.
+// (by convention, so a new multiplier needs no edit here). Anything else an
+// item spec carries is a one-off consumed by the feature that owns it, not a
+// passive stat, so it is deliberately ignored.
 const ADD_FIELDS = new Set(['maxHp', 'regen', 'lifesteal', 'haste']);
 
 // The absolute value of ITEM_FX[key][field] at `level`. Level 0 (or an unknown
