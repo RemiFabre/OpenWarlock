@@ -25,6 +25,14 @@ export function makeView(canvas) {
     canvas, ctx: canvas.getContext('2d'),
     back, bctx: back.getContext('2d'),
     w: 0, h: 0, scale: 1, cx: 0, cy: 0,
+    arenaR: ARENA.START_RADIUS,   // this game's un-shrunk arena (round 21.2)
+    // the camera frames the WHOLE arena, whatever size this game rolled
+    fitArena(R) {
+      const r = Number.isFinite(+R) && +R > 0 ? +R : ARENA.START_RADIUS;
+      if (r === this.arenaR) return;
+      this.arenaR = r;
+      this.scale = Math.min(this.w, this.h) / (2 * (r + 9));
+    },
     resize() {
       const dpr = Math.min(1.5, window.devicePixelRatio || 1);
       this.w = window.innerWidth; this.h = window.innerHeight;
@@ -32,7 +40,7 @@ export function makeView(canvas) {
       canvas.style.width = this.w + 'px'; canvas.style.height = this.h + 'px';
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.cx = this.w / 2; this.cy = this.h / 2;
-      this.scale = Math.min(this.w, this.h) / (2 * (ARENA.START_RADIUS + 9));
+      this.scale = Math.min(this.w, this.h) / (2 * (this.arenaR + 9));
       // backdrop renders at ~1/3 resolution and is stretched up — the image,
       // wash and lava-blob gradients are by far the most expensive paints
       // the back layer only carries the lava-blob gradients now (the level
@@ -212,6 +220,7 @@ function drawEngorged(ctx, x, y, r, t) {
 }
 
 export function draw(view, vs, fx, myId, moveMark, now) {
+  if (vs) view.fitArena(vs.startRadius);   // arena size is per-game (round 21.2)
   const { ctx, w, h, scale } = view;
   const t = now / 1000;
 
@@ -258,6 +267,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
 
   if (!vs) return;
   const R = (fin(vs.arenaRadius) ? vs.arenaRadius : ARENA.START_RADIUS) * scale;
+  const R0 = fin(vs.startRadius) ? vs.startRadius : ARENA.START_RADIUS; // un-shrunk
   const players = Array.isArray(vs.players) ? vs.players : [];
   const projectiles = Array.isArray(vs.projectiles) ? vs.projectiles : [];
 
@@ -265,7 +275,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   // ghost of the original arena size
   ctx.strokeStyle = 'rgba(255, 140, 60, 0.10)';
   ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(view.cx, view.cy, ARENA.START_RADIUS * scale, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R0 * scale, 0, Math.PI * 2); ctx.stroke();
 
   // molten rim
   const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.92, view.cx, view.cy, R * 1.10);
@@ -293,7 +303,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   // so a static frame still reads as "this is a mechanism", not decoration.
   if (vs.mode !== 'coop' && ARENA.PORTALS) {
     const P = ARENA.PORTALS;
-    const pd = ARENA.START_RADIUS * P.DIST_FRAC;
+    const pd = R0 * P.DIST_FRAC;
     for (let i = 0; i < P.COUNT; i++) {
       const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
       const x = view.sx(Math.cos(pa) * pd), y = view.sy(Math.sin(pa) * pd);

@@ -4,6 +4,7 @@ import {
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
+  arenaStartRadius,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
@@ -3032,7 +3033,7 @@ describe('power spells & pillar', () => {
       if (SPELLS[key].tier === 'power') expect(bot.spells[key] || 0).toBe(0);
   });
 
-  it('pillar: raises a blocker, stacks freely (round 17), and each expires', () => {
+  it('pillar: raises a blocker, stacks freely (round 17), and NEVER expires (21.2)', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.pillar = 1;
@@ -3050,11 +3051,11 @@ describe('power spells & pillar', () => {
     a.cooldowns = {};
     castSpell(state, 'p0', 'pillar', -6, 0);
     expect(state.pillars.length).toBe(2);
-    // and each crumbles when its own time runs out (0.5 s apart)
-    run(state, SPELLS.pillar.duration[0] - 0.3);
-    expect(state.pillars.length).toBe(1);
-    run(state, 1);
-    expect(state.pillars.length).toBe(0);
+    // round 21.2 ruling: pillars are PERMANENT — both stones outlive the old
+    // duration and every timer the sim knows about
+    run(state, SPELLS.pillar.duration[0] + SPELLS.pillar.duration[1] + 2);
+    expect(state.pillars.length).toBe(2);
+    expect(state.pillars.every(p => !p.until)).toBe(true);
   });
 
   it('meteor: telegraph, then heavy damage and a radial blast', () => {
@@ -3935,7 +3936,7 @@ describe('v5 mechanics', () => {
     expect(Math.abs(a.vx)).toBeLessThan(0.5);  // velocity into the pillar died
   });
 
-  it('a sunken pillar no longer blocks anything', () => {
+  it('round 21.2: lava never destroys a pillar — one out in the lava still blocks', () => {
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
     state.arenaRadius = 5; // the lava has swallowed everything past 5u
@@ -3943,10 +3944,31 @@ describe('v5 mechanics', () => {
     a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 1.2);
-    expect(state.pillars[0].sunk).toBe(true); // maintained by stepBattle
-    // the fireball sailed straight over the melted pillar and hit b
-    expect(state.events.some(e => e.t === 'hit' && e.id === 'p1')).toBe(true);
-    expect(b.vx).toBeGreaterThan(0);
+    expect(state.pillars.length).toBe(1);
+    expect(state.pillars[0].sunk).toBe(false);   // `sunk` is dead machinery now
+    expect(state.events.some(e => e.t === 'boom' && e.spell === 'fireball')).toBe(true);
+    expect(state.events.some(e => e.t === 'hit' && e.id === 'p1')).toBe(false);
+  });
+
+  it('round 21.2: a pillar placed in round N is still standing in round N+1', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.pillar = 1;
+    const defaults = state.pillars.length;   // the arena's own ring
+    castSpell(state, 'p0', 'pillar', 6, 6);
+    expect(state.pillars.length).toBe(defaults + 1);
+    // both swim into the lava on their last hit point: the round ends at once
+    a.hp = 0.01; a.x = ARENA.START_RADIUS + 5; a.y = 0; a.moveTarget = null;
+    b.hp = 0.01; b.x = -(ARENA.START_RADIUS + 5); b.y = 0; b.moveTarget = null;
+    step(state, DT);
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.round).toBe(2);
+    expect(state.phase).toBe('battle');
+    // the default ring is re-dealt and the placed stone rode along
+    expect(state.pillars.length).toBe(defaults + 1);
+    const mine = state.pillars.filter(p => p.placedBy === 'p0');
+    expect(mine.length).toBe(1);
+    expect(Math.hypot(mine[0].x - 6, mine[0].y - 6)).toBeLessThan(0.01);
   });
 
   it('solo lv1 fireball TTK: slow (>30 s) but a kill within the round', () => {
@@ -5281,6 +5303,60 @@ describe('live spectator standings', () => {
     expect(wire.vanishT).toBeUndefined();
     // and the dead viewer is told no more than a living opponent is
     expect(JSON.stringify(wire)).toBe(JSON.stringify(snapshot(state, 'b').players.a));
+  });
+});
+
+// Round 21.2 (Remi): play AREA per player is constant above the anchor, so the
+// radius grows as sqrt(n/ANCHOR). n = seats at startGame; below the anchor the
+// arena is exactly what it always was. Every number here is read off the spec.
+describe('arena scales with the seat count (round 21.2)', () => {
+  const seated = (n, opts = {}) => {
+    const state = createGame({ seed: 3, mode: 'classic', ...opts });
+    for (let i = 0; i < n; i++) addPlayer(state, `p${i}`, `P${i}`, opts.bots ? { bot: true } : {});
+    startGame(state);
+    return state;
+  };
+  const A = ARENA.SCALE_ANCHOR_PLAYERS;
+
+  it('at or below the anchor the arena is the classic one', () => {
+    for (const n of [2, 4, A]) expect(seated(n).startRadius).toBeCloseTo(ARENA.START_RADIUS, 6);
+  });
+
+  it('above the anchor the radius grows as sqrt(n / anchor)', () => {
+    const big = seated(A + 3);   // anchor 5 -> 8 players
+    expect(big.startRadius).toBeCloseTo(ARENA.START_RADIUS * Math.sqrt((A + 3) / A), 6);
+    // ...which is exactly "constant play area per player"
+    const per = (s, n) => Math.PI * s.startRadius ** 2 / n;
+    expect(per(big, A + 3)).toBeCloseTo(per(seated(A), A), 6);
+    expect(arenaStartRadius(A + 3)).toBeCloseTo(big.startRadius, 6);
+  });
+
+  it('bots count as seats, and a late joiner never resizes a live arena', () => {
+    const state = seated(A + 3, { bots: true });
+    const r = state.startRadius;
+    expect(r).toBeGreaterThan(ARENA.START_RADIUS);
+    for (let i = 0; i < 4; i++) addPlayer(state, `late${i}`, `Late${i}`);
+    run(state, ROUND.COUNTDOWN + 1);
+    expect(state.startRadius).toBeCloseTo(r, 6);
+  });
+
+  it('the rim, the spawn ring and the portals all ride the scale', () => {
+    const big = seated(A + 3);
+    expect(big.arenaRadius).toBeCloseTo(big.startRadius, 6);   // starts un-shrunk
+    expect(snapshot(big).startRadius).toBeCloseTo(big.startRadius, 2); // on the wire
+    run(big, ROUND.COUNTDOWN + DT);
+    const k = big.startRadius / ARENA.START_RADIUS;
+    // spawns sit on the same FRACTION of the (bigger) rim
+    for (const pl of Object.values(big.players))
+      expect(Math.hypot(pl.x, pl.y)).toBeCloseTo(big.startRadius * ARENA.SPAWN_RADIUS_FRAC, 4);
+    // a portal at the scaled diagonal still swallows you
+    const P = ARENA.PORTALS;
+    const d = ARENA.START_RADIUS * P.DIST_FRAC * k;
+    const pl = big.players.p0;
+    pl.x = Math.cos(P.ANGLE) * d; pl.y = Math.sin(P.ANGLE) * d;
+    pl.moveTarget = null; pl.vx = 0; pl.vy = 0;
+    step(big, DT);
+    expect(Math.hypot(pl.x, pl.y)).toBeLessThan(1);
   });
 });
 

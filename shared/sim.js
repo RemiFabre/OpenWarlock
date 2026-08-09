@@ -51,6 +51,10 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     round: 0,
     time: 0,               // elapsed battle time this round
     arenaRadius: ARENA.START_RADIUS,
+    // this game's un-shrunk arena: frozen at startGame from the seat count
+    // (round 21.2, see arenaStartRadius). Everything sized off the arena —
+    // spawn ring, shrink rate, portals, world cull — reads THIS, not the constant.
+    startRadius: ARENA.START_RADIUS,
     graceT: ARENA.OVERTIME_GRACE, // overtime grace left once radius hits MIN
     roundFighters: 0,      // fighters seated at round start (adaptive shrink)
     pillars: [],           // [{x, y, r, sunk}] set each round start
@@ -540,7 +544,10 @@ export function castSpell(state, id, key, tx, ty) {
       const px = pl.x + dx * dist, py = pl.y + dy * dist;
       state.pillars.push({
         x: px, y: py, r: spec.radius, sunk: false,
-        placedBy: id, until: state.time + lvl(spec, 'duration', level),
+        // Round 21.2 ruling (Remi): a placed pillar is PERMANENT — no timer,
+        // and it survives every later round (see startRound). Revert = put
+        // `until: state.time + lvl(spec, 'duration', level)` back.
+        placedBy: id, until: null,
       });
       state.events.push({ t: 'pillarUp', x: px, y: py });
       break;
@@ -1033,8 +1040,17 @@ export function setTesting(state, on, gold) {
   state.testing = on ? { gold: clamp(Math.round(+gold) || 0, 0, 999) } : null;
 }
 
+// Round 21.2 (Remi): constant play AREA per player above the anchor.
+export function arenaStartRadius(n) {
+  const anchor = Math.max(1, ARENA.SCALE_ANCHOR_PLAYERS || 1);
+  return ARENA.START_RADIUS * Math.sqrt(Math.max(anchor, n || 0) / anchor);
+}
+
 export function startGame(state) {
   if (state.phase !== 'lobby') return;
+  // arena size is frozen here, from the seats at kickoff (humans + bots)
+  state.startRadius = arenaStartRadius(fighters(state).length);
+  state.arenaRadius = state.startRadius;
   // draft mode: the split is rolled ONCE here, when the ruleset can no longer
   // change, and lives on state for the whole game
   if (state.draft) rollDraftPool(state);
@@ -1057,9 +1073,13 @@ function startRound(state) {
   state.phase = 'countdown';
   state.phaseT = ROUND.COUNTDOWN;
   state.time = 0;
-  state.arenaRadius = ARENA.START_RADIUS;
+  state.arenaRadius = state.startRadius;
   state.graceT = ARENA.OVERTIME_GRACE;
-  state.pillars = makePillars(state);
+  // Round 21.2 ruling (Remi): PLACED pillars persist for the whole game. The
+  // reset re-deals the arena's default ring and KEEPS every pillar any player
+  // raised in an earlier round — no cap, a long game fills up (counterplay:
+  // lightning, nova, blink, portals, terra 3). Revert = `makePillars(state)`.
+  state.pillars = [...state.pillars.filter(p => p.placedBy), ...makePillars(state)];
   state.projectiles = [];
   state.delayedShots = [];
   state.hazards = [];
@@ -1073,7 +1093,7 @@ function startRound(state) {
   // co-op: the lava's adaptive shrink must count the PARTY only, or clearing a
   // wave would rush the lava in as a punishment for winning
   state.roundFighters = coop ? partyOf(state).length : fs.length;
-  const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
+  const r = state.startRadius * ARENA.SPAWN_RADIUS_FRAC;
   // Round 18 (Remi): versus seats are DEALT FRESH each round — a fixed wheel
   // made your neighbours a game-long constant. Seeded rng: same seed, same
   // deals. Co-op keeps its stable party arc (the waves aim at it).
@@ -1170,7 +1190,7 @@ function coopSpawnWave(state, time) {
   const due = c.pending.filter(u => (u.at || 0) <= time);
   if (!due.length) return;
   c.pending = c.pending.filter(u => (u.at || 0) > time);
-  const r = ARENA.START_RADIUS * ARENA.SPAWN_RADIUS_FRAC;
+  const r = state.startRadius * ARENA.SPAWN_RADIUS_FRAC;
   const spread = Math.min(Math.PI * 1.2, 0.35 * Math.max(1, due.length - 1));
   due.forEach((u, i) => {
     const a = Math.PI / 2 + (due.length > 1 ? (i / (due.length - 1) - 0.5) * spread : 0);
@@ -1202,10 +1222,13 @@ function coopSpawnWave(state, time) {
 // deterministic (and identical on server and in replays).
 function makePillars(state) {
   const { COUNT, RADIUS, RING, BASE_ANGLE, JITTER } = ARENA.PILLARS;
+  // RING is written for the 5-player arena, so it rides the arena scale
+  // (round 21.2) — the default ring stays between spawn ring and rim.
+  const ring = RING * (state.startRadius / ARENA.START_RADIUS);
   const out = [];
   for (let i = 0; i < COUNT; i++) {
     const a = BASE_ANGLE + (i / COUNT) * Math.PI * 2 + (rng(state) - 0.5) * JITTER;
-    out.push({ x: Math.cos(a) * RING, y: Math.sin(a) * RING, r: RADIUS, sunk: false });
+    out.push({ x: Math.cos(a) * ring, y: Math.sin(a) * ring, r: RADIUS, sunk: false });
   }
   return out;
 }
@@ -1366,13 +1389,13 @@ function stepBattle(state, dt) {
     // long fights (level 8 averages ~100 s) — under a ring that never stops it
     // collapsed from 68/66/57% clear to 80/46/6% (200 attempts/cell, seed 7).
     // Scoping the flag to PvP restored the documented curve exactly.
-    const baseRate = ARENA.START_RADIUS / ARENA.SHRINK_TIME;
+    const baseRate = state.startRadius / ARENA.SHRINK_TIME;
     state.arenaRadius = Math.max(0, state.arenaRadius - baseRate * speedMult * dt);
   } else if (state.arenaRadius > ARENA.MIN_RADIUS) {
     // co-op runs the campaign's own (faster) journey: SHRINK_TIME was retuned
     // for the never-stopping versus ring, and the campaign is priced at 65 s
     const shrinkT = state.mode === 'coop' ? ARENA.COOP_SHRINK_TIME : ARENA.SHRINK_TIME;
-    const baseRate = (ARENA.START_RADIUS - ARENA.MIN_RADIUS) / shrinkT;
+    const baseRate = (state.startRadius - ARENA.MIN_RADIUS) / shrinkT;
     state.arenaRadius = Math.max(ARENA.MIN_RADIUS, state.arenaRadius - baseRate * speedMult * dt);
   } else if (state.graceT > 0) {
     state.graceT = Math.max(0, state.graceT - dt);
@@ -1380,11 +1403,12 @@ function stepBattle(state, dt) {
     state.arenaRadius = Math.max(0, state.arenaRadius - (ARENA.MIN_RADIUS / ARENA.OVERTIME_SHRINK) * dt);
   }
 
-  // a pillar whose center the lava has passed is submerged: no collision,
-  // no blocking, just a melting stub for the client to render. Player-placed
-  // pillars also crumble when their timer runs out.
-  state.pillars = state.pillars.filter(p => !p.until || p.until > state.time);
-  for (const pil of state.pillars) pil.sunk = Math.hypot(pil.x, pil.y) > state.arenaRadius;
+  // Round 21.2 ruling (Remi): LAVA NEVER DESTROYS A PILLAR. Pillars stand and
+  // block out in the lava, default ring included; `sunk` stays on the wire and
+  // in the render/collision paths but is now permanently false. Only terra-lv3
+  // smash removes one. Revert = restore the two lines:
+  //   state.pillars = state.pillars.filter(p => !p.until || p.until > state.time);
+  //   for (const pil of state.pillars) pil.sunk = Math.hypot(pil.x, pil.y) > state.arenaRadius;
 
   // mirror walls expire
   if (state.walls.length) state.walls = state.walls.filter(w => w.until > state.time);
@@ -1658,7 +1682,7 @@ function stepBattle(state, dt) {
     // porting tick doesn't also burn you.
     if (state.mode !== 'coop' && pl.alive) {
       const P = ARENA.PORTALS;
-      const d = ARENA.START_RADIUS * P.DIST_FRAC;
+      const d = state.startRadius * P.DIST_FRAC;
       for (let i = 0; i < P.COUNT; i++) {
         const a = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
         const px = Math.cos(a) * d, py = Math.sin(a) * d;
@@ -1808,7 +1832,7 @@ function stepProjectiles(state, dt) {
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
     if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
-    if (Math.hypot(pr.x, pr.y) > ARENA.START_RADIUS * 2) continue;
+    if (Math.hypot(pr.x, pr.y) > state.startRadius * 2) continue;
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance)
       turnBoomerangHome(state, pr); // hit the ceiling without being recalled
 
@@ -2373,6 +2397,9 @@ export function snapshot(state, viewerId = null) {
     ...(state.testing ? { testing: { gold: state.testing.gold } } : {}),
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
+    // this game's un-shrunk arena (round 21.2): the client sizes its camera,
+    // the rim ghost and the portals off it, never off the constant
+    startRadius: round2(state.startRadius),
     pillars: (state.pillars || []).map(p => ({
       x: round2(p.x), y: round2(p.y), r: round2(p.r), sunk: !!p.sunk,
     })),

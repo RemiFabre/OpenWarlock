@@ -444,6 +444,9 @@ function interpolated(now) {
     phaseT,
     round: s.round,
     arenaRadius: fin(arenaRadius) ? arenaRadius : ARENA.START_RADIUS,
+    // this game's un-shrunk arena — off the wire since round 21.2 (it scales
+    // with the seat count); older hosts don't send it, hence the fallback
+    startRadius: fin(+s.startRadius) ? +s.startRadius : ARENA.START_RADIUS,
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],

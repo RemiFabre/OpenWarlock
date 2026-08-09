@@ -5,8 +5,14 @@ export const TICK_RATE = 30;          // server simulation Hz
 export const SNAPSHOT_RATE = 15;      // snapshots sent to clients Hz
 
 export const ARENA = {
-  START_RADIUS: 56,
+  START_RADIUS: 56,       // the 5-player arena (see SCALE_ANCHOR_PLAYERS)
   MIN_RADIUS: 10,
+  // Round 21.2 (Remi): play AREA PER PLAYER is constant above the anchor —
+  // radius = START_RADIUS * sqrt(n / ANCHOR) for n > ANCHOR, unchanged below
+  // (a 3-player game keeps the 5-player floor). n = seats at game start
+  // (humans + bots, interpretation), frozen for the whole game: a late joiner
+  // never resizes a live arena. Set ANCHOR huge = revert to a fixed arena.
+  SCALE_ANCHOR_PLAYERS: 5,
   // Round 18 (Remi): 4 portals out in the lava — touch one and you are
   // teleported to the arena center. Fixed positions (diagonals, a bit beyond
   // the starting rim), versus only; the swim there is priced in lava HP.
@@ -37,7 +43,8 @@ export const ARENA = {
   OVERTIME_SHRINK: 30,    // ...then shrinks to 0 over this — every round ends
   SPAWN_RADIUS_FRAC: 0.6, // players spawn on this fraction of start radius
   // obsidian pillars on a fixed ring near the rim: cover vs projectiles and
-  // knockback-stoppers; a pillar outside the current arena radius is sunk
+  // knockback-stoppers. RING is written for the 5-player arena and rides the
+  // arena scale; since round 21.2 lava never sinks a pillar (shared/sim.js)
   PILLARS: {
     COUNT: 6,
     RADIUS: 2.5,
@@ -213,8 +220,10 @@ export const SPELLS = {
   pillar: {
     // Round 21.1 (Remi): the pillar is the CHEAP tier now.
     name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [8, 4],
+    // Round 21.2 (Remi): pillars are PERMANENT — `duration` is inert (kept as
+    // the revert path, see the cast in shared/sim.js), so lv2 buys cooldown.
     cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
-    desc: 'Raise an obsidian pillar: it blocks projectiles, bodies and knockback.',
+    desc: 'Raise a permanent obsidian pillar: it blocks projectiles, bodies and knockback.',
   },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see

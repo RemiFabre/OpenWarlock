@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.0). Read this first, then
+*Last updated 2026-08-10 (round 21.2). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -91,6 +91,18 @@ Agent context usage on this project is **CRITICAL**. The rules:
   key `mosquito` is unchanged everywhere. ⚠ The round-20 Elo table's gold
   assumptions are now stale (everything is cheaper; more roster cores fall
   under the 150 g band) — re-run before quoting its numbers as prices.
+- **ROUND 21.2 SHIPPED** (Remi's rulings): **pillars are PERMANENT** — lava
+  never destroys one (`sunk` is inert machinery now), a placed pillar survives
+  every later round for the whole game (round reset = default ring + everything
+  placed earlier), no cap, `SPELLS.pillar.duration` inert; only terra-lv3 smash
+  removes one. **Arena AREA per player is constant above 5 seats**:
+  `state.startRadius = START_RADIUS * sqrt(max(n, ANCHOR)/ANCHOR)`
+  (`ARENA.SCALE_ANCHOR_PLAYERS 5`), frozen at `startGame` from the seats then;
+  everything arena-sized reads `state.startRadius` (spawn ring, shrink rate,
+  portals, default pillar ring, world cull) and it is on the wire for the
+  client camera. ⚠ Bots don't buy pillars, so the labs see none of the
+  fortress effect — handing every bot a lv2 pillar caps games at 25 rounds with
+  ~750 stones (not a crash; the ruling's stated cost, awaiting a human playtest).
 - **Waiting on Remi**: mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
   E2-chronomancer's 7th-of-30 is where he wants CDR (M), cape (B),
@@ -141,7 +153,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 314 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 319 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -163,6 +175,10 @@ build step, Node ESM, only dep is `ws`.
   Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
   The 🧪 **testing sandbox** (lobby flag like draft): chosen gold, game opens
   in an UNTIMED shop, ready-up starts round 1.
+- **Arena size is per-game** (21.2): `state.startRadius`, never `ARENA.START_RADIUS`,
+  is the un-shrunk arena — constant play area per player above 5 seats.
+- **Pillars are permanent** (21.2): lava-proof, they persist across rounds and
+  accumulate all game; terra lv3 is the only remover.
 - **Lava** 14 DPS, ×2 swim speed; versus ring **never stops** (`NEVER_STOPS`);
   co-op keeps the classic ring. Lava kill share: keep reporting, no target.
   **4 portals** in the lava (diagonals, 1.25× rim, `ARENA.PORTALS`, versus
@@ -249,7 +265,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 314 green
+npx vitest run                                   # 319 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

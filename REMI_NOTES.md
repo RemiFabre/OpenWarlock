@@ -1,6 +1,6 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Round 21.0, 2026-08-10. Your overnight rulings, applied. Round 20's notes
+*Rounds 21.0-21.2, 2026-08-10. Your overnight rulings, applied. Round 20's notes
 (the mosquito rework + the ELO measurement pass) are archived at
 `docs/history/2026-08-09-remi-notes-round-20.md`.*
 
@@ -76,6 +76,30 @@ Bomb) go straight through it**.
   the hover line "Every 6/5/4th fireball you throw is doubled: the lead ball
   hits without pushback so its twin can land too." Nothing about how it plays
   changed, and the internal key stays `mosquito` so old logs still read.
+
+## Round 21.2 — pillars are forever, and the arena grows with the lobby
+
+- **Lava never destroys a pillar.** Stones stay solid out in the lava (the
+  arena's own ring included) — no more melting stubs. Only a terra-lv3
+  Demolisher fireball breaks one.
+- **A placed pillar survives every later round, for the whole game.** Each round
+  re-deals the arena's default ring and keeps everything anyone raised before,
+  with **no cap**: a long game silently turns into a maze. Their old 10/16 s
+  timer is gone, so pillar lv2 now buys cooldown only. Counterplay is lightning,
+  Nova, Blink, portals and terra 3, exactly as you said.
+- **Arena area per player is constant above 5 seats.** 5 players = today's arena
+  (radius 56); below 5 nothing changes; above it radius = 56 × √(n/5) — 6
+  players 61.3, 8 players 70.8. Frozen at game start from the seats then
+  (humans + bots — someone joining mid-game never resizes a live arena).
+  Everything sized off the arena follows: spawn ring, the lava's closing speed
+  (a round still lasts the same time), the four portals, the default pillar ring,
+  the camera.
+- **Bot smoke**: 60-game arena runs at 4 and 8 players both finish with sane
+  kills (top killer 15.7 / 16.1, nobody hits the 25-round cap). ⚠ One thing to
+  know: bots never *buy* pillars today, but if I hand every bot a lv2 pillar the
+  game becomes a fortress — 25-round caps, ~4-5 kills, 400-750 stones standing.
+  That is the ruling working as designed, not a crash; worth a human playtest
+  before we teach bots to buy it.
 
 ## Still waiting on you
 
