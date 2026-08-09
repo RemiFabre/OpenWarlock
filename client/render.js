@@ -380,6 +380,28 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.setLineDash([]);
     ctx.fillStyle = `rgba(255, 80, 40, ${0.10 + 0.12 * blink})`;
     ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
+    // the rock itself, streaking down at the zone (round 20, Remi: "it would
+    // be cool if we could see something falling"): position/size lerped from
+    // a high offset to the impact point over the telegraph's delay, with a
+    // short fiery trail behind it — the impact reads instead of popping.
+    const p = Math.min(Math.max(1 - tt / (SPELLS.meteor.delay || 1), 0), 1);
+    const fall = 1 - p;                       // 1 = just cast, 0 = impact
+    const rx = x + 9 * scale * fall;          // comes in from the upper right
+    const ry = y - 26 * scale * fall;
+    const rr = (0.55 + 1.05 * p) * scale;     // grows as it nears the ground
+    // trail: fading embers strung back along the fall line
+    for (let i = 1; i <= 3; i++) {
+      const q = Math.min(fall + i * 0.07, 1);
+      ctx.fillStyle = `rgba(255, ${150 - i * 30}, 40, ${0.38 - i * 0.1})`;
+      ctx.beginPath();
+      ctx.arc(x + 9 * scale * q, y - 26 * scale * q, rr * (1 - i * 0.22), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#4a2f22';                // the rock: dark core, hot rim
+    ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(255, 120, 50, ${0.6 + 0.4 * p})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 
   // --- nova bombs: a dark orb with a sparking fuse while it flies; once
