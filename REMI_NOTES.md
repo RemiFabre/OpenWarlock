@@ -2,7 +2,9 @@
 
 *Written overnight 2026-08-09 by Claude while you slept, from your pre-sleep
 dictation. Built by sequential focused subagents, each change one commit.
-**274 tests green.** Pull, restart the server, hard-refresh everyone.*
+**278 tests green, full ritual passed** (vitest, both harness scenarios,
+chromium+webkit robustness, reconnect e2e, arena sanity, and the new
+static-solo test). Pull, restart the server, hard-refresh everyone.*
 
 ## ROUND 19 — the overnight batch
 
@@ -172,13 +174,34 @@ a strength meter — the do-nothing floor is ~3%):
   only instrument here (the round-12 rule cuts both ways: no panic buffs off
   a blind lab).
 
-## Browser hosting (your big task) — status
+## Browser hosting (your big task) — Phase A SHIPPED, Phase B needs one thing from you
 
-The brief (`docs/BRIEF-browser-hosting.md`) is being implemented by a
-dedicated agent on an isolated branch — phase A (solo play from a static
-link) first, with a hard gate before phase B (player-hosted lobbies over
-WebRTC). Your current `npm run host` setup is untouched either way. Status
-when it lands is at the END of this file.
+**Phase A is done, merged and verified**: serve the repo as plain static
+files and the page detects there's no server, announces solo mode, and runs
+the full game in the tab against bots — lobby, shop, every ruleset. It works
+under a `/OpenWarlock/` subpath, i.e. the exact GitHub Pages shape.
+**To put it live, the only step left is yours: repo Settings → Pages →
+deploy from main, root.** Your `npm run host` flow is byte-identical on the
+wire and was fully re-verified (both browsers, reconnect, integration).
+
+Under the hood (matters for the MOBA dream): the whole authoritative room
+moved into `shared/engine.js` behind a transport seam — the Node server is
+now just an adapter, and the tab runs the same engine for solo. That seam is
+exactly where phase B (player-hosted lobbies over WebRTC, no server at all)
+plugs in.
+
+**Phase B is honestly gated, not started.** Its go/no-go question is: does a
+hidden browser tab keep simulating at ~30 Hz for 10 minutes? On Chrome:
+measured with a real Chrome (not an emulator — those lie about tab
+throttling): a worker-driven loop holds 30.2-30.4 Hz through minute 9+ of
+10, flawless. **Safari can't be measured from here — that part is yours**:
+open `tools/tabtest.html?v=worker` in Safari, press Start, background the
+tab for 10 minutes, read the on-page report (then once more with
+`?v=worker-audio`). Green numbers there = phase B is a go. Full handoff:
+`docs/history/2026-08-09-browser-hosting-phaseA.md`.
+
+One solo-mode choice to know: no ping badge in solo (there's no network —
+a number would be a lie).
 
 ---
 

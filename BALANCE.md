@@ -185,7 +185,7 @@ node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme colu
 node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
 node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
-npx vitest run                                                # 274 green
+npx vitest run                                                # 278 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 ```
