@@ -35,6 +35,10 @@ pinned: false
 WebRTC signalling relay for OpenWarlock browser-hosted games.
 No game traffic passes through here: hosts register a room code, guests
 join by code, SDP/ICE blobs are relayed verbatim, then peers talk directly.
+It also counts anonymous usage beacons (POST /beacon: visits, games started,
+player counts — no names, no ids, no IPs) and serves the aggregate at
+GET /stats. With an HF_TOKEN secret set, counters persist to the private
+dataset RemiFabre/openwarlock-stats so restarts don't wipe history.
 Game: https://remifabre.github.io/OpenWarlock/client/
 EOF
 

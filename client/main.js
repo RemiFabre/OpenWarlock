@@ -13,6 +13,7 @@ import {
   nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
 } from './coop.js';
 import { selectTransport, createRtcHostTransport } from './transport.js';
+import { sendEvent, trackSnapshot, modeName } from './analytics.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -128,6 +129,9 @@ function wireTransport(t) {
 
 const transportP = selectTransport().then((t) => {
   wireTransport(t);
+  // anonymous visit counter, once per page load, tagged with the picked
+  // transport (client/analytics.js — counts only, never affects play)
+  sendEvent('visit', { mode: modeName(t.kind) });
   if (t.kind === 'solo') {
     // no server behind this page: say so up front — "Enter" starts a private
     // solo room where bots are added from the lobby, all inside this tab
@@ -172,6 +176,7 @@ function onMessage(m) {
     if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
     window.__phase = m.s.phase; // test/debug hook
     window.__snapN = (window.__snapN || 0) + 1; // test hook: snapshots received
+    trackSnapshot(m.s, myId, transport && transport.kind); // anonymous game_start/_end beacons
   } else if (m.t === 'denied') {
     toast(m.reason);
     // kicked, banned, or the RTC room is gone ("no such room" — the host
