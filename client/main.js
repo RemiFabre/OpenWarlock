@@ -572,6 +572,20 @@ const goldRules =
   `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first · ` +
   `bounty up to +${GOLD.BOUNTY_MAX} g for slaying someone ahead of you.`;
 $('ver').textContent = VERSION; // bottom-left build stamp; red on mismatch
+// Update watcher (Remi: "do I have to wait 12 minutes?"): GitHub Pages caches
+// for 10 min, but a unique query string bypasses the CDN — so we can KNOW a
+// newer build exists even while we're still serving the old one. Check every
+// minute; on mismatch the corner stamp becomes a visible refresh prompt.
+setInterval(async () => {
+  try {
+    const r = await fetch(`../shared/version.js?bust=${Date.now()}`, { cache: 'no-store' });
+    const m = /VERSION = '([^']+)'/.exec(await r.text());
+    if (m && m[1] !== VERSION) {
+      $('ver').textContent = `${VERSION} → ${m[1]} available: refresh`;
+      $('ver').classList.add('bad');
+    }
+  } catch { /* offline or file:// — the stamp just stays quiet */ }
+}, 60_000);
 $('lobbyFormat').textContent =
   `First to ${ROUND.KILLS_TO_WIN} kills wins. ${goldRules}`;
 $('shopIncome').textContent = goldRules;
