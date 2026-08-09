@@ -7,6 +7,7 @@
     "test": "vitest run",
     "start": "node server/index.js",
     "host": "node scripts/host.js",
+    "signal": "node server/signal.js",
     "test:e2e": "node test/integration.js",
     "test:visual": "node test/visual.js"
   },
