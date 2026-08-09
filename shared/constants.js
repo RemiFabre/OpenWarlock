@@ -407,10 +407,15 @@ export const ELEMENTS = {
   // else — the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
   // terra's lv3 is "like fire": a cheap third step, no special).
+  // Round 20.2 (Remi): terra finally gets a lv3 hook — Demolisher. Your
+  // fireballs SMASH Stone Pillars: the pillar is destroyed and the ball is
+  // consumed with it (pass-through was ruled too strong). Pillars only —
+  // Mirror Walls are untouched. Read off the fx flags, never the element name.
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 5, 5],
            desc: 'Bigger fireball.',
-           long: 'A bigger ball is easier to land.',
-           fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
+           long: 'A bigger ball is easier to land. At lv3 your fireballs smash Stone Pillars apart — the ball breaks on impact too.',
+           fx: { projRadiusMult: [1.25, 1.45, 1.65],
+                 smashPillars: true, smashAtLevel: 3 } },
   // Anger (Remi's mark-hunt rework of momentum): markDelay s into each round,
   // then markEvery s after each claim, ONE red mark lands on a random enemy —
   // a fireball hit on them banks +markDmg damage, game-long and uncapped.

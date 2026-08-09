@@ -282,6 +282,8 @@ function onEvent(e) {
       break;
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
+    // terra lv3 Demolisher: the pillar shatters — rubble that settles and fades
+    case 'pillarBroken': fx.push({ ...e, type: 'rubble', at: now, dur: 1.6 }); playSfx('boom'); break;
     case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;
     case 'multikill': {
       // yours takes over the middle of the screen; someone else's is a smaller

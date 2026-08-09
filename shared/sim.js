@@ -1787,15 +1787,26 @@ function stepProjectiles(state, dt) {
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance)
       turnBoomerangHome(state, pr); // hit the ceiling without being recalled
 
-    // pillars eat projectiles (swept against this tick's segment)
+    // pillars eat projectiles (swept against this tick's segment, from the
+    // PRE-move position — a fast ball crosses a pillar inside one tick).
+    // terra lv3 "Demolisher": a fireball carrying a rider that declares
+    // `smashPillars` at a high enough level DESTROYS the pillar instead of
+    // just popping on it. The ball is still consumed (no pass-through).
+    const smashes = pr.type === 'fireball' && pr.elements &&
+      Object.entries(pr.elements).some(([k, v]) =>
+        ELEMENTS[k].fx.smashPillars && v >= (ELEMENTS[k].fx.smashAtLevel || 1));
     let blocked = false;
-    for (const pil of state.pillars) {
+    for (let i = 0; i < state.pillars.length; i++) {
+      const pil = state.pillars[i];
       if (pil.sunk) continue;
-      if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) <= prRadius + pil.r) {
-        state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
-        blocked = true;
-        break;
+      if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) > prRadius + pil.r) continue;
+      state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
+      if (smashes) {
+        state.pillars.splice(i, 1);
+        state.events.push({ t: 'pillarBroken', x: pil.x, y: pil.y, r: pil.r });
       }
+      blocked = true;
+      break;
     }
     if (blocked) continue;
 

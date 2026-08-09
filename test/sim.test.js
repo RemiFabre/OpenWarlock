@@ -2166,6 +2166,76 @@ describe('elemental mode', () => {
       SPELLS.fireball.radius * ELEMENTS.terra.fx.projRadiusMult[2], 3);
   });
 
+  // Round 20.2 — terra lv3 "Demolisher": your fireballs smash Stone Pillars.
+  // The pillar dies, the ball dies with it (Remi ruled pass-through too strong).
+  // Levels are read off the spec (smashAtLevel), never pinned.
+  describe('terra lv3 Demolisher (pillars)', () => {
+    // one player at the origin, one pillar at x=10, the others parked far away
+    // so nothing else can end the round or eat the ball
+    const shootAtPillar = (setup) => {
+      const state = elementalBattle(3);
+      const a = state.players.p0;
+      state.players.p1.x = 0; state.players.p1.y = 45;
+      state.players.p2.x = 0; state.players.p2.y = -45;
+      state.pillars = [{ x: 10, y: 0, r: 2.5, sunk: false }];
+      state.walls = [];
+      a.x = 0; a.y = 0;
+      const spell = setup(a) || 'fireball';
+      state.events = [];
+      castSpell(state, 'p0', spell, 30, 0);
+      run(state, 0.6);
+      return state;
+    };
+    const smashLvl = ELEMENTS.terra.fx.smashAtLevel;
+
+    it('a terra-lv3 fireball destroys the pillar and is consumed with it', () => {
+      const state = shootAtPillar((a) => { a.elements = { terra: smashLvl }; });
+      expect(state.pillars.length).toBe(0);
+      expect(state.projectiles.length).toBe(0);         // no pass-through
+      const ev = state.events.find(e => e.t === 'pillarBroken');
+      expect(ev).toBeTruthy();
+      expect(ev.x).toBeCloseTo(10, 5);
+      expect(ev.y).toBeCloseTo(0, 5);
+    });
+
+    it('below lv3 terra the pillar just blocks the ball, as always', () => {
+      const state = shootAtPillar((a) => { a.elements = { terra: smashLvl - 1 }; });
+      expect(state.pillars.length).toBe(1);
+      expect(state.projectiles.length).toBe(0);         // still eaten
+      expect(state.events.some(e => e.t === 'pillarBroken')).toBe(false);
+    });
+
+    it('Mirror Walls are NOT demolished: a terra-lv3 ball still bounces off one', () => {
+      const state = elementalBattle(3);
+      const a = state.players.p0;
+      state.players.p1.x = 0; state.players.p1.y = 45;
+      state.players.p2.x = 0; state.players.p2.y = -45;
+      state.pillars = [];
+      a.elements = { terra: smashLvl };
+      a.x = 0; a.y = 0;
+      state.walls = [{ x1: 14, y1: -6, x2: 14, y2: 6, nx: 1, ny: 0,
+        owner: 'p1', until: state.time + 99 }];
+      state.events = [];
+      castSpell(state, 'p0', 'fireball', 30, 0);
+      run(state, 0.6);
+      expect(state.walls.length).toBe(1);               // untouched
+      expect(state.events.some(e => e.t === 'reflect')).toBe(true);
+      expect(state.events.some(e => e.t === 'pillarBroken')).toBe(false);
+    });
+
+    it('only fireballs demolish: the same owner\'s boomerang bounces off the pillar', () => {
+      const state = shootAtPillar((a) => {
+        a.elements = { terra: smashLvl };
+        a.spells.boomerang = 1;
+        return 'boomerang';
+      });
+      // it really did reach the pillar (the boom is the pillar eating it)
+      expect(state.events.some(e => e.t === 'boom' && e.spell === 'boomerang')).toBe(true);
+      expect(state.pillars.length).toBe(1);
+      expect(state.events.some(e => e.t === 'pillarBroken')).toBe(false);
+    });
+  });
+
   it('the hourglass sells anywhere, at its per-level prices', () => {
     const classic = createGame({ seed: 6, mode: 'classic' });
     addPlayer(classic, 'a', 'Alice');

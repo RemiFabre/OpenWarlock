@@ -1039,6 +1039,43 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.beginPath(); ctx.arc(x, y, (1.4 + 1.6 * k) * scale, 0, Math.PI * 2); ctx.stroke();
         break;
       }
+      case 'rubble': {
+        // terra lv3 Demolisher: the pillar shatters. Obsidian shards fly out,
+        // decelerate and fade, over a settling dust ring. Fragment angles are
+        // derived from `f.at` so the same break looks the same every frame.
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const R = (fin(+f.r) ? +f.r : 1.6) * scale;
+        const ease = 1 - (1 - k) * (1 - k);      // fast out, then settles
+        // dust ring, only in the first half
+        if (k < 0.5) {
+          const da = (1 - k * 2) * 0.45;
+          ctx.strokeStyle = `rgba(150, 128, 105, ${da})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(x, y, R * (0.7 + 1.5 * k), 0, Math.PI * 2); ctx.stroke();
+        }
+        for (let i = 0; i < 9; i++) {
+          const seed = Math.sin(i * 37.1 + f.at * 0.013) * 43758.5453;
+          const rnd = seed - Math.floor(seed);
+          const ang = (i / 9) * Math.PI * 2 + rnd * 0.7;
+          const reach = R * (0.9 + rnd * 1.3);
+          const fx0 = x + Math.cos(ang) * reach * ease;
+          const fy0 = y + Math.sin(ang) * reach * ease + R * 0.5 * ease * ease;
+          const s = R * (0.16 + rnd * 0.22) * (1 - 0.35 * k);
+          ctx.save();
+          ctx.translate(fx0, fy0);
+          ctx.rotate(ang + k * (1.5 + rnd * 3));
+          ctx.fillStyle = `rgba(${52 + rnd * 30 | 0}, ${42 + rnd * 24 | 0}, ${34 + rnd * 20 | 0}, ${a})`;
+          ctx.beginPath();
+          ctx.moveTo(-s, -s * 0.7); ctx.lineTo(s * 0.9, -s * 0.4);
+          ctx.lineTo(s * 0.6, s * 0.8); ctx.lineTo(-s * 0.8, s * 0.5);
+          ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = `rgba(255, 150, 70, ${a * 0.35})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+        }
+        break;
+      }
       case 'death': {
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.font = `${Math.round(18 * scale / 8 + 14)}px serif`;
