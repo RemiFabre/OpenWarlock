@@ -6,6 +6,39 @@ dictation. Built by sequential focused subagents, each change one commit.
 chromium+webkit robustness, reconnect e2e, arena sanity, and the new
 static-solo test). Pull, restart the server, hard-refresh everyone.*
 
+## ROUND 19.6 — treads/cape/rush + your regen theory ANSWERED
+
+Shipped (r190): treads soften to −25/−50/−65% lava damage (a 10 g full
+counter to lava play was too extreme — your call), cape −15/−26/−35%, and
+Rush now cancels your momentum at cast (the combo escape; the purge spell
+stays a future idea). The combo-bot build is being built by an agent —
+separate report when it lands.
+
+### Your regen theory: tested, and it does NOT hold (5 configs, 2 seeds each)
+
+The theory: no regen → sticky damage double-dips (kill pressure + lifesteal
+sustain), explaining ember ~50% and anger ~100%. Measured (800-game element
+mirrors, seeds 1+7, plus round-1 first-blood as the stalemate gauge; full
+tables in `docs/history/2026-08-09-regen-theory-experiments.md`):
+- **Regen 1.2 + the lock**: ember/anger UNCHANGED. The full-stop lock makes
+  regen combat-inert; it only slows first blood (33.7 → 37.5 s).
+- **Pure regen, lock off** (your "no weird stuff" case): flat damage still
+  untouched, but the 51 s round-1 stalemate comes straight back, malady is
+  DELETED (regen erases 1-dmg chip), and midas quadruples (stalling = gold).
+- **No Blood Sword**: ember drops 13 pts — looks like your theory! — but the
+  control run (ALL healing zeroed, vampire too) shows ember bouncing back to
+  ~49 while vampire collapses. The drop was zero-sum points flowing to the
+  last remaining healer, not damage deflation. Ember's true lifesteal
+  double-dip ≈ **2.5 points of its ~50**.
+- Conclusion: keep the no-regen world. Ember/anger's numbers are bot-volume
+  inflation plus genuine strength, not a regen artifact. If they need
+  taming, tune their own knobs (ember dmgAdd; anger markEvery/markDmg). If
+  you still feel the double-dip in HUMAN games, the cheap live test is one
+  session with sword lifesteal halved — say the word and I'll prep a flag.
+- Instrument honesty: anger reads 98.5-100 in ALL five configs — the mirror
+  is ceilinged and cannot rank anger at all; and bots under-use lifesteal,
+  so the human double-dip is plausibly bigger than 2.5 pts.
+
 ## ROUND 19.5 — your mosquito correction (pushed)
 
 - **Your numbers shipped verbatim**: fireball reductions 50/40/30% by level
