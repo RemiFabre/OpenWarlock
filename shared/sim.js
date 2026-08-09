@@ -3333,6 +3333,9 @@ const BUILD_ELEMENTS = {
   rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
   boomer:  ['arcane', 'midas', 'ember'],       // throws a lot: cadence and income
   chainer: ['frost', 'gale', 'mosquito'],      // combo (round 20): hold, launch, amplify
+  // Round 20.1: the tournament archetypes. Element-bearing orders skip the
+  // pre-walk, so only the item-only build needs a themed list here.
+  juggernaut: ['terra', 'frost', 'vampire'],   // the wall still scales: bulk, control, sustain
 };
 const FALLBACK_ELEMENTS = ['ember', 'frost', 'malady', 'gale', 'terra', 'arcane'];
 

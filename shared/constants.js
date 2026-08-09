@@ -588,8 +588,50 @@ export const BUILDS = {
   // fine: buy() takes both, and botShop skips its element pre-walk for orders
   // that sequence their own elements.
   chainer: { name: 'Chainer',
-    desc: 'Combo chains: frost stacks hold you in place, the sky-bolt lands where you stand, gale shoves you at the lava. Elemental picks: frost, gale, mosquito — hold, launch, amplify.',
+    desc: 'Freeze, bolt, shove: frost holds you, the sky-bolt lands where you stand, gale throws you at the lava. Dodge BEFORE the third stack. Elemental picks: frost, gale, mosquito.',
     order: ['fireball', 'frost', 'lightning', 'gale', 'mosquito',
       'frost', 'lightning', 'gale', 'mosquito',
-      'frost', 'lightning', 'gale', 'mosquito'] },
+      'frost', 'lightning', 'gale', 'mosquito', 'sword', 'amulet'] },
+  // Round 20.1 (Remi: "add all 10") — the tournament archetypes as lobby
+  // builds. Orders come from tools/roster.js cores (ELO baseline
+  // docs/history/2026-08-09-strategy-elo-tournament.md); element-bearing
+  // orders skip botShop's pre-walk automatically. Juggernaut is the one
+  // divergence from its lab probe: the lobby version keeps the element
+  // pre-walk (a lobby opponent should still scale) via BUILD_ELEMENTS.
+  tycoon: { name: 'Tycoon',
+    desc: 'Gets rich, then out-shops everyone: every hit pays and the trap doubles the payroll. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
+    order: ['fireball', 'midas', 'mosquito', 'midas', 'hourglass', 'midas', 'mosquito',
+      'sword', 'amulet', 'sword', 'amulet', 'sword', 'boots', 'amulet', 'boots'] },
+  executioner: { name: 'Executioner',
+    desc: 'Hunts the red mark and grows stronger forever. Deny the claims or watch the fireball snowball. Elemental picks: anger, ghost.',
+    order: ['fireball', 'anger', 'boots', 'anger', 'ghost', 'anger', 'boots', 'ghost',
+      'sword', 'boots', 'ghost', 'sword', 'amulet', 'amulet', 'sword'] },
+  warlord: { name: 'Warlord',
+    desc: 'No tricks, bigger numbers: raw damage over lifesteal and HP. The honest yardstick. Elemental picks: ember, arcane.',
+    order: ['fireball', 'ember', 'ember', 'sword', 'amulet', 'ember', 'sword', 'amulet',
+      'arcane', 'arcane', 'sword', 'amulet', 'boots', 'boots', 'cape'] },
+  leech: { name: 'Leech',
+    desc: 'Heals off your face: every 5th ball is a feast and the trap volley speeds the count. Burst it down between feasts. Elemental picks: vampire, mosquito.',
+    order: ['fireball', 'vampire', 'vampire', 'mosquito', 'sword', 'vampire', 'mosquito',
+      'amulet', 'sword', 'amulet', 'mosquito', 'sword', 'amulet', 'boots'] },
+  phantom: { name: 'Phantom',
+    desc: 'One line, three victims: fast fireballs that pass THROUGH bodies. Never queue up behind a teammate. Elemental picks: ghost, ember.',
+    order: ['fireball', 'ghost', 'ghost', 'ember', 'ember', 'ghost', 'ember',
+      'sword', 'amulet', 'sword', 'amulet', 'sword', 'amulet', 'boots'] },
+  stormcaller: { name: 'Stormcaller',
+    desc: 'The sky never stops: haste on everything, a bolt every window. Use cover and punish its paper body. Elemental picks: arcane.',
+    order: ['fireball', 'arcane', 'arcane', 'lightning', 'arcane', 'hourglass', 'lightning',
+      'hourglass', 'lightning', 'hourglass', 'echo', 'amulet', 'amulet', 'sword'] },
+  sumo: { name: 'Sumo',
+    desc: "Never mind damage: you fly, it doesn't. Every 3rd hit is a gust — stay off the rim. Elemental picks: gale.",
+    order: ['fireball', 'gale', 'cape', 'gale', 'boots', 'gale', 'cape', 'treads',
+      'cape', 'boots', 'treads', 'amulet', 'amulet', 'sword'] },
+  plaguebearer: { name: 'Plaguebearer',
+    desc: 'Wades into the pack; everyone leaves sick. Keep your distance from the green aura. Elemental picks: malady, terra.',
+    order: ['fireball', 'malady', 'malady', 'terra', 'treads', 'malady', 'terra',
+      'amulet', 'treads', 'terra', 'amulet', 'sword', 'sword', 'amulet'] },
+  juggernaut: { name: 'Juggernaut',
+    desc: 'The wall: max HP, armor, lava boots. It will not die fast — focus it together or leave it for last. Elemental picks: terra, frost, vampire.',
+    order: ['fireball', 'amulet', 'cape', 'treads', 'amulet', 'sword', 'cape',
+      'amulet', 'sword', 'treads', 'cape', 'sword', 'treads', 'boots'] },
 };
