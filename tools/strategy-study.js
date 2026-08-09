@@ -21,9 +21,10 @@
 //   node tools/strategy-study.js --list
 //
 // Only spells the bot brains actually PILOT are allowed in lists (lightning,
-// boomerang, rush, shield, teleport — see pilotOwnedSpells in shared/sim.js);
-// a spell a bot never casts is a gold sink of unknown size and would make its
-// strategy read weak for reasons that have nothing to do with the strategy.
+// boomerang, rush, shield, teleport — and meteor since round 20, CC-gated:
+// bots cast it only into a frost stun/heavy slow — see pilotOwnedSpells in
+// shared/sim.js); a spell a bot never casts is a gold sink of unknown size and
+// would make its strategy read weak for reasons unrelated to the strategy.
 
 import fs from 'node:fs';
 import { playGame } from './arena.js';
@@ -170,6 +171,19 @@ export const STRATEGIES = {
     desc: 'Sustain through volume: vampire every-5th heals arrive faster under the CDR stack.',
     core: ['vampire', 'vampire', 'vampire', 'arcane', 'hourglass', 'arcane',
       'hourglass', 'arcane', 'amulet'],
+  },
+  // ---- wave 3 (round 20): Remi's live combo, both finishers ---------------
+  'combo-bolt': {
+    desc: "Remi's round-20 combo, bolt finisher: frost lv1 → lightning lv1 → gale lv1 → mosquito lv1, then those four round-robin to max — frost stacks hold the target, the bolt drops dead on the body (CC-gated cast), gale launches, mosquito amplifies.",
+    core: ['frost', 'lightning', 'gale', 'mosquito',
+      'frost', 'lightning', 'gale', 'mosquito',
+      'frost', 'lightning', 'gale', 'mosquito'],
+  },
+  'combo-meteor': {
+    desc: 'The same combo with the meteor finisher: frost lv1 → meteor lv1 → gale lv1 → mosquito lv1, then round-robin to max. Bots cast meteor ONLY into a frost lv3 stun or a heavy slow that outlasts its 1.25 s fall.',
+    core: ['frost', 'meteor', 'gale', 'mosquito',
+      'frost', 'meteor', 'gale', 'mosquito',
+      'frost', 'gale', 'mosquito'],
   },
 };
 
