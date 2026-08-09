@@ -30,22 +30,29 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **ROUND19 built overnight 2026-08-09** (Remi's pre-sleep dictation, via
-  sequential subagents): Malady 🦠 replaces venom (contagion), Anger 🔴
-  replaces momentum (mark hunt), mosquito normal-balls-with-tax, gale uniform
-  flat gust, Nova 🧨 (PLACEHOLDER name), Swap/Blink retunes, vanish reveals on
-  cast, ping everywhere, shop key rebinding. Story +
-  garble-flag list: REMI_NOTES.md; numbers: BALANCE.md §Round 19. Browser
-  hosting phase A MERGED (engine.js seam + static solo; Pages click and the
-  Safari B0 tab-test are Remi's — see REMI_NOTES).
-- **ROUND17-18 shipped and pushed 2026-08-08** (NO PASSIVE REGEN, 17.2 batch,
-  portals/spawn-shuffle/ping; J and G CLOSED) —
-  `docs/history/2026-08-08-round17-battery.md`.
-- **Waiting on Remi — questions K/L/M in BALANCE.md** (uncapped ramps read
-  ~100% on bot mirrors — anger inherits momentum's question K shape; sword
-  mandatory-by-structure; CDR bottom-third) + feel items (B, E, F, H).
-- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-19 (build keys were
-  repointed venom→malady, momentum→anger) — re-run before quoting it.
+- **THE GAME IS PUBLIC** (2026-08-09): GitHub Pages serves it at
+  remifabre.github.io/OpenWarlock/client/ — solo play AND player hosting
+  (📡 Host online → room code/link over WebRTC; signalling relay = HF Space
+  RemiFabre/openwarlock-signal, redeploy via scripts/deploy-signal-hf.sh).
+  Anonymous usage beacons → relay /stats → in-game 📊 panel; history persists
+  to the private HF dataset openwarlock-stats. A pre-commit hook stamps
+  shared/version.js (rN, corner display, welcome-handshake mismatch warning)
+  — NEVER bypass it; Pages lags pushes by up to ~10 min (CDN).
+- **ROUNDS 19.x shipped through the day** (Remi playtesting live): Malady 🦠
+  (contagion, buffed 3/4/5 s + aura 8/12/16), Anger 🔴 (mark hunt, 15/10/5 s),
+  mosquito = amplifier with dmg/kb tax [0.5,0.6,0.7] (Remi's 3-ball
+  accounting; engine pair = 4 hits, curve noted in BALANCE), gale uniform
+  buffed (kbAdd [10,20,30], gust ADD [30,60,90]), Bomb 💣 (name still
+  PLACEHOLDER), Switcheroo 🎭 (1 s victim stun; name candidates in notes),
+  cape [0.88,0.78,0.70], shop 2.x (uniform tiles, tags, hover-everything,
+  key rebinding with owned-key guard), two-button join + manifesto, bots
+  never stop shopping + never open on mosquito, vampire counts mosquito proc
+  balls as casts. Story: REMI_NOTES.md (19.5 at top); numbers: BALANCE.md.
+- **Waiting on Remi**: mosquito curve feel (19.5), anger strength (question
+  K — strategy instrument reads 78%), sword-by-structure (L), CDR (M), cape
+  (B), Bomb + Switcheroo names.
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-19 — re-run before
+  quoting it.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.

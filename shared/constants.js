@@ -436,14 +436,14 @@ export const ELEMENTS = {
   // balls (kbScale 1/N; noStacks = the anti-chain rule, test-locked ROUND12 S3).
   // revert (round 18): fx { mosquito: true, haste: [20,40,60], stingDmg: 1, procBalls: 2 }
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
-  // Round 19.4 (Remi): the armed+cashed pair is FOUR damage hits (arm +
-  // trigger + 2 procs), so ×1.0 at lv3 was +100% damage per pair. New ladder
-  // prices the PAIR: 4m vs the 2 plain balls it replaces = -20%/-10%/±0 by
-  // level; unpaired pokes stay taxed. Was [0.5, 0.75, 1].
+  // Round 19.5 (Remi's numbers, his 3-ball accounting): reductions 50/40/30%
+  // by level. ⚠ honest curve under the engine's 4-hit pair (arm + trigger +
+  // 2 procs): fully-paired damage = ×1.0 / ×1.2 / ×1.4 of two plain balls;
+  // unpaired pokes pay the full tax. Was [0.4, 0.45, 0.5] for one build.
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
            desc: 'On-hit amplification.',
            long: 'Your fireballs hit softer but sting: hit a stung enemy and two extra fireballs land at once. They add damage and on-hits, never extra push.',
-           fx: { dmgMult: [0.4, 0.45, 0.5], kbMult: [0.4, 0.45, 0.5],
+           fx: { dmgMult: [0.5, 0.6, 0.7], kbMult: [0.5, 0.6, 0.7],
                  procBalls: 2 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive

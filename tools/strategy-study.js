@@ -80,9 +80,9 @@ export const STRATEGIES = {
       'amulet', 'amulet'],
   },
   'mosquito-combo': {
-    desc: 'Trap setup: max mosquito (lv3 clears the damage penalty), then malady so a cashed trap lands the whole two-hit infection at once, then arcane cadence for more casts per fight.',
-    core: ['mosquito', 'mosquito', 'mosquito', 'malady', 'malady', 'arcane',
-      'malady', 'arcane', 'amulet'],
+    desc: 'Trap setup, on-hits first (Remi, round 19.5): malady before mosquito so the amplifier always has something to amplify, then arcane cadence.',
+    core: ['malady', 'malady', 'mosquito', 'mosquito', 'mosquito', 'malady',
+      'arcane', 'arcane', 'amulet'],
   },
   'frost-control': {
     desc: 'Control: max frost (3rd stack freezes solid at lv3), lightning to punish the frozen, HP to survive the stack-building phase.',
@@ -154,7 +154,7 @@ export const STRATEGIES = {
   },
   'mosquito-midas': {
     desc: 'Gold machine: a cashed trap lands 3 hits at once, so midas marks cash twice per armed+cashed pair (+2 g).',
-    core: ['mosquito', 'midas', 'mosquito', 'midas', 'mosquito', 'midas',
+    core: ['midas', 'mosquito', 'midas', 'mosquito', 'midas', 'mosquito',
       'amulet', 'sword', 'amulet'],
   },
   'frost-gale': {

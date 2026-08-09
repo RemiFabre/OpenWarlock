@@ -6,6 +6,23 @@ dictation. Built by sequential focused subagents, each change one commit.
 chromium+webkit robustness, reconnect e2e, arena sanity, and the new
 static-solo test). Pull, restart the server, hard-refresh everyone.*
 
+## ROUND 19.5 — your mosquito correction (pushed)
+
+- **Your numbers shipped verbatim**: fireball reductions 50/40/30% by level
+  (multipliers [0.5, 0.6, 0.7]). Stated for the record: the engine's
+  armed+cashed pair is 4 damage instances (the trigger ball still lands its
+  own hit before the two extras), so fully-paired damage reads ×1.0 / ×1.2 /
+  ×1.4 of two plain balls — the lv3 "small dps boost" is ~+40% when
+  everything pairs, ±0 when nothing does. Both curves are in BALANCE.md; the
+  next feel-pass decides.
+- **Bots buy mosquito last now**: a bot never opens on it (seat-draw guard,
+  test-locked) and the study builds buy their on-hit user (malady/midas)
+  before the amplifier.
+- **Vampire × mosquito, your ruling**: the two proc balls count as CASTS —
+  the counter advances by 2 and an on-threshold proc ball IS engorged and
+  heals (it won't render red mid-volley; the green number + counter reset
+  tell the story). Test-locked.
+
 ## ROUND 19.4 — your hour-away batch + the AI-games read (all pushed, r186)
 
 Shipped: anger hover trimmed + every "Next:" tooltip footer removed; malady

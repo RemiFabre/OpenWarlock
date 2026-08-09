@@ -2478,6 +2478,39 @@ describe('elemental mode', () => {
     expect(a.healLifesteal).toBe(0);
   });
 
+  it('mosquito proc balls COUNT AS CASTS for vampire — an engorged proc heals (round 19.5)', () => {
+    // Remi: "increasing the number of casts by 2 when the 2 balls hit; if the
+    // second ball would proc vampire it does and we get the lifesteal".
+    const vf = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { mosquito: 1, vampire: 1 };
+    // preset so the SECOND proc ball is the chargeEvery-th "cast":
+    // arm -> N-3, trigger -> N-2, proc1 -> N-1, proc2 -> N (engorged)
+    a.vampN = vf.chargeEvery - 4;
+    a.hp = a.maxHp - 60;
+    const sting = () => {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = 9999; b.maxHp = 9999;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+    };
+    sting();
+    run(state, 0.4);
+    const before = a.hp;
+    sting();
+    for (let i = 0; i < 20; i++) {
+      state.events = [];
+      step(state, DT);
+      if (state.events.some(e => e.t === 'biteHit')) break;
+    }
+    expect(a.vampN).toBe(vf.chargeEvery);      // the volley advanced the counter
+    // the engorged proc ball paid lifesteal on its (taxed) damage
+    const dmg = SPELLS.fireball.damage[0] * ELEMENTS.mosquito.fx.dmgMult[0];
+    expect(a.hp - before).toBeCloseTo(dmg * vf.chargeLifesteal[0], 1);
+  });
+
   it('vampire + mosquito: the engorged ball heals off the PENALIZED damage', () => {
     // Round 18.2: no sting — the ball is a normal fireball paying the mosquito
     // dmgMult, and the lifesteal pays on the damage actually dealt.
@@ -3343,6 +3376,26 @@ describe('power spells & pillar', () => {
     setMoveTarget(state, 'p0', 10, 0);
     run(state, 2);
     expect(a.x).toBeGreaterThan(5); // walked straight through
+  });
+});
+
+describe('bots never open on mosquito (round 19.5)', () => {
+  // Remi: mosquito is an amplifier — a bot must buy an on-hit user first.
+  it('every seat of the mosquito-carrying build starts on another element', () => {
+    for (let seat = 0; seat < 6; seat++) {
+      const state = createGame({ seed: 3 + seat, mode: 'elemental' });
+      addPlayer(state, 'h', 'H');
+      for (let i = 0; i < seat; i++) addPlayer(state, `pad${i}`, `Pad${i}`);
+      addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'escape' });
+      startGame(state);
+      run(state, ROUND.COUNTDOWN + DT);
+      state.phase = 'shop';
+      const bot = state.players.b;
+      bot.gold = 10; // exactly one element buy
+      botShop(state, 'b');
+      expect(bot.elements.mosquito || 0).toBe(0);
+      expect(Object.values(bot.elements).some(v => v > 0)).toBe(true);
+    }
   });
 });
 

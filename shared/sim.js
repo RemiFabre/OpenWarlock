@@ -322,6 +322,18 @@ function worstStack(target, kind) {
   return max;
 }
 
+// Vampire's cast counter: advance it and return this ball's engorged
+// lifesteal fraction (0 = plain). Shared by castSpell and the mosquito proc
+// (round 19.5 — proc balls count as casts, Remi's ruling).
+function vampireCharge(state, pl) {
+  const vampLv = state.mode === 'elemental' && pl.elements
+    ? (pl.elements.vampire || 0) : 0;
+  if (!vampLv) return 0;
+  pl.vampN = (pl.vampN || 0) + 1;
+  if (pl.vampN % ELEMENTS.vampire.fx.chargeEvery !== 0) return 0;
+  return efxV(ELEMENTS.vampire.fx.chargeLifesteal, vampLv);
+}
+
 // Ability Haste (round 17, ex-CDR percentages): cd = base / (1 + haste/100),
 // haste SUMS across sources. Additive stacking is the point — hourglass ×
 // arcane used to COMPOUND (midas-cdr 86%, BALANCE.md question J).
@@ -429,20 +441,13 @@ export function castSpell(state, id, key, tx, ty) {
     case 'fireball': {
       // Vampire (elemental): the counter runs on YOUR CASTS, so unlike mosquito
       // it needs no setup on a particular target — every chargeEvery'th fireball
-      // flies engorged and pays back a multiple of the damage it deals. Only a
-      // real cast advances it: the Echo Stone's second ball and the mosquito
-      // proc's balls are extra shots, not casts, so they neither tick the
-      // counter nor inherit the engorgement (that would turn one charge into
-      // two or three heals and delete the rhythm the counter exists to sell).
-      let engorged = 0;
-      const vampLv = state.mode === 'elemental' && pl.elements
-        ? (pl.elements.vampire || 0) : 0;
-      if (vampLv) {
-        pl.vampN = (pl.vampN || 0) + 1;
-        if (pl.vampN % ELEMENTS.vampire.fx.chargeEvery === 0)
-          engorged = efxV(ELEMENTS.vampire.fx.chargeLifesteal, vampLv);
-      }
-      spawnFireball(state, pl, level, dx, dy, { engorged });
+      // flies engorged and pays back a multiple of the damage it deals.
+      // Round 19.5 (Remi): MOSQUITO PROC BALLS COUNT AS CASTS too — the
+      // volley advances the counter by 2 and an on-threshold proc ball IS
+      // engorged (it won't render red, accepted; the green heal + counter
+      // reset tell the story). The Echo Stone's second ball remains an extra
+      // shot, not a cast — unchanged.
+      spawnFireball(state, pl, level, dx, dy, { engorged: vampireCharge(state, pl) });
       // Echo Stone (elemental): every Nth fireball fires a second one shortly
       // after, along the same aim direction
       if (state.mode === 'elemental' && (pl.items.echo || 0) > 0) {
@@ -2015,6 +2020,9 @@ function fireMosquitoProc(state, pr, target) {
       // full element set rides (round 18.2: mosquito's penalty included) —
       // noStacks alone is the chain guard
       x, y, noStacks: true,
+      // round 19.5 (Remi): proc balls COUNT AS CASTS for vampire — the
+      // volley advances the counter by procBalls, an on-threshold ball heals
+      engorged: vampireCharge(state, owner),
       // OPTIONAL nerf lever, absent from the spec by default (see ELEMENTS
       // .mosquito): scales the proc balls' damage only, leaving every on-hit
       // effect procing `procBalls` times.
@@ -3283,10 +3291,15 @@ export function botShop(state, id) {
   if (!pl) return;
   if (pl.wave) return; // campaign monsters are their descriptor, they never shop
   if (state.mode === 'elemental') {
-    // pinned at seat time so a bot never drifts between elements mid-game
+    // pinned at seat time so a bot never drifts between elements mid-game.
+    // Round 19.5 (Remi): mosquito is an AMPLIFIER — a bot must never open on
+    // it; if the seat draw lands there, take the next element in the list
+    // (the walk still reaches mosquito after an on-hit user is maxed).
     if (!pl._elemPick) {
       const seat = Object.keys(state.players).indexOf(id);
-      pl._elemPick = botElementFor(pl, seat < 0 ? 0 : seat);
+      let pick = botElementFor(pl, seat < 0 ? 0 : seat);
+      if (pick === 'mosquito') pick = botElementFor(pl, (seat < 0 ? 0 : seat) + 1);
+      pl._elemPick = pick;
     }
     // one element level per shop, walking the build's themed list from the
     // seat's pick: primary to max, then the next one. Elements are the
