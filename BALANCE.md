@@ -91,6 +91,13 @@ dmg/kb tax, no arm/cash trap, every [6,5,4]th cast fires a PAIR (no-push lead
 balls advance the every-N counters but can never chain), and the **Echo Stone
 item is DELETED**, merged in; terra lv3 smashes pillars.
 
+**Round 21.1 (2026-08-10)**: spell prices now obey one rule — base 8 / 10 / 12,
+every upgrade half its base (pillar → [8,4], meteor and wall 14 → [12,6],
+repulse [12,6], every 10-base spell upgrades at 5; fireball exempt, base 0).
+Items dropped another 1 g/level: **5 g boots/treads/cape, 7 g
+sword/amulet/hourglass → the whole shelf is 108 g**. Unmeasured — the Elo table
+above predates it.
+
 **Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
 (the aura was blanketing the arena) and the **creator is now IMMUNE to their
 own instance** — they still catch other players' plagues, and a lethal tick is
@@ -152,8 +159,8 @@ express either mechanic; human games are the instrument.
 
 ### The item ladder (1500 games, seat capped at that level, at `62de05b`)
 
-⚠ **Prices below are pre-round-20** (items are flat 6/8 g now, whole shelf
-126 g). The effect columns still hold; the gold cost of each rung does not.
+⚠ **Prices below are pre-round-20** (items are flat 5/7 g since 21.1, whole
+shelf 108 g). The effect columns still hold; the gold cost of each rung does not.
 And the cut did not help: see the ELO headlines above.
 
 | item | lv0 | lv1 | lv2 | lv3 | | item | lv0 | lv1 | lv2 | lv3 |

@@ -83,6 +83,14 @@ Agent context usage on this project is **CRITICAL**. The rules:
   screenshot-verified at 9.0 units). Shield gained a `long` tag sentence
   (energy yes, Meteor/Bomb no) and spell tooltips prefer `long` over `desc`.
   Swap stun retuned (see the snapshot line below).
+- **ROUND 21.1 SHIPPED** (prices only): Remi's spell-price rule — bases are
+  exactly 8 / 10 / 12 and every upgrade is HALF the base (4/5/6); pillar is the
+  8, meteor and wall came down from 14 to 12, fireball is exempt (base 0,
+  flagged to him). Items lost another 1 g/level (5 g boots/treads/cape, 7 g
+  sword/amulet/hourglass → 108 g shelf). Mosquito DISPLAYS as **Echo 👯** — the
+  key `mosquito` is unchanged everywhere. ⚠ The round-20 Elo table's gold
+  assumptions are now stale (everything is cheaper; more roster cores fall
+  under the 150 g band) — re-run before quoting its numbers as prices.
 - **Waiting on Remi**: mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
   E2-chronomancer's 7th-of-30 is where he wants CDR (M), cape (B),
@@ -178,14 +186,15 @@ build step, Node ESM, only dep is `ws`.
   lethal tick credits creator/spreader), frost=stacks-to-CC,
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
   **[20,15,10] s** — round 20 nerf, claim = +0.5 fireball dmg forever),
-  mosquito=every [6,5,4]th cast fires a PAIR (no-push lead + normal trailing
-  ball, round 20.1), vampire=every-5th engorged heal, midas.
+  mosquito (DISPLAYS as **Echo 👯** since 21.1, key unchanged)=every [6,5,4]th
+  cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
+  vampire=every-5th engorged heal, midas.
   Classic keeps the 3-level fireball.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
 - **Items: 3 levels**, cumulative `ITEM_FX` totals, **flat price per level
-  since round 20**: 6 g boots/treads/cape, 8 g sword/amulet/hourglass — so the
-  WHOLE shelf is 126 g, and the cut did NOT move items off the bottom of the
+  since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1) —
+  so the WHOLE shelf is 108 g, and the cuts did NOT move items off the bottom of the
   strategy table. Sword is mandatory by structure (question L). Cape is
   pilot-sign-flipping — never buff it off Hard-bot tables. Echo Stone is
   DELETED (merged into mosquito, round 20.1).
@@ -196,7 +205,7 @@ build step, Node ESM, only dep is `ws`.
   positions at the switch (round 21.0: `stun {pad .55, min 1, max 3}`
   + d / fireball speed → 1.00/1.53/2.26/3.00 s at d = 10/40/70/120);
   **Blink**
-  [8,6] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
+  [10,5] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
   artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
   pillars unlimited; vanish 1/2/3 s at 10 g — ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable

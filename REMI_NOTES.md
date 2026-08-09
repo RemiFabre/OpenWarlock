@@ -60,8 +60,25 @@ Hover text: reflects **energy** projectiles — fireballs, boomerangs, Switchero
 — and holds a Lightning bolt or a Repulse blast; **physical impacts (Meteor,
 Bomb) go straight through it**.
 
+## Round 21.1 — prices and one rename
+
+- **Spell prices follow your rule**: base = 8 (cheap) / 10 (medium) / 12
+  (expensive), every upgrade = half the base (4 / 5 / 6). Pillar is the cheap
+  one now (8, 4); Meteor 14 → 12 and Mirror Wall 14 → 12; Repulse 12, 6; the
+  10-base spells (lightning, boomerang, rush, Bomb, Switcheroo, Blink, Vanish)
+  all upgrade at 5. Blink stayed a 10-base — that was your round-19.1 call, so
+  I only halved its upgrade (8 → 5). ⚠ **Fireball untouched**: its base is 0
+  (locked at lv1 in elemental), so the tiers don't apply — say the word if you
+  want its classic-mode 8+8 moved.
+- **Every item is 1 g cheaper per level**: boots / treads / cape 6 → 5, amulet /
+  sword / hourglass 8 → 7. The whole item shelf is now 108 g (was 126).
+- **Mosquito is now Echo 👯** — display only: name, icon, "Doubled casts." and
+  the hover line "Every 6/5/4th fireball you throw is doubled: the lead ball
+  hits without pushback so its twin can land too." Nothing about how it plays
+  changed, and the internal key stays `mosquito` so old logs still read.
+
 ## Still waiting on you
 
-Mosquito pair feel in human hands, anger's strength, sword-by-structure,
+Echo (ex-Mosquito) pair feel in human hands, anger's strength, sword-by-structure,
 whether the chronomancer CDR family's 7th-of-30 is where you want it, the cape,
 and names for Bomb 💣 and Nova 🧨.

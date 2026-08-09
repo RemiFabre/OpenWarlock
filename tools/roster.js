@@ -56,10 +56,10 @@ export function expandCore(core) {
 // core enters the cost band — so hand-edited cores stay in spec without
 // bookkeeping. Purity probes (noPad) are exempt: their shelf EXHAUSTS below
 // the band, which is itself a finding, stated in the doc.
-// ⚠ Round 20 (echo deleted, items flat 6/8 g): the WHOLE item shelf is now
-// 126 g (sword/amulet/hourglass 8×3, boots/treads/cape 6×3), i.e. BELOW the
-// 150 g band — an items-only core can no longer fill its own budget and the
-// padder hits shelf exhaustion. Stated as a finding, not papered over.
+// ⚠ Round 20 (echo deleted, items flat) + 21.1 (items 5/7 g): the WHOLE item
+// shelf is now 108 g (sword/amulet/hourglass 7×3, boots/treads/cape 5×3), i.e.
+// BELOW the 150 g band — an items-only core can no longer fill its own budget
+// and the padder hits shelf exhaustion. Stated as a finding, not papered over.
 const FILLER = ['sword', 'amulet', 'boots', 'cape', 'treads', 'hourglass'];
 export function paddedCore(entry) {
   if (entry.noPad) return entry.core;
@@ -84,7 +84,7 @@ export function paddedCore(entry) {
 }
 
 // true when the padder ran out of shelf: every FILLER item is at max level and
-// the core is STILL under the band. Round 20 made this common (126 g shelf).
+// the core is STILL under the band. Round 20 made this common (108 g shelf).
 export function shelfExhausted(entry) {
   const core = paddedCore(entry);
   if (coreCost(core) >= COST_TARGET[0]) return false;
@@ -170,7 +170,7 @@ export const ROSTER = {
       ['cape', 1], ['treads', 1], ['boots', 3], ['cape', 2], ['hourglass', 1]],
   },
   // Round 20: echo is gone, so "one of everything" is six items. The whole
-  // shelf maxed = 126 g < the band — noPad, shelf exhaustion BY DESIGN.
+  // shelf maxed = 108 g < the band — noPad, shelf exhaustion BY DESIGN.
   'B6-item-breadth': {
     family: 'B', noPad: true,
     fantasy: 'One of everything before any second level (the round-15 champion).',
@@ -337,7 +337,7 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
       const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
       const padded = paddedCore(s);
       const note = s.noPad ? ', shelf exhausts here BY DESIGN'
-        : shelfExhausted(s) ? ', ⚠ item shelf EXHAUSTED below the band (round 20: the whole item shelf is 126 g)' : '';
+        : shelfExhausted(s) ? ', ⚠ item shelf EXHAUSTED below the band (round 21.1: the whole item shelf is 108 g)' : '';
       out += `- **${id}** (${coreCost(padded)} g${note}): ${s.fantasy}\n`;
       out += `  - order: ${order(padded)}\n`;
       out += `  - tests: ${s.tests}\n`;
@@ -347,7 +347,7 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
     for (const [id, s] of Object.entries(ROSTER)) {
       const c = coreCost(paddedCore(s));
       const flag = s.noPad ? '  (pure shelf, exempt)'
-        : shelfExhausted(s) ? '  (item shelf EXHAUSTED — 126 g is the whole shelf since round 20)'
+        : shelfExhausted(s) ? '  (item shelf EXHAUSTED — 108 g is the whole shelf since round 21.1)'
         : c < lo ? '  ⚠ UNDER' : c > hi ? '  ⚠ OVER' : '';
       console.log(`${String(c).padStart(4)} g  ${id}${flag}`);
     }

@@ -138,6 +138,10 @@ export const GOLD = {
 
 // ---- Spells -------------------------------------------------------------
 // costs[i] = cost to reach level i+1 (level 0 = not owned)
+// Round 21.1 PRICING RULE (Remi): a spell's BASE is one of exactly three tiers
+// — 8 cheap / 10 medium / 12 expensive — and EVERY upgrade level costs half its
+// base (4 / 5 / 6). Fireball is exempt (base 0: locked at lv1 in elemental).
+// Old prices: git.
 export const SPELLS = {
   fireball: {
     // 2026-08-08 (Remi, round 16): in ELEMENTAL mode the fireball NEVER levels
@@ -164,7 +168,7 @@ export const SPELLS = {
     // boots must escape a bolt centered on them — never balance the dodge
     // window against bots). Damage/kb/cd are FIRST TRY, provisional until
     // Session C's bot support makes them measurable.
-    name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
+    name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 5, 5],
     cooldown: [6, 5.5, 5], range: Infinity, radius: 2.2, delay: 0.5,
     damage: [12, 15, 18], knockback: [70, 78, 86],
     desc: 'Mark a spot, the bolt strikes it. No pillar or wall can shield it.',
@@ -177,7 +181,7 @@ export const SPELLS = {
     // outDistance is now a ceiling, not a plan.
     // Round 19.4 (Remi): the ceiling is GONE — throw as far as you like, the
     // recall tap is the turn control (was outDistance 52).
-    name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],
+    name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 5.5, speed: 31, radius: 1.4, outDistance: Infinity,
     damage: [4, 6, 8], knockback: [50, 59, 68],
     desc: 'Tap again to recall it early; catch it to halve the cooldown.',
@@ -185,8 +189,9 @@ export const SPELLS = {
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
     // Round 19.1: [8,6] was too cheap on his read — "let's try 10, 8".
+    // ⚠ Round 21.1: base stays 10 (his 19.1 call), upgrade → half base = 5.
     // Revert path: costs [12, 8], range [18, 26].
-    name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [10, 8],
+    name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [10, 5],
     cooldown: [16, 12], range: [22, 22],
     desc: 'Blink to your cursor. Your momentum is cancelled.',
   },
@@ -200,13 +205,14 @@ export const SPELLS = {
     long: 'Reflects energy projectiles — fireballs, boomerangs, Switcheroo — back at their owner, and holds a Lightning bolt or a Repulse blast; physical impacts (Meteor, Bomb) go straight through it.',
   },
   rush: {
-    name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 6],
+    name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 5],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
     damage: [5, 8], knockback: [79, 79],
     desc: 'Dash through enemies: damage and knockback on the way. Casting cancels your momentum.',
   },
   pillar: {
-    name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [10, 6],
+    // Round 21.1 (Remi): the pillar is the CHEAP tier now.
+    name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [8, 4],
     cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
     desc: 'Raise an obsidian pillar: it blocks projectiles, bodies and knockback.',
   },
@@ -216,7 +222,8 @@ export const SPELLS = {
   // every BUILDS/BOT_BUILDS order list IS the gate, and it is load-bearing
   // (AGENTS.md debt #2). history: docs/history/2026-08-08-constants-sweeps.md#spells-power-tier
   meteor: {
-    name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [14, 8],
+    // Round 21.1: 14 was off the tier ladder — expensive tier is 12.
+    name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
     damage: [16, 24], knockback: [110, 130],
     desc: 'Mark a spot, a rock falls on it: heavy damage and a radial blast.',
@@ -228,7 +235,7 @@ export const SPELLS = {
     // by design — the visible fuse is the whole counterplay), parks at the
     // click (clamped to range), sits `fuse` s, then a FLAT radial blast like
     // meteor's: damage only, no push, no riders.
-    name: 'Bomb', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 8, 8],
+    name: 'Bomb', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: [9, 8, 7], speed: 26, range: 45, fuse: 0.5,
     // knockback 0 is DELIBERATE data, not an omission: Remi wants "push: 0"
     // printed in the hover stats so the no-push identity is stated.
@@ -242,7 +249,7 @@ export const SPELLS = {
     // Revert path (17.2): maxLevel 1, costs [12], cooldown 13, speed 38, range 68.
     // Round 19.2: renamed Switcheroo 🎭 (Remi: fun trickster energy, still
     // legible). His to re-pick — candidates brainstormed in REMI_NOTES.
-    name: 'Switcheroo', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 6, 6],
+    name: 'Switcheroo', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: [13, 12, 11], speed: 50, radius: 0.9, range: [40, 55, 70],
     // Round 19.2 (Remi): the VICTIM is stunned after the trade — the combo
     // window ("swap them, then hit them"); the caster stays free.
@@ -261,13 +268,14 @@ export const SPELLS = {
     desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned — the longer the swap, the longer the stun.',
   },
   repulse: {
-    name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 8],
+    name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 6],
     cooldown: [16, 13], charge: 2, radius: [9, 11],
     damage: [8, 12], knockback: [130, 150],
     desc: 'Charge, then blast everyone around you. Blink and Rush still work while charging.',
   },
   wall: {
-    name: 'Mirror Wall', hotkey: 'C', tier: 'power', maxLevel: 2, costs: [14, 8],
+    // Round 21.1 (Remi): the wall is a 12, not a 14.
+    name: 'Mirror Wall', hotkey: 'C', tier: 'power', maxLevel: 2, costs: [12, 6],
     cooldown: [18, 15], range: Infinity, length: [8, 11], duration: 5,
     desc: 'Raise a wall that reflects enemy projectiles back at them. Your own pass through.',
   },
@@ -278,7 +286,8 @@ export const SPELLS = {
   vanish: {
     // round 17 (Remi): 1/2/3 s at a flat 10 g per level (was 0.75/1.5/2.25 at 12+8+8)
     // round 18.1 (Remi): casting anything else REVEALS you (see castSpell)
-    name: 'Vanish', hotkey: 'V', maxLevel: 3, costs: [10, 10, 10],
+    // round 21.1: upgrades follow the half-base rule like every other spell.
+    name: 'Vanish', hotkey: 'V', maxLevel: 3, costs: [10, 5, 5],
     cooldown: [14, 13, 12], duration: [1, 2, 3],
     desc: 'Invisible for a moment. Casting reveals you, and you can still be hit.',
   },
@@ -289,29 +298,30 @@ export const SPELLS = {
 // levels, SAME gold cost per level — the diminishing effect is the brake.
 // Values are ABSOLUTE CUMULATIVE totals at that level, never per-level increments.
 // Round 20 reprice (Remi's ruling: "buy an item every round even with zero
-// kills"): every item is FLAT per level — cheap tier 6 g, premium tier 8 g.
+// kills"): every item is FLAT per level — round 21.1 cut another gold off both
+// tiers (Remi: items still measure weak), so cheap 5 g, premium 7 g.
 // Revert: boots/treads 10, cape 12, amulet 12, sword 15, hourglass costs [10,8,8].
 // history: docs/history/2026-08-08-constants-sweeps.md#items
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 6, maxLevel: 3, desc: 'Move speed.' },
-  treads: { name: 'Lava Treads',          cost: 6, maxLevel: 3, desc: 'Lava resistance.' },
+  boots:  { name: 'Boots of Speed',       cost: 5, maxLevel: 3, desc: 'Move speed.' },
+  treads: { name: 'Lava Treads',          cost: 5, maxLevel: 3, desc: 'Lava resistance.' },
   // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
-  amulet: { name: 'Amulet of Health',     cost: 8, maxLevel: 3, desc: 'Max HP.' },
+  amulet: { name: 'Amulet of Health',     cost: 7, maxLevel: 3, desc: 'Max HP.' },
   // (Ring of Regeneration removed with passive regen, round 17 — see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
   // Hard-tier number is a bot artifact. Needs Remi's feel read (BALANCE 15D).
   // history: docs/history/2026-08-08-constants-sweeps.md#items-treads-and-cape-round-15
-  cape:   { name: 'Cape of the Magi',     cost: 6, maxLevel: 3, desc: 'Knockback resistance.' },
+  cape:   { name: 'Cape of the Magi',     cost: 5, maxLevel: 3, desc: 'Knockback resistance.' },
   // Studied 2026-08-07 after Remi's "really really weak" report: lava is only
   // ~8.5% of all damage (hypothesis false) and the sword measured 2nd-strongest
   // item; the weak FEEL was scoreboard vs regen-lock — round 16 added the green
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
-  sword:  { name: 'Blood Sword',          cost: 8, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
+  sword:  { name: 'Blood Sword',          cost: 7, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
   // (Echo Stone deleted in round 20.1 — merged into ELEMENTS.mosquito. Its old
   // spec: `git show 58ba4e7:shared/constants.js`.)
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
@@ -319,7 +329,7 @@ export const ITEMS = {
   // progression now, and a thing that affects ALL spells is thematically an
   // item. Round 20: its element-era `costs` curve dropped, flat 8 g like every
   // other item. (`costs` is still supported by itemCost — elements use it.)
-  hourglass: { name: 'Hourglass of Haste', cost: 8, maxLevel: 3,
+  hourglass: { name: 'Hourglass of Haste', cost: 7, maxLevel: 3,
             desc: 'Ability Haste: all your cooldowns run faster.' },
 };
 
@@ -457,9 +467,12 @@ export const ELEMENTS = {
   // this counter, but can NEVER double — chain guard in sim.js, test-locked.
   // Pre-rework spec (tax + arm/cash trap): `git show 58ba4e7:shared/constants.js`.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
-  mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Paired fireballs.',
-           long: 'Every 6th fireball you cast is a pair (5th, then 4th as it levels): the lead ball stings without pushing, and a second one lands right behind it.',
+  // ⚠ Round 21.1 (Remi): DISPLAY RENAME ONLY — Mosquito 🦟 is now Echo 👯. The
+  // internal key stays `mosquito` EVERYWHERE (code, tests, roster, archetypes);
+  // never rename it.
+  mosquito: { name: 'Echo', icon: '👯', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Doubled casts.',
+           long: 'Every 6/5/4th fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
            fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
