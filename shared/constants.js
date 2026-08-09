@@ -152,7 +152,8 @@ export const SPELLS = {
     // passive regen, which is what made round 1 a 52-second stalemate
     cooldown: [2.1, 1.85, 1.6], speed: 41, radius: 0.8, range: Infinity,
     damage: [7, 10, 14], knockback: [65, 70, 76],
-    desc: 'Your bread and butter. Medium projectile, strong knockback.',
+    desc: 'Your bread and butter.',
+    long: 'A medium projectile with strong knockback.',
   },
   lightning: {
     // Round 17 (docs/ROUND17.md §2): hitscan → telegraphed sky-bolt. Mark a
@@ -167,7 +168,8 @@ export const SPELLS = {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
     cooldown: [6, 5.5, 5], range: Infinity, radius: 2.2, delay: 0.5,
     damage: [12, 15, 18], knockback: [70, 78, 86],
-    desc: '⚡ Mark a spot: the bolt strikes it 0.5 s later. No pillar or wall can shield it.',
+    desc: 'Mark a spot, the bolt strikes it.',
+    long: 'Mark a spot and the bolt strikes it 0.5 s later. No pillar or wall can shield it.',
   },
   boomerang: {
     // 2026-08-06 rework (Remi: "nobody ever plays it, make it exciting"):
@@ -178,7 +180,8 @@ export const SPELLS = {
     name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],
     cooldown: 5.5, speed: 31, radius: 1.4, outDistance: 52,
     damage: [4, 6, 8], knockback: [50, 59, 68],
-    desc: 'Out and back. Tap again to recall it early; catch it to halve the cooldown.',
+    desc: 'Tap again to recall it early; catch it to halve the cooldown.',
+    long: 'Flies out and returns to the launch point. Tap again to recall it early; catch it to halve the cooldown.',
   },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
@@ -186,23 +189,27 @@ export const SPELLS = {
     // Revert path: costs [12, 8], range [18, 26].
     name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [10, 8],
     cooldown: [16, 12], range: [22, 22],
-    desc: 'Blink to cursor. Cancels your momentum — the lava save.',
+    desc: 'Blink to cursor. Cancels your momentum.',
+    long: 'Teleport to your cursor, up to the range. Your momentum is cancelled.',
   },
   shield: {
     name: 'Shield', hotkey: 'D', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 12], duration: 1.25,
-    desc: 'Reflects projectiles back at their owner for 1.25 s.',
+    desc: 'Reflects projectiles back at their owner.',
+    long: 'While it lasts, projectiles that hit you fly back at whoever fired them.',
   },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
     damage: [5, 8], knockback: [79, 79],
     desc: 'Dash through enemies, blasting them aside.',
+    long: 'Dash forward. Enemies you pass through take damage and knockback.',
   },
   pillar: {
     name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [10, 6],
     cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
-    desc: 'Raise an obsidian pillar: cover, blocker, knockback-stopper.',
+    desc: 'Raise a pillar: cover and blocker.',
+    long: 'Raise an obsidian pillar at your cursor. It blocks projectiles, bodies and knockback until it expires.',
   },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE (Remi's rule): their omission from every
@@ -212,7 +219,8 @@ export const SPELLS = {
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [14, 8],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
     damage: [16, 24], knockback: [110, 130],
-    desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast.',
+    desc: 'Mark a spot, a rock falls on it.',
+    long: 'Mark a spot and a rock falls on it after a delay: heavy damage and a radial blast.',
   },
   nova: {
     // Round 19 (Remi, voice — his name for it was garbled; round 19.1 second
@@ -227,6 +235,7 @@ export const SPELLS = {
     // printed in the hover stats so the no-push identity is stated.
     damage: [10, 14, 18], radius: [4.5, 5.5, 6.5], knockback: 0,
     desc: 'Flies over everything, explodes after a moment.',
+    long: 'The orb flies over bodies, pillars and walls, parks at your click, then explodes. Damage only, no push.',
   },
   swap: {
     // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
@@ -239,17 +248,20 @@ export const SPELLS = {
     cooldown: [13, 12, 11], speed: 50, radius: 0.9, range: [40, 55, 70],
     damage: 1,
     desc: 'Hit an enemy to trade places.',
+    long: 'Fire a bolt. Hit an enemy and you swap positions and momentum with them.',
   },
   repulse: {
     name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 8],
     cooldown: [16, 13], charge: 2, radius: [9, 11],
     damage: [8, 12], knockback: [130, 150],
-    desc: '💥 Charge 2 s, then blast everyone around you away. Blink and Rush still work while charging.',
+    desc: 'Charge, then blast everyone around you.',
+    long: 'Charge for 2 s, then blast everyone around you away. Blink and Rush still work while charging.',
   },
   wall: {
     name: 'Mirror Wall', hotkey: 'C', tier: 'power', maxLevel: 2, costs: [14, 8],
     cooldown: [18, 15], range: Infinity, length: [8, 11], duration: 5,
-    desc: '🪞 A wall that reflects enemy projectiles. Yours pass.',
+    desc: 'Reflects enemy projectiles. Yours pass.',
+    long: 'Raise a wall that reflects enemy projectiles back at them. Your own pass through.',
   },
   // Invisibility (round 12): no restrictions on purpose — levels buy DURATION only.
   // ⚠ Non-negotiable: strip it in snapshot() AND mask bot perception, or devtools
@@ -260,7 +272,8 @@ export const SPELLS = {
     // round 18.1 (Remi): casting anything else REVEALS you (see castSpell)
     name: 'Vanish', hotkey: 'V', maxLevel: 3, costs: [10, 10, 10],
     cooldown: [14, 13, 12], duration: [1, 2, 3],
-    desc: '👁️ Invisible for a moment. Casting reveals you — and you can still be hit.',
+    desc: 'Invisible for a moment. Casting reveals you.',
+    long: 'You turn invisible. Casting any other spell reveals you, and you can still be hit.',
   },
 };
 
@@ -270,34 +283,34 @@ export const SPELLS = {
 // Values are ABSOLUTE CUMULATIVE totals at that level, never per-level increments.
 // history: docs/history/2026-08-08-constants-sweeps.md#items
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: 'Move speed.' },
+  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: 'Move speed.', long: 'You move faster.' },
   treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: 'Lava resistance.', long: 'Swimming burns you for much less.' },
   // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
-  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: 'Max HP.' },
+  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: 'Max HP.', long: 'More maximum health.' },
   // (Ring of Regeneration removed with passive regen, round 17 — see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
   // Hard-tier number is a bot artifact. Needs Remi's feel read (BALANCE 15D).
   // history: docs/history/2026-08-08-constants-sweeps.md#items-treads-and-cape-round-15
-  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'Knockback resistance.', long: 'You get knocked around less — and into the lava less.' },
+  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'Knockback resistance.', long: 'You get knocked around less, and into the lava less.' },
   // Studied 2026-08-07 after Remi's "really really weak" report: lava is only
   // ~8.5% of all damage (hypothesis false) and the sword measured 2nd-strongest
   // item; the weak FEEL was scoreboard vs regen-lock — round 16 added the green
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
-  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal.', long: 'Your damage heals you (poison too — lava excluded). The only healing there is.' },
+  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal.', long: 'Your damage heals you, poison included but never lava. The only healing in the game.' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
-            desc: 'Extra fireballs.', long: '⚗️ Every 4th fireball echoes: a second one fires right behind it, same aim.' },
+            desc: 'Extra fireballs.', long: 'Every 4th fireball echoes: a second one fires right behind it, same aim.' },
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
   // here from the element roster, same costs (10+8+8) and same numbers — his
   // reasoning: elements are the FIREBALL's progression now, and a thing that
   // affects ALL spells is thematically an item. `costs` is a per-level price
   // array (itemCost reads it); items without one keep their flat cost.
   hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
-            desc: 'Ability Haste.', long: 'ALL your cooldowns run faster — spells included.' },
+            desc: 'Ability Haste.', long: 'All your cooldowns run faster, spells included.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -346,7 +359,7 @@ export const ELEMENTS = {
   // general tuning principle: going all-in deserves the reward).
   ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [6, 5, 5],
            desc: 'More damage.',
-           long: 'Every fireball hits harder. Cheap, no tricks.',
+           long: 'Every fireball hits harder.',
            fx: { dmgAdd: [1, 2, 4] } },
   // Stack-and-detonate (2026-08-06 rework): stacks never melt, the 3rd triggers;
   // stacks PRIVATE per attacker since round 12. The ~17% mixed-table read is
@@ -355,7 +368,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-frost
   frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Crowd control.',
-           long: 'Hits stack frost: the 3rd stack slows the victim — or freezes them SOLID at lv3.',
+           long: 'Hits stack frost: the 3rd stack slows the victim, or freezes them solid at lv3.',
            fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
                  stunT: [0, 0, 2] } },
   // Round 19 (Remi): venom → MALADY, the contagion rework. Two hits infect
@@ -366,7 +379,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-round17-battery.md#venom (the old DoT)
   malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Spread disease, steal kills.',
-           long: 'Two hits infect: 1 damage per tick, and a contagious aura — anyone who comes close catches the same plague (once each). Levels grow the aura and the sickness length. A lethal tick takes the kill.',
+           long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each. A lethal tick takes the kill.',
            fx: { tickDmg: 1, dotTime: [2, 3, 4], tickEvery: 1, auraR: [4, 6, 8] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
@@ -379,7 +392,7 @@ export const ELEMENTS = {
   // [7,14,14], burstKbMult 2.4, burstAtLevel 3, costs [6,5,12].
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'More push.',
-           long: 'Wind under your fireball. Every 3rd hit on the same target is one big gust — levels raise the push and the gust.',
+           long: 'Your fireball pushes harder, and every 3rd hit on the same target is one big gust.',
            fx: { kbAdd: [10, 20, 30], stacksToTrigger: 3,
                  burstKbAdd: [30, 60, 90] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now — the first hit on a target
@@ -390,7 +403,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
-           long: 'Your first hit marks 🪙, the next hit on them cashes +1 g. The price: −50% fireball at lv1, −25% at lv2 — and NO penalty at lv3.',
+           long: 'Your first hit marks a target, the next hit on them cashes +1 g. The price: a weaker fireball, until lv3 lifts the penalty.',
            fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.75, 1], kbMult: [0.5, 0.75, 1] } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else — the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
@@ -398,7 +411,7 @@ export const ELEMENTS = {
   // terra's lv3 is "like fire": a cheap third step, no special).
   terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 5, 5],
            desc: 'Bigger fireball.',
-           long: 'A bigger ball is much easier to land. Cheap, no tricks — and every on-hit effect loves the extra hits.',
+           long: 'A bigger ball is easier to land.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
   // Anger (Remi's mark-hunt rework of momentum): markDelay s into each round,
   // then markEvery s after each claim, ONE red mark lands on a random enemy —
@@ -407,7 +420,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Hunt the mark.',
-           long: 'Every few seconds a red mark appears on an enemy: hit them with your fireball to claim it — +0.5 fireball damage, forever. Levels make marks appear faster.',
+           long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
            fx: { markEvery: [10, 7, 5], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 18.2 (Remi): NO sting — every ball is a NORMAL fireball; the penalty
@@ -418,7 +431,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
            desc: 'On-hit amplification.',
-           long: 'Your fireballs hit softer (−50/−25/−0% by level) but sting: hit a stung enemy and TWO extra fireballs land at once — every on-hit effect pays again.',
+           long: 'Your fireballs hit softer but sting: hit a stung enemy and two extra fireballs land at once, each triggering your on-hit effects.',
            fx: { dmgMult: [0.5, 0.75, 1], kbMult: [0.5, 0.75, 1],
                  procBalls: 2 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
@@ -439,7 +452,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Burst lifesteal.',
-           long: 'Every 5th fireball is engorged: it heals you for MORE than the damage it deals.',
+           long: 'Every 5th fireball is engorged: it heals you for more than the damage it deals.',
            fx: { chargeEvery: 5, chargeLifesteal: [1.4, 1.92, 2.45] } },
   // (Chronos — refund on ANY landed spell — was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
@@ -450,7 +463,7 @@ export const ELEMENTS = {
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-ghost
   ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 5, 12],
            desc: 'Faster projectile.',
-           long: 'Your fireball flies faster. Lv3: it passes THROUGH people, hitting everyone on the line.',
+           long: 'Your fireball flies faster. Lv3: it passes through people, hitting everyone on the line.',
            fx: { projSpeedMult: [1.15, 1.3, 1.3], pierce: true,
                  pierceAtLevel: 3 } },
 };
