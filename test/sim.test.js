@@ -1313,15 +1313,17 @@ describe('elemental mode', () => {
     }
     return state;
   }
-  // One landed point-blank fireball from p0 on p1 (cooldown scrubbed). The
-  // victim stands at 10 so a fresh max-level aura never laps back over the
-  // shooter within the landing frame.
+  // One landed fireball from p0 on p1 (cooldown scrubbed). The victim stands
+  // just beyond the SPEC's widest aura so a fresh max-level plague never laps
+  // back over the shooter within the landing frame — derived, not pinned
+  // (the round-19.4 aura buff broke the old hardcoded 10).
   function landHit(state) {
     const a = state.players.p0, b = state.players.p1;
+    const safe = Math.max(...ELEMENTS.malady.fx.auraR) + 4;
     a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
-    b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.5);
+    b.x = safe; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'fireball', safe * 3, 0);
+    run(state, 0.9);
   }
 
   it('malady 🦠: the first hit plants a private stack, the SECOND infects', () => {

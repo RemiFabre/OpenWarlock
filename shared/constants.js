@@ -177,8 +177,10 @@ export const SPELLS = {
     // again while it flies recalls it early. It still returns to the LAUNCH
     // POINT, so catching it (halving the cooldown) is a real read.
     // outDistance is now a ceiling, not a plan.
+    // Round 19.4 (Remi): the ceiling is GONE — throw as far as you like, the
+    // recall tap is the turn control (was outDistance 52).
     name: 'Boomerang', hotkey: 'R', maxLevel: 3, costs: [10, 6, 6],
-    cooldown: 5.5, speed: 31, radius: 1.4, outDistance: 52,
+    cooldown: 5.5, speed: 31, radius: 1.4, outDistance: Infinity,
     damage: [4, 6, 8], knockback: [50, 59, 68],
     desc: 'Tap again to recall it early; catch it to halve the cooldown.',
     long: 'Flies out and returns to the launch point. Tap again to recall it early; catch it to halve the cooldown.',
@@ -379,10 +381,12 @@ export const ELEMENTS = {
   // Tick flat at 1; levels buy duration + aura. Lethal tick takes the kill
   // (creator's — or the spreader's when the creator catches it back). Trail dead.
   // history: docs/history/2026-08-08-round17-battery.md#venom (the old DoT)
+  // Round 19.4 buff (Remi): longer sickness, much wider aura. Was dotTime
+  // [2,3,4], auraR [4,6,8].
   malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Spread diseases.',
-           long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each. A lethal tick takes the kill.',
-           fx: { tickDmg: 1, dotTime: [2, 3, 4], tickEvery: 1, auraR: [4, 6, 8] } },
+           long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each.',
+           fx: { tickDmg: 1, dotTime: [3, 4, 5], tickEvery: 1, auraR: [8, 12, 16] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
   // ⚠ The burst lever is VIOLENTLY STEEP (+20% ≈ +14 points); old sweep at git c38730f.
@@ -432,10 +436,14 @@ export const ELEMENTS = {
   // balls (kbScale 1/N; noStacks = the anti-chain rule, test-locked ROUND12 S3).
   // revert (round 18): fx { mosquito: true, haste: [20,40,60], stingDmg: 1, procBalls: 2 }
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-mosquito
+  // Round 19.4 (Remi): the armed+cashed pair is FOUR damage hits (arm +
+  // trigger + 2 procs), so ×1.0 at lv3 was +100% damage per pair. New ladder
+  // prices the PAIR: 4m vs the 2 plain balls it replaces = -20%/-10%/±0 by
+  // level; unpaired pokes stay taxed. Was [0.5, 0.75, 1].
   mosquito: { name: 'Mosquito', icon: '🦟', maxLevel: 3, costs: [10, 8, 8],
            desc: 'On-hit amplification.',
-           long: 'Your fireballs hit softer but sting: hit a stung enemy and two extra fireballs land at once, each triggering your on-hit effects.',
-           fx: { dmgMult: [0.5, 0.75, 1], kbMult: [0.5, 0.75, 1],
+           long: 'Your fireballs hit softer but sting: hit a stung enemy and two extra fireballs land at once. They add damage and on-hits, never extra push.',
+           fx: { dmgMult: [0.4, 0.45, 0.5], kbMult: [0.4, 0.45, 0.5],
                  procBalls: 2 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
