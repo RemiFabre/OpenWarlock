@@ -3,7 +3,8 @@
 
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
-  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, DRAFT, itemCost,
+  BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
+  DRAFT, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxDelta } from './items.js';
@@ -2504,15 +2505,17 @@ function botTune(pl, key, dflt) {
 }
 
 // Telegraph awareness (round 17, minimal — Session C owns the full pilot):
-// where to step to leave the nearest sky-bolt zone covering this bot, or null.
-// Without this every measurement of the new lightning is garbage — a bot that
-// stands in a marked circle prices the spell as unmissable.
+// where to step to leave the nearest sky-bolt OR meteor zone covering this
+// bot, or null. Without this every measurement of a telegraphed spell is
+// garbage — a bot that stands in a marked circle prices it as unmissable.
+// Meteors joined round 20 (bots buy meteor via the combo builds now); the
+// same boltDodge commitment covers both.
 function boltEscape(state, pl) {
-  if (!state.bolts.length) return null;
-  let worst = null, worstD = Infinity;
-  for (const m of state.bolts) {
+  if (!state.bolts.length && !state.meteors.length) return null;
+  let worst = null, worstD = Infinity, worstR = 0;
+  const consider = (m, spec) => {
     const dd = Math.hypot(pl.x - m.x, pl.y - m.y);
-    if (dd < SPELLS.lightning.radius + pl.radius + 0.6 && dd < worstD) {
+    if (dd < spec.radius + pl.radius + 0.6 && dd < worstD) {
       // Not an oracle (Remi, round 17): the bot COMMITS once per bolt to
       // whether it bothers dodging — BOTS[kind].boltDodge of the time it
       // steps out, otherwise it eats this one on purpose. The roll is stored
@@ -2520,21 +2523,23 @@ function boltEscape(state, pl) {
       // back into a near-certain dodge.
       const rolls = m._dodge || (m._dodge = {});
       if (rolls[pl.id] === undefined) {
-        const spec = BOTS[pl.kind];
-        const chance = spec && spec.boltDodge != null ? spec.boltDodge : 1;
+        const bspec = BOTS[pl.kind];
+        const chance = bspec && bspec.boltDodge != null ? bspec.boltDodge : 1;
         rolls[pl.id] = rng(state) < chance;
       }
-      if (!rolls[pl.id]) continue;
-      worst = m; worstD = dd;
+      if (!rolls[pl.id]) return;
+      worst = m; worstD = dd; worstR = spec.radius;
     }
-  }
+  };
+  for (const m of state.bolts) consider(m, SPELLS.lightning);
+  for (const m of state.meteors) consider(m, SPELLS.meteor);
   if (!worst) return null;
   // dead-centered bolt (the classic "dropped right on you"): any direction
   // beats a zero vector, which would "escape" to the zone center itself
   let nx = pl.x - worst.x, ny = pl.y - worst.y;
   if (worstD > 1e-6) { nx /= worstD; ny /= worstD; }
   else { nx = 1; ny = 0; }
-  const hop = SPELLS.lightning.radius + pl.radius + 1.5;
+  const hop = worstR + pl.radius + 1.5;
   let ex = worst.x + nx * hop, ey = worst.y + ny * hop;
   // never step out of the bolt into the lava: cross to the far side instead
   if (Math.hypot(ex, ey) > state.arenaRadius - 1) {
@@ -2556,6 +2561,34 @@ function boltAim(state, pl, target) {
   const x = target.x + v.vx * spec.delay, y = target.y + v.vy * spec.delay;
   if (Math.hypot(x - pl.x, y - pl.y) < spec.radius + pl.radius + 1) return null;
   return { x, y };
+}
+
+// ---- CC-gated casting (round 20, BOT_CC_CAST) ------------------------------
+// Is `target` HELD from `pl`'s point of view — stunned, slowed, or wearing
+// enough of pl's OWN frost stacks that the next hit triggers? A held target is
+// where a telegraphed cast stops being a coin flip, so bots drop the bolt dead
+// ON the body instead of leading it. Memory ghosts (Vanish) read as not held.
+function ccHeld(pl, target) {
+  return (target.stunT || 0) > 0 || (target.slowT || 0) > 0 ||
+    stackCount(target, 'frost', pl.id) >= BOT_CC_CAST.FROST_STACKS;
+}
+
+// Meteor's stricter window: the hold must outlast the fall (`delay` s). Only a
+// stun (frost lv3: 2 s > meteor's 1.25 s) or a heavy slow (speed mult ≤
+// METEOR_SLOW_MAX) qualifies — under a light slow the body still leaves the
+// 6-radius circle before the rock lands.
+function ccPinned(target, delay) {
+  if ((target.stunT || 0) >= delay) return true;
+  return (target.slowT || 0) >= delay &&
+    (target.slowMultHit || 1) <= BOT_CC_CAST.METEOR_SLOW_MAX;
+}
+
+// Drop point for a telegraphed cast on a held target: the body itself, unless
+// that would land on our own head too (both spells hit the caster's zone).
+function heldAim(pl, target, spec) {
+  const d = Math.hypot(target.x - pl.x, target.y - pl.y);
+  if (d < spec.radius + pl.radius + 1) return null;
+  return { x: target.x, y: target.y };
 }
 
 // Generic "use what you own" pilot. Each kind's native logic covers its own
@@ -2670,13 +2703,26 @@ function pilotOwnedSpells(state, pl, dt) {
   }
 
   // lightning poke (stalker uses it natively): drop the sky-bolt on the
-  // target's predicted spot (round 17); grunts stay a bit sloppy
+  // target's predicted spot (round 17); grunts stay a bit sloppy. A HELD
+  // target (round 20, ccHeld) gets it dead on the body, no error — the CC
+  // covers the 0.5 s telegraph, that is the whole frost+bolt combo.
   if (pl.kind !== 'stalker' && owns('lightning') && dist < BOLT_ENGAGE) {
-    const aim = boltAim(state, pl, target);
-    const err = pl.kind === 'grunt' ? (rng(state) - 0.5) * dist * 0.15 : 0;
+    const held = ccHeld(pl, target);
+    const aim = held ? heldAim(pl, target, SPELLS.lightning)
+      : boltAim(state, pl, target);
+    const err = !held && pl.kind === 'grunt' ? (rng(state) - 0.5) * dist * 0.15 : 0;
     if (aim && castSpell(state, pl.id, 'lightning',
         aim.x - (tdy / dist) * err,
         aim.y + (tdx / dist) * err)) return;
+  }
+
+  // meteor (round 20): the ONE power spell bots pilot. Cast ONLY into a hold
+  // that outlasts the 1.25 s fall — frost lv3's stun or a heavy slow
+  // (ccPinned). Without that hold it never fires: an un-CC'd meteor against
+  // anything that walks is a 14-gold miss.
+  if (owns('meteor') && dist < BOLT_ENGAGE && ccPinned(target, SPELLS.meteor.delay)) {
+    const aim = heldAim(pl, target, SPELLS.meteor);
+    if (aim && castSpell(state, pl.id, 'meteor', aim.x, aim.y)) return;
   }
 
   // rush as a WEAPON only against rim-standers (berserker rushes natively).
@@ -3229,10 +3275,14 @@ function stepStalker(state, pl, dt) {
   }
 
   // -- lightning: finish the wounded or poke from afar — the sky-bolt lands
-  // where the target WILL be, one delay from now (round 17)
+  // where the target WILL be, one delay from now (round 17). A HELD target
+  // (round 20, ccHeld) waives the finish/poke gate and takes the bolt dead on
+  // the body: the CC covers the telegraph.
+  const held = ccHeld(pl, target);
   if ((pl.spells.lightning || 0) > 0 && (pl.cooldowns.lightning || 0) <= 0 &&
-      dist < BOLT_ENGAGE && (target.hp <= 20 || dist > 24)) {
-    const aim = boltAim(state, pl, target);
+      dist < BOLT_ENGAGE && (held || target.hp <= 20 || dist > 24)) {
+    const aim = held ? heldAim(pl, target, SPELLS.lightning)
+      : boltAim(state, pl, target);
     if (aim) castSpell(state, id, 'lightning', aim.x, aim.y);
   }
 
@@ -3282,6 +3332,7 @@ const BUILD_ELEMENTS = {
   turtle:  ['frost', 'terra', 'malady'],       // outlasts: control and attrition
   rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
   boomer:  ['arcane', 'midas', 'ember'],       // throws a lot: cadence and income
+  chainer: ['frost', 'gale', 'mosquito'],      // combo (round 20): hold, launch, amplify
 };
 const FALLBACK_ELEMENTS = ['ember', 'frost', 'malady', 'gale', 'terra', 'arcane'];
 
@@ -3290,10 +3341,18 @@ export function botElementFor(pl, seat = 0) {
   return list[Math.abs(seat) % list.length];
 }
 
+// Round 20: the power spells that HAVE a bot pilot (the CC-gated cast in
+// pilotOwnedSpells). Only these may appear in a build/strategy order and be
+// bought — the structural no-power guard below covers everything else.
+const PILOTED_POWER = new Set(['meteor']);
+
 export function botShop(state, id) {
   const pl = state.players[id];
   if (!pl) return;
   if (pl.wave) return; // campaign monsters are their descriptor, they never shop
+  // an explicit build strategy (lobby pick) beats the kind's default list
+  const order = (pl.build && BUILDS[pl.build] && BUILDS[pl.build].order) ||
+    BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   if (state.mode === 'elemental') {
     // pinned at seat time so a bot never drifts between elements mid-game.
     // Round 19.5 (Remi): mosquito is an AMPLIFIER — a bot must never open on
@@ -3309,24 +3368,27 @@ export function botShop(state, id) {
     // seat's pick: primary to max, then the next one. Elements are the
     // fireball's whole progression since round 16 (it no longer levels here),
     // so a bot that stopped at one maxed element would simply stop scaling.
-    const list = (pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS;
-    const from = Math.max(0, list.indexOf(pl._elemPick));
-    for (let i = 0; i < list.length; i++) {
-      if (buy(state, id, list[(from + i) % list.length]).ok) break;
+    // Round 20: SKIPPED for a build whose order sequences its own elements
+    // (chainer) — the walk here would front-run frost to max before the bolt.
+    if (!order.some(k => Object.hasOwn(ELEMENTS, k))) {
+      const list = (pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS;
+      const from = Math.max(0, list.indexOf(pl._elemPick));
+      for (let i = 0; i < list.length; i++) {
+        if (buy(state, id, list[(from + i) % list.length]).ok) break;
+      }
     }
   }
-  // an explicit build strategy (lobby pick) beats the kind's default list
-  const order = (pl.build && BUILDS[pl.build] && BUILDS[pl.build].order) ||
-    BOT_BUILDS[pl.kind] || BOT_BUILDS.grunt;
   for (const thing of order) {
     // Remi's rule (round 12): a bot must NEVER buy a spell it pilots badly.
     // The power tier lost its minRound gate, so nothing else stops a bot from
-    // sinking 20+ gold into a Meteor it will never cast. The build lists happen
+    // sinking 20+ gold into a spell it will never cast. The build lists happen
     // to omit them today; this makes it structural, and test-locked, so adding
     // a power spell to a list can't silently gut every difficulty tier and the
-    // whole co-op curve. Delete this ONLY together with teaching bots to cast
-    // them (AGENTS.md debt #2 — the highest-value lab work left).
-    if (SPELLS[thing] && SPELLS[thing].tier === 'power') continue;
+    // whole co-op curve. Round 20 opened the ONE exception, PILOTED_POWER
+    // (meteor): a build that explicitly lists it may buy it, because the
+    // CC-gated cast exists (AGENTS.md debt #2, partially paid).
+    if (SPELLS[thing] && SPELLS[thing].tier === 'power' &&
+        !PILOTED_POWER.has(thing)) continue;
     buy(state, id, thing); // ignores failures (owned / poor / maxed)
   }
 
@@ -3347,7 +3409,8 @@ export function botShop(state, id) {
   const elemList = state.mode === 'elemental'
     ? ((pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS) : [];
   const pathDone =
-    order.every(k => maxed(k) || (SPELLS[k] && SPELLS[k].tier === 'power')) &&
+    order.every(k => maxed(k) ||
+      (SPELLS[k] && SPELLS[k].tier === 'power' && !PILOTED_POWER.has(k))) &&
     elemList.every(maxed);
   if (!pathDone) return;
   const pools = [

@@ -214,9 +214,10 @@ export const SPELLS = {
     long: 'Raise an obsidian pillar at your cursor. It blocks projectiles, bodies and knockback until it expires.',
   },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
-  // ⚠ BOTS PILOT NONE OF THESE (Remi's rule): their omission from every
-  // BUILDS/BOT_BUILDS order list IS the gate, and it is load-bearing (AGENTS.md debt #2).
-  // history: docs/history/2026-08-08-constants-sweeps.md#spells-power-tier
+  // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
+  // BOT_CC_CAST + PILOTED_POWER in shared/sim.js). For the rest, omission from
+  // every BUILDS/BOT_BUILDS order list IS the gate, and it is load-bearing
+  // (AGENTS.md debt #2). history: docs/history/2026-08-08-constants-sweeps.md#spells-power-tier
   meteor: {
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [14, 8],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
@@ -553,6 +554,17 @@ export const BOT_TARGETING = {
   MY_STACKS: 4,        // per frost/gale/mosquito/midas/malady mark of MINE on the body
 };
 
+// ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------
+// A bot HOLDS its target when the target is stunned, slowed, or wearing this
+// many of the bot's OWN frost stacks (the next hit triggers). A held target is
+// where a telegraphed spell stops being a coin flip: the sky-bolt drops dead ON
+// the body, and meteor — the one power spell bots pilot — is cast ONLY into a
+// hold that outlasts its fall (frost lv3's 2 s stun > meteor's 1.25 s delay).
+export const BOT_CC_CAST = {
+  FROST_STACKS: 2,      // ≥ my frost stacks on the body = about to break: pre-aim
+  METEOR_SLOW_MAX: 0.5, // a slow this strong (speed mult ≤) pins a meteor; lighter walks out
+};
+
 // ---- Bot build strategies -------------------------------------------------
 // A bot = a combat profile (BOTS kind: HOW it fights) × a build strategy
 // (WHAT it buys). Each order list is consumed greedily every shop: first
@@ -582,4 +594,15 @@ export const BUILDS = {
   boomer:  { name: 'Boomer',
     desc: 'Boomerang stacking: wide throws that hit going out AND coming back. Elemental picks: arcane, midas, ember — volume, income, damage.',
     order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'sword'] },
+  // Round 20 (Remi's playtest combo: "you almost perma-combo the opponent into
+  // the lava"). The order IS the combo: frost lv1 → lightning lv1 → gale lv1 →
+  // mosquito lv1, then those four round-robin to max — mosquito deliberately
+  // last (amplifier, never an opener — round 19.5). Elements in the order are
+  // fine: buy() takes both, and botShop skips its element pre-walk for orders
+  // that sequence their own elements.
+  chainer: { name: 'Chainer',
+    desc: 'Combo chains: frost stacks hold you in place, the sky-bolt lands where you stand, gale shoves you at the lava. Elemental picks: frost, gale, mosquito — hold, launch, amplify.',
+    order: ['fireball', 'frost', 'lightning', 'gale', 'mosquito',
+      'frost', 'lightning', 'gale', 'mosquito',
+      'frost', 'lightning', 'gale', 'mosquito'] },
 };
