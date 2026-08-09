@@ -934,6 +934,19 @@ const ITEM_NEXT = {
   echo: () => `every 4th fireball fires twice`,
 };
 
+// The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
+// the totals at the level you'd buy (cumulative, like ITEM_NEXT), repainted
+// by refresh(); at max level it reads as the totals you own.
+const ITEM_TAG = {
+  boots: (lv) => `+${fmtNum(Math.round((itemFxAt('boots', 'speedMult', lv) - 1) * 100))}% speed`,
+  treads: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('treads', 'lavaMult', lv)) * 100))}% lava dmg`,
+  amulet: (lv) => `+${fmtNum(itemFxAt('amulet', 'maxHp', lv))} max HP`,
+  cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback`,
+  sword: (lv) => `${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% lifesteal`,
+  hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} haste`,
+  echo: () => `every ${fmtNum(ITEM_FX.echo.every)}th ball ×2`,
+};
+
 // One row of the per-level table. A scalar REPEATS in every level column
 // (round 20, Remi: half-empty columns read as "level 1 has no stats") — 0 is
 // a value too (the bomb's knockback: 0 must print), never a blank cell.
@@ -1242,11 +1255,15 @@ function buildShop(container, mode = 'classic') {
       for (const [key, spec] of Object.entries(SPELLS))
         if (!SPELL_ROW_KEYS.has(key)) mkSpell(key, spec);
   }
+  // elements carry their 2-4 word tag ON the card (round 20.1, Remi: the
+  // no-text doctrine went one step too far here — a tag is parseable at a
+  // glance; spells stay text-free because theirs are not)
   const mkElement = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${spec.icon}</span>
-      <span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="tag">${esc(spec.desc)}</span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
@@ -1274,8 +1291,11 @@ function buildShop(container, mode = 'classic') {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
     b.className = 'ware';
+    // items carry a one-value stat tag (round 20.1, Remi: "a very short
+    // description of the stats it gives") — refresh() repaints it per level
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="tag"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
@@ -1348,6 +1368,9 @@ function buildShop(container, mode = 'classic') {
         w.level = level;
         w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
         w.el.classList.toggle('sel', level > 0);
+        // the stat tag tracks the level you'd BUY (totals); at max, what you own
+        w.el.querySelector('.tag').textContent = ITEM_TAG[w.key]
+          ? ITEM_TAG[w.key](Math.min(level + 1, w.spec.maxLevel)) : '';
         if (level >= w.spec.maxLevel) {
           cost.innerHTML = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1466,11 +1489,16 @@ function kitIcons(p) {
     if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
   for (const [k, v] of Object.entries(p.elements || {}))
     if (v > 0 && ELEMENTS[k]) {
-      // anger wears its earned bonus on the tag (angerMarks rides every
-      // player's snapshot entry in elemental, so this works for everyone)
-      const bonus = k === 'anger' && +p.angerMarks > 0
-        ? `<span class="klv">+${(+p.angerMarks * ELEMENTS.anger.fx.markDmg).toFixed(1)}</span>` : '';
-      parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}${bonus}`);
+      if (k === 'anger') {
+        // anger wears ONLY its earned bonus — 🔴+12, no level superscript
+        // (round 20.1, Remi: "3 +12" read as unparseable noise; the level is
+        // visible in the shop, the bonus is the number that matters)
+        const bonus = +p.angerMarks > 0
+          ? `<span class="klv">+${(+p.angerMarks * ELEMENTS.anger.fx.markDmg).toFixed(1)}</span>` : '';
+        parts.push(`${ELEMENTS[k].icon}${bonus}`);
+      } else {
+        parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}`);
+      }
     }
   return parts.join(' ');
 }

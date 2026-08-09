@@ -380,7 +380,7 @@ export const ELEMENTS = {
   // (creator's — or the spreader's when the creator catches it back). Trail dead.
   // history: docs/history/2026-08-08-round17-battery.md#venom (the old DoT)
   malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Spread disease, steal kills.',
+           desc: 'Spread diseases.',
            long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each. A lethal tick takes the kill.',
            fx: { tickDmg: 1, dotTime: [2, 3, 4], tickEvery: 1, auraR: [4, 6, 8] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
@@ -418,12 +418,13 @@ export const ELEMENTS = {
   // Anger (Remi's mark-hunt rework of momentum): markDelay s into each round,
   // then markEvery s after each claim, ONE red mark lands on a random enemy —
   // a fireball hit on them banks +markDmg damage, game-long and uncapped.
-  // Levels buy mark FREQUENCY only. ⚠ markEvery numbers are untuned defaults.
+  // Levels buy mark FREQUENCY only. Round 19.3 (Remi, post-playtest nerf:
+  // "reducing the frequency of marks"): markEvery [10,7,5] -> [15,10,5].
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Hunt the mark.',
+           desc: 'Infinite scaling.',
            long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
-           fx: { markEvery: [10, 7, 5], markDmg: 0.5, markDelay: 0.5,
+           fx: { markEvery: [15, 10, 5], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 18.2 (Remi): NO sting — every ball is a NORMAL fireball; the penalty
   // is dmg AND kb × [0.5,0.75,1], multiplicative with midas like any multiplier.
