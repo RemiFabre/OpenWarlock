@@ -514,6 +514,10 @@ export function castSpell(state, id, key, tx, ty) {
       break;
     }
     case 'rush': {
+      // Round 19.6 (Remi): the dash CANCELS your momentum — knockback velocity
+      // zeroed at cast, so Rush is a real combo/lava escape (interpretation of
+      // "rush could also cancel momentum, allows you to get out of combos").
+      pl.vx = 0; pl.vy = 0;
       pl.dash = { dx, dy, left: spec.distance, level, hit: {} };
       pl.moveTarget = null;
       break;

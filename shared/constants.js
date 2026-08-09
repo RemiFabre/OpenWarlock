@@ -335,11 +335,13 @@ export function itemCost(key, owned = 0) {
 // history: docs/history/2026-08-08-constants-sweeps.md#item_fx-level-curve-round-15
 export const ITEM_FX = {
   boots: { speedMult: [1.15, 1.29, 1.42] },
-  treads: { lavaMult: [0.50, 0.36, 0.28] },
+  // Round 19.6 (Remi): a 10 g full-counter to lava playstyles was too extreme
+  // — was [0.50, 0.36, 0.28].
+  treads: { lavaMult: [0.75, 0.50, 0.35] },
   amulet: { maxHp: [18, 32, 42] },   // round 17 §9 trim (was [25, 43, 56])
-  // Round 19.2 (Remi): "seems weak for 12 g — start at −12%". Old ladder
-  // [0.92, 0.85, 0.80]; same shape, scaled up.
-  cape: { kbMult: [0.88, 0.78, 0.70] },
+  // Round 19.6 (Remi): another notch — lv1 −15%, same ladder shape (gaps 11,
+  // 9). History: [0.92, 0.85, 0.80] → 19.2 [0.88, 0.78, 0.70] → now.
+  cape: { kbMult: [0.85, 0.74, 0.65] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and

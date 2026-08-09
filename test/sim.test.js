@@ -3379,6 +3379,20 @@ describe('power spells & pillar', () => {
   });
 });
 
+describe('rush cancels momentum (round 19.6)', () => {
+  it('casting rush zeroes knockback velocity — the combo escape', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.spells.rush = 1;
+    a.x = 0; a.y = 0;
+    a.vx = 60; a.vy = -40;   // mid-launch toward the lava
+    expect(castSpell(state, 'p0', 'rush', -10, 0)).toBe(true);
+    expect(a.vx).toBe(0);
+    expect(a.vy).toBe(0);
+    expect(a.dash).toBeTruthy(); // and the dash itself proceeds
+  });
+});
+
 describe('bots never open on mosquito (round 19.5)', () => {
   // Remi: mosquito is an amplifier — a bot must buy an on-hit user first.
   it('every seat of the mosquito-carrying build starts on another element', () => {
