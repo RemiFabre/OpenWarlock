@@ -57,9 +57,25 @@ export function createLocalTransport() {
       // JSON wire gives the ws path, without the stringify cost.
       onSend: (connId, msg) => { if (connId === ID) handlers.msg(structuredClone(msg)); },
     });
-    // the clock lives here, not in the engine: same cadence as server/index.js
-    setInterval(() => engine.tick(1 / TICK_RATE), 1000 / TICK_RATE);
-    setInterval(() => engine.pushSnapshots(), 1000 / SNAPSHOT_RATE);
+    // The clock lives here, not in the engine: same cadence as server/index.js.
+    // It ticks from a WEB WORKER because hidden-tab throttling murders
+    // main-thread timers (1 Hz at once, 1/min after 5 min) while worker timers
+    // hold 30 Hz — measured 2026-08-09, tools/tabtest-run.js. Solo is usually a
+    // foreground tab, but alt-tabbing to Discord must not slow the round to a
+    // crawl — and phase B's in-tab host will lean on this same clock.
+    const snapEvery = Math.max(1, Math.round(TICK_RATE / SNAPSHOT_RATE));
+    let n = 0;
+    const onTick = () => {
+      engine.tick(1 / TICK_RATE);
+      if (++n % snapEvery === 0) engine.pushSnapshots();
+    };
+    try {
+      const src = `setInterval(() => postMessage(0), ${1000 / TICK_RATE});`;
+      const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      worker.onmessage = onTick;
+    } catch {
+      setInterval(onTick, 1000 / TICK_RATE); // strict CSP etc. — solo still works
+    }
     window.__engine = engine; // test/debug hook (mirrors window.__fx et al.)
   }
 
