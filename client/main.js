@@ -11,6 +11,7 @@ import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
 import {
   nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
 } from './coop.js';
+import { selectTransport } from './transport.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -66,7 +67,7 @@ if (!AVATARS.includes(myAvatar)) myAvatar = AVATARS[0];
 
 // ---- state ----------------------------------------------------------------
 
-let ws = null, myId = null;
+let myId = null;
 const snaps = [];          // {at, s} ring buffer
 const fx = [];             // visual effects
 window.__fx = fx;          // test/debug hook: lets a test inject one to look at
@@ -105,55 +106,62 @@ function setConnBanner(msg) {
 }
 
 // ---- networking -------------------------------------------------------------
+// The transport (client/transport.js) hides WHERE the room lives: the Node
+// server over WebSocket, or an engine right here in the tab (solo, no server).
+// Selection is async (a ~1 s /health probe when the URL doesn't force a mode),
+// so joining awaits transportP; everything else uses `transport` directly.
 
 let joinedName = null;     // name we joined with; non-null enables auto-reconnect
 let reconnectTimer = null;
+let transport = null;
+const transportP = selectTransport().then((t) => {
+  transport = t;
+  t.onMessage(onMessage);
+  t.onClose((err) => {
+    if (err) reportError('socket', err);
+    setConnBanner('Connection lost — reconnecting…');
+    scheduleReconnect();
+  });
+  if (t.kind === 'solo') {
+    // no server behind this page: say so up front — "Enter" starts a private
+    // solo room where bots are added from the lobby, all inside this tab
+    const el = $('netMode');
+    el.textContent = '🤖 No server here — Enter opens a solo arena in this tab. Add bots in the lobby.';
+    el.classList.remove('hidden');
+  }
+  return t;
+});
 
 function connect(name) {
   joinedName = name;
   clearTimeout(reconnectTimer); reconnectTimer = null;
-  let sock;
-  try {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    sock = new WebSocket(`${proto}://${location.host}`);
-  } catch (err) { reportError('socket', err); scheduleReconnect(); return; }
-  ws = sock;
-  sock.onopen = () => { if (ws === sock) send({ t: 'join', name, avatar: myAvatar }); };
-  sock.onmessage = (ev) => {
-    if (ws !== sock) return;
-    let m;
-    try { m = JSON.parse(ev.data); } catch { return; }
-    if (!m || typeof m !== 'object') return;
-    if (m.t === 'welcome') {
-      myId = m.id;
-      snaps.length = 0; fx.length = 0; // drop state from any previous connection
-      setConnBanner(null);
-      $('join').classList.add('hidden');
-    } else if (m.t === 'snap' && m.s && typeof m.s === 'object' && m.s.players) {
-      if (m.bans != null) m.s.bans = m.bans; // server-level: lobby ban count
-      if (m.pings && typeof m.pings === 'object') m.s.pings = m.pings; // per-player RTT (ms)
-      snaps.push({ at: performance.now(), s: m.s });
-      if (snaps.length > 40) snaps.shift();
-      if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
-      window.__phase = m.s.phase; // test/debug hook
-    } else if (m.t === 'denied') {
-      toast(m.reason);
-      // kicked or banned: stop the auto-reconnect loop and show the join
-      // screen again — otherwise this tab would hammer the server forever
-      if (/kicked|banned/.test(String(m.reason || ''))) {
-        joinedName = null;
-        clearTimeout(reconnectTimer); reconnectTimer = null;
-        myId = null;
-        $('join').classList.remove('hidden');
-      }
+  transport.connect({ name, avatar: myAvatar });
+}
+
+function onMessage(m) {
+  if (m.t === 'welcome') {
+    myId = m.id;
+    snaps.length = 0; fx.length = 0; // drop state from any previous connection
+    setConnBanner(null);
+    $('join').classList.add('hidden');
+  } else if (m.t === 'snap' && m.s && typeof m.s === 'object' && m.s.players) {
+    if (m.bans != null) m.s.bans = m.bans; // server-level: lobby ban count
+    if (m.pings && typeof m.pings === 'object') m.s.pings = m.pings; // per-player RTT (ms)
+    snaps.push({ at: performance.now(), s: m.s });
+    if (snaps.length > 40) snaps.shift();
+    if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
+    window.__phase = m.s.phase; // test/debug hook
+  } else if (m.t === 'denied') {
+    toast(m.reason);
+    // kicked or banned: stop the auto-reconnect loop and show the join
+    // screen again — otherwise this tab would hammer the server forever
+    if (/kicked|banned/.test(String(m.reason || ''))) {
+      joinedName = null;
+      clearTimeout(reconnectTimer); reconnectTimer = null;
+      myId = null;
+      $('join').classList.remove('hidden');
     }
-  };
-  sock.onerror = () => {}; // close always follows; handled there
-  sock.onclose = () => {
-    if (ws !== sock) return;
-    setConnBanner('Connection lost — reconnecting…');
-    scheduleReconnect();
-  };
+  }
 }
 
 function scheduleReconnect() {
@@ -164,7 +172,7 @@ function scheduleReconnect() {
   }, 2000);
 }
 
-function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function send(obj) { if (transport) transport.send(obj); }
 
 // Floating popups (damage, +1 g, lifesteal, frost pips…) that arrive at the SAME
 // spot in the SAME frame must read as N events, not one. Exactly overlapping
@@ -456,11 +464,12 @@ window.addEventListener('keydown', (e) => {
 // ---- join / lobby / shop DOM ------------------------------------------------------
 
 $('name').value = localStorage.getItem('warlockName') || '';
-function doJoin() {
+async function doJoin() {
   initSfx(); // user gesture: the earliest moment browsers allow audio
   initMusic(); // same gesture unlocks the soundtrack
   const name = $('name').value.trim() || 'warlock';
   localStorage.setItem('warlockName', name);
+  await transportP; // selection may still be probing /health on a fast click
   connect(name);
 }
 $('joinBtn').addEventListener('click', doJoin);
