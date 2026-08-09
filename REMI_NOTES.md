@@ -6,6 +6,55 @@ dictation. Built by sequential focused subagents, each change one commit.
 chromium+webkit robustness, reconnect e2e, arena sanity, and the new
 static-solo test). Pull, restart the server, hard-refresh everyone.*
 
+## ROUND 19.2 — the playtest batch (all pushed)
+
+- **Gale buffed hard**: fireball push +10/20/30 by level, gust +30/60/90
+  flat. Cape: knockback taken ×0.88/0.78/0.70 (starts at your −12%).
+- **Switcheroo (ex-Swap) 🎭**: renamed, and it now STUNS THE VICTIM 1 s
+  after the trade (you stay free — that is the combo window; honest note:
+  the stun was in your original dictation's garbled section, so it only
+  landed now that you asked). Name/icon brainstorm if 🎭 Switcheroo isn't
+  it: Castling ♟️ (chess castle-swap), Trickster's Trade 🃏, Uno Reverse 🔄,
+  Doppel 👥, Hexchange 🪄. One line to apply any.
+- **Shop 2.0, your minimal-text doctrine**: cards are icon + name + cost
+  (+ key chip on spells) — everything else lives on hover (short line,
+  mechanism sentence, FULL per-level table, next-level line). Spells sit in
+  three quiet edge-labelled rows: Offense / Defense / Special; elements one
+  row, mutations one, items one. Every desc/long rewritten: one line, no
+  emoji in text, no em dashes, no flavor clauses; your dictated lines used
+  verbatim. Stats tables never leave cells empty (range 45/45/45, Bomb
+  shows push 0/0/0).
+- **Rebind rule, your fix**: a conflicting key only denies when the other
+  spell is OWNED this game; unowned spells swap keys automatically with a
+  toast saying what swapped.
+- **Meteor now falls**: a rock streaks down over the delay with an ember
+  trail — the impact reads instead of popping.
+- **Bots**: unchanged since 19.1 (never stop shopping).
+
+### 🌐 Browser hosting is FEATURE-COMPLETE for hosting (phase B merged)
+
+From the static page: **📡 Host online** → you get a 5-letter room code and
+a copy-invite link; friends open the link and land in your lobby over
+WebRTC — no game server anywhere. The host tab shows "You are the server —
+keep this tab open" (your accepted price). The signalling relay
+(`npm run signal`, ~100 lines, zero game logic) is only needed for the
+handshake: the e2e KILLS it mid-battle and the game doesn't blink.
+Verified end-to-end headless: two browsers, one hosts, one joins by link, a
+real round plays (`test/rtc-host.js`).
+
+**Your two clicks to go fully live**: (1) repo Settings → Pages → deploy
+main/root (that's solo play + hosting UI on a public link); (2) a public
+home for the relay — options in
+`docs/history/2026-08-09-browser-hosting-phaseB.md`. Until then hosting
+works anywhere a relay runs (`?signal=` or `npm run signal`).
+
+Known trade-offs, all documented in the history file: STUN-only (a friend
+behind a weird carrier NAT may fail to connect, with a plain message), no
+ping badges on the RTC path yet, journal becomes an in-memory download
+button, host migration (host closes tab = game over) is designed but not
+built — the protocol blockers were cleared (deterministic engine
+serialization landed), it's one focused session away if you want it.
+
 ## ROUND 19.1 — your morning feedback, all applied
 
 - **Mirror wall reverted to projectiles-only** — you were right, the

@@ -86,10 +86,11 @@ build step, Node ESM, only dep is `ws`.
 | `shared/campaign.js` | co-op campaign: 10 levels as pure data. Levels are data, never code |
 | `shared/engine.js` | the authoritative ROOM behind a transport seam (round 19): seating, wire switch, ghosts, bans, snapshots. Node server AND the in-tab solo mode both run it |
 | `server/index.js` | now an ADAPTER over engine.js: http, `/health`, ws + heartbeat/RTT pings, JSONL journal, IP bans |
-| `client/transport.js` | ws + solo transports behind one seam (`?mode=solo|server`, else /health probe). Phase B (WebRTC hosting) plugs in here — gate + handoff: `docs/history/2026-08-09-browser-hosting-phaseA.md` |
+| `client/transport.js` | ws + solo + RTC transports behind one seam (`?mode=`, `#r=CODE`, else /health probe). Hosting record: `docs/history/2026-08-09-browser-hosting-phaseB.md` |
+| `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 281 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 294 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -183,7 +184,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 281 green
+npx vitest run                                   # 294 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
