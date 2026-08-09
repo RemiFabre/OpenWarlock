@@ -1,0 +1,302 @@
+// The ELO-tournament strategy roster (docs/ARCHETYPES.md is GENERATED from
+// this file — edit HERE, then `node tools/roster.js --doc` to regenerate).
+// Remi's design goals (2026-08-09): level-explicit cores; every core costs a
+// bit MORE than the ~145 g an average seat earns in a full game (measured:
+// 13.1 rounds, 9.8 kills), so the uncontrolled everything-else tail almost
+// never runs; families isolate systems (items vs elements vs mutations vs
+// spells, depth vs breadth, spell scaling).
+//
+//   node tools/roster.js          — cost check table (every core, gold total)
+//   node tools/roster.js --doc    — print the ARCHETYPES.md markdown
+//
+// core entries are [key, level] pairs: ['frost', 2] = "buy frost UP TO lv2
+// here" — the runner expands to one buy per level step. Bots fall into the
+// study's shared exhaust tail after the core (see tools/strategy-study.js),
+// and only into the in-game random fallback once even that is maxed.
+
+import { SPELLS, ELEMENTS, ITEMS, itemCost } from '../shared/constants.js';
+
+const AVG_EARNED = 145; // measured 2026-08-09, seed 1000-1039, 4 Hard seats
+export const COST_TARGET = [150, 185]; // core must land in this band
+
+// cost of buying `key` from level (from) to level (to), exclusive-from
+function stepCost(key, from, to) {
+  let c = 0;
+  for (let l = from; l < to; l++) {
+    if (SPELLS[key]) c += SPELLS[key].costs[l];
+    else if (ELEMENTS[key]) c += ELEMENTS[key].costs[l];
+    else if (ITEMS[key]) c += itemCost(key, l);
+    else throw new Error(`unknown key ${key}`);
+  }
+  return c;
+}
+
+export function coreCost(core) {
+  const lv = {};
+  let total = 0;
+  for (const [key, to] of core) {
+    total += stepCost(key, lv[key] || 0, to);
+    lv[key] = to;
+  }
+  return total;
+}
+
+// expand [key, level] pairs into the study's one-buy-per-entry list
+export function expandCore(core) {
+  const lv = {};
+  const out = [];
+  for (const [key, to] of core) {
+    for (let l = lv[key] || 0; l < to; l++) out.push(key);
+    lv[key] = to;
+  }
+  return out;
+}
+
+// Auto-pad: append filler levels (neutral staples, fixed order) until the
+// core enters the cost band — so hand-edited cores stay in spec without
+// bookkeeping. Purity probes (noPad) are exempt: their shelf EXHAUSTS below
+// the band, which is itself a finding, stated in the doc.
+const FILLER = ['sword', 'amulet', 'boots', 'cape', 'treads', 'hourglass', 'echo'];
+export function paddedCore(entry) {
+  if (entry.noPad) return entry.core;
+  const core = entry.core.map(x => [...x]);
+  const lv = {};
+  for (const [k, to] of core) lv[k] = Math.max(lv[k] || 0, to);
+  let guard = 40;
+  while (coreCost(core) < COST_TARGET[0] && guard-- > 0) {
+    let done = true;
+    for (const k of FILLER) {
+      const max = ITEMS[k].maxLevel;
+      if ((lv[k] || 0) < max) {
+        lv[k] = (lv[k] || 0) + 1;
+        core.push([k, lv[k]]);
+        done = false;
+        break;
+      }
+    }
+    if (done) break; // every filler maxed — shelf exhaustion
+  }
+  return core;
+}
+
+export const ROSTER = {
+  // ---- Family A: system purity — price each shelf as a class --------------
+  'A1-items-sustain': {
+    family: 'A', fantasy: "The item shelf's best self: HP and lifesteal only.",
+    tests: 'items as a class (sustain half) vs the element families',
+    core: [['amulet', 1], ['sword', 1], ['amulet', 2], ['sword', 2],
+      ['amulet', 3], ['sword', 3], ['cape', 2], ['hourglass', 2], ['boots', 3]],
+  },
+  'A2-items-mobility': {
+    family: 'A', fantasy: "The item shelf's utility half: speed, lava, armor.",
+    tests: 'items as a class (mobility half)',
+    core: [['boots', 1], ['treads', 1], ['boots', 2], ['cape', 1], ['boots', 3],
+      ['treads', 2], ['cape', 2], ['treads', 3], ['cape', 3], ['hourglass', 3], ['echo', 1]],
+  },
+  'A3-elements-only': {
+    family: 'A', noPad: true, fantasy: 'Pure fireball stat scaling, zero items.',
+    tests: 'the stat-element shelf as a class',
+    core: [['ember', 2], ['arcane', 1], ['gale', 1], ['terra', 1], ['ghost', 1],
+      ['ember', 3], ['arcane', 2], ['gale', 2], ['terra', 2], ['ghost', 2], ['arcane', 3], ['terra', 3], ['ghost', 3], ['gale', 3]],
+  },
+  'A4-mutations-only': {
+    family: 'A', noPad: true, fantasy: 'Pure behavior-changers, zero items or stat axes.',
+    tests: 'the mutation shelf as a class',
+    core: [['anger', 1], ['frost', 1], ['anger', 2], ['frost', 2], ['anger', 3],
+      ['frost', 3], ['malady', 2], ['midas', 1], ['malady', 3], ['mosquito', 3], ['midas', 3]],
+  },
+  'A5-spells-only': {
+    family: 'A', noPad: true, fantasy: 'The kit shelf as a class: buttons, no elements.',
+    tests: 'spells as a class',
+    core: [['lightning', 1], ['boomerang', 1], ['rush', 1], ['shield', 1],
+      ['lightning', 2], ['boomerang', 2], ['lightning', 3], ['shield', 2],
+      ['boomerang', 3], ['rush', 2], ['teleport', 2]],
+  },
+  'A6-no-elements': {
+    family: 'A', fantasy: 'Items + spells, elements refused: prices the element shelf by absence.',
+    tests: 'control: what skipping elements costs',
+    core: [['amulet', 1], ['sword', 1], ['boots', 1], ['lightning', 1],
+      ['amulet', 2], ['sword', 2], ['boomerang', 1], ['cape', 1], ['treads', 1],
+      ['hourglass', 1], ['amulet', 3], ['sword', 3], ['lightning', 2], ['boots', 2]],
+  },
+
+  // ---- Family B: depth vs breadth, per system ------------------------------
+  'B1-element-depth': {
+    family: 'B', fantasy: 'Rush two stat axes to max before anything else.',
+    tests: 'depth (vs B2) for stat elements',
+    core: [['ember', 3], ['arcane', 3], ['sword', 1], ['amulet', 1],
+      ['sword', 2], ['amulet', 2], ['gale', 1], ['sword', 3], ['amulet', 3], ['boots', 1]],
+  },
+  'B2-element-breadth': {
+    family: 'B', fantasy: 'Level 1 of every stat axis before any level 2.',
+    tests: 'breadth (vs B1) for stat elements',
+    core: [['ember', 1], ['terra', 1], ['arcane', 1], ['gale', 1], ['ghost', 1],
+      ['ember', 2], ['terra', 2], ['arcane', 2], ['gale', 2], ['ghost', 2],
+      ['ember', 3], ['sword', 2], ['amulet', 2], ['terra', 3]],
+  },
+  'B3-mutation-depth': {
+    family: 'B', fantasy: 'Max one mutation immediately (anger, the scaler).',
+    tests: 'depth (vs B4) for mutations',
+    core: [['anger', 3], ['amulet', 1], ['sword', 1], ['amulet', 2],
+      ['sword', 2], ['amulet', 3], ['sword', 3], ['boots', 2], ['cape', 1]],
+  },
+  'B4-mutation-breadth': {
+    family: 'B', fantasy: 'One level of five mutations: does cross-synergy beat depth?',
+    tests: 'breadth (vs B3) for mutations + cross-mutation synergy',
+    core: [['anger', 1], ['frost', 1], ['midas', 1], ['malady', 1], ['mosquito', 1],
+      ['anger', 2], ['frost', 2], ['midas', 2], ['malady', 2], ['anger', 3], ['sword', 2], ['amulet', 1]],
+  },
+  'B5-item-depth': {
+    family: 'B', fantasy: 'Max the two best items before touching the rest.',
+    tests: 'depth (vs B6) for items',
+    core: [['sword', 3], ['amulet', 3], ['boots', 1], ['boots', 2],
+      ['cape', 1], ['treads', 1], ['boots', 3], ['cape', 2], ['hourglass', 1]],
+  },
+  'B6-item-breadth': {
+    family: 'B', fantasy: 'One of everything before any second level (the round-15 champion).',
+    tests: 'breadth (vs B5) for items, post-reworks',
+    core: [['sword', 1], ['amulet', 1], ['boots', 1], ['cape', 1], ['treads', 1],
+      ['hourglass', 1], ['echo', 1], ['sword', 2], ['amulet', 2], ['boots', 2],
+      ['cape', 2], ['treads', 2], ['hourglass', 2], ['echo', 2]],
+  },
+
+  // ---- Family C: spell-scaling probes --------------------------------------
+  'C1-bolt-rush': {
+    family: 'C', fantasy: 'Max one spell immediately: is spell depth worth 22 g?',
+    tests: 'spell depth (vs C2, its control)',
+    core: [['lightning', 3], ['hourglass', 2], ['amulet', 1], ['sword', 1],
+      ['amulet', 2], ['sword', 2], ['hourglass', 3], ['amulet', 3], ['sword', 3], ['boots', 1]],
+  },
+  'C2-bolt-splash': {
+    family: 'C', fantasy: 'Spell lv1 as a tool, stats do the killing.',
+    tests: 'the control for C1: same shell, minimum spell investment',
+    core: [['lightning', 1], ['ember', 2], ['amulet', 1], ['sword', 1],
+      ['ember', 3], ['amulet', 2], ['sword', 2], ['arcane', 2], ['amulet', 3], ['sword', 3], ['boots', 1]],
+  },
+  'C3-kit-width': {
+    family: 'C', fantasy: 'Five buttons at lv1: is width its own power?',
+    tests: 'kit width vs C1 depth',
+    core: [['lightning', 1], ['boomerang', 1], ['shield', 1], ['teleport', 1],
+      ['rush', 1], ['ember', 2], ['sword', 1], ['amulet', 1], ['ember', 3],
+      ['sword', 2], ['amulet', 2], ['boots', 2]],
+  },
+  'C4-boomerang-main': {
+    family: 'C', fantasy: 'The forgotten spell, maxed: does anything justify boomerang lv3?',
+    tests: 'boomerang scaling',
+    core: [['boomerang', 3], ['ember', 2], ['sword', 1], ['amulet', 1],
+      ['ember', 3], ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3], ['boots', 1], ['hourglass', 1]],
+  },
+  'C5-meteor-value': {
+    family: 'C', fantasy: 'The 2 s stun is a landing pad for the rock.',
+    tests: 'meteor priced against C6 (same shell, cheaper bolt)',
+    core: [['frost', 3], ['meteor', 1], ['amulet', 1], ['meteor', 2],
+      ['sword', 1], ['amulet', 2], ['sword', 2], ['terra', 2], ['amulet', 3], ['boots', 1]],
+  },
+  'C6-bolt-combo': {
+    family: 'C', fantasy: 'The Chainer: freeze, bolt, shove, repeat (the live lobby build).',
+    tests: 'lightning in the same CC shell as C5',
+    core: [['frost', 1], ['lightning', 1], ['gale', 1], ['mosquito', 1],
+      ['frost', 2], ['lightning', 2], ['gale', 2], ['mosquito', 2],
+      ['frost', 3], ['lightning', 3], ['gale', 3], ['mosquito', 3], ['sword', 1], ['amulet', 1]],
+  },
+
+  // ---- Family D: play-style archetypes --------------------------------------
+  'D1-warlord': {
+    family: 'D', fantasy: 'No tricks, bigger numbers: win every straight trade.',
+    tests: "ember's dominance + sword-by-structure (question L) in one kit",
+    core: [['ember', 2], ['sword', 1], ['amulet', 1], ['ember', 3],
+      ['sword', 2], ['amulet', 2], ['arcane', 2], ['sword', 3], ['amulet', 3], ['boots', 2], ['cape', 1]],
+  },
+  'D2-executioner': {
+    family: 'D', fantasy: 'The mark appears, someone dies: build entirely around claiming.',
+    tests: "anger's claim rate when built for the chase (question K's missing half)",
+    core: [['anger', 1], ['boots', 1], ['anger', 2], ['ghost', 1], ['anger', 3],
+      ['boots', 2], ['ghost', 2], ['sword', 1], ['boots', 3], ['ghost', 3], ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3]],
+  },
+  'D3-tycoon': {
+    family: 'D', fantasy: 'Every hit pays, the amplifier doubles the payroll.',
+    tests: 'mosquito-as-gold-amp + midas with real shopping depth (question E)',
+    core: [['midas', 1], ['mosquito', 1], ['midas', 2], ['hourglass', 1],
+      ['midas', 3], ['mosquito', 2], ['sword', 1], ['amulet', 1], ['sword', 2],
+      ['amulet', 2], ['sword', 3], ['boots', 1]],
+  },
+  'D4-leech': {
+    family: 'D', fantasy: 'Every 5th ball is a feast, and the trap volley speeds the count.',
+    tests: 'the vampire×mosquito cast-counting ruling; sustain stacking',
+    core: [['vampire', 2], ['mosquito', 1], ['sword', 1], ['vampire', 3],
+      ['mosquito', 2], ['amulet', 1], ['sword', 2], ['amulet', 2], ['mosquito', 3], ['sword', 3], ['amulet', 3]],
+  },
+  'D5-plaguebearer': {
+    family: 'D', fantasy: 'Wade into the pack; everyone leaves sick.',
+    tests: 'contagion value (the lab is blind to it — this is the human entry)',
+    core: [['malady', 2], ['terra', 1], ['treads', 1], ['malady', 3],
+      ['terra', 2], ['amulet', 1], ['treads', 2], ['terra', 3], ['amulet', 2], ['sword', 2], ['amulet', 3]],
+  },
+  'D6-sumo': {
+    family: 'D', fantasy: "Never mind damage: you fly, I don't.",
+    tests: "today's gale buff vs cape buff, head-on; lava economics",
+    core: [['gale', 1], ['cape', 1], ['gale', 2], ['boots', 1], ['gale', 3],
+      ['cape', 2], ['treads', 1], ['cape', 3], ['boots', 2], ['treads', 2], ['amulet', 2], ['boots', 3]],
+  },
+  'D7-stormcaller': {
+    family: 'D', fantasy: 'The kit never stops: bolt on cooldown, refund on every hit.',
+    tests: 'question M: is a dedicated cadence build viable-but-honest?',
+    core: [['arcane', 2], ['lightning', 1], ['arcane', 3], ['hourglass', 1],
+      ['lightning', 2], ['hourglass', 2], ['lightning', 3], ['hourglass', 3],
+      ['echo', 1], ['amulet', 2], ['sword', 1]],
+  },
+  'D8-juggernaut': {
+    family: 'D', fantasy: 'Outlive everyone; the ring does the killing.',
+    tests: 'question H: the offense-first meta, probed by its opposite',
+    core: [['amulet', 1], ['cape', 1], ['treads', 1], ['amulet', 2], ['sword', 1],
+      ['cape', 2], ['amulet', 3], ['sword', 2], ['treads', 2], ['cape', 3], ['sword', 3], ['treads', 3]],
+  },
+  'D9-phantom': {
+    family: 'D', fantasy: 'One line, three victims.',
+    tests: 'ghost lv3 pierce value under bot aim (floor read, stated)',
+    core: [['ghost', 2], ['ember', 2], ['ghost', 3], ['ember', 3],
+      ['sword', 1], ['amulet', 1], ['sword', 2], ['amulet', 2]],
+  },
+  'D10-skirmisher': {
+    family: 'D', fantasy: 'Mobility wins fights: dash in, blink out.',
+    tests: 'the mobility-spell package (rush+blink) as a fighting style',
+    core: [['boots', 1], ['rush', 1], ['ember', 1], ['teleport', 1], ['ember', 2],
+      ['boots', 2], ['shield', 1], ['ember', 3], ['rush', 2], ['sword', 2], ['amulet', 2], ['boots', 3]],
+  },
+};
+
+// ---- cost check + doc generation -------------------------------------------
+const [lo, hi] = COST_TARGET;
+if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
+  if (process.argv.includes('--doc')) {
+    let out = `# Strategy roster — GENERATED from tools/roster.js (edit there, \`node tools/roster.js --doc\`)\n\n`;
+    out += `**Goal**: mass AI games, ELO per strategy (random 4-strategy lobbies, Elo fitted from placements).\n`;
+    out += `**Core cost target**: ${lo}-${hi} g — a bit above the ~${AVG_EARNED} g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.\n`;
+    out += `**After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.\n`;
+    out += `**Fireball**: free at lv1 for everyone in elemental, never levels — not listed.\n`;
+    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow). Bomb, Switcheroo, vanish, pillar, wall, repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
+    let fam = '';
+    for (const [id, s] of Object.entries(ROSTER)) {
+      if (s.family !== fam) {
+        fam = s.family;
+        const titles = { A: 'Family A — system purity (price each shelf as a class)',
+          B: 'Family B — depth vs breadth, per system',
+          C: 'Family C — spell-scaling probes',
+          D: 'Family D — play-style archetypes' };
+        out += `\n## ${titles[fam]}\n\n`;
+      }
+      const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
+      const padded = paddedCore(s);
+      out += `- **${id}** (${coreCost(padded)} g${s.noPad ? ', shelf exhausts here BY DESIGN' : ''}): ${s.fantasy}\n`;
+      out += `  - order: ${order(padded)}\n`;
+      out += `  - tests: ${s.tests}\n`;
+    }
+    console.log(out);
+  } else {
+    for (const [id, s] of Object.entries(ROSTER)) {
+      const c = coreCost(paddedCore(s));
+      const flag = s.noPad ? '  (pure shelf, exempt)' : c < lo ? '  ⚠ UNDER' : c > hi ? '  ⚠ OVER' : '';
+      console.log(`${String(c).padStart(4)} g  ${id}${flag}`);
+    }
+  }
+}

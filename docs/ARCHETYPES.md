@@ -1,100 +1,105 @@
-# Strategy roster — draft 2 for Remi's iteration (2026-08-09)
+# Strategy roster — GENERATED from tools/roster.js (edit there, `node tools/roster.js --doc`)
 
-**The goal**: agree on a large roster, then run mass AI games and fit an
-**ELO score per strategy** (I'll extend tools/strategy-study.js: random
-4-strategy lobbies, Elo fitted from placements — pairwise, not just win%).
-Players will later get a curated subset; the roster itself is a measuring
-instrument, so MANY entries are fine when each isolates something.
+**Goal**: mass AI games, ELO per strategy (random 4-strategy lobbies, Elo fitted from placements).
+**Core cost target**: 150-185 g — a bit above the ~145 g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.
+**After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.
+**Fireball**: free at lv1 for everyone in elemental, never levels — not listed.
+**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow). Bomb, Switcheroo, vanish, pillar, wall, repulse are NOT pilotable and are excluded from the ELO pool.
 
-**Notation**: `frost1` = buy frost to level 1; `frost2` = the next level.
-Every entry lists the exact buy sequence with levels. After the listed core,
-every strategy falls into the same shared everything-else tail (so late-game
-convergence is identical and differences come from the core alone).
-Elemental mode: everyone starts with fireball lv1 for free (it never levels)
-— it is not listed.
-
-**Spells the AI can pilot** (only these may appear in a roster entry):
-lightning, boomerang, rush, shield, blink, and meteor (CC-gated: bots only
-cast it into a frost stun/heavy slow). NOT pilotable today: Bomb, Switcheroo,
-vanish, pillar, wall, repulse — strategies using those can't enter the ELO
-pool and live in a small human-only annex at the bottom.
-
-**Your hypothesis under test**: items < elements/mutations, and spell scaling
-is unpriced. Family A prices whole systems, family B prices depth-vs-breadth
-inside each system, family C prices spell scaling directly, family D are the
-play-style archetypes.
-
----
 
 ## Family A — system purity (price each shelf as a class)
 
-- **A1 items-sustain**: amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → cape1 → cape2
-  — the item shelf's best self (bot-measured strongest items).
-- **A2 items-mobility**: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3
-  — the item shelf's utility half.
-- **A3 elements-only** (stat axes): ember1 → ember2 → arcane1 → gale1 → terra1 → ghost1 → ember3 → arcane2 → gale2
-  — pure fireball-stat scaling, zero items.
-- **A4 mutations-only**: anger1 → frost1 → anger2 → frost2 → anger3 → frost3 → malady1 → malady2
-  — pure behavior-changers, zero items/stat-axes.
-- **A5 spells-only**: lightning1 → boomerang1 → rush1 → shield1 → lightning2 → boomerang2 → lightning3 → shield2
-  — the kit shelf as a class (no elements at all).
-- **A6 no-elements control** (already in the study): items + spells, elements refused — prices the element shelf by absence.
+- **A1-items-sustain** (153 g): The item shelf's best self: HP and lifesteal only.
+  - order: amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → cape2 → hourglass2 → boots3
+  - tests: items as a class (sustain half) vs the element families
+- **A2-items-mobility** (153 g): The item shelf's utility half: speed, lava, armor.
+  - order: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3 → cape3 → hourglass3 → echo1 → sword1
+  - tests: items as a class (mobility half)
+- **A3-elements-only** (104 g, shelf exhausts here BY DESIGN): Pure fireball stat scaling, zero items.
+  - order: ember2 → arcane1 → gale1 → terra1 → ghost1 → ember3 → arcane2 → gale2 → terra2 → ghost2 → arcane3 → terra3 → ghost3 → gale3
+  - tests: the stat-element shelf as a class
+- **A4-mutations-only** (130 g, shelf exhausts here BY DESIGN): Pure behavior-changers, zero items or stat axes.
+  - order: anger1 → frost1 → anger2 → frost2 → anger3 → frost3 → malady2 → midas1 → malady3 → mosquito3 → midas3
+  - tests: the mutation shelf as a class
+- **A5-spells-only** (96 g, shelf exhausts here BY DESIGN): The kit shelf as a class: buttons, no elements.
+  - order: lightning1 → boomerang1 → rush1 → shield1 → lightning2 → boomerang2 → lightning3 → shield2 → boomerang3 → rush2 → teleport2
+  - tests: spells as a class
+- **A6-no-elements** (159 g): Items + spells, elements refused: prices the element shelf by absence.
+  - order: amulet1 → sword1 → boots1 → lightning1 → amulet2 → sword2 → boomerang1 → cape1 → treads1 → hourglass1 → amulet3 → sword3 → lightning2 → boots2
+  - tests: control: what skipping elements costs
 
-## Family B — depth vs breadth (inside each system)
+## Family B — depth vs breadth, per system
 
-- **B1 element-depth**: ember1 → ember2 → ember3 → arcane1 → arcane2 → arcane3 → sword1 → amulet1
-- **B2 element-breadth**: ember1 → terra1 → arcane1 → gale1 → ghost1 → ember2 → terra2 → arcane2
-  — B1 vs B2 answers "rush lv3 or spread lv1s?" for stat elements.
-- **B3 mutation-depth**: anger1 → anger2 → anger3 → amulet1 → sword1 → amulet2 → sword2
-- **B4 mutation-breadth**: anger1 → frost1 → midas1 → malady1 → mosquito1 → anger2 → frost2
-  — same question for mutations (breadth here also tests cross-mutation synergy).
-- **B5 item-depth**: sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots1
-- **B6 item-breadth**: sword1 → amulet1 → boots1 → cape1 → treads1 → hourglass1 → sword2 → amulet2
-  — re-tests the round-15 "breadth beats depth" finding post-reworks.
+- **B1-element-depth** (150 g): Rush two stat axes to max before anything else.
+  - order: ember3 → arcane3 → sword1 → amulet1 → sword2 → amulet2 → gale1 → sword3 → amulet3 → boots1 → boots2
+  - tests: depth (vs B2) for stat elements
+- **B2-element-breadth** (153 g): Level 1 of every stat axis before any level 2.
+  - order: ember1 → terra1 → arcane1 → gale1 → ghost1 → ember2 → terra2 → arcane2 → gale2 → ghost2 → ember3 → sword2 → amulet2 → terra3 → sword3 → amulet3
+  - tests: breadth (vs B1) for stat elements
+- **B3-mutation-depth** (161 g): Max one mutation immediately (anger, the scaler).
+  - order: anger3 → amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → boots2 → cape1 → boots3 → cape2
+  - tests: depth (vs B4) for mutations
+- **B4-mutation-breadth** (159 g): One level of five mutations: does cross-synergy beat depth?
+  - order: anger1 → frost1 → midas1 → malady1 → mosquito1 → anger2 → frost2 → midas2 → malady2 → anger3 → sword2 → amulet1 → sword3 → amulet2
+  - tests: breadth (vs B3) for mutations + cross-mutation synergy
+- **B5-item-depth** (155 g): Max the two best items before touching the rest.
+  - order: sword3 → amulet3 → boots1 → boots2 → cape1 → treads1 → boots3 → cape2 → hourglass1
+  - tests: depth (vs B6) for items
+- **B6-item-breadth** (168 g): One of everything before any second level (the round-15 champion).
+  - order: sword1 → amulet1 → boots1 → cape1 → treads1 → hourglass1 → echo1 → sword2 → amulet2 → boots2 → cape2 → treads2 → hourglass2 → echo2
+  - tests: breadth (vs B5) for items, post-reworks
 
-## Family C — spell scaling probes (your "no idea how to scale spells")
+## Family C — spell-scaling probes
 
-- **C1 bolt-rush**: lightning1 → lightning2 → lightning3 → hourglass1 → hourglass2 → amulet1 → sword1
-  — max one spell immediately: is spell depth worth 22 g?
-- **C2 bolt-splash**: lightning1 → ember1 → ember2 → amulet1 → sword1 → lightning2 → ember3
-  — spell lv1 as a tool, stats do the killing (the control for C1).
-- **C3 kit-width**: lightning1 → boomerang1 → shield1 → blink1 → rush1 → ember1 → ember2
-  — five buttons at lv1: is width its own power? (vs C1's depth)
-- **C4 boomerang-main**: boomerang1 → boomerang2 → boomerang3 → ember1 → ember2 → sword1 → amulet1
-  — the forgotten spell, maxed: does anything justify boomerang3?
-- **C5 meteor-value**: frost1 → frost2 → frost3 → meteor1 → amulet1 → meteor2 → sword1
-  — meteor priced against C6 (identical shell, cheaper bolt).
-- **C6 bolt-combo** (= old combo-bolt): frost1 → lightning1 → gale1 → mosquito1 → frost2 → lightning2 → gale2 → mosquito2 → frost3 → lightning3
-  — the Chainer order, level-explicit.
+- **C1-bolt-rush** (159 g): Max one spell immediately: is spell depth worth 22 g?
+  - order: lightning3 → hourglass2 → amulet1 → sword1 → amulet2 → sword2 → hourglass3 → amulet3 → sword3 → boots1 → boots2 → boots3
+  - tests: spell depth (vs C2, its control)
+- **C2-bolt-splash** (160 g): Spell lv1 as a tool, stats do the killing.
+  - order: lightning1 → ember2 → amulet1 → sword1 → ember3 → amulet2 → sword2 → arcane2 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1
+  - tests: the control for C1: same shell, minimum spell investment
+- **C3-kit-width** (157 g): Five buttons at lv1: is width its own power?
+  - order: lightning1 → boomerang1 → shield1 → teleport1 → rush1 → ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → boots2 → sword3
+  - tests: kit width vs C1 depth
+- **C4-boomerang-main** (159 g): The forgotten spell, maxed: does anything justify boomerang lv3?
+  - order: boomerang3 → ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → sword3 → amulet3 → boots1 → hourglass1 → boots2 → boots3
+  - tests: boomerang scaling
+- **C5-meteor-value** (150 g): The 2 s stun is a landing pad for the rock.
+  - order: frost3 → meteor1 → amulet1 → meteor2 → sword1 → amulet2 → sword2 → terra2 → amulet3 → boots1 → sword3
+  - tests: meteor priced against C6 (same shell, cheaper bolt)
+- **C6-bolt-combo** (157 g): The Chainer: freeze, bolt, shove, repeat (the live lobby build).
+  - order: frost1 → lightning1 → gale1 → mosquito1 → frost2 → lightning2 → gale2 → mosquito2 → frost3 → lightning3 → gale3 → mosquito3 → sword1 → amulet1 → sword2 → sword3
+  - tests: lightning in the same CC shell as C5
 
-## Family D — play-style archetypes (cross-system, the fun ones)
+## Family D — play-style archetypes
 
-- **D1 Warlord** (raw trades): ember1 → ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → arcane1
-- **D2 Executioner** (mark hunter): anger1 → boots1 → anger2 → ghost1 → anger3 → boots2 → ghost2 → sword1
-- **D3 Tycoon** (income engine): midas1 → mosquito1 → midas2 → hourglass1 → midas3 → mosquito2 → sword1 → amulet1
-- **D4 Leech** (sustain stacking): vampire1 → vampire2 → mosquito1 → sword1 → vampire3 → mosquito2 → amulet1 → sword2
-- **D5 Plaguebearer** (crowd sickness): malady1 → terra1 → malady2 → treads1 → malady3 → terra2 → amulet1 → treads2
-- **D6 Sumo** (knockback war): gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3
-- **D7 Stormcaller** (cadence): arcane1 → arcane2 → lightning1 → arcane3 → hourglass1 → lightning2 → hourglass2 → lightning3
-- **D8 Juggernaut** (defense-first, question H): amulet1 → cape1 → treads1 → amulet2 → sword1 → cape2 → amulet3 → sword2
-- **D9 Phantom** (line sniper): ghost1 → ember1 → ghost2 → ember2 → ghost3 → ember3 → sword1 → amulet1
-- **D10 Skirmisher** (mobility fights): boots1 → rush1 → ember1 → blink1 → ember2 → boots2 → shield1 → ember3
+- **D1-warlord** (150 g): No tricks, bigger numbers: win every straight trade.
+  - order: ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → arcane2 → sword3 → amulet3 → boots2 → cape1 → boots3
+  - tests: ember's dominance + sword-by-structure (question L) in one kit
+- **D2-executioner** (160 g): The mark appears, someone dies: build entirely around claiming.
+  - order: anger1 → boots1 → anger2 → ghost1 → anger3 → boots2 → ghost2 → sword1 → boots3 → ghost3 → sword2 → amulet2 → sword3 → amulet3
+  - tests: anger's claim rate when built for the chase (question K's missing half)
+- **D3-tycoon** (155 g): Every hit pays, the amplifier doubles the payroll.
+  - order: midas1 → mosquito1 → midas2 → hourglass1 → midas3 → mosquito2 → sword1 → amulet1 → sword2 → amulet2 → sword3 → boots1 → amulet3 → boots2
+  - tests: mosquito-as-gold-amp + midas with real shopping depth (question E)
+- **D4-leech** (153 g): Every 5th ball is a feast, and the trap volley speeds the count.
+  - order: vampire2 → mosquito1 → sword1 → vampire3 → mosquito2 → amulet1 → sword2 → amulet2 → mosquito3 → sword3 → amulet3 → boots1 → boots2
+  - tests: the vampire×mosquito cast-counting ruling; sustain stacking
+- **D5-plaguebearer** (153 g): Wade into the pack; everyone leaves sick.
+  - order: malady2 → terra1 → treads1 → malady3 → terra2 → amulet1 → treads2 → terra3 → amulet2 → sword2 → amulet3 → sword3 → boots1
+  - tests: contagion value (the lab is blind to it — this is the human entry)
+- **D6-sumo** (151 g): Never mind damage: you fly, I don't.
+  - order: gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3 → boots2 → treads2 → amulet2 → boots3 → sword1
+  - tests: today's gale buff vs cape buff, head-on; lava economics
+- **D7-stormcaller** (156 g): The kit never stops: bolt on cooldown, refund on every hit.
+  - order: arcane2 → lightning1 → arcane3 → hourglass1 → lightning2 → hourglass2 → lightning3 → hourglass3 → echo1 → amulet2 → sword1 → sword2 → sword3
+  - tests: question M: is a dedicated cadence build viable-but-honest?
+- **D8-juggernaut** (157 g): Outlive everyone; the ring does the killing.
+  - order: amulet1 → cape1 → treads1 → amulet2 → sword1 → cape2 → amulet3 → sword2 → treads2 → cape3 → sword3 → treads3 → boots1
+  - tests: question H: the offense-first meta, probed by its opposite
+- **D9-phantom** (150 g): One line, three victims.
+  - order: ghost2 → ember2 → ghost3 → ember3 → sword1 → amulet1 → sword2 → amulet2 → sword3 → amulet3 → boots1 → boots2 → boots3
+  - tests: ghost lv3 pierce value under bot aim (floor read, stated)
+- **D10-skirmisher** (153 g): Mobility wins fights: dash in, blink out.
+  - order: boots1 → rush1 → ember1 → teleport1 → ember2 → boots2 → shield1 → ember3 → rush2 → sword2 → amulet2 → boots3 → sword3
+  - tests: the mobility-spell package (rush+blink) as a fighting style
 
-## Human-only annex (no ELO — you and friends in the 🧪 sandbox)
-
-- **H1 Trickster**: Switcheroo1 → treads1 → pillar1 → Switcheroo2 → vanish1 → boots1 → Switcheroo3
-- **H2 Bomber**: Bomb1 → terra1 → Bomb2 → hourglass1 → Bomb3 → ember1 → amulet1
-- **H3 Portal Rat**: boots1 → treads1 → boots2 → vanish1 → treads2 → Switcheroo1 → boots3
-
----
-
-**What the ELO run will tell us, mapped to your questions**: A1/A2 vs A3/A4
-prices items-vs-elements directly (your "items are weaker" hypothesis);
-C1 vs C2 and C3 prices spell depth; B pairs settle depth-vs-breadth per
-system. Caveat carried on every result: bots under-price reactive tools
-(shield, blink, boomerang recall) and cluster-dependent value (malady), and
-anger saturates every bot instrument — the ELO will be a ranking of what
-BOTS can extract, with those blind spots stated next to the table.
-
-Iteration marks welcome anywhere. When you bless the roster, I wire it into
-the study, build the ELO fit, and run the tournament.
