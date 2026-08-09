@@ -56,6 +56,13 @@ Agent context usage on this project is **CRITICAL**. The rules:
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
+- ⚠ **LANE NOTE (2026-08-09, ~15:00 UTC)**: a long-context session is running
+  the strategy ELO tournament (tools/elo.js over tools/roster.js, 8000 games
+  × 2 seeds, pinned at r200/45b4a48) and is CODE-FROZEN — it will only write
+  the report. New agents: work freely, but DON'T edit tools/roster.js,
+  tools/elo.js or docs/ARCHETYPES.md until the report lands, and know that
+  balance-number changes land AFTER the pinned commit (the ELO measures
+  r200's numbers).
 
 ## What this is
 
