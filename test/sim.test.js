@@ -5020,3 +5020,200 @@ describe('spawn shuffle (round 18)', () => {
     expect(mk()).toBe(mk());
   });
 });
+
+describe('nova 🧨 (fused artillery bomb — name is a placeholder)', () => {
+  const spec = SPELLS.nova;
+
+  // freshBattle + the meteor test's furniture: clean floor, parked bystander
+  function novaBattle() {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    b.x = 10; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    state.players.p2.x = 0; state.players.p2.y = -40;
+    state.players.p2.moveTarget = null;
+    return state;
+  }
+
+  it('is power-tier (the bot guard + draft filter), no minRound, costs from spec', () => {
+    expect(spec.tier).toBe('power');
+    expect(spec.minRound).toBeUndefined();
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    const a = state.players.p0;
+    a.gold = 999;
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const g0 = a.gold;
+      expect(buy(state, 'p0', 'nova').ok).toBe(true);
+      expect(a.spells.nova).toBe(level);
+      expect(g0 - a.gold).toBe(spec.costs[level - 1]);
+    }
+    expect(buy(state, 'p0', 'nova').ok).toBeFalsy(); // max level wall
+  });
+
+  it('cast starts the spec cooldown for the owned level', () => {
+    const state = novaBattle();
+    const a = state.players.p0;
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      a.spells.nova = level;
+      a.cooldowns = {};
+      expect(castSpell(state, 'p0', 'nova', 20, 0)).toBe(true);
+      expect(a.cooldowns.nova).toBeCloseTo(spec.cooldown[level - 1], 5);
+    }
+  });
+
+  it('orb travels straight at spec speed and parks at the clicked point', () => {
+    const state = novaBattle();
+    state.players.p0.spells.nova = 1;
+    state.players.p1.y = -30; // off the flight path for this one
+    castSpell(state, 'p0', 'nova', 20, 0);
+    expect(state.novas.length).toBe(1);
+    const n = state.novas[0];
+    run(state, 0.3);
+    expect(n.x).toBeCloseTo(spec.speed * 0.3, 0); // en route, on the line
+    expect(n.y).toBeCloseTo(0, 5);
+    run(state, 0.6); // 20 u at speed 26 ≈ 0.77 s: parked now, fuse burning
+    expect(n.x).toBeCloseTo(20, 5);
+    expect(n.y).toBeCloseTo(0, 5);
+    expect(n.t).toBeGreaterThan(0);
+  });
+
+  it('a click beyond max range clamps the stop point to spec.range', () => {
+    const state = novaBattle();
+    state.players.p0.spells.nova = 1;
+    castSpell(state, 'p0', 'nova', 100, 0);
+    expect(state.novas[0].tx).toBeCloseTo(spec.range, 5);
+    expect(state.novas[0].ty).toBeCloseTo(0, 5);
+  });
+
+  it('flies OVER a body, a pillar and an enemy mirror wall without popping', () => {
+    const state = novaBattle();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    // all three obstacles sit ON the flight path to (20, 0)
+    state.pillars.push({ x: 14, y: 0, r: 2.2, sunk: false });
+    state.walls.push({ x1: 16, y1: -4, x2: 16, y2: 4, nx: -1, ny: 0,
+      owner: 'p1', until: state.time + 60 });
+    castSpell(state, 'p0', 'nova', 20, 0);
+    run(state, 0.6); // orb has crossed body (10), pillar (14) and wall (16)
+    expect(state.novas.length).toBe(1);
+    expect(state.novas[0].x).toBeGreaterThan(14);
+    expect(b.hp).toBe(b.maxHp); // brushed past, no en-route hit
+    run(state, 1);  // blast at (20,0): b at 10 is outside radius + his body
+    expect(state.novas.length).toBe(0);
+    expect(b.hp).toBe(b.maxHp);
+  });
+
+  it('explodes after the fuse, not before', () => {
+    const state = novaBattle();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    b.x = 12; // inside the lv1 blast around (10, 0)
+    castSpell(state, 'p0', 'nova', 10, 0);
+    const travel = 10 / spec.speed;
+    run(state, travel + spec.fuse * 0.5); // parked, fuse only half burnt
+    expect(state.novas.length).toBe(1);
+    expect(b.hp).toBe(b.maxHp);
+    run(state, spec.fuse); // fuse done somewhere in here
+    expect(state.novas.length).toBe(0);
+    expect(b.hp).toBeLessThan(b.maxHp);
+  });
+
+  it('flat spec damage in radius (caster included), NO knockback, none outside', () => {
+    const state = novaBattle();
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    a.spells.nova = 1;
+    b.x = 12; b.y = 0;                              // 2 u from the blast center
+    c.x = 10 + spec.radius[0] + c.radius + 0.5;     // a hair outside the reach
+    c.y = 0;
+    castSpell(state, 'p0', 'nova', 10, 0);
+    run(state, 10 / spec.speed + spec.fuse + 0.2);
+    // meteor's convention is FLAT damage across the blast (no edge falloff) —
+    // nova matches it, so b eats the full spec number 2 u off center
+    expect(b.maxHp - b.hp).toBeCloseTo(spec.damage[0], 3);
+    expect(Math.abs(b.vx) + Math.abs(b.vy)).toBeLessThan(1); // damage only, no push
+    expect(c.hp).toBe(c.maxHp);                              // outside: untouched
+    expect(a.hp).toBe(a.maxHp);                              // caster far away here
+    // caster inside their own blast eats it too (meteor's rule)
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'nova', 2, 0);
+    run(state, 2 / spec.speed + spec.fuse + 0.2);
+    expect(a.maxHp - a.hp).toBeCloseTo(spec.damage[0], 3);
+  });
+
+  it('is not a fireball: no element riders — a midas owner plants no mark, full damage', () => {
+    const state = createGame({ seed: 42, mode: 'elemental' });
+    for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.moveTarget = null;
+    b.x = 10; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    state.players.p2.x = 0; state.players.p2.y = -40;
+    state.players.p2.moveTarget = null;
+    a.spells.nova = 1;
+    a.elements.midas = 1; // lv1 midas halves FIREBALL damage and plants marks
+    castSpell(state, 'p0', 'nova', 10, 0);
+    const seen = [];
+    const ticks = Math.round((10 / spec.speed + spec.fuse + 0.2) / DT);
+    for (let i = 0; i < ticks; i++) {
+      state.events = [];
+      step(state, DT);
+      seen.push(...state.events);
+    }
+    expect(seen.some(e => e.t === 'midasMark')).toBe(false);
+    expect(b.stacks && b.stacks.midas ? b.stacks.midas.p0 || 0 : 0).toBe(0);
+    // and midas' fireball damage penalty does not touch the blast either
+    expect(b.maxHp - b.hp).toBeCloseTo(spec.damage[0], 3);
+  });
+
+  it('a nova kill credits the caster (lastHitBy path, like meteor)', () => {
+    const state = novaBattle();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    b.hp = 5;
+    castSpell(state, 'p0', 'nova', 10, 0);
+    const seen = [];
+    const ticks = Math.round((10 / spec.speed + spec.fuse + 0.2) / DT);
+    for (let i = 0; i < ticks; i++) {
+      state.events = [];
+      step(state, DT);
+      seen.push(...state.events);
+    }
+    expect(b.alive).toBe(false);
+    expect(a.kills).toBe(1);
+    const death = seen.find(e => e.t === 'death' && e.id === 'p1');
+    expect(death && death.killer).toBe('p0');
+  });
+
+  it('casting nova reveals a vanished caster (the generic reveal)', () => {
+    const state = novaBattle();
+    const a = state.players.p0;
+    a.spells.nova = 1;
+    a.spells.vanish = 1;
+    castSpell(state, 'p0', 'vanish', 5, 5);
+    expect(a.vanishT).toBeGreaterThan(0);
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'nova', 10, 0);
+    expect(a.vanishT).toBe(0);
+  });
+
+  it('serializes for the client: orb in flight, then the burning fuse', () => {
+    const state = novaBattle();
+    state.players.p0.spells.nova = 2;
+    castSpell(state, 'p0', 'nova', 20, 0);
+    const s1 = snapshot(state);
+    expect(s1.novas.length).toBe(1);
+    expect(Number.isFinite(s1.novas[0].x)).toBe(true);
+    expect(Number.isFinite(s1.novas[0].y)).toBe(true);
+    expect(s1.novas[0].level).toBe(2);
+    expect(s1.novas[0].t).toBeUndefined(); // in flight: no fuse yet
+    run(state, 20 / spec.speed + 0.1);
+    const s2 = snapshot(state);
+    expect(s2.novas[0].t).toBeGreaterThan(0);
+    expect(s2.novas[0].t).toBeLessThanOrEqual(spec.fuse);
+  });
+});

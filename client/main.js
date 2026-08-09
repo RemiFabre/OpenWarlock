@@ -21,7 +21,7 @@ window.addEventListener('resize', () => view.resize());
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
-  meteor: '☄️', swap: '🔀', repulse: '💥', wall: '🪞',
+  meteor: '☄️', nova: '🧨', swap: '🔀', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   echo: '🔁', hourglass: '⏳',
 };
@@ -36,9 +36,9 @@ const ICONS = {
 // client comes up blank. Add the spell here in the same commit you add it there.
 const KEY_PRESETS = {
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c' },
+            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c' },
+            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b' },
 };
 
 function loadKeys() {
@@ -225,6 +225,7 @@ function onEvent(e) {
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
+    case 'novaHit': fx.push({ ...e, type: 'novaHit', at: now, dur: 0.6 }); playSfx('boom'); break;
     // swap: one flash at EACH end of the trade, plus its own crossing sound —
     // "we traded places" must read instantly on both screens
     case 'swapped':
@@ -381,6 +382,19 @@ function interpolated(now) {
       ? { ...pb, x: lerp(pa.x, pb.x, k), y: lerp(pa.y, pb.y, k) }
       : pb);
   }
+  // nova orbs move between snapshots (unlike meteors, which sit still), so
+  // they get the projectile treatment: pair by id, lerp the position
+  const novas = [];
+  const aNova = Array.isArray(a.s && a.s.novas) ? a.s.novas : [];
+  const bNova = Array.isArray(s.novas) ? s.novas : [];
+  const prevNova = new Map(aNova.map(n => [n && n.id, n]));
+  for (const nb of bNova) {
+    if (!nb || typeof nb !== 'object') continue;
+    const na = prevNova.get(nb.id);
+    novas.push(na
+      ? { ...nb, x: lerp(na.x, nb.x, k), y: lerp(na.y, nb.y, k) }
+      : nb);
+  }
   const arenaRadius = lerp(a.s && a.s.arenaRadius, s.arenaRadius, k);
   const phaseT = fin(+s.phaseT) ? Math.max(0, +s.phaseT - (now - b.at) / 1000) : 0;
   return {
@@ -391,6 +405,7 @@ function interpolated(now) {
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
+    novas,
     bolts: Array.isArray(s.bolts) ? s.bolts : [],
     walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,

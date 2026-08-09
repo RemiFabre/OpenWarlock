@@ -213,6 +213,18 @@ export const SPELLS = {
     damage: [16, 24], knockback: [110, 130],
     desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast.',
   },
+  nova: {
+    // Round 19 (Remi, voice — 'Nova' is a PLACEHOLDER name pending his call):
+    // pure artillery. The orb flies straight OVER bodies, pillars and mirror
+    // walls (no en-route collisions by design — the visible fuse is the whole
+    // counterplay), parks at the click (clamped to range), sits `fuse` s, then
+    // a FLAT radial blast like meteor's: damage only, no push, no riders.
+    name: 'Nova', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 8, 8],
+    cooldown: [9, 8, 7], speed: 26, range: 45, fuse: 0.5,
+    damage: [10, 14, 18], radius: [4.5, 5.5, 6.5],
+    desc: '🧨 Fused area blast.',
+    long: 'Throw a bomb to a spot: it flies over everything, sits for half a second, then explodes — damage only, no push. Levels raise damage and the blast.',
+  },
   swap: {
     // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
     // exchange; 1 dmg stamps the last-hitter (lava credit). Round 18.1: back

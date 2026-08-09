@@ -382,6 +382,42 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
   }
 
+  // --- nova bombs: a dark orb with a sparking fuse while it flies; once
+  // parked, a pulsing amber ring shows the EXACT blast area for the fuse's
+  // half second — the dodge window is the whole spell, so it must be loud ---
+  const novas = Array.isArray(vs.novas) ? vs.novas : [];
+  for (const n of novas) {
+    if (!n || !fin(n.x) || !fin(n.y)) continue;
+    const x = view.sx(n.x), y = view.sy(n.y);
+    const lvN = Math.min(Math.max((+n.level || 1) - 1, 0), 2);
+    if (fin(+n.t)) { // parked: fuse burning, blast ring on the ground
+      const Rn = SPELLS.nova.radius[lvN] * scale;
+      const blink = 0.5 + 0.5 * Math.abs(Math.sin(now / 45));
+      ctx.strokeStyle = `rgba(255, 190, 60, ${blink})`;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.arc(x, y, Rn, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = `rgba(255, 170, 40, ${0.10 + 0.14 * blink})`;
+      ctx.beginPath(); ctx.arc(x, y, Rn, 0, Math.PI * 2); ctx.fill();
+    }
+    // the bomb itself: near-black core with an amber rim — nothing like a
+    // fireball on purpose (the mosquito scar: invisible mechanics are bugs)
+    const rb = 0.9 * scale;
+    ctx.fillStyle = '#1a1114';
+    ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 170, 60, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // the spark: a flickering ember dancing above the orb
+    const flick = Math.abs(Math.sin(now / 55));
+    ctx.fillStyle = `rgba(255, 220, 110, ${0.6 + 0.4 * flick})`;
+    ctx.beginPath();
+    ctx.arc(x + Math.sin(now / 70) * rb * 0.4, y - rb - 3 - flick * 3,
+      1.5 + flick * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
   // Same blink language as the meteor's, but in the bolt's per-level tint —
   // the zone appears the INSTANT of the cast; the dodge window IS the spell.
@@ -1209,6 +1245,20 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         g3.addColorStop(1, 'rgba(255, 90, 20, 0)');
         ctx.fillStyle = g3;
         ctx.beginPath(); ctx.arc(x, y, R3, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'novaHit': {
+        // detonation: amber shockwave sized to the real blast, hot core flash
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const Rn = (fin(+f.r) ? +f.r : 4.5) * scale;
+        ctx.strokeStyle = `rgba(255, 190, 60, ${a})`;
+        ctx.lineWidth = 4 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, Rn * (0.3 + 0.9 * k), 0, Math.PI * 2); ctx.stroke();
+        const gn = ctx.createRadialGradient(x, y, 0, x, y, Rn);
+        gn.addColorStop(0, `rgba(255, 235, 170, ${a * 0.8})`);
+        gn.addColorStop(1, 'rgba(255, 150, 30, 0)');
+        ctx.fillStyle = gn;
+        ctx.beginPath(); ctx.arc(x, y, Rn, 0, Math.PI * 2); ctx.fill();
         break;
       }
       case 'repulse': {

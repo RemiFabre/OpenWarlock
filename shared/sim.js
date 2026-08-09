@@ -58,6 +58,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     delayedShots: [],      // Echo Stone: fireballs waiting to fire (elemental)
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
+    novas: [],             // nova bombs: {id,x,y,tx,ty,t,owner,level} — t null while flying
     bolts: [],             // lightning sky-bolts (round 17): {x,y,t,owner,level}
     walls: [],             // mirror walls: {x1,y1,x2,y2,nx,ny,owner,until}
     events: [],            // transient, drained by the server each snapshot
@@ -520,6 +521,17 @@ export function castSpell(state, id, key, tx, ty) {
       state.meteors.push({
         x: pl.x + dx * dist, y: pl.y + dy * dist,
         t: spec.delay, owner: id, level,
+      });
+      break;
+    }
+    case 'nova': {
+      // the orb spawns on the caster and flies to the (clamped) click in
+      // stepBattle — never through stepProjectiles, so nothing can pop it
+      const dist = Math.min(d, spec.range);
+      state.novas.push({
+        id: state.nextId++, x: pl.x, y: pl.y,
+        tx: pl.x + dx * dist, ty: pl.y + dy * dist,
+        t: null, owner: id, level,
       });
       break;
     }
@@ -1034,6 +1046,7 @@ function startRound(state) {
   state.delayedShots = [];
   state.hazards = [];
   state.meteors = [];
+  state.novas = [];
   state.bolts = [];
   state.walls = [];
   const coop = state.mode === 'coop';
@@ -1379,6 +1392,38 @@ function stepBattle(state, dt) {
       }
     }
     state.meteors = rest;
+  }
+
+  // nova bombs: the orb flies straight over bodies, pillars and walls (pure
+  // artillery — the fuse is the counterplay), parks at its target, burns the
+  // fuse, then meteor's FLAT blast minus the push: damage only, no knockback,
+  // no on-hit riders (it never touches the projectile/rider pipeline).
+  if (state.novas && state.novas.length) {
+    const spec = SPELLS.nova;
+    const rest = [];
+    for (const n of state.novas) {
+      if (n.t == null) { // travel phase
+        const ddx = n.tx - n.x, ddy = n.ty - n.y;
+        const dd = Math.hypot(ddx, ddy);
+        const move = spec.speed * dt;
+        if (dd <= move) { n.x = n.tx; n.y = n.ty; n.t = spec.fuse; }
+        else { n.x += (ddx / dd) * move; n.y += (ddy / dd) * move; }
+        rest.push(n);
+        continue;
+      }
+      n.t -= dt;
+      if (n.t > 0) { rest.push(n); continue; }
+      const r = lvl(spec, 'radius', n.level);
+      state.events.push({ t: 'novaHit', x: n.x, y: n.y, r });
+      for (const pl of Object.values(state.players)) {
+        // everyone in the blast eats it, the caster included (meteor's rule)
+        if (!pl.alive) continue;
+        if (Math.hypot(pl.x - n.x, pl.y - n.y) > r + pl.radius) continue;
+        applyDamage(state, pl, lvl(spec, 'damage', n.level),
+          pl.id === n.owner ? null : n.owner);
+      }
+    }
+    state.novas = rest;
   }
 
   // lightning sky-bolts (round 17): the meteor's telegraph→impact shape, but
@@ -2351,6 +2396,12 @@ export function snapshot(state, viewerId = null) {
     winner: state.winner,
     roundSummary: state.roundSummary || null,
     meteors: (state.meteors || []).map(m => ({ x: round2(m.x), y: round2(m.y), t: round2(m.t) })),
+    // nova orbs are public like meteors: the flight + fuse ARE the dodge
+    // window. `t` present = parked and burning; absent = still flying.
+    novas: (state.novas || []).map(n => ({
+      id: n.id, x: round2(n.x), y: round2(n.y), level: n.level,
+      ...(n.t != null ? { t: round2(n.t) } : {}),
+    })),
     // sky-bolt telegraphs are public by design: the dodge window IS the spell
     bolts: (state.bolts || []).map(m => ({
       x: round2(m.x), y: round2(m.y), t: round2(m.t), level: m.level,
