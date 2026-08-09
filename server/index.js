@@ -14,6 +14,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { createEngine } from '../shared/engine.js';
+import { VERSION } from '../shared/version.js';
 import { snapshot } from '../shared/sim.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
 
@@ -78,6 +79,7 @@ const httpServer = http.createServer((req, res) => {
     res.end(JSON.stringify({
       ok: true, tick, phase: game.phase, round: game.round,
       players: Object.keys(game.players).length, uptime: process.uptime(),
+      version: VERSION,
     }));
     return;
   }
@@ -232,7 +234,7 @@ wss.on('connection', (ws, req) => {
       sockets.set(id, ws);
       ipsById.set(id, ip);
       joined = true;
-      ws.send(JSON.stringify({ t: 'welcome', id }));
+      ws.send(JSON.stringify({ t: 'welcome', id, v: VERSION }));
       return;
     }
     engine.message(id, m);

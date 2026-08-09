@@ -5,6 +5,7 @@ import {
   SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, itemCost,
 } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
+import { VERSION } from '../shared/version.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -156,6 +157,13 @@ function onMessage(m) {
     snaps.length = 0; fx.length = 0; // drop state from any previous connection
     setConnBanner(null);
     $('join').classList.add('hidden');
+    // Version handshake (round 19.3, Remi): a mixed client/server pair must
+    // announce itself instead of being a mystery lag/ghost-feature session.
+    if (m.v && m.v !== VERSION) {
+      $('ver').textContent = `you ${VERSION} / server ${m.v}`;
+      $('ver').classList.add('bad');
+      toast(`Version mismatch: server is ${m.v}, your page is ${VERSION}. Hard-refresh (Cmd+Shift+R).`);
+    }
   } else if (m.t === 'snap' && m.s && typeof m.s === 'object' && m.s.players) {
     if (m.bans != null) m.s.bans = m.bans; // server-level: lobby ban count
     if (m.pings && typeof m.pings === 'object') m.s.pings = m.pings; // per-player RTT (ms)
@@ -563,6 +571,7 @@ const goldRules =
   `Gold: +${GOLD.ROUND_BASE} g every round · +${GOLD.PER_KILL} g per kill · ` +
   `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first · ` +
   `bounty up to +${GOLD.BOUNTY_MAX} g for slaying someone ahead of you.`;
+$('ver').textContent = VERSION; // bottom-left build stamp; red on mismatch
 $('lobbyFormat').textContent =
   `First to ${ROUND.KILLS_TO_WIN} kills wins. ${goldRules}`;
 $('shopIncome').textContent = goldRules;

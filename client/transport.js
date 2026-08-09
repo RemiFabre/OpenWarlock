@@ -13,6 +13,7 @@
 import { createEngine } from '../shared/engine.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
 import { createSnapEncoder, createSnapDecoder } from '../shared/snapdelta.js';
+import { VERSION } from '../shared/version.js';
 
 export function createWsTransport() {
   const handlers = { msg: () => {}, close: () => {} };
@@ -95,7 +96,7 @@ export function createLocalTransport() {
       if (engine.game.players[ID]) return; // already seated; nothing to redial
       const r = engine.join(ID, { name, avatar });
       if (!r.ok) { handlers.msg({ t: 'denied', reason: r.reason }); return; }
-      handlers.msg({ t: 'welcome', id: ID });
+      handlers.msg({ t: 'welcome', id: ID, v: VERSION });
     },
     send(obj) { if (engine) engine.message(ID, structuredClone(obj)); },
     onMessage(cb) { handlers.msg = cb; },
@@ -112,7 +113,9 @@ export function createLocalTransport() {
 //   1. ?signal=ws://... in the URL (tests, one-off relays)
 //   2. this constant — set it after deploying a relay (e.g. 'wss://signal.example.com')
 //   3. the page's own hostname on port 3001 (the local-dev default: `npm run signal`)
-export const SIGNAL_URL = '';
+// The deployed relay: HF Space (PRO), verified 2026-08-09 with a live
+// create/join/sig round-trip. Deploys via scripts/deploy-signal-hf.sh.
+export const SIGNAL_URL = 'wss://remifabre-openwarlock-signal.hf.space';
 export function signalUrl() {
   const q = new URLSearchParams(location.search).get('signal');
   if (q) return q;
@@ -229,7 +232,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
         }
         p.joined = true;
         p.wantFull = true;
-        p.ctrl.send(JSON.stringify({ t: 'welcome', id: connId }));
+        p.ctrl.send(JSON.stringify({ t: 'welcome', id: connId, v: VERSION }));
         return;
       }
       if (m.t === 'full') { p.wantFull = true; return; } // guest's snap decoder hit a gap
@@ -288,7 +291,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       if (!engine.game.players[ID]) {
         const r = engine.join(ID, { name, avatar });
         if (!r.ok) { handlers.msg({ t: 'denied', reason: r.reason }); return; }
-        handlers.msg({ t: 'welcome', id: ID });
+        handlers.msg({ t: 'welcome', id: ID, v: VERSION });
       }
       dialSignal();
     },

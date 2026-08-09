@@ -166,6 +166,10 @@
   /* per-player RTT badge (round 18) — green / amber / red by latency */
   .ping { font-size: 11px; opacity: 0.9; }
   .ping.good { color: #7fd47f; }
+  /* build version, bottom-left whisper; turns red on client/server mismatch */
+  #ver { position: fixed; left: 8px; bottom: 6px; z-index: 205; font-size: 10px;
+         color: rgba(200, 190, 180, 0.5); pointer-events: none; }
+  #ver.bad { color: #ff7a6b; font-size: 12px; }
   .ping.warn { color: #ffc95e; }
   .ping.bad { color: #ff7a6b; }
   .botgroup { display: inline-flex; }
@@ -666,6 +670,7 @@
 <!-- toast sits OUTSIDE #hud: fixed-position #hud is its own stacking context
      (Chrome), which trapped the toast underneath the shop/lobby overlays -->
 <div id="toast"></div>
+<div id="ver" title="build version: bumps on every commit"></div>
 
 <!-- relative on purpose: this page must load from the Node server AND from a
      static subpath host (GitHub Pages) — see docs/BRIEF-browser-hosting.md §A4 -->
