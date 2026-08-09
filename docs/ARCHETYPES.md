@@ -1,118 +1,100 @@
-# Archetype strategies — draft for Remi to iterate on (2026-08-09)
+# Strategy roster — draft 2 for Remi's iteration (2026-08-09)
 
-Edit freely: rename, reorder buys, cross out, add. When you're happy, tell me
-which ones to wire in — each becomes a lobby-selectable bot build (if bots can
-pilot it) and/or a strategy-study entry (measured in 4-seat mirrors).
+**The goal**: agree on a large roster, then run mass AI games and fit an
+**ELO score per strategy** (I'll extend tools/strategy-study.js: random
+4-strategy lobbies, Elo fitted from placements — pairwise, not just win%).
+Players will later get a curated subset; the roster itself is a measuring
+instrument, so MANY entries are fine when each isolates something.
 
-Format per entry: the fantasy in one line, the exact opening buy order (after
-that the bot falls into the shared everything-else tail), what the archetype
-TESTS, and whether bots can pilot it today.
+**Notation**: `frost1` = buy frost to level 1; `frost2` = the next level.
+Every entry lists the exact buy sequence with levels. After the listed core,
+every strategy falls into the same shared everything-else tail (so late-game
+convergence is identical and differences come from the core alone).
+Elemental mode: everyone starts with fireball lv1 for free (it never levels)
+— it is not listed.
 
-**Bot-pilotable** means every spell in the list has bot piloting (fireball,
-lightning, boomerang, rush, shield, blink, meteor-into-CC). Bomb, Switcheroo,
-vanish, pillar, wall, repulse = human-only for now.
+**Spells the AI can pilot** (only these may appear in a roster entry):
+lightning, boomerang, rush, shield, blink, and meteor (CC-gated: bots only
+cast it into a frost stun/heavy slow). NOT pilotable today: Bomb, Switcheroo,
+vanish, pillar, wall, repulse — strategies using those can't enter the ELO
+pool and live in a small human-only annex at the bottom.
 
----
-
-## 1. Chainer 🧊⚡ (ALREADY LIVE — the reference)
-- Fantasy: freeze, bolt, shove into lava, repeat.
-- Order: fireball → frost → lightning → gale → mosquito → round-robin those four.
-- Tests: CC-window combos; the frost lv2/lv3 threshold in human hands.
-- Bots: YES (shipped).
-
-## 2. Warlord 🔥🗡️
-- Fantasy: no tricks, bigger numbers — win every straight trade.
-- Order: fireball → ember → ember → sword → amulet → ember → sword → amulet.
-- Tests: is ember's monster win rate real in human play, and is sword's
-  mandatory-ness (question L) felt or only structural?
-- Bots: YES.
-
-## 3. Executioner 🔴👟
-- Fantasy: the mark appears, someone dies. Build entirely around claiming.
-- Order: fireball → anger → boots → anger → ghost → anger → boots → ghost.
-- Tests: anger's real human claim rate when you BUILD for the chase (the bot
-  mirror can't price this — question K's missing half).
-- Bots: YES.
-
-## 4. Tycoon 🪙🦟
-- Fantasy: every hit pays; the amplifier doubles the payroll. Rich by round 6,
-  full build by round 10.
-- Order: fireball → midas → mosquito → midas → hourglass → midas → mosquito → mosquito.
-- Tests: mosquito-as-gold-amp (measured at exactly baseline on bots — the one
-  mosquito pairing that works there); midas's real value with shopping depth
-  (question E).
-- Bots: YES.
-
-## 5. Leech 🧛🦟
-- Fantasy: every 5th ball is a feast — and the trap volley advances the
-  counter, so feasts come fast.
-- Order: fireball → vampire → vampire → mosquito → sword → vampire → mosquito → amulet.
-- Tests: the new vampire×mosquito cast-counting ruling; sustain stacking
-  (lifesteal + engorged heals).
-- Bots: YES.
-
-## 6. Plaguebearer 🦠🪨
-- Fantasy: wade into the pack, everyone leaves sick.
-- Order: fireball → malady → terra → malady → treads → malady → terra → amulet.
-- Tests: contagion in real crowded fights (the bot lab is blind to it —
-  bots never cluster); whether aura 8/12/16 feels right.
-- Bots: YES.
-
-## 7. Sumo 🌪️🧣
-- Fantasy: never mind damage — you fly, I don't.
-- Order: fireball → gale → cape → gale → boots → gale → cape → treads.
-- Tests: the gale buff and cape buff head-on (the knockback war both changed
-  today); lava-share economics.
-- Bots: YES.
-
-## 8. Stormcaller ⚡🔮
-- Fantasy: the kit never stops — bolt on cooldown, refund on every hit.
-- Order: fireball → lightning → arcane → arcane → arcane → hourglass → lightning → hourglass.
-- Tests: question M — is a dedicated cadence build viable-but-honest now?
-- Bots: YES.
-
-## 9. Phantom 👻🔥
-- Fantasy: one line, three victims, then gone.
-- Order: fireball → ghost → ember → ghost → ghost (lv3 pierce) → ember → vanish → ember.
-- Tests: pierce value in human aim; the vanish reveal-on-cast rule under
-  pressure.
-- Bots: mostly (vanish is uncast by bots — they'll bank it; fine as a build,
-  the study entry should skip vanish).
-
-## 10. Meteorologist 🧊☄️
-- Fantasy: the 2-second stun is a landing pad.
-- Order: fireball → frost → frost → frost (lv3 stun) → meteor → terra → amulet → meteor.
-- Tests: the measured lv3-stun→meteor true combo, in human hands; whether
-  meteor earns its price over lightning (bots said no, 6.8 vs 11.8).
-- Bots: YES (meteor is CC-gated piloted now).
-
-## 11. Trickster 🎭🗿 (human-only)
-- Fantasy: you were winning, then you were in the lava and I was on your spot.
-- Order: fireball → Switcheroo → treads → pillar → Switcheroo → vanish → boots → Switcheroo.
-- Tests: the Switcheroo stun combo window; treads-powered lava play;
-  portal routes as escape lanes.
-
-## 12. Bomber 💣🪨 (human-only)
-- Fantasy: zone control — you don't get to stand anywhere.
-- Order: fireball → Bomb → terra → Bomb → hourglass → Bomb → ember → amulet.
-- Tests: Bomb's numbers (first real read — no bot can price it); whether
-  fuse-dodging feels fair at 0.5 s.
-
-## 13. Juggernaut ❤️🧣 (the defense-first probe)
-- Fantasy: outlive everyone, let the ring do the killing.
-- Order: fireball → amulet → cape → treads → amulet → sword → cape → amulet.
-- Tests: question H — the offense-first meta. If this feels hopeless in human
-  games too, the meta question is answered for real.
-- Bots: YES.
-
-## 14. Portal Rat 👟🌀 (human-only)
-- Fantasy: the lava is a highway and the portals are exits.
-- Order: fireball → boots → treads → boots → vanish → treads → Switcheroo.
-- Tests: the whole lava/portal economy after the treads nerf — is the
-  swim-away playstyle still alive at −25/−50/−65%?
+**Your hypothesis under test**: items < elements/mutations, and spell scaling
+is unpriced. Family A prices whole systems, family B prices depth-vs-breadth
+inside each system, family C prices spell scaling directly, family D are the
+play-style archetypes.
 
 ---
 
-Iteration notes for me (leave your marks anywhere): which to wire in, renames,
-order changes, new ideas. Wired-in builds show up in the lobby dropdown with
-their fantasy line, and the pilotable ones get measured in the study mirror.
+## Family A — system purity (price each shelf as a class)
+
+- **A1 items-sustain**: amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → cape1 → cape2
+  — the item shelf's best self (bot-measured strongest items).
+- **A2 items-mobility**: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3
+  — the item shelf's utility half.
+- **A3 elements-only** (stat axes): ember1 → ember2 → arcane1 → gale1 → terra1 → ghost1 → ember3 → arcane2 → gale2
+  — pure fireball-stat scaling, zero items.
+- **A4 mutations-only**: anger1 → frost1 → anger2 → frost2 → anger3 → frost3 → malady1 → malady2
+  — pure behavior-changers, zero items/stat-axes.
+- **A5 spells-only**: lightning1 → boomerang1 → rush1 → shield1 → lightning2 → boomerang2 → lightning3 → shield2
+  — the kit shelf as a class (no elements at all).
+- **A6 no-elements control** (already in the study): items + spells, elements refused — prices the element shelf by absence.
+
+## Family B — depth vs breadth (inside each system)
+
+- **B1 element-depth**: ember1 → ember2 → ember3 → arcane1 → arcane2 → arcane3 → sword1 → amulet1
+- **B2 element-breadth**: ember1 → terra1 → arcane1 → gale1 → ghost1 → ember2 → terra2 → arcane2
+  — B1 vs B2 answers "rush lv3 or spread lv1s?" for stat elements.
+- **B3 mutation-depth**: anger1 → anger2 → anger3 → amulet1 → sword1 → amulet2 → sword2
+- **B4 mutation-breadth**: anger1 → frost1 → midas1 → malady1 → mosquito1 → anger2 → frost2
+  — same question for mutations (breadth here also tests cross-mutation synergy).
+- **B5 item-depth**: sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots1
+- **B6 item-breadth**: sword1 → amulet1 → boots1 → cape1 → treads1 → hourglass1 → sword2 → amulet2
+  — re-tests the round-15 "breadth beats depth" finding post-reworks.
+
+## Family C — spell scaling probes (your "no idea how to scale spells")
+
+- **C1 bolt-rush**: lightning1 → lightning2 → lightning3 → hourglass1 → hourglass2 → amulet1 → sword1
+  — max one spell immediately: is spell depth worth 22 g?
+- **C2 bolt-splash**: lightning1 → ember1 → ember2 → amulet1 → sword1 → lightning2 → ember3
+  — spell lv1 as a tool, stats do the killing (the control for C1).
+- **C3 kit-width**: lightning1 → boomerang1 → shield1 → blink1 → rush1 → ember1 → ember2
+  — five buttons at lv1: is width its own power? (vs C1's depth)
+- **C4 boomerang-main**: boomerang1 → boomerang2 → boomerang3 → ember1 → ember2 → sword1 → amulet1
+  — the forgotten spell, maxed: does anything justify boomerang3?
+- **C5 meteor-value**: frost1 → frost2 → frost3 → meteor1 → amulet1 → meteor2 → sword1
+  — meteor priced against C6 (identical shell, cheaper bolt).
+- **C6 bolt-combo** (= old combo-bolt): frost1 → lightning1 → gale1 → mosquito1 → frost2 → lightning2 → gale2 → mosquito2 → frost3 → lightning3
+  — the Chainer order, level-explicit.
+
+## Family D — play-style archetypes (cross-system, the fun ones)
+
+- **D1 Warlord** (raw trades): ember1 → ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → arcane1
+- **D2 Executioner** (mark hunter): anger1 → boots1 → anger2 → ghost1 → anger3 → boots2 → ghost2 → sword1
+- **D3 Tycoon** (income engine): midas1 → mosquito1 → midas2 → hourglass1 → midas3 → mosquito2 → sword1 → amulet1
+- **D4 Leech** (sustain stacking): vampire1 → vampire2 → mosquito1 → sword1 → vampire3 → mosquito2 → amulet1 → sword2
+- **D5 Plaguebearer** (crowd sickness): malady1 → terra1 → malady2 → treads1 → malady3 → terra2 → amulet1 → treads2
+- **D6 Sumo** (knockback war): gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3
+- **D7 Stormcaller** (cadence): arcane1 → arcane2 → lightning1 → arcane3 → hourglass1 → lightning2 → hourglass2 → lightning3
+- **D8 Juggernaut** (defense-first, question H): amulet1 → cape1 → treads1 → amulet2 → sword1 → cape2 → amulet3 → sword2
+- **D9 Phantom** (line sniper): ghost1 → ember1 → ghost2 → ember2 → ghost3 → ember3 → sword1 → amulet1
+- **D10 Skirmisher** (mobility fights): boots1 → rush1 → ember1 → blink1 → ember2 → boots2 → shield1 → ember3
+
+## Human-only annex (no ELO — you and friends in the 🧪 sandbox)
+
+- **H1 Trickster**: Switcheroo1 → treads1 → pillar1 → Switcheroo2 → vanish1 → boots1 → Switcheroo3
+- **H2 Bomber**: Bomb1 → terra1 → Bomb2 → hourglass1 → Bomb3 → ember1 → amulet1
+- **H3 Portal Rat**: boots1 → treads1 → boots2 → vanish1 → treads2 → Switcheroo1 → boots3
+
+---
+
+**What the ELO run will tell us, mapped to your questions**: A1/A2 vs A3/A4
+prices items-vs-elements directly (your "items are weaker" hypothesis);
+C1 vs C2 and C3 prices spell depth; B pairs settle depth-vs-breadth per
+system. Caveat carried on every result: bots under-price reactive tools
+(shield, blink, boomerang recall) and cluster-dependent value (malady), and
+anger saturates every bot instrument — the ELO will be a ranking of what
+BOTS can extract, with those blind spots stated next to the table.
+
+Iteration marks welcome anywhere. When you bless the roster, I wire it into
+the study, build the ELO fit, and run the tournament.
