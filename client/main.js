@@ -566,9 +566,10 @@ $('joinKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove
 $('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 
 // ---- in-shop rebind popup ---------------------------------------------------
-// Click a spell's key chip in the shop, press the new key. Unlike the keys
-// panel (which swaps), a conflict CANCELS and a toast names the owner (Remi,
-// round 18). The capture-phase listener eats every keydown while it is open.
+// Click a spell's key chip in the shop, press the new key. Conflict rule
+// (round 20, Remi): a key is only DEFENDED when its spell is OWNED this game
+// (mid-game muscle memory); an unowned spell just swaps keys with you, like
+// the keys panel. The capture-phase listener eats every keydown while open.
 let rebindSpell = null;
 function openRebind(spell) {
   cancelCapture();
@@ -591,13 +592,21 @@ function onRebindKey(e) {
   const spell = rebindSpell;
   if (keyBindings[spell] === k) { closeRebind(); return; } // same key: quiet close
   const other = spellForKey(k);
-  if (other) {
+  const m = me(latest());
+  if (other && m && m.spells && (m.spells[other] || 0) >= 1) {
+    // the other spell is owned this game: its key is muscle memory, deny
     closeRebind();
-    toast(`${keyLabel(k)} is already ${SPELLS[other].name} — ` +
+    toast(`${keyLabel(k)} is already ${SPELLS[other].name}, which you own: ` +
       `${SPELLS[spell].name} stays on ${keyLabel(keyBindings[spell])}`);
     return;
   }
+  const old = keyBindings[spell];
   keyBindings[spell] = k;
+  if (other) { // unowned spell: it takes our old key, quietly
+    keyBindings[other] = old;
+    toast(`Swapped: ${SPELLS[spell].name} is now ${keyLabel(k)}, ` +
+      `${SPELLS[other].name} is now ${keyLabel(old)}`);
+  }
   saveKeys();
   closeRebind();
   refreshKeyUi();
@@ -811,7 +820,7 @@ const FX_FIELDS = {
   markEvery: ['a mark appears every', fmtSec],
   markDmg: ['each claimed mark', (v) => `+${fmtNum(v)} dmg, forever`],
   markDelay: ['first mark after', fmtSec],
-  rampPermanent: ['your claimed marks', (v) => (v ? 'never reset — they are yours for the game' : 'reset each round')],
+  rampPermanent: ['your claimed marks', (v) => (v ? 'never reset, yours for the game' : 'reset each round')],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
@@ -862,14 +871,13 @@ const ITEM_NEXT = {
   echo: () => `every 4th fireball fires twice`,
 };
 
-// One row of the per-level table. A scalar spans every column — that IS what
-// "same at every level" looks like; an array gets one cell per level.
+// One row of the per-level table. A scalar REPEATS in every level column
+// (round 20, Remi: half-empty columns read as "level 1 has no stats") — 0 is
+// a value too (the bomb's knockback: 0 must print), never a blank cell.
 function tipRow(label, value, cols, fmt, cur, cls = '') {
-  if (!Array.isArray(value))
-    return `<tr class="${cls}"><th>${esc(label)}</th><td colspan="${cols}">${esc(fmt(value))}</td></tr>`;
   let cells = '';
   for (let i = 0; i < cols; i++) {
-    const v = value[Math.min(i, value.length - 1)];
+    const v = Array.isArray(value) ? value[Math.min(i, value.length - 1)] : value;
     cells += `<td class="${i + 1 === cur ? 'cur' : ''}">${esc(fmt(v))}</td>`;
   }
   return `<tr class="${cls}"><th>${esc(label)}</th>${cells}</tr>`;
@@ -890,9 +898,14 @@ function tipHead(cols, cur, label = 'lv') {
   return `<thead><tr>${th}</tr></thead>`;
 }
 
-function tipShell(icon, name, desc, body, foot) {
+// The card only shows icon + name + cost (round 20, Remi) — the tooltip is
+// where EVERYTHING lives: the one-line desc, the long mechanism sentence, the
+// per-level table and the next-level line.
+function tipShell(icon, name, desc, long, body, foot) {
+  const both = long && long !== desc;
   return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}</div>
-    <div class="tdesc">${esc(desc)}</div>${body}
+    <div class="tdesc">${esc(desc)}</div>
+    ${both ? `<div class="tlong">${esc(long)}</div>` : ''}${body}
     ${foot ? `<div class="tfoot">${foot}</div>` : ''}`;
 }
 
@@ -905,9 +918,10 @@ function spellTip(key, spec, level, maxLevel) {
   rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
+    level > 0 && level < maxLevel ? `Next: ${esc(spellUpgradeLine(spec, level))}.` : '',
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.long || spec.desc,
+  return tipShell(ICONS[key], spec.name, spec.desc, spec.long,
     `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -920,12 +934,15 @@ function elementTip(key, spec, level) {
     rows += tipRow(label, fxSpec[field], cols, fmt, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, cols), cols, fmtGold, level + 1, 'cost');
+  const nextLv = Math.min(level, cols - 1);
+  const next = level < cols ? nextLevelLine(spec.fx, FX_FIELDS, nextLv) : '';
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
+    next ? `Next: ${esc(next)}.` : '',
     // the one boilerplate line that earns its place: what haste MEANS
     spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(spec.icon, spec.name, spec.long || spec.desc,
+  return tipShell(spec.icon, spec.name, spec.desc, spec.long,
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -946,12 +963,14 @@ function itemTip(key, spec, level) {
   const costs = Array.from({ length: cols }, (_, i) => itemCost(key, i));
   rows += tipRow('cost', costs, cols, fmtGold, Math.min(level + 1, cols), 'cost');
   const live = level > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](cur);
+  const next = level < cols && ITEM_NEXT[key] ? ITEM_NEXT[key](level + 1) : '';
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
     live ? `With that, ${live}.` : '',
+    next ? `Next: ${esc(next)}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.long || spec.desc,
+  return tipShell(ICONS[key], spec.name, spec.desc, spec.long,
     `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -1026,18 +1045,8 @@ const SPELL_STAT_FIELDS = [
   ['delay', 'delay', 's'],
 ];
 
-function spellStatLine(spec, level) {
-  const parts = [];
-  for (const [field, label, unit] of SPELL_STAT_FIELDS) {
-    if (spec[field] == null) continue;
-    const v = statAt(spec[field], level);
-    if (v === Infinity) continue; // infinite range is the norm — say nothing
-    parts.push(`${label} ${fmtNum(v)}${unit}`);
-  }
-  return parts.join(' · ');
-}
-
 // Upgrade preview: only the fields that actually change, as "10→13" deltas.
+// Lives in the hover tooltip's foot since round 20 (the card is minimal).
 function spellUpgradeLine(spec, level) {
   const parts = [`lv ${level}→${level + 1}`];
   for (const [field, label, unit] of SPELL_STAT_FIELDS) {
@@ -1048,10 +1057,8 @@ function spellUpgradeLine(spec, level) {
   return parts.join(' · ');
 }
 
-// The one-line version of a per-level array, for the button itself:
-// "damage 2 / 4 / 6". Scalars stay in the tooltip — they don't evolve.
 // The compact buy line (round 17, Remi): only what the NEXT level gives you.
-// The full per-level table stays in the hover tooltip.
+// In the tooltip foot since round 20; the per-level table sits above it.
 function nextLevelLine(fxSpec, dict, level) {
   const parts = [];
   for (const field of orderedFields(fxSpec || {}, dict)) {
@@ -1061,17 +1068,6 @@ function nextLevelLine(fxSpec, dict, level) {
     if (!next) continue;  // 0 = the level you're buying doesn't grant it yet
     const [label, fmt] = dict[field] || [field, fmtNum];
     parts.push(`${label} ${fmt(next)}`);
-  }
-  return parts.join(' · ');
-}
-
-function perLevelLine(fxSpec, dict) {
-  const parts = [];
-  for (const field of orderedFields(fxSpec || {}, dict)) {
-    const v = fxSpec[field];
-    if (!Array.isArray(v)) continue;
-    const [label, fmt] = dict[field] || [field, fmtNum];
-    parts.push(`${label} ${v.map(fmt).join(' / ')}`);
   }
   return parts.join(' · ');
 }
@@ -1087,6 +1083,15 @@ const ELEMENT_ROWS = [
     ['malady', 'frost', 'anger', 'mosquito', 'vampire', 'midas']],
 ];
 const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
+
+// Round 20 (Remi): the spells sit in three quiet groups, labelled on the edge
+// of each row — PRESENTATIONAL only, nothing about a spell changes.
+const SPELL_ROWS = [
+  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'nova', 'repulse']],
+  ['Defense', ['teleport', 'shield', 'rush', 'pillar', 'wall']],
+  ['Special', ['swap', 'vanish']],
+];
+const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 
 // Build shop buttons once per container; refresh() updates them from state.
 // mode-aware: 'elemental' adds the Elements section and the elemental-only
@@ -1104,22 +1109,42 @@ function buildShop(container, mode = 'classic') {
   container.appendChild(draftBox);
   let draftShown = '';   // signature of what the banner currently renders
   // section headings, each remembering its own wares so a section emptied by the
-  // draft pool can hide its heading too
+  // draft pool can hide its heading too. Cards are MINIMAL (round 20, Remi):
+  // icon + name + cost (+ the key chip on spells) — everything else is the
+  // hover tooltip's job. Each section is a flex ROW so a whole category fits
+  // one line; rows hide with their wares like labels do.
   const labels = [];
+  const rows = [];
+  let curRow = null;
   const mkLabel = (txt) => {
     const el = document.createElement('div');
     el.className = 'shoplabel'; el.textContent = txt;
     container.appendChild(el);
     labels.push({ el, wares: [] });
   };
-  const inSection = (w) => { if (labels.length) labels[labels.length - 1].wares.push(w); };
+  const mkRow = (cat) => {
+    const el = document.createElement('div');
+    el.className = 'shoprow';
+    if (cat) {
+      const lab = document.createElement('span');
+      lab.className = 'catlabel';
+      lab.textContent = cat;
+      el.appendChild(lab);
+    }
+    container.appendChild(el);
+    curRow = el;
+    rows.push({ el, wares: [] });
+  };
+  const inSection = (w) => {
+    if (labels.length) labels[labels.length - 1].wares.push(w);
+    if (rows.length) rows[rows.length - 1].wares.push(w);
+  };
   const mkSpell = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
-      <span class="desc">${spec.desc}</span>
-      <span class="stats">${spellStatLine(spec, 1)}</span></span><span class="cost num"></span>`;
+      <span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
     // key chip (spells only): sits OUTSIDE the buy button in a relative wrapper
@@ -1135,27 +1160,34 @@ function buildShop(container, mode = 'classic') {
     chip.addEventListener('click', (e) => { e.stopPropagation(); openRebind(key); });
     wrap.appendChild(b);
     wrap.appendChild(chip);
-    container.appendChild(wrap);
+    curRow.appendChild(wrap);
     const w = { key, spec, el: b, wrap, kind: 'spell' };
     attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
     wares.push(w); inSection(w);
   };
   // Round 17 (Remi): no separate "Powerful" category — every spell is just a
   // spell in the shop. `tier: 'power'` lives on in the SPEC as the bot guard
-  // and the draft-offer filter, never as a shelf.
+  // and the draft-offer filter, never as a shelf. Round 20: three quiet
+  // Offense / Defense / Special rows; a spell missing from SPELL_ROWS lands in
+  // the last row so nothing can silently vanish from the shop.
   mkLabel('Spells');
-  for (const [key, spec] of Object.entries(SPELLS)) mkSpell(key, spec);
+  for (let i = 0; i < SPELL_ROWS.length; i++) {
+    const [cat, keys] = SPELL_ROWS[i];
+    mkRow(cat);
+    for (const key of keys) if (SPELLS[key]) mkSpell(key, SPELLS[key]);
+    if (i === SPELL_ROWS.length - 1)
+      for (const [key, spec] of Object.entries(SPELLS))
+        if (!SPELL_ROW_KEYS.has(key)) mkSpell(key, spec);
+  }
   const mkElement = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${spec.icon}</span>
-      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
-      <span class="desc">${spec.desc}</span>
-      <span class="stats">${esc(nextLevelLine(spec.fx, FX_FIELDS, 0))}</span></span>
+      <span class="name">${spec.name} <span class="lv"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
-    container.appendChild(b);
+    curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'element' };
     attachTip(b, () => elementTip(key, spec, w.level || 0));
     wares.push(w); inSection(w);
@@ -1164,6 +1196,7 @@ function buildShop(container, mode = 'classic') {
     for (let i = 0; i < ELEMENT_ROWS.length; i++) {
       const [label, keys] = ELEMENT_ROWS[i];
       mkLabel(label);
+      mkRow();
       for (const key of keys) if (ELEMENTS[key]) mkElement(key, ELEMENTS[key]);
       // the last row also catches anything added to ELEMENTS but not named
       // above, so a new element can never be silently missing from the shop
@@ -1173,17 +1206,17 @@ function buildShop(container, mode = 'classic') {
     }
   }
   mkLabel('Items (passive boosts)');
+  mkRow();
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
-      <span class="desc">${spec.desc}</span>
-      <span class="stats"></span></span><span class="cost num"></span>`;
+      <span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
-    container.appendChild(b);
+    curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
     attachTip(b, () => itemTip(key, spec, w.level || 0));
     wares.push(w); inSection(w);
@@ -1224,10 +1257,6 @@ function buildShop(container, mode = 'classic') {
         w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
         const lv = w.el.querySelector('.lv');
         lv.textContent = level ? `lv ${level}` : '';
-        const stats = w.el.querySelector('.stats');
-        stats.textContent = level <= 0 ? spellStatLine(w.spec, 1)
-          : level >= maxLevel ? `${spellStatLine(w.spec, level)} · max`
-          : spellUpgradeLine(w.spec, level);
         if (level >= maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1241,8 +1270,6 @@ function buildShop(container, mode = 'classic') {
         w.el.classList.toggle('sel', elevel > 0);
         const lv = w.el.querySelector('.lv');
         lv.textContent = elevel ? `lv ${elevel}` : '';
-        w.el.querySelector('.stats').textContent = nextLevelLine(
-          w.spec.fx, FX_FIELDS, Math.min(elevel, w.spec.maxLevel - 1));
         if (elevel >= w.spec.maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1258,10 +1285,6 @@ function buildShop(container, mode = 'classic') {
         w.level = level;
         w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
         w.el.classList.toggle('sel', level > 0);
-        w.el.querySelector('.stats').textContent =
-          level >= w.spec.maxLevel
-            ? (ITEM_LIVE[w.key] ? ITEM_LIVE[w.key](level) : '')
-            : (ITEM_NEXT[w.key] ? ITEM_NEXT[w.key](level + 1) : '');
         if (level >= w.spec.maxLevel) {
           cost.innerHTML = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1273,10 +1296,14 @@ function buildShop(container, mode = 'classic') {
       }
     }
     // a section whose whole stock is in the draft pool would leave a dangling
-    // heading, so a label lives or dies with its wares
+    // heading, so a label lives or dies with its wares — and so does each row
+    // (its edge category label with it)
     for (const lab of labels)
       lab.el.classList.toggle('hidden', lab.wares.length > 0 &&
         lab.wares.every(w => (w.wrap || w.el).classList.contains('hidden')));
+    for (const row of rows)
+      row.el.classList.toggle('hidden', row.wares.length > 0 &&
+        row.wares.every(w => (w.wrap || w.el).classList.contains('hidden')));
     refreshTip(); // a purchase just changed what the open tooltip should say
   };
 

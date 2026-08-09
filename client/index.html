@@ -191,30 +191,43 @@
   #musicBtn { right: 52px; }
   #musicBtn.off { color: var(--ash); opacity: .5; }
 
-  /* wares fill whatever width the window gives us */
+  /* round 20 (Remi): MINIMAL cards — icon + name + cost, one flex ROW per
+     category so a whole shelf reads as one line; everything else is on hover */
   .shopgrid {
-    display: grid; gap: 8px; margin-top: 4px; padding-bottom: 4px;
-    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    display: flex; flex-direction: column; gap: 6px;
+    margin-top: 4px; padding-bottom: 4px;
+  }
+  .shoprow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .shoprow > .ware, .shoprow > .warewrap {
+    flex: 1 1 150px; max-width: 300px; min-width: 0;
   }
   .ware {
-    display: flex; gap: 10px; align-items: center;
-    background: var(--obsidian); border: 1px solid #2e241c; padding: 8px 10px;
-    text-align: left; width: 100%;
+    display: flex; gap: 8px; align-items: center;
+    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 9px;
+    text-align: left; width: 100%; min-height: 42px;
   }
   .ware:hover:not(:disabled) { border-color: var(--ember); }
-  .ware .icon { font-size: 20px; width: 28px; text-align: center; flex: none; }
+  .ware .icon { font-size: 19px; width: 24px; text-align: center; flex: none; }
   .ware .info { flex: 1; min-width: 0; }
-  .ware .name { font-weight: 600; font-size: 13.5px; }
+  .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; }
+  .ware .info .name { flex: none; }
   .ware .name .lv { color: var(--ash); font-weight: 400; }
   .ware .desc { color: var(--ash); font-size: 12px; display: block; }
-  .ware .stats {
-    display: block; color: #7c6f60; font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-variant-numeric: tabular-nums;
-  }
   .ware .cost { color: var(--gold); flex: none; text-align: right; }
   .ware .cost.owned { color: var(--ok); }
   .ware .cost .nth { display: block; font-size: 10px; color: var(--ash); }
+  /* the cost rides the top-right on spell cards so the key chip below it
+     keeps its corner to itself */
+  .warewrap .ware .cost { align-self: flex-start; }
+  /* quiet category label on the row's left edge (round 20: Offense / Defense /
+     Special) — sideways, tiny, muted: a whisper, not a header */
+  .catlabel {
+    flex: none; align-self: stretch; display: flex;
+    align-items: center; justify-content: center; width: 15px;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: #6f6357;
+  }
   /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
      wrapper NEXT TO the buy button — inside a disabled button it'd be dead. */
   .warewrap { position: relative; display: flex; }
@@ -300,7 +313,8 @@
   }
   #tip .tname { font-weight: 700; font-size: 14px; }
   #tip .tname .ic { margin-right: 6px; }
-  #tip .tdesc { color: var(--ash); margin: 4px 0 9px; }
+  #tip .tdesc { color: var(--parchment); margin: 4px 0 9px; }
+  #tip .tlong { color: var(--ash); margin: -6px 0 9px; }
   #tip table { width: 100%; border-collapse: collapse; font-size: 12px; }
   #tip th, #tip td { padding: 3px 7px; border-bottom: 1px solid #241c17; text-align: right; }
   #tip th:first-child, #tip td:first-child { text-align: left; color: var(--ash); }
@@ -425,6 +439,10 @@
     z-index: 210; pointer-events: none;
     color: var(--blood); font-size: 14px; transition: opacity .4s; opacity: 0;
     text-shadow: 0 1px 2px #000;
+    /* its own panel: the denser round-20 shop parks the ready button right
+       under it, and a bare line of text was unreadable on top of it */
+    background: rgba(20, 16, 14, .94); border: 1px solid #2e241c;
+    padding: 6px 14px; white-space: nowrap;
   }
 
   /* ---- status banners (connection / errors) ---- */
