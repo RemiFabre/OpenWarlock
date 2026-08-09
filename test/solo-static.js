@@ -14,7 +14,10 @@ import { chromium } from 'playwright';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 4520);
-const BASE = `http://localhost:${PORT}`;
+// the repo is served UNDER A SUBPATH, exactly like RemiFabre.github.io/OpenWarlock/
+// — this is what catches any absolute /client|/assets path sneaking back in
+const PREFIX = '/OpenWarlock';
+const BASE = `http://localhost:${PORT}${PREFIX}`;
 const SHOTS = process.env.SHOTS || null;
 
 const MIME = {
@@ -29,6 +32,8 @@ const server = http.createServer((req, res) => {
   let p;
   try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); }
   catch { res.writeHead(400); res.end(); return; }
+  if (!p.startsWith(PREFIX + '/')) { res.writeHead(404); res.end('outside subpath'); return; }
+  p = p.slice(PREFIX.length);
   if (p.endsWith('/')) p += 'index.html';
   const file = path.normalize(path.join(ROOT, p));
   if (!file.startsWith(ROOT)) { res.writeHead(404); res.end(); return; }
