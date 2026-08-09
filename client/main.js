@@ -280,7 +280,10 @@ function onEvent(e) {
       fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.45 });
       playSfx('teleport');
       break;
-    case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.5 }); playSfx('boom'); break;
+    // the blast ring is drawn at the event's OWN radius `e.r` (round 21.0):
+    // brief and punchy, 0.4 s. A vanished caster's repulse never gets here —
+    // viewEvents drops it, and that stays the design.
+    case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.4 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
     // terra lv3 Demolisher: the pillar shatters — rubble that settles and fades
     case 'pillarBroken': fx.push({ ...e, type: 'rubble', at: now, dur: 1.6 }); playSfx('boom'); break;
@@ -1039,21 +1042,24 @@ function spellTip(key, spec, level, maxLevel) {
   }
   // Switcheroo's stun scales with how far you actually swapped (round 20.5), so
   // there is no single number: show the floor and what a full-range swap buys,
-  // both recomputed from the spec exactly like the sim does it.
+  // both recomputed from the spec exactly like the sim does it — min floor,
+  // pad + d/fireball speed, and the round-21.0 `max` ceiling.
   if (spec.stun) {
     const rng = Array.isArray(spec.range) ? spec.range : [spec.range];
+    const swapStun = d => Math.min(spec.stun.max || Infinity,
+      Math.max(spec.stun.min, spec.stun.pad + d / SPELLS.fireball.speed));
     rows += tipRow('stun, short swap', spec.stun.min, maxLevel, fmtSec, level);
-    rows += tipRow('stun, full-range swap',
-      rng.map(r => Math.max(spec.stun.min, spec.stun.pad + r / SPELLS.fireball.speed)),
-      maxLevel, fmtSec, level);
+    rows += tipRow('stun, full-range swap', rng.map(swapStun), maxLevel, fmtSec, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
-  // one message per hover (Remi, round 19.6): spells carry everything in desc
-  return tipShell(ICONS[key], spec.name, spec.desc, null,
+  // one message per hover (Remi, round 19.6): spells carry everything in desc —
+  // unless one needs a longer mechanism sentence, and then `long` wins (the
+  // element shape; round 21.0, shield's "not physical" caveat)
+  return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
     `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 

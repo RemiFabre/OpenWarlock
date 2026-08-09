@@ -194,6 +194,10 @@ export const SPELLS = {
     name: 'Shield', hotkey: 'D', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 12], duration: 1.25,
     desc: 'Reflects projectiles back at their owner.',
+    // round 21.0 (Remi): say what it does NOT stop. Energy = anything that
+    // flies as a projectile (fireball, boomerang, Switcheroo) plus the bolt and
+    // a Repulse blast; the physical drops (Meteor, Bomb) land through it.
+    long: 'Reflects energy projectiles — fireballs, boomerangs, Switcheroo — back at their owner, and holds a Lightning bolt or a Repulse blast; physical impacts (Meteor, Bomb) go straight through it.',
   },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 6],
@@ -248,8 +252,12 @@ export const SPELLS = {
     // base fireball needs dist / SPELLS.fireball.speed seconds of flight; `pad`
     // is the human cast-reaction on top, `min` keeps short swaps at the old
     // 1 s feel. Computed at resolution from the REAL positions (sim.js).
+    // Round 21.0 (Remi playtested: "the combo is still too hard"): pad
+    // 0.35 → 0.55 (+0.2 s of reaction everywhere) and a `max` ceiling so a
+    // freak long swap can't hold someone forever. 1.00 / 1.53 / 2.26 / 3.00 s
+    // at 10 / 40 / 70 / 120 units swapped.
     // Revert path (round 19.2): drop `stun`, restore `stunT: 1`.
-    damage: 1, stun: { pad: 0.35, min: 1 },
+    damage: 1, stun: { pad: 0.55, min: 1, max: 3 },
     desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned — the longer the swap, the longer the stun.',
   },
   repulse: {

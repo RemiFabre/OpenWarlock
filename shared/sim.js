@@ -458,13 +458,13 @@ export function castSpell(state, id, key, tx, ty) {
         ...(pair ? { kbScale: 0 } : {}),
       });
       if (pair) {
-        // round 20.4: the trail's ORIGIN is pinned here, at the lead's muzzle,
-        // not read off the owner when it leaves — knock/portal/repulse inside
-        // trailDelay used to teleport the twin and split the pair absurdly.
-        state.delayedShots.push({
-          t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy,
-          ox: pl.x + dx * pl.radius * 0.5, oy: pl.y + dy * pl.radius * 0.5,
-        });
+        // ⚠ RULING (round 21.0, Remi: "part of the game physics"): only the AIM
+        // is pinned. The trail leaves from the owner's CURRENT position a beat
+        // later, so a knock/portal/blink inside trailDelay really does move
+        // where the twin comes from. Round 20.4 pinned the muzzle; reverted —
+        // do not re-"fix" this.
+        state.delayedShots.push(
+          { t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy });
       }
       break;
     }
@@ -611,10 +611,6 @@ export function castSpell(state, id, key, tx, ty) {
 //
 // opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
 // pays, resolved at cast time so the projectile carries everything it needs.
-//
-// opts.ox/oy override the muzzle (round 20.4): mosquito's trailing ball flies
-// the SAME line as its lead, from where the lead left, however far the owner
-// has been knocked/portalled in the meantime.
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
@@ -631,9 +627,9 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
-    // half a body ahead of the caster (or the pinned muzzle, opts.ox/oy)
-    x: opts.ox != null ? opts.ox : pl.x + dx * pl.radius * 0.5,
-    y: opts.oy != null ? opts.oy : pl.y + dy * pl.radius * 0.5,
+    // half a body ahead of the caster
+    x: pl.x + dx * pl.radius * 0.5,
+    y: pl.y + dy * pl.radius * 0.5,
     vx: dx * speed, vy: dy * speed,
     traveled: 0,
     returning: false,
@@ -969,6 +965,8 @@ function kill(state, target, directSourceId) {
   target.deaths++;
   target.moveTarget = null;
   target.dash = null;
+  // DEATH is the ONE thing that cancels a repulse charge (round 21.0 ruling,
+  // interpretation: "you blow up eventually" assumes you are alive to do it).
   target.charging = null;
   // dying reveals you: a corpse and its death burst must be visible to everyone,
   // and a hidden body would also silently vanish from the standings
@@ -1098,6 +1096,7 @@ function startRound(state) {
     pl.hp = pl.maxHp;
     pl.alive = true;
     pl.cooldowns = {};
+    // (a round boundary, not a cancel: nothing survives the respawn)
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.slowT = 0; pl.slowMultHit = 1;
@@ -1576,13 +1575,20 @@ function stepBattle(state, dt) {
       if (pl.poisonT === 0) { pl.poisonTick = 0; pl.poisonBy = null; pl.malady = null; } // CURED
     }
 
-    // repulse charge: 2 s of visible wind-up, then a radial burst
+    // repulse charge: 2 s of visible wind-up, then a radial burst.
+    // ⚠ RULING (round 21.0, Remi: "if you start charging, you blow up
+    // eventually"): the charge is UNCANCELLABLE. Nothing interrupts it — not
+    // frost, not a Switcheroo, not a portal — and the tick is deliberately NOT
+    // gated on stunT: a frozen charger still detonates, wherever they now are.
+    // Only death stops it (kill()). Every other `charging = null` was removed.
     if (pl.charging) {
       pl.charging.left -= dt;
       if (pl.charging.left <= 0) {
         const spec = SPELLS.repulse;
         const level = pl.charging.level;
         pl.charging = null;
+        // `r` IS the spell's radius: the client draws the ring at exactly this
+        // size, so the blast you see is the blast that hit (client/render.js).
         state.events.push({ t: 'repulse', id: pl.id, x: pl.x, y: pl.y, r: lvl(spec, 'radius', level) });
         for (const other of players) {
           if (other === pl || !other.alive) continue; // friendly fire: allies too
@@ -1659,7 +1665,9 @@ function stepBattle(state, dt) {
         if (Math.hypot(pl.x - px, pl.y - py) > P.RADIUS + pl.radius) continue;
         pl.x = 0; pl.y = 0;
         pl.vx = 0; pl.vy = 0;
-        pl.moveTarget = null; pl.dash = null; pl.charging = null;
+        // a charging repulse SURVIVES the trip (round 21.0 ruling) and
+        // detonates at the center — everything else stale is cleared
+        pl.moveTarget = null; pl.dash = null;
         state.events.push({ t: 'portal', id: pl.id, x: 0, y: 0, fx: px, fy: py });
         break;
       }
@@ -1684,6 +1692,8 @@ function stepBattle(state, dt) {
   // A trailing ball is a fully NORMAL fireball: knockback included, and it
   // counts for BOTH every-N counters (vampire may engorge it, mosquito's own
   // counter advances) — but mosquitoPair's guard means it can never double.
+  // ⚠ RULING (round 21.0): it leaves from the owner's CURRENT position on the
+  // original aim — being moved inside trailDelay really does move the twin.
   if (state.delayedShots && state.delayedShots.length) {
     const rest = [];
     for (const ds of state.delayedShots) {
@@ -1693,13 +1703,13 @@ function stepBattle(state, dt) {
       if (owner && owner.alive) {
         mosquitoPair(state, owner, true);
         spawnFireball(state, owner, ds.level, ds.dx, ds.dy,
-          { engorged: vampireCharge(state, owner), ox: ds.ox, oy: ds.oy });
+          { engorged: vampireCharge(state, owner) });
         // `trail: true` marks this as the pair's SECOND ball, not a keypress.
         // The client renders/sounds it exactly like any cast (it IS a fireball
         // leaving the muzzle); the harness's cooldown invariant skips it, since
         // no cooldown was paid for it (test/harness/check.js).
         state.events.push({ t: 'cast', id: owner.id, spell: 'fireball',
-          x: ds.ox, y: ds.oy, dx: ds.dx, dy: ds.dy, trail: true });
+          x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy, trail: true });
       }
     }
     state.delayedShots = rest;
@@ -1845,7 +1855,9 @@ function stepProjectiles(state, dt) {
       pr.hit = {};
       pr.pierced = 0;   // ghost: a mirrored ball is a fresh ball, first victim again
       pr.traveled = 0;
-      delete pr.kbScale; // round 20.4: a reflected ball is just a ball — it pushes
+      // ⚠ RULING (round 21.0, Remi: "reflect the ball as it was"): per-ball
+      // flags SURVIVE the mirror — a mosquito lead comes back no-push, as cast.
+      // Round 20.4 deleted kbScale here; reverted, do not re-"fix" it.
       if (pr.type === 'boomerang') {
         pr.returning = false; pr.lost = false;
         pr.ox = pr.x; pr.oy = pr.y;
@@ -1871,9 +1883,9 @@ function stepProjectiles(state, dt) {
         pr.hit = {};
         pr.pierced = 0;  // ghost: reflected back at you as a fresh, un-pierced ball
         pr.traveled = 0;
-        // round 20.4: mosquito's LEAD came in with kbScale 0; sent back it is
-        // just a ball, and a shield that damages without shoving reads as broken
-        delete pr.kbScale;
+        // ⚠ RULING (round 21.0, Remi: "reflect the ball as it was"): the shield
+        // sends the ball back AS IT WAS — a mosquito lead keeps kbScale 0 and
+        // returns push-less. Round 20.4 deleted it here; reverted, leave it.
         if (pr.type === 'boomerang') {
           // the reflector re-launches it: fresh legs, returns to THIS spot
           pr.returning = false;
@@ -1938,8 +1950,10 @@ function stepProjectiles(state, dt) {
       // swap (round 17): full state exchange with the (surviving) victim —
       // position AND velocity. Velocities must swap too, or the caster would
       // keep their own lava-bound momentum from the new spot and the lava-save
-      // fantasy breaks. moveTarget/dash/charging are cleared on BOTH: each
-      // player wakes up somewhere new with no stale intent.
+      // fantasy breaks. moveTarget/dash are cleared on BOTH: each player wakes
+      // up somewhere new with no stale intent. `charging` is NOT (round 21.0
+      // ruling): a swapped charger keeps charging and detonates at the new
+      // position — swapping a charger pulls the bomb onto yourself.
       if (pr.type === 'swap' && other.alive) {
         const owner = state.players[pr.owner];
         if (owner && owner.alive) {
@@ -1948,7 +1962,7 @@ function stepProjectiles(state, dt) {
           [owner.vx, other.vx] = [other.vx, owner.vx];
           [owner.vy, other.vy] = [other.vy, owner.vy];
           for (const p of [owner, other]) {
-            p.moveTarget = null; p.dash = null; p.charging = null;
+            p.moveTarget = null; p.dash = null;
           }
           // round 19.2 (Remi): the victim wakes up stunned — the caster's
           // combo window. Spec-driven; the caster is deliberately free.
@@ -1957,7 +1971,8 @@ function stepProjectiles(state, dt) {
           // them IS the distance swapped (the real one, never the nominal
           // range): a base fireball — no element riders — crosses it in
           // d / speed s, `pad` buys the human cast reaction, `min` floors short
-          // swaps at the old flat feel. Revert: flat `spec.stunT`.
+          // swaps at the old flat feel, `max` caps a freak long trade (round
+          // 21.0: pad 0.55, min 1, max 3). Revert: flat `spec.stunT`.
           const stunSpec = spec.stun;
           let stun = spec.stunT || 0;
           if (stunSpec) {
@@ -2123,7 +2138,8 @@ function applyElementsHit(state, pr, target) {
           target.stunT = Math.max(target.stunT || 0, stun);
           target.moveTarget = null;
           target.dash = null;
-          target.charging = null;
+          // NOT `charging`: freezing a charging repulse does not defuse it
+          // (round 21.0 ruling) — they blow up frozen in place.
         }
         if (slowT > 0) {
           target.slowT = slowT;

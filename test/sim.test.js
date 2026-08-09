@@ -1971,9 +1971,9 @@ describe('elemental mode', () => {
       SPELLS.fireball.damage[0] * vf.chargeLifesteal[0], 1);
   });
 
-  // Round 20.4 regressions, both found while asking why the pair "feels wrong".
-  // The shield one reads as "my shield did nothing": it sent the ball back with
-  // full damage and, because the LEAD's kbScale rode along, zero shove.
+  // ⚠ Two ROUND 21.0 RULINGS (Remi: "reflect the ball as it was" / "part of the
+  // game physics"). Round 20.4 "fixed" both of these and was reverted — these
+  // tests exist so nobody fixes them again.
   //
   // Shoot b (shielded, so the ball comes straight back) and return the PEAK
   // shove the reflected ball puts on the caster. `pair` = make it the pair's
@@ -2001,15 +2001,15 @@ describe('elemental mode', () => {
     return peak;
   }
 
-  it('a REFLECTED pair lead pushes normally — the shield is not a damage-only wall', () => {
+  it('RULING: a reflected ball comes back AS IT WAS — a pair lead still has no push', () => {
     const control = reflectedShove(false);
-    expect(control).toBeGreaterThan(1);          // a reflected ball does shove
-    expect(reflectedShove(true)).toBeCloseTo(control, 4);
+    expect(control).toBeGreaterThan(1);       // an ordinary ball does shove
+    expect(reflectedShove(true)).toBe(0);     // the no-push lead stays no-push
   });
 
-  it('the TRAILING ball is pinned to the cast muzzle, not to where the owner ended up', () => {
-    // Knock/portal/repulse inside trailDelay used to teleport the twin: lead at
-    // y=0, trail from y=25. The pair must always fly the same line.
+  it('RULING: the TRAILING ball leaves from where the owner IS, on the original aim', () => {
+    // Being knocked/portalled/blinked inside trailDelay really does move where
+    // the twin comes from — only the aim was pinned at cast time.
     const f = ELEMENTS.mosquito.fx;
     const state = elementalBattle(3);
     const a = state.players.p0;
@@ -2021,7 +2021,8 @@ describe('elemental mode', () => {
     a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 20, 0);
     const lead = state.projectiles[state.projectiles.length - 1];
-    const muzzle = { x: lead.x, y: lead.y, vx: lead.vx, vy: lead.vy };
+    const aim = { vx: lead.vx, vy: lead.vy };
+    expect(lead.y).toBeCloseTo(0, 5);
     expect(state.delayedShots.length).toBe(1);
     a.x = 0; a.y = 25; a.vx = a.vy = 0;   // portalled/knocked mid-delay
     const leadId = lead.id;
@@ -2036,13 +2037,11 @@ describe('elemental mode', () => {
     expect(state.delayedShots.length).toBe(0);
     const trail = state.projectiles.find(p => p.id > leadId && p.type === 'fireball');
     expect(trail).toBeTruthy();
-    expect(trail.x).toBeCloseTo(muzzle.x + muzzle.vx * DT, 4);
-    expect(trail.y).toBeCloseTo(muzzle.y, 5);   // NOT the owner's y=25
-    expect(trail.vx).toBeCloseTo(muzzle.vx, 5);
-    expect(trail.vy).toBeCloseTo(muzzle.vy, 5);
+    expect(trail.y).toBeCloseTo(25, 5);         // the owner's NEW y, not the muzzle's 0
+    expect(trail.vx).toBeCloseTo(aim.vx, 5);    // ...but the SAME aim
+    expect(trail.vy).toBeCloseTo(aim.vy, 5);
     expect(evs.length).toBe(1);                 // the client draws it there too
-    expect(evs[0].x).toBeCloseTo(muzzle.x, 5);
-    expect(evs[0].y).toBeCloseTo(muzzle.y, 5);
+    expect(evs[0].y).toBeCloseTo(25, 5);
   });
 
   it('the Echo Stone is GONE — merged into mosquito, absent from the catalogue', () => {
@@ -3168,6 +3167,30 @@ describe('power spells & pillar', () => {
     }
   });
 
+  it('swap: the stun is CLAMPED at spec `max` — an absurd trade still wakes you at 3 s', () => {
+    // Round 21.0 (Remi). The gap is measured between the two traded positions AT
+    // the switch moment, so anything that moves either end during the bolt's
+    // flight lengthens the stun — unbounded without a ceiling. It is not a
+    // theoretical ceiling: a full cross-arena trade (2 × START_RADIUS) already
+    // asks for more than `max`.
+    const s = SPELLS.swap.stun;
+    expect(s.pad + 2 * ARENA.START_RADIUS / SPELLS.fireball.speed).toBeGreaterThan(s.max);
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    a.maxHp = 9999; a.hp = 9999;                       // he spends the trip in lava
+    b.x = 12; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'swap', 40, 0);
+    step(state, DT);
+    a.x = -200; a.vx = a.vy = 0; a.moveTarget = null;  // blown absurdly far mid-bolt
+    expect(stepToSwap(state, 300)).toBeTruthy();
+    expect(s.pad + 212 / SPELLS.fireball.speed).toBeGreaterThan(5);  // raw formula
+    expect(swapStun(212)).toBe(s.max);                               // clamped
+    expect(b.stunT).toBeCloseTo(s.max, 5);
+  });
+
   it('swap: the lava save — and the victim burning to death credits the caster', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -3202,7 +3225,7 @@ describe('power spells & pillar', () => {
     expect(Math.abs(a.x)).toBeLessThan(3); // caster went nowhere
   });
 
-  it('swap: interrupts the victim mid-dash and the caster mid-charge', () => {
+  it('swap: interrupts the victim mid-dash (but NOT a repulse charge — round 21.0)', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.swap = 1;
@@ -3214,7 +3237,7 @@ describe('power spells & pillar', () => {
     // dash TOWARD the bolt so the two meet mid-flight, still mid-dash
     b.dash = { dx: -1, dy: 0, left: 12, level: 1, hit: {} };
     expect(stepToSwap(state)).toBeTruthy();
-    expect(a.charging).toBe(null);
+    expect(a.charging).toBeTruthy();   // the charge rides along (see the ruling below)
     expect(b.dash).toBe(null);
   });
 
@@ -3337,6 +3360,116 @@ describe('power spells & pillar', () => {
     expect(castSpell(state, 'p0', 'fireball', 10, 0)).toBe(false); // still locked
     expect(castSpell(state, 'p0', 'repulse', 0, 0)).toBe(true);    // the one exception
     expect(a.charging).toBeTruthy();
+  });
+
+  // ⚠ ROUND 21.0 RULING (Remi: "if you start charging, you blow up eventually").
+  // The repulse wind-up is UNCANCELLABLE: frost, Switcheroo and lava portals all
+  // used to null it, and none of them may again. Only death defuses the bomb.
+  //
+  // Step until p<id> detonates and return the `repulse` event (null if it never
+  // does) — the event carries the blast's position and radius.
+  function stepToBoom(state, id, ticks = 200) {
+    for (let i = 0; i < ticks; i++) {
+      state.events = [];
+      step(state, DT);
+      const e = state.events.find(ev => ev.t === 'repulse' && ev.id === id);
+      if (e) return e;
+    }
+    return null;
+  }
+
+  it('RULING: a frost stun does not defuse the charge — frozen solid, they still blow up', () => {
+    const state = createGame({ seed: 42, mode: 'elemental' });
+    for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45; state.players.p2.moveTarget = null;
+    state.pillars = [];
+    a.elements = { frost: 3 };          // lv3 frost = a real stun on the 3rd stack
+    b.spells.repulse = 1;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    expect(castSpell(state, 'p1', 'repulse', 8, 0)).toBe(true);
+    for (let i = 0; i < 3; i++) {       // three point-blank frost fireballs
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.4);
+    }
+    expect(b.stunT).toBeGreaterThan(0);   // frozen...
+    expect(b.charging).toBeTruthy();      // ...and still winding up
+    state.projectiles = [];
+    b.x = 8; b.y = 0; b.vx = b.vy = 0;                       // undo the last shove
+    a.x = 8; a.y = 2; a.vx = a.vy = 0; a.moveTarget = null;  // stand on the bomb
+    const hp0 = a.hp;
+    expect(stepToBoom(state, 'p1')).toBeTruthy();
+    expect(b.charging).toBeFalsy();
+    expect(a.hp).toBeLessThan(hp0);
+  });
+
+  it('RULING: a Switcheroo does not defuse either charge — each bomb travels with its owner', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 15; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    state.players.p2.x = 0; state.players.p2.y = -40; state.players.p2.moveTarget = null;
+    castSpell(state, 'p0', 'swap', 20, 0);
+    a.charging = { left: 1.5, level: 1 };   // both ends winding up when they trade
+    b.charging = { left: 1.5, level: 1 };
+    expect(stepToSwap(state)).toBeTruthy();
+    expect(a.charging).toBeTruthy();
+    expect(b.charging).toBeTruthy();
+    // each detonates where its owner ENDED UP: swapping a charger drags the
+    // blast onto your own old spot. Both are on the same clock, so collect
+    // them in ONE pass — they land on the same tick.
+    const at = {};
+    for (let i = 0; i < 200 && !(at.p0 && at.p1); i++) {
+      state.events = [];
+      step(state, DT);
+      for (const e of state.events) if (e.t === 'repulse') at[e.id] = e;
+    }
+    expect(at.p0).toBeTruthy();
+    expect(at.p1).toBeTruthy();
+    expect(at.p0.x).toBeGreaterThan(10);    // p0 blew up at p1's old place
+    expect(Math.abs(at.p1.x)).toBeLessThan(5);
+  });
+
+  it('RULING: a lava portal does not defuse the charge — it detonates at the center', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    const P = ARENA.PORTALS;
+    const ang = P.ANGLE;
+    const d = ARENA.START_RADIUS * P.DIST_FRAC;
+    state.pillars = [];
+    a.spells.repulse = 1;
+    a.x = Math.cos(ang) * d; a.y = Math.sin(ang) * d;
+    a.vx = a.vy = 0; a.moveTarget = null; a.maxHp = 9999; a.hp = 9999;
+    state.players.p1.x = 0; state.players.p1.y = 40; state.players.p1.moveTarget = null;
+    state.players.p2.x = 0; state.players.p2.y = -40; state.players.p2.moveTarget = null;
+    expect(castSpell(state, 'p0', 'repulse', a.x, a.y)).toBe(true);
+    const e = stepToBoom(state, 'p0');
+    expect(e).toBeTruthy();
+    expect(Math.hypot(e.x, e.y)).toBeLessThan(2);   // ported home, blew up there
+    // and the ring the client draws is the spell's OWN radius
+    expect(e.r).toBe(SPELLS.repulse.radius[0]);
+  });
+
+  it('RULING: death is the ONE thing that defuses a charge', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    b.spells.repulse = 1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = 1;
+    state.players.p2.x = 0; state.players.p2.y = -40; state.players.p2.moveTarget = null;
+    expect(castSpell(state, 'p1', 'repulse', 8, 0)).toBe(true);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(b.alive).toBe(false);
+    expect(b.charging).toBe(null);
+    expect(stepToBoom(state, 'p1', 90)).toBe(null);  // no posthumous blast
   });
 
   it('mirror wall reflects ENEMY projectiles and lets your own pass', () => {

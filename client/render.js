@@ -1298,11 +1298,29 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'repulse': {
+        // RADIUS-TRUE blast ring (round 21.0). `f.r` is the spell's own radius
+        // straight off the event: the ring eases out to it in the first third
+        // of its life and then HOLDS there, so the circle you see is exactly
+        // the circle that got shoved. Short and loud on purpose (0.4 s, set in
+        // main.js) — the old ring only reached full size as it faded to zero,
+        // so nobody could read the real reach.
         const x = view.sx(f.x), y = view.sy(f.y);
         const R4 = (fin(+f.r) ? +f.r : 9) * scale;
-        ctx.strokeStyle = `rgba(255, 230, 120, ${a})`;
-        ctx.lineWidth = 4 * a + 1;
-        ctx.beginPath(); ctx.arc(x, y, R4 * k, 0, Math.PI * 2); ctx.stroke();
+        const e = Math.min(1, k / 0.35);
+        const rr = R4 * (1 - (1 - e) * (1 - e));
+        if (rr > 0.5) {
+          const g4 = ctx.createRadialGradient(x, y, rr * 0.5, x, y, rr);
+          g4.addColorStop(0, 'rgba(255, 190, 60, 0)');
+          g4.addColorStop(1, `rgba(255, 205, 85, ${a * 0.38})`);
+          ctx.fillStyle = g4;
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.strokeStyle = `rgba(255, 248, 210, ${a})`;
+        ctx.lineWidth = 7 * a + 2;
+        ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = `rgba(255, 130, 30, ${a * 0.95})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
         break;
       }
       case 'catch': {

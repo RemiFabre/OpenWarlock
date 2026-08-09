@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-09 (round 20). Read this first, then
+*Last updated 2026-08-10 (round 21.0). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -57,7 +57,8 @@ Agent context usage on this project is **CRITICAL**. The rules:
   fully normal TRAILING ball 0.15 s behind on the same aim; a trailing ball
   advances both every-N counters (vampire's and mosquito's own) but can NEVER
   double (hard chain guard, test-locked); terra lv3 smashes pillars; BUILDS =
-  the ten tournament archetypes, Elo-ordered.
+  the ten tournament archetypes, Elo-ordered. Story:
+  `docs/history/2026-08-09-remi-notes-round-20.md`.
 - **MEASURED at r207 — the NEW strategy baseline**:
   `docs/history/2026-08-09-round20-elo.md` (ELO #2, 30 strategies × 8000
   games × 2 seeds). The mosquito rework demoted everything paired with it
@@ -71,6 +72,17 @@ Agent context usage on this project is **CRITICAL**. The rules:
   beats a maxed 24 g Hourglass). ⚠ Side effect: echo gone + flat items = **the
   whole item shelf is 126 g**, under roster.js's 150-185 g band, so items-only
   cores under-spend and spill into the exhaust tail.
+- **ROUND 21.0 SHIPPED** (Remi's rulings, overnight): the two round-20.4 sim
+  "fixes" are REVERTED and now carry ⚠ RULING comments + tests — a reflected
+  ball keeps its per-ball flags (a mosquito lead returns push-less) and the
+  trailing twin leaves from the owner's CURRENT position on the cast aim.
+  **The repulse charge is UNCANCELLABLE**: frost, swap and portal no longer
+  null it (a swapped charger detonates at the new spot), the tick is
+  deliberately not gated on `stunT`, and only `kill()` clears it. The
+  detonation now draws a radius-true 0.4 s ring (`e.r` off the event;
+  screenshot-verified at 9.0 units). Shield gained a `long` tag sentence
+  (energy yes, Meteor/Bomb no) and spell tooltips prefer `long` over `desc`.
+  Swap stun retuned (see the snapshot line below).
 - **Waiting on Remi**: mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
   E2-chronomancer's 7th-of-30 is where he wants CDR (M), cape (B),
@@ -121,7 +133,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 309 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 314 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -180,8 +192,9 @@ build step, Node ESM, only dep is `ws`.
 - **Spells** (round 19): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
   ignores pillars/walls; delay+radius NEVER level); **Swap** 3 levels 10 g,
   speed 50, range [40,55,70], cd −1 s/lv, 1 dmg stamps lava credit, victim stun
-  SCALES with the distance actually swapped (round 20.5: `stun {pad .35, min 1}`
-  + d / fireball speed → 1-2.06 s, the caster's combo ball always lands);
+  SCALES with the distance actually swapped, measured between the two TRADED
+  positions at the switch (round 21.0: `stun {pad .55, min 1, max 3}`
+  + d / fireball speed → 1.00/1.53/2.26/3.00 s at d = 10/40/70/120);
   **Blink**
   [8,6] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
   artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
@@ -227,7 +240,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 309 green
+npx vitest run                                   # 314 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
