@@ -10,7 +10,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 4520);
@@ -50,7 +50,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 await new Promise((r) => server.listen(PORT, r));
 console.log(`static server (no game server) on ${BASE}`);
 
-const browser = await chromium.launch();
+// ENGINE=webkit covers the Safari-shaped path (default chromium)
+const browser = await (process.env.ENGINE === 'webkit' ? webkit : chromium).launch();
 try {
   const page = await browser.newContext({ viewport: { width: 1280, height: 800 } }).then(c => c.newPage());
   const errors = [];
