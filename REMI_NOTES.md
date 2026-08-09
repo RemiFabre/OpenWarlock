@@ -6,6 +6,69 @@ dictation. Built by sequential focused subagents, each change one commit.
 chromium+webkit robustness, reconnect e2e, arena sanity, and the new
 static-solo test). Pull, restart the server, hard-refresh everyone.*
 
+## ROUND 19.4 — your hour-away batch + the AI-games read (all pushed, r186)
+
+Shipped: anger hover trimmed + every "Next:" tooltip footer removed; malady
+buffed (sickness 3/4/5 s, aura 8/12/16) and its tick damage confirmed in the
+stats table; boomerang ceiling deleted (throw ∞, shown ∞/∞); mosquito
+re-mathed (below); join screen = two buttons (Play / 📡 Host online) + your
+manifesto under a quiet "what is this?" fold.
+
+### ⚠ Mosquito: your dictation shipped faithfully, and the bots hate it
+
+First, corrected arithmetic: an armed+cashed pair is **4 damage hits** (arm
++ trigger + 2 procs), not 3 — so the live lv3 you played was **+100%**
+damage per pair, not +50%. Your ruling "no more damage penalty in practice
+at lv3" = pair-neutral = ×0.5 per ball at lv3. Shipped ladder **[0.4, 0.45,
+0.5]**: paired damage −20% / −10% / ±0% vs plain fireballs; unpaired pokes
+pay the full tax; on-hits still land ×4 per pair. The extra balls never add
+push (and the text now says so).
+
+What the instruments say about that (both read BOTS, and the caveats
+matter): the solo-element mirror puts mosquito at **0.0/0.3%** — correct
+instrument behavior, not a bug: alone it now has zero damage upside and
+nothing to amplify, so solo-mosquito is strictly a tax. The combo instrument
+(4-seat strategy mirror, 2000 games): mosquito-midas 20.3% (≈ baseline 25 —
+fine, midas pays gold not damage), but mosquito-combo **1.3%** (it maxes the
+tax first and pays −20% damage all early game — 5.6 kills/game). So on bot
+tables the element is now purely an amplifier that costs real damage.
+**This is exactly what you dictated and what "On-hit amplification" claims —
+but you liked lv1's feel BEFORE (which was pair-neutral ×0.5), so know that
+today's lv1 is strictly worse than what you played.** One-line levers if it
+feels dead: back to [0.5, 0.5, 0.5] (levels would need a new axis), or
+[0.45, 0.48, 0.5], or give lv3 a small pair-bonus [0.4, 0.45, 0.55].
+
+### The rest of the AI-games read (800 games × seeds 1/7 mirror + strategies)
+
+| element | s1 | s7 | | element | s1 | s7 |
+|---|---|---|---|---|---|---|
+| 🔴 Anger | 100 | 99.1 | | ❄️ Frost | 8.7 | 5.7 |
+| 🔥 Ember | 50.5 | 51.9 | | 🦠 Malady | 8.6 | 8.3 |
+| 🧛 Vampire | 47.2 | 47.1 | | 🪨 Terra | 7.0 | 6.7 |
+| 🔮 Arcane | 22.3 | 17.2 | | 🪙 Midas | 4.7 | 7.0 |
+| 🌪️ Gale | 11.9 | 13.5 | | 🦟 Mosquito | 0.0 | 0.3 |
+| 👻 Ghost | 9.1 | 9.1 | | | | |
+
+- **Gale buff is visible even to bots**: 1-2% → 12-13.5%, and it dragged
+  ember/vampire up as the mirror re-spread. Humans exploit gusts far better
+  than bots — expect it to feel bigger than this reads.
+- **Malady** 4-5% → **8.6/8.3%** from the buff — still a bot-floor number
+  (bots never cluster), but the direction confirms the levers work. The real
+  test is your crowded human games.
+- **Anger stays saturated at ~100% for bots** even at 15/10/5 s marks (bots
+  claim near-perfectly; cadence only delays them). The STRATEGY instrument
+  puts anger-scaling at **78.2%** vs momentum-scaling's old 28.5% — even
+  discounting bot inflation, anger is a much stronger design than momentum
+  was. Your slower marks are live; your feel stays the judge (question K).
+- **Cape ladder read** (1200 games/level, 25% = worth its price): lv0 53.4,
+  lv1 29.0, lv2 11.8, lv3 5.8 — the ladder STILL says "skip the cape", same
+  as before the buff. This is the known question-B artifact (bots with kb
+  resist take fights they shouldn't; the cape's sign flips by pilot), so per
+  the standing rule the buffed numbers ship on your feel and the ladder is
+  recorded, not obeyed. For scale: amulet 10.9/21/31.5/36.5 and hourglass
+  11.5/21.7/31.2/35.7 both price cleanly; sword lv0 is still 1.5 (question L
+  unchanged).
+
 ## ROUND 19.2 — the playtest batch (all pushed)
 
 - **Gale buffed hard**: fireball push +10/20/30 by level, gust +30/60/90
