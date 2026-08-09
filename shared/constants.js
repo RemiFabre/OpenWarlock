@@ -223,19 +223,22 @@ export const SPELLS = {
     // meteor's: damage only, no push, no riders.
     name: 'Bomb', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 8, 8],
     cooldown: [9, 8, 7], speed: 26, range: 45, fuse: 0.5,
-    damage: [10, 14, 18], radius: [4.5, 5.5, 6.5],
-    desc: '💣 Fused area blast.',
-    long: 'Throw a bomb to a spot: it flies over everything, sits for half a second, then explodes — damage only, no push. Levels raise damage and the blast.',
+    // knockback 0 is DELIBERATE data, not an omission: Remi wants "push: 0"
+    // printed in the hover stats so the no-push identity is stated.
+    damage: [10, 14, 18], radius: [4.5, 5.5, 6.5], knockback: 0,
+    desc: 'Flies over everything, explodes after a moment.',
   },
   swap: {
     // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
     // exchange; 1 dmg stamps the last-hitter (lava credit). Round 18.1: back
     // to 3 levels (they buy range + CDR), bolt sped up 38 -> 50.
     // Revert path (17.2): maxLevel 1, costs [12], cooldown 13, speed 38, range 68.
-    name: 'Swap', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 6, 6],
+    // Round 19.2: renamed Switcheroo 🎭 (Remi: fun trickster energy, still
+    // legible). His to re-pick — candidates brainstormed in REMI_NOTES.
+    name: 'Switcheroo', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 6, 6],
     cooldown: [13, 12, 11], speed: 50, radius: 0.9, range: [40, 55, 70],
     damage: 1,
-    desc: '🔀 Hit an enemy to TRADE PLACES — position and momentum both.',
+    desc: 'Hit an enemy to trade places.',
   },
   repulse: {
     name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 8],
@@ -317,7 +320,9 @@ export const ITEM_FX = {
   boots: { speedMult: [1.15, 1.29, 1.42] },
   treads: { lavaMult: [0.50, 0.36, 0.28] },
   amulet: { maxHp: [18, 32, 42] },   // round 17 §9 trim (was [25, 43, 56])
-  cape: { kbMult: [0.92, 0.85, 0.80] },
+  // Round 19.2 (Remi): "seems weak for 12 g — start at −12%". Old ladder
+  // [0.92, 0.85, 0.80]; same shape, scaled up.
+  cape: { kbMult: [0.88, 0.78, 0.70] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   echo: { every: 4, delay: 0.15 },   // handled in castSpell/stepBattle
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
@@ -375,8 +380,8 @@ export const ELEMENTS = {
   gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
            desc: 'More push.',
            long: 'Wind under your fireball. Every 3rd hit on the same target is one big gust — levels raise the push and the gust.',
-           fx: { kbAdd: [7, 14, 21], stacksToTrigger: 3,
-                 burstKbAdd: [15, 30, 45] } },
+           fx: { kbAdd: [10, 20, 30], stacksToTrigger: 3,
+                 burstKbAdd: [30, 60, 90] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now — the first hit on a target
   // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
   // target cashes +1 g and clears it. Halves the income RATE, which was the

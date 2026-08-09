@@ -22,7 +22,7 @@ window.addEventListener('resize', () => view.resize());
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
-  meteor: '☄️', nova: '💣', swap: '🔀', repulse: '💥', wall: '🪞',
+  meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   echo: '🔁', hourglass: '⏳',
 };

@@ -522,7 +522,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.font = `${Math.round(hr * 2)}px serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🔀', x, y);
+      ctx.fillText('🎭', x, y);
       ctx.textBaseline = 'alphabetic';
     } else if (pr.type === 'boomerang') {
       const r = SPELLS.boomerang.radius * 0.9 * scale; // drawn a hair inside the hitbox
