@@ -132,19 +132,25 @@ const transportP = selectTransport().then((t) => {
   // anonymous visit counter, once per page load, tagged with the picked
   // transport (client/analytics.js — counts only, never affects play)
   sendEvent('visit', { mode: modeName(t.kind) });
+  // the Play button's label is HONEST about what the probed transport will do
+  // (Remi, round 19.4: one big "Enter" hid the choice that was being made)
+  if (t.kind === 'ws') $('joinBtn').textContent = '⚔ Join game';
   if (t.kind === 'solo') {
-    // no server behind this page: say so up front — "Enter" starts a private
-    // solo room where bots are added from the lobby, all inside this tab
+    // no server behind this page: Play starts a private solo room where bots
+    // are added from the lobby, all inside this tab
+    $('joinBtn').textContent = '🤖 Play solo vs bots';
     const el = $('netMode');
-    el.textContent = '🤖 No server here — Enter opens a solo arena in this tab. Add bots in the lobby.';
+    el.textContent = '🤖 No server here — Play starts a solo arena in this tab. Add bots in the lobby.';
     el.classList.remove('hidden');
   }
   if (t.kind === 'rtc') {
-    // this tab was invited (#r=CODE): Enter joins the host's lobby over WebRTC
+    // this tab was invited (#r=CODE): Play joins the host's lobby over WebRTC,
+    // no extra step vs before
+    $('joinBtn').textContent = '⚔ Join game';
     const el = $('netMode');
-    el.textContent = `🔗 Invited to room ${t.code} — Enter joins the host's game, peer-to-peer.`;
+    el.textContent = `🔗 Invited to room ${t.code} — you'll join the host's game, peer-to-peer.`;
     el.classList.remove('hidden');
-    $('hostRow').classList.add('hidden'); // you can't host while joining someone
+    $('hostBtn').classList.add('hidden'); // you can't host while joining someone
   }
   return t;
 });
@@ -905,8 +911,10 @@ const SPELL_FIELDS = {
 };
 const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound']);
 // element fx whose array is NOT per-level (tierHits columns are tiers) —
-// their reading lives in another row's label instead
-const ELEM_FX_SKIP = new Set(['tierHits']);
+// their reading lives in another row's label instead. markDelay and
+// rampPermanent are display-only trims (Remi, round 19.4: those anger rows
+// "don't add information") — the sim still reads them from the spec.
+const ELEM_FX_SKIP = new Set(['tierHits', 'markDelay', 'rampPermanent']);
 
 const FX_FIELDS = {
   dmgAdd: ['fireball damage', (v) => `+${fmtNum(v)}`],
@@ -932,8 +940,6 @@ const FX_FIELDS = {
   goldOnHit: ['gold per cashed mark', (v) => `+${fmtNum(v)} g`],
   markEvery: ['a mark appears every', fmtSec],
   markDmg: ['each claimed mark', (v) => `+${fmtNum(v)} dmg, forever`],
-  markDelay: ['first mark after', fmtSec],
-  rampPermanent: ['your claimed marks', (v) => (v ? 'never reset, yours for the game' : 'reset each round')],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
@@ -972,20 +978,8 @@ const ITEM_LIVE = {
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
 };
 
-// The buy line (round 17, Remi): the stat you'll HAVE if you buy right now —
-// absolute totals, since ITEM_FX arrays are cumulative.
-const ITEM_NEXT = {
-  boots: (lv) => `+${fmtNum(Math.round((itemFxAt('boots', 'speedMult', lv) - 1) * 100))}% move speed`,
-  treads: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('treads', 'lavaMult', lv)) * 100))}% lava damage`,
-  amulet: (lv) => `+${fmtNum(itemFxAt('amulet', 'maxHp', lv))} max HP`,
-  cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback taken`,
-  sword: (lv) => `heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% of damage you deal`,
-  hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} Ability Haste`,
-  echo: () => `every 4th fireball fires twice`,
-};
-
 // The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
-// the totals at the level you'd buy (cumulative, like ITEM_NEXT), repainted
+// the totals at the level you'd buy (ITEM_FX arrays are cumulative), repainted
 // by refresh(); at max level it reads as the totals you own.
 const ITEM_TAG = {
   boots: (lv) => `+${fmtNum(Math.round((itemFxAt('boots', 'speedMult', lv) - 1) * 100))}% speed`,
@@ -1025,8 +1019,9 @@ function tipHead(cols, cur, label = 'lv') {
 }
 
 // The card only shows icon + name + cost (round 20, Remi) — the tooltip is
-// where EVERYTHING lives: the one-line desc, the long mechanism sentence, the
-// per-level table and the next-level line.
+// where EVERYTHING lives: the one-line desc, the long mechanism sentence and
+// the per-level table (no "Next:" foot since round 19.4 — the table already
+// says it, Remi).
 function tipShell(icon, name, desc, long, body, foot) {
   const both = long && long !== desc;
   return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}</div>
@@ -1040,11 +1035,14 @@ function spellTip(key, spec, level, maxLevel) {
   for (const field of orderedFields(spec, SPELL_FIELDS, SPELL_SKIP)) {
     const [label, fmt] = SPELL_FIELDS[field] || [field, fmtNum];
     rows += tipRow(label, spec[field], maxLevel, fmt, level);
+    // the return leg (boomerang) flies back through the launch point and
+    // onward until caught — no spec field carries that, but the table must
+    // not imply the flight ends where the throw does (Remi, round 19.4)
+    if (field === 'outDistance') rows += tipRow('return distance', Infinity, maxLevel, fmt, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
-    level > 0 && level < maxLevel ? `Next: ${esc(spellUpgradeLine(spec, level))}.` : '',
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
   return tipShell(ICONS[key], spec.name, spec.desc, spec.long,
@@ -1060,11 +1058,8 @@ function elementTip(key, spec, level) {
     rows += tipRow(label, fxSpec[field], cols, fmt, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, cols), cols, fmtGold, level + 1, 'cost');
-  const nextLv = Math.min(level, cols - 1);
-  const next = level < cols ? nextLevelLine(spec.fx, FX_FIELDS, nextLv) : '';
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
-    next ? `Next: ${esc(next)}.` : '',
     // the one boilerplate line that earns its place: what haste MEANS
     spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
@@ -1089,11 +1084,9 @@ function itemTip(key, spec, level) {
   const costs = Array.from({ length: cols }, (_, i) => itemCost(key, i));
   rows += tipRow('cost', costs, cols, fmtGold, Math.min(level + 1, cols), 'cost');
   const live = level > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](cur);
-  const next = level < cols && ITEM_NEXT[key] ? ITEM_NEXT[key](level + 1) : '';
   const foot = [
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
     live ? `With that, ${live}.` : '',
-    next ? `Next: ${esc(next)}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
   return tipShell(ICONS[key], spec.name, spec.desc, spec.long,
@@ -1156,47 +1149,9 @@ function attachTip(el, build) {
 $('shop').addEventListener('scroll', () => { if (tipOwner) placeTip(tipOwner.el); }, true);
 window.addEventListener('resize', hideTip);
 
-// ---- shop stat lines ----------------------------------------------------------
-// SPELLS fields are scalars or per-level arrays; statAt reads the value at a
+// Spec fields are scalars or per-level arrays; statAt reads the value at a
 // 1-based level either way.
 const statAt = (v, level) => Array.isArray(v) ? v[Math.min(level, v.length) - 1] : v;
-const SPELL_STAT_FIELDS = [
-  ['damage', 'dmg', ''],
-  ['knockback', 'push', ''],
-  ['cooldown', 'cd', 's'],
-  ['range', 'rng', ''],
-  ['duration', 'dur', 's'],
-  ['distance', 'dash', ''],
-  ['charge', 'charge', 's'],
-  ['delay', 'delay', 's'],
-];
-
-// Upgrade preview: only the fields that actually change, as "10→13" deltas.
-// Lives in the hover tooltip's foot since round 20 (the card is minimal).
-function spellUpgradeLine(spec, level) {
-  const parts = [`lv ${level}→${level + 1}`];
-  for (const [field, label, unit] of SPELL_STAT_FIELDS) {
-    if (spec[field] == null) continue;
-    const cur = statAt(spec[field], level), next = statAt(spec[field], level + 1);
-    if (cur !== next) parts.push(`${label} ${fmtNum(cur)}${unit}→${fmtNum(next)}${unit}`);
-  }
-  return parts.join(' · ');
-}
-
-// The compact buy line (round 17, Remi): only what the NEXT level gives you.
-// In the tooltip foot since round 20; the per-level table sits above it.
-function nextLevelLine(fxSpec, dict, level) {
-  const parts = [];
-  for (const field of orderedFields(fxSpec || {}, dict)) {
-    const v = fxSpec[field];
-    if (!Array.isArray(v)) continue;
-    const next = statAt(v, level + 1);
-    if (!next) continue;  // 0 = the level you're buying doesn't grant it yet
-    const [label, fmt] = dict[field] || [field, fmtNum];
-    parts.push(`${label} ${fmt(next)}`);
-  }
-  return parts.join(' · ');
-}
 
 // Round 17 §10: the elements sit in two labeled shop rows — PRESENTATIONAL
 // only, every one of them is still 3 levels and buys exactly what it did.

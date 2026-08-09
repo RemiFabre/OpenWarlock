@@ -123,6 +123,12 @@
   }
   button.mini { padding: 4px 10px; font-size: 12px; color: var(--ash); }
   button.mini:hover { color: #fff; }
+  /* the manifesto: deliberately quiet — a folded line under the join card */
+  #manifesto { margin-top: 14px; font-size: 12px; color: var(--ash); }
+  #manifesto summary { cursor: pointer; opacity: .8; }
+  #manifesto summary:hover { opacity: 1; }
+  #manifesto p { margin: 8px 0 0; line-height: 1.45; }
+  #manifesto a { color: var(--ash); }
   button.kick { margin-left: 8px; padding: 2px 8px; }
   button.kick:hover { border-color: var(--blood); color: var(--blood); }
 
@@ -552,7 +558,14 @@
     <p class="sub">Last warlock standing wins the round. The lava is patient.</p>
     <div class="row">
       <input id="name" type="text" maxlength="16" placeholder="Your warlock's name" autocomplete="off" style="flex:1">
-      <button id="joinBtn" class="primary">Enter</button>
+    </div>
+    <!-- Two equal-billing doors (Remi, round 19.4): one big Enter buried the
+         host flow — you clicked it and had already missed your chance to
+         host. joinBtn's label is set honestly per the probed transport. -->
+    <div class="row" style="margin-top:10px">
+      <button id="joinBtn" class="primary" style="flex:1">Play</button>
+      <button id="hostBtn" class="primary" style="flex:1"
+        title="Open a room and get a link your friends can join over peer-to-peer — this tab becomes the game server, so keep it open">📡 Host online</button>
     </div>
     <div class="avgrid" id="avatarGrid" aria-label="Choose your avatar"></div>
     <p class="hint hidden" id="netMode"></p>
@@ -561,9 +574,18 @@
       cast at cursor &nbsp;·&nbsp; knock enemies into the lava
     </p>
     <p class="hint" style="margin-top:8px"><button id="joinKeysBtn" class="mini" type="button">⌨ Keys</button> non-QWERTY? rebind your spell keys</p>
-    <p class="hint" id="hostRow" style="margin-top:8px"><button id="hostBtn" class="mini" type="button"
-      title="Open a room and get a link your friends can join over peer-to-peer — this tab becomes the game server">📡 Host online</button>
-      host for friends: they join by link, straight from their browser — your tab is the server, so keep it open</p>
+    <details id="manifesto">
+      <summary>what is this?</summary>
+      <p>OpenWarlock is open source and free. There is no monetization of any
+        kind: the creators gain nothing financially.
+        <a href="https://github.com/RemiFabre/OpenWarlock" target="_blank" rel="noopener">github.com/RemiFabre/OpenWarlock</a></p>
+      <p>When you host online you do not rely on a server. You are the server:
+        invite-only private lobbies with your friends, full control in the
+        players' hands. Once the peer-to-peer connection is up, it is a LAN
+        party like the good old days.</p>
+      <p>Coming next, the community shapes the game: players ask for changes in
+        plain language and an AI agent codes new versions in their name.</p>
+    </details>
   </div>
 </div>
 
