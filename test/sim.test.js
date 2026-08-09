@@ -3394,6 +3394,42 @@ describe('power spells & pillar', () => {
   });
 });
 
+describe('testing sandbox: bots spend their pile (round 19.8)', () => {
+  it('a bot given 100 g follows its whole strategy in the one untimed shop', () => {
+    const state = createGame({ seed: 3, mode: 'elemental' });
+    addPlayer(state, 'h', 'H');
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    setTesting(state, true, 100);
+    startGame(state);
+    expect(state.phase).toBe('shop');
+    const b = state.players.b;
+    expect(b.gold).toBe(100);
+    botShop(state, 'b');     // the engine's shop-entry hook calls this once
+    // deep spend, not one polite pass: the pile is gone into the strategy
+    expect(b.gold).toBeLessThan(20);
+    expect(Object.values(b.elements).some(v => v > 1)).toBe(true); // multi-level
+    // and it is stable: a second call changes nothing (no oscillation)
+    const g = b.gold;
+    botShop(state, 'b');
+    expect(b.gold).toBe(g);
+  });
+
+  it('normal rounds keep the one-pass pacing (no change outside testing)', () => {
+    const state = createGame({ seed: 3, mode: 'elemental' });
+    addPlayer(state, 'h', 'H');
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.phase = 'shop';
+    const b = state.players.b;
+    b.gold = 100;
+    botShop(state, 'b');
+    // one pass: at most one level per list entry — a rich bot still has gold
+    // left for later rounds (the per-round pacing is deliberate)
+    expect(b.gold).toBeGreaterThan(20);
+  });
+});
+
 describe('rush cancels momentum (round 19.6)', () => {
   it('casting rush zeroes knockback velocity — the combo escape', () => {
     const state = freshBattle(2);

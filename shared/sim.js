@@ -3347,6 +3347,21 @@ export function botElementFor(pl, seat = 0) {
 const PILOTED_POWER = new Set(['meteor']);
 
 export function botShop(state, id) {
+  // Testing sandbox (round 19.8, Remi): the ONE untimed shop stands in for
+  // many rounds of shopping — a bot handed 100 g must follow its whole
+  // strategy now, not one polite pass. Normal rounds keep one pass (the
+  // per-round pacing is deliberate). Bounded: each pass either spends gold
+  // or the loop stops.
+  const passes = state.testing ? 30 : 1;
+  for (let i = 0; i < passes; i++) {
+    const before = state.players[id] && state.players[id].gold;
+    botShopPass(state, id);
+    const pl = state.players[id];
+    if (!pl || pl.gold === before) break;
+  }
+}
+
+function botShopPass(state, id) {
   const pl = state.players[id];
   if (!pl) return;
   if (pl.wave) return; // campaign monsters are their descriptor, they never shop
