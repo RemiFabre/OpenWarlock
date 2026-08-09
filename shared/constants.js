@@ -182,8 +182,9 @@ export const SPELLS = {
   },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
+    // Round 19.1: [8,6] was too cheap on his read — "let's try 10, 8".
     // Revert path: costs [12, 8], range [18, 26].
-    name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [8, 6],
+    name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [10, 8],
     cooldown: [16, 12], range: [22, 22],
     desc: 'Blink to cursor. Cancels your momentum — the lava save.',
   },
@@ -214,15 +215,16 @@ export const SPELLS = {
     desc: '☄️ Mark a spot; a rock falls: heavy damage, radial blast.',
   },
   nova: {
-    // Round 19 (Remi, voice — 'Nova' is a PLACEHOLDER name pending his call):
-    // pure artillery. The orb flies straight OVER bodies, pillars and mirror
-    // walls (no en-route collisions by design — the visible fuse is the whole
-    // counterplay), parks at the click (clamped to range), sits `fuse` s, then
-    // a FLAT radial blast like meteor's: damage only, no push, no riders.
-    name: 'Nova', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 8, 8],
+    // Round 19 (Remi, voice — his name for it was garbled; round 19.1 second
+    // try: 'Bomb' 💣, still his to rename): pure artillery. The orb flies
+    // straight OVER bodies, pillars and mirror walls (no en-route collisions
+    // by design — the visible fuse is the whole counterplay), parks at the
+    // click (clamped to range), sits `fuse` s, then a FLAT radial blast like
+    // meteor's: damage only, no push, no riders.
+    name: 'Bomb', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 8, 8],
     cooldown: [9, 8, 7], speed: 26, range: 45, fuse: 0.5,
     damage: [10, 14, 18], radius: [4.5, 5.5, 6.5],
-    desc: '🧨 Fused area blast.',
+    desc: '💣 Fused area blast.',
     long: 'Throw a bomb to a spot: it flies over everything, sits for half a second, then explodes — damage only, no push. Levels raise damage and the blast.',
   },
   swap: {

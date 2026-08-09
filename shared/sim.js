@@ -1576,10 +1576,6 @@ function stepBattle(state, dt) {
       }
     }
 
-    // pre-move position: wall collision keeps a body on the side of the wall
-    // it STARTED the tick on (a fast knockback tick must not tunnel across)
-    const mx0 = pl.x, my0 = pl.y;
-
     // dash movement (overrides normal control)
     if (pl.dash) {
       const spec = SPELLS.rush;
@@ -1626,9 +1622,6 @@ function stepBattle(state, dt) {
     // pillars: push the player out along the normal and kill the velocity
     // component INTO the pillar — knockback slams you against cover and stops
     collidePillars(state, pl);
-
-    // mirror walls block BODIES too (round 18.1), the owner's included
-    collideWalls(state, pl, mx0, my0);
 
     // Lava portals (round 18, versus only): touch one and you are home at the
     // center — dead stop, intent cleared. The event carries `id`, so a
@@ -1741,31 +1734,6 @@ function collidePillars(state, pl) {
     pl.y = pil.y + ny * min;
     const vn = pl.vx * nx + pl.vy * ny;
     if (vn < 0) { pl.vx -= vn * nx; pl.vy -= vn * ny; }
-  }
-}
-
-// Mirror walls are solid for BODIES (round 18.1): nobody walks or is knocked
-// through one — the owner included, like pillars. Circle-vs-segment: push the
-// player back to the face on the side of the tick's STARTING position (x0,y0),
-// so a fast knockback tick cannot tunnel across the plane, and kill the
-// velocity component into the wall.
-function collideWalls(state, pl, x0, y0) {
-  if (!state.walls.length) return;
-  for (const w of state.walls) {
-    const near = segmentPointDist(w.x1, w.y1, w.x2, w.y2, pl.x, pl.y) < pl.radius;
-    const crossed = segSegDist(x0, y0, pl.x, pl.y, w.x1, w.y1, w.x2, w.y2) < pl.radius;
-    if (!near && !crossed) continue;
-    const s0 = (x0 - w.x1) * w.nx + (y0 - w.y1) * w.ny;
-    const s1 = (pl.x - w.x1) * w.nx + (pl.y - w.y1) * w.ny;
-    const side = Math.sign(s0) || Math.sign(s1) || 1;
-    // the segment's closest point to the player anchors the push-out
-    const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
-    const len2 = dx * dx + dy * dy || 1;
-    const t = clamp(((pl.x - w.x1) * dx + (pl.y - w.y1) * dy) / len2, 0, 1);
-    pl.x = w.x1 + dx * t + side * w.nx * pl.radius;
-    pl.y = w.y1 + dy * t + side * w.ny * pl.radius;
-    const vn = pl.vx * w.nx + pl.vy * w.ny;
-    if (vn * side < 0) { pl.vx -= vn * w.nx; pl.vy -= vn * w.ny; }
   }
 }
 
@@ -3331,5 +3299,40 @@ export function botShop(state, id) {
     // them (AGENTS.md debt #2 — the highest-value lab work left).
     if (SPELLS[thing] && SPELLS[thing].tier === 'power') continue;
     buy(state, id, thing); // ignores failures (owned / poor / maxed)
+  }
+
+  // Round 19.1 (Remi): "a bot should never stop buying stuff". ONLY once the
+  // whole build path is maxed (list entries can fail on gold — saving toward
+  // them stays sacred), leftovers go on random upgrades: items first, then
+  // pilotable spells, then mutations. Seeded rng keeps games replayable.
+  const maxed = (k) => {
+    if (Object.hasOwn(SPELLS, k)) {
+      const ml = k === 'fireball' && state.mode === 'elemental' ? 1 : SPELLS[k].maxLevel;
+      return (pl.spells[k] || 0) >= ml;
+    }
+    if (Object.hasOwn(ITEMS, k)) return (pl.items[k] || 0) >= ITEMS[k].maxLevel;
+    if (Object.hasOwn(ELEMENTS, k))
+      return state.mode !== 'elemental' || (pl.elements[k] || 0) >= ELEMENTS[k].maxLevel;
+    return true;
+  };
+  const elemList = state.mode === 'elemental'
+    ? ((pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS) : [];
+  const pathDone =
+    order.every(k => maxed(k) || (SPELLS[k] && SPELLS[k].tier === 'power')) &&
+    elemList.every(maxed);
+  if (!pathDone) return;
+  const pools = [
+    Object.keys(ITEMS),
+    Object.keys(SPELLS).filter(k => SPELLS[k].tier !== 'power'),
+    state.mode === 'elemental' ? Object.keys(ELEMENTS) : [],
+  ];
+  for (const pool of pools) {
+    const cands = pool.slice();
+    while (cands.length) {
+      const i = Math.floor(rng(state) * cands.length);
+      // a success keeps the candidate (next levels exist); any failure —
+      // maxed, mode-gated, draft-locked, too poor — retires it
+      if (!buy(state, id, cands[i]).ok) cands.splice(i, 1);
+    }
   }
 }

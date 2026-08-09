@@ -34,7 +34,7 @@ Agent context usage on this project is **CRITICAL**. The rules:
   sequential subagents): Malady 🦠 replaces venom (contagion), Anger 🔴
   replaces momentum (mark hunt), mosquito normal-balls-with-tax, gale uniform
   flat gust, Nova 🧨 (PLACEHOLDER name), Swap/Blink retunes, vanish reveals on
-  cast, tangible walls, ping everywhere, shop key rebinding. Story +
+  cast, ping everywhere, shop key rebinding. Story +
   garble-flag list: REMI_NOTES.md; numbers: BALANCE.md §Round 19. Browser
   hosting phase A MERGED (engine.js seam + static solo; Pages click and the
   Safari B0 tab-test are Remi's — see REMI_NOTES).
@@ -89,7 +89,7 @@ build step, Node ESM, only dep is `ws`.
 | `client/transport.js` | ws + solo transports behind one seam (`?mode=solo|server`, else /health probe). Phase B (WebRTC hosting) plugs in here — gate + handoff: `docs/history/2026-08-09-browser-hosting-phaseA.md` |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 278 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 281 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -143,7 +143,7 @@ build step, Node ESM, only dep is `ws`.
   artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
   pillars unlimited; vanish 1/2/3 s at 10 g — ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
-  mid-charge); Mirror Walls BLOCK BODIES (round 19); infinite ground-target
+  mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost — Remi reverted it); infinite ground-target
   range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
   REBINDABLE from the shop chips (owKeys localStorage).
 - **Vanish**: position stripped in `snapshot()` AND masked from bot perception
@@ -183,7 +183,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 278 green
+npx vitest run                                   # 281 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

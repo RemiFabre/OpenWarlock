@@ -3324,35 +3324,73 @@ describe('power spells & pillar', () => {
     expect(state.walls.length).toBe(0);
   });
 
-  it('mirror wall is tangible: walking into it stops at the face (owner too)', () => {
+  it('mirror wall never blocks BODIES — projectiles only (Remi, round 19.1)', () => {
+    // Round 18.1 briefly made walls tangible off a garbled transcription;
+    // Remi's ruling: he never asked — walls reflect shots and nothing else.
     const state = freshBattle(3);
     state.pillars = [];
     const a = state.players.p0;
     a.x = -6; a.y = 0; a.vx = a.vy = 0;
-    // wall on the y axis, normal facing a (the side a is on); a owns it —
-    // round 18.1: walls block EVERY body, the owner included
     state.walls = [{ x1: 0, y1: -5, x2: 0, y2: 5, nx: -1, ny: 0,
-      owner: 'p0', until: state.time + 60 }];
+      owner: 'p1', until: state.time + 60 }];
     setMoveTarget(state, 'p0', 10, 0);
     run(state, 2);
-    expect(a.x).toBeLessThanOrEqual(-a.radius + 1e-6); // never crossed the plane
-    expect(a.x).toBeGreaterThan(-a.radius - 0.5);      // pressed against it, not repelled
-    expect(Math.abs(a.y)).toBeLessThan(1);
+    expect(a.x).toBeGreaterThan(5); // walked straight through
+  });
+});
+
+describe('bot shopping never stops (round 19.1)', () => {
+  // Remi: "a bot should never stop buying stuff" — once its build path is
+  // fully maxed, leftovers go on random upgrades: items first, then
+  // pilotable spells, then mutations. Seeded rng, so games stay replayable.
+  function shopBot(mode, gold) {
+    const state = createGame({ seed: 3, mode });
+    addPlayer(state, 'h', 'H');
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.phase = 'shop';
+    const b = state.players.b;
+    b.gold = gold;
+    // a real game calls botShop once per shop; the build path advances one
+    // level per entry per pass, so simulate a dozen shops
+    for (let i = 0; i < 12; i++) botShop(state, 'b');
+    return state;
+  }
+
+  it('classic: with a fat purse, nothing buyable is left after one shop', () => {
+    const state = shopBot('classic', 400);
+    for (const key of [...Object.keys(SPELLS), ...Object.keys(ITEMS)]) {
+      if (SPELLS[key] && SPELLS[key].tier === 'power') continue; // bot guard
+      expect(buy(state, 'b', key).ok).toBe(false); // maxed or genuinely too poor
+    }
   });
 
-  it('mirror wall is tangible: knockback cannot punch you through it', () => {
-    const state = freshBattle(3);
-    state.pillars = [];
-    const a = state.players.p0;
-    a.x = -4; a.y = 0; a.moveTarget = null;
-    state.walls = [{ x1: 0, y1: -6, x2: 0, y2: 6, nx: -1, ny: 0,
-      owner: 'p1', until: state.time + 60 }];
-    a.vx = 90; a.vy = 0;   // a monster shove: 3 units per tick, > player radius
-    for (let i = 0; i < 45; i++) {
-      step(state, DT);
-      expect(a.x).toBeLessThanOrEqual(-a.radius + 1e-6);
-    }
-    expect(a.vx).toBeLessThanOrEqual(0.01); // the wall killed the inbound velocity
+  it('elemental: mutations join the fallback', () => {
+    const state = shopBot('elemental', 500);
+    for (const key of Object.keys(ELEMENTS))
+      expect(buy(state, 'b', key).ok).toBe(false);
+  });
+
+  it('the power-tier guard survives the fallback', () => {
+    const state = shopBot('classic', 500);
+    const b = state.players.b;
+    for (const [k, s] of Object.entries(SPELLS))
+      if (s.tier === 'power') expect(b.spells[k] || 0).toBe(0);
+  });
+
+  it('a bot still SAVES while its build path has unmet entries', () => {
+    // gold below the next list purchase: the fallback must not torch savings
+    const state = createGame({ seed: 3, mode: 'classic' });
+    addPlayer(state, 'h', 'H');
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.phase = 'shop';
+    const b = state.players.b;
+    b.gold = 2; // can afford nothing on the list — and nothing else either
+    botShop(state, 'b');
+    expect(b.gold).toBe(2);
   });
 });
 
@@ -5021,7 +5059,7 @@ describe('spawn shuffle (round 18)', () => {
   });
 });
 
-describe('nova 🧨 (fused artillery bomb — name is a placeholder)', () => {
+describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
   const spec = SPELLS.nova;
 
   // freshBattle + the meteor test's furniture: clean floor, parked bystander

@@ -6,6 +6,26 @@ dictation. Built by sequential focused subagents, each change one commit.
 chromium+webkit robustness, reconnect e2e, arena sanity, and the new
 static-solo test). Pull, restart the server, hard-refresh everyone.*
 
+## ROUND 19.1 — your morning feedback, all applied
+
+- **Mirror wall reverted to projectiles-only** — you were right, the
+  "tangible" order was a transcription ghost (garble flag #2 confirmed).
+  Walls reflect shots and block nothing else, exactly as before; a test now
+  locks that bodies walk through.
+- **Blink costs [10, 8]** (the overnight [8, 6] was too cheap on your read).
+- **The new spell is now 'Bomb' 💣** (second try — was Nova 🧨; both were my
+  guesses, still one line to rename when you pick the real name).
+- **Bots never stop shopping**: once a bot's build path is fully maxed, it
+  spends leftovers on random upgrades — items first, then spells it can
+  pilot, then mutations. Two guards, both test-locked: it still SAVES while
+  its list has unmet entries (no torching savings mid-build), and the
+  power-tier no-buy rule survives (bots still can't waste gold on
+  Meteor/Bomb they can't aim).
+- **Anger / gale / the rest**: untouched, awaiting your playtest as agreed.
+- **Browser hosting phase B is underway in parallel** (details at the end of
+  this file) — it lives behind the transport seam on its own branch, so your
+  gameplay feedback and that work can never collide; keep the ideas coming.
+
 ## ROUND 19 — the overnight batch
 
 ## ⚠ READ FIRST: what the voice transcription garbled (my calls, all revertible)
