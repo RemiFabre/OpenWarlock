@@ -3059,25 +3059,40 @@ describe('power spells & pillar', () => {
     }
   });
 
-  it('bots never buy power-tier spells, even when a build list names one', () => {
+  it('bots never buy power-tier spells a build lists — EXCEPT meteor (round 20: piloted)', () => {
     const state = freshBattle(2);
     state.phase = 'shop';
     const bot = state.players.p0;
     bot.kind = 'berserker'; bot.gold = 999;
     bot.build = null;
-    // inject a power spell into the consumed order to prove the guard, not the
-    // omission, is what protects us
+    // inject power spells into the consumed order to prove the guard, not the
+    // omission, is what protects us. Meteor is the ONE exception: it has a
+    // pilot now (the CC-gated cast), so an order that explicitly lists it may
+    // buy it — everything else in the tier stays structurally unbuyable.
     const orig = BUILDS.bruiser.order;
     try {
-      BUILDS.bruiser.order = ['meteor', 'swap', 'repulse', 'wall', 'fireball'];
+      BUILDS.bruiser.order = ['meteor', 'swap', 'repulse', 'wall', 'nova', 'fireball'];
       bot.build = 'bruiser';
       botShop(state, 'p0');
-      for (const key of ['meteor', 'swap', 'repulse', 'wall'])
+      for (const key of ['swap', 'repulse', 'wall', 'nova'])
         expect(bot.spells[key] || 0).toBe(0);
+      expect(bot.spells.meteor).toBe(1);              // the piloted exception
       expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
     } finally {
       BUILDS.bruiser.order = orig;
     }
+  });
+
+  it('meteor never reaches a bot whose order does not list it (leftover pool excluded)', () => {
+    // round 19.1 leftover shopping buys "everything" once the path is maxed —
+    // the power tier must stay out of that random pool, meteor included.
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    const bot = state.players.p0;
+    bot.kind = 'berserker'; bot.build = 'bruiser'; bot.gold = 999;
+    for (let i = 0; i < 12; i++) botShop(state, 'p0');
+    for (const key of Object.keys(SPELLS))
+      if (SPELLS[key].tier === 'power') expect(bot.spells[key] || 0).toBe(0);
   });
 
   it('pillar: raises a blocker, stacks freely (round 17), and each expires', () => {
@@ -3410,6 +3425,108 @@ describe('bots never open on mosquito (round 19.5)', () => {
       expect(bot.elements.mosquito || 0).toBe(0);
       expect(Object.values(bot.elements).some(v => v > 0)).toBe(true);
     }
+  });
+});
+
+describe('Chainer build & CC-gated casts (round 20)', () => {
+  // Remi's playtest combo: frost holds, the telegraphed spell lands ON the
+  // hold. Build order: fireball, then frost → lightning → gale → mosquito at
+  // lv1, then those four round-robin to max (mosquito last: the 19.5 rule).
+  function chainerShop(gold) {
+    const state = createGame({ seed: 11, mode: 'elemental' });
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'chainer' });
+    addPlayer(state, 'h', 'H');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.phase = 'shop';
+    state.players.b.gold = gold;
+    botShop(state, 'b');
+    return state.players.b;
+  }
+
+  it("buys Remi's sequence: frost, then lightning, then gale, then mosquito", () => {
+    // each lv1 costs 10, so the budget says how deep into the order we get
+    const at10 = chainerShop(10);
+    expect(at10.elements.frost).toBe(1);
+    expect(at10.spells.lightning || 0).toBe(0);
+    const at20 = chainerShop(20);
+    expect(at20.elements.frost).toBe(1);
+    expect(at20.spells.lightning).toBe(1);
+    expect(at20.elements.gale || 0).toBe(0);
+    const at40 = chainerShop(40);
+    expect(at40.elements.frost).toBe(1);       // lv1s of all four BEFORE any lv2
+    expect(at40.spells.lightning).toBe(1);
+    expect(at40.elements.gale).toBe(1);
+    expect(at40.elements.mosquito).toBe(1);    // mosquito last of the four
+  });
+
+  it('a bot drops the bolt ON a held body instead of leading it', () => {
+    // target walking north: an un-held cast leads by delay × speed (~5+ units),
+    // a held cast (≥ BOT_CC_CAST.FROST_STACKS of MY frost) drops on the body.
+    const boltFor = (stacks) => {
+      const state = freshBattle(2);
+      const a = state.players.p0, v = state.players.p1;
+      a.bot = true; a.kind = 'berserker'; a.spells = { fireball: 1, lightning: 1 };
+      a.x = 0; a.y = 0; v.x = 12; v.y = 0;
+      v.moveTarget = { x: 12, y: 40 };            // walking straight north
+      if (stacks) v.stacks = { frost: { p0: stacks } };
+      for (let i = 0; i < 60 && !state.bolts.length; i++) stepBot(state, 'p0', DT);
+      return state.bolts[0];
+    };
+    const held = boltFor(2);
+    expect(held).toBeTruthy();
+    expect(Math.hypot(held.x - 12, held.y - 0)).toBeLessThan(1);
+    const led = boltFor(0);
+    expect(led).toBeTruthy();
+    expect(led.y).toBeGreaterThan(2);            // it led the walk — not held
+  });
+
+  it('the stalker waives its finish/poke gate for a stunned target', () => {
+    const boltFor = (stunT) => {
+      const state = freshBattle(2);
+      const a = state.players.p0, v = state.players.p1;
+      a.bot = true; a.kind = 'stalker'; a.spells = { fireball: 1, lightning: 1 };
+      a.x = 0; a.y = 0; v.x = 12; v.y = 0;       // near + full hp: gate says no
+      v.stunT = stunT;
+      for (let i = 0; i < 60 && !state.bolts.length; i++) stepBot(state, 'p0', DT);
+      return state.bolts[0];
+    };
+    expect(boltFor(0)).toBeUndefined();          // full-hp target at 12: no cast
+    const bolt = boltFor(2);
+    expect(bolt).toBeTruthy();                   // stunned: bolt, dead on the body
+    expect(Math.hypot(bolt.x - 12, bolt.y - 0)).toBeLessThan(1);
+  });
+
+  it('meteor fires ONLY into a hold that outlasts the fall (stun or heavy slow)', () => {
+    const meteorFor = (setup) => {
+      const state = freshBattle(2);
+      const a = state.players.p0, v = state.players.p1;
+      a.bot = true; a.kind = 'berserker'; a.spells = { fireball: 1, meteor: 1 };
+      a.x = 0; a.y = 0; v.x = 12; v.y = 0;
+      setup(v);
+      for (let i = 0; i < 60 && !state.meteors.length; i++) stepBot(state, 'p0', DT);
+      return state.meteors[0];
+    };
+    expect(meteorFor(() => {})).toBeUndefined();                    // no CC: never
+    expect(meteorFor(v => { v.slowT = 3; v.slowMultHit = 0.7; }))   // light slow:
+      .toBeUndefined();                                             // walks out
+    const pinned = meteorFor(v => { v.slowT = 3; v.slowMultHit = 0.5; });
+    expect(pinned).toBeTruthy();                                    // heavy slow
+    const stunned = meteorFor(v => { v.stunT = ELEMENTS.frost.fx.stunT[2]; });
+    expect(stunned).toBeTruthy();                                   // frost lv3
+    expect(ELEMENTS.frost.fx.stunT[2]).toBeGreaterThan(SPELLS.meteor.delay);
+    expect(Math.hypot(stunned.x - 12, stunned.y - 0)).toBeLessThan(1);
+  });
+
+  it('bots step out of a meteor telegraph like a bolt telegraph', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.bot = true; a.kind = 'stalker'; a.x = 10; a.y = 0;
+    state.players.p1.x = -30; state.players.p1.y = 0;
+    state.meteors.push({ x: 10, y: 0, t: SPELLS.meteor.delay, owner: 'p1', level: 1 });
+    for (let i = 0; i < 30; i++) { stepBot(state, 'p0', DT); step(state, DT); }
+    expect(Math.hypot(a.x - 10, a.y - 0))
+      .toBeGreaterThan(SPELLS.meteor.radius * 0.5); // it moved off the mark
   });
 });
 
