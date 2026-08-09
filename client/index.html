@@ -170,6 +170,11 @@
   #ver { position: fixed; left: 8px; bottom: 6px; z-index: 205; font-size: 10px;
          color: rgba(200, 190, 180, 0.5); pointer-events: none; }
   #ver.bad { color: #ff7a6b; font-size: 12px; }
+  /* public usage counters, bottom-right whisper next to the audio buttons */
+  #statsBtn { position: fixed; right: 8px; bottom: 40px; z-index: 205;
+              background: none; border: none; font-size: 14px; cursor: pointer;
+              opacity: 0.5; }
+  #statsBtn:hover { opacity: 1; }
   .ping.warn { color: #ffc95e; }
   .ping.bad { color: #ff7a6b; }
   .botgroup { display: inline-flex; }
@@ -671,6 +676,14 @@
      (Chrome), which trapped the toast underneath the shop/lobby overlays -->
 <div id="toast"></div>
 <div id="ver" title="build version: bumps on every commit"></div>
+<button id="statsBtn" type="button" title="usage stats (public, anonymous)">📊</button>
+<div id="statsOverlay" class="overlay hidden">
+  <div class="slab" style="--w:380px">
+    <p style="font-size:16px; margin:4px 0 10px">📊 OpenWarlock so far</p>
+    <div id="statsBody" style="font-size:13px; line-height:1.7">loading…</div>
+    <p class="hint">anonymous counters, live from the relay · click anywhere to close</p>
+  </div>
+</div>
 
 <!-- relative on purpose: this page must load from the Node server AND from a
      static subpath host (GitHub Pages) — see docs/BRIEF-browser-hosting.md §A4 -->

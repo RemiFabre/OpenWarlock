@@ -13,12 +13,21 @@ import { VERSION } from '../shared/version.js';
 const MODES = { ws: 'server', solo: 'solo', 'rtc-host': 'rtc-host', rtc: 'rtc-guest' };
 export const modeName = (kind) => MODES[kind] || 'unknown';
 
-function beaconUrl() {
+function relayHttp(pathname) {
   try {
     const u = new URL(signalUrl().replace(/^ws/, 'http')); // ws->http, wss->https
-    u.pathname = '/beacon'; u.search = ''; u.hash = '';
+    u.pathname = pathname; u.search = ''; u.hash = '';
     return u.href;
   } catch { return null; }
+}
+const beaconUrl = () => relayHttp('/beacon');
+
+// The public counters, for the in-game 📊 panel (CORS is open on the relay).
+export async function fetchStats() {
+  const url = relayHttp('/stats');
+  if (!url) return null;
+  const r = await fetch(url, { cache: 'no-store' });
+  return r.ok ? r.json() : null;
 }
 
 export function sendEvent(e, fields = {}) {

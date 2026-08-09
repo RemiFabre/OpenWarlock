@@ -13,7 +13,7 @@ import {
   nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
 } from './coop.js';
 import { selectTransport, createRtcHostTransport } from './transport.js';
-import { sendEvent, trackSnapshot, modeName } from './analytics.js';
+import { sendEvent, trackSnapshot, modeName, fetchStats } from './analytics.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -577,6 +577,28 @@ const goldRules =
   `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first · ` +
   `bounty up to +${GOLD.BOUNTY_MAX} g for slaying someone ahead of you.`;
 $('ver').textContent = VERSION; // bottom-left build stamp; red on mismatch
+// 📊 public usage counters (Remi: "visible from the game directly") — fetched
+// live from the relay's /stats on click, shown to everyone.
+$('statsBtn').addEventListener('click', async () => {
+  $('statsOverlay').classList.remove('hidden');
+  const el = $('statsBody');
+  el.textContent = 'loading…';
+  try {
+    const s = await fetchStats();
+    const t = s && s.total;
+    if (!t) { el.textContent = 'stats unreachable (relay asleep or offline)'; return; }
+    const today = (s.days || {})[new Date().toISOString().slice(0, 10)] || {};
+    const row = (label, all, day) =>
+      `<div>${label}: <b>${all || 0}</b>${day ? ` <span class="dim">(+${day} today)</span>` : ''}</div>`;
+    el.innerHTML =
+      row('page visits', t.visits, today.visits) +
+      row('games started', t.games, today.games) +
+      row('players seated', t.players_total, today.players_total) +
+      row('games finished', t.game_ends, today.game_ends) +
+      row('rounds fought', t.rounds_total, today.rounds_total);
+  } catch { el.textContent = 'stats unreachable (relay asleep or offline)'; }
+});
+$('statsOverlay').addEventListener('click', () => $('statsOverlay').classList.add('hidden'));
 // Update watcher (Remi: "do I have to wait 12 minutes?"): GitHub Pages caches
 // for 10 min, but a unique query string bypasses the CDN — so we can KNOW a
 // newer build exists even while we're still serving the old one. Check every
