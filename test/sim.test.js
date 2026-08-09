@@ -2254,18 +2254,23 @@ describe('elemental mode', () => {
     for (let i = 0; i < 5; i++) buy(classic, 'a', 'fireball');
     expect(classic.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
 
-    // the hourglass (round 16: the ex-arcane global CDR as an item) keeps its
-    // element-era per-level cost curve — itemCost must read the costs array
+    // the hourglass (round 16: the ex-arcane global CDR as an item) sells in
+    // classic too, at whatever the spec prices each level — flat `cost`, or a
+    // `costs` array if one is ever added back
+    const spec = ITEMS.hourglass;
+    const price = (lv) => (Array.isArray(spec.costs)
+      ? spec.costs[Math.min(lv, spec.costs.length - 1)] : spec.cost);
     const a = classic.players.a;
     a.gold = 99;
-    let spent = 0;
-    for (let lv = 0; lv < ITEMS.hourglass.maxLevel; lv++) {
-      expect(itemCost('hourglass', lv)).toBe(ITEMS.hourglass.costs[lv]);
+    let spent = 0, want = 0;
+    for (let lv = 0; lv < spec.maxLevel; lv++) {
+      expect(itemCost('hourglass', lv)).toBe(price(lv));
+      want += price(lv);
       const before = a.gold;
       expect(buy(classic, 'a', 'hourglass').ok).toBe(true);
       spent += before - a.gold;
     }
-    expect(spent).toBe(ITEMS.hourglass.costs.reduce((s, c) => s + c, 0));
+    expect(spent).toBe(want);
     expect(buy(classic, 'a', 'hourglass').err).toBe('max level');
   });
 

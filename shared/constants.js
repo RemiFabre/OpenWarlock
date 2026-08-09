@@ -273,42 +273,45 @@ export const SPELLS = {
 // mode: 'elemental' = exists only under the elemental ruleset. Hard cap 3
 // levels, SAME gold cost per level — the diminishing effect is the brake.
 // Values are ABSOLUTE CUMULATIVE totals at that level, never per-level increments.
+// Round 20 reprice (Remi's ruling: "buy an item every round even with zero
+// kills"): every item is FLAT per level — cheap tier 6 g, premium tier 8 g.
+// Revert: boots/treads 10, cape 12, amulet 12, sword 15, hourglass costs [10,8,8].
 // history: docs/history/2026-08-08-constants-sweeps.md#items
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: 'Move speed.' },
-  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: 'Lava resistance.' },
+  boots:  { name: 'Boots of Speed',       cost: 6, maxLevel: 3, desc: 'Move speed.' },
+  treads: { name: 'Lava Treads',          cost: 6, maxLevel: 3, desc: 'Lava resistance.' },
   // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
-  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: 'Max HP.' },
+  amulet: { name: 'Amulet of Health',     cost: 8, maxLevel: 3, desc: 'Max HP.' },
   // (Ring of Regeneration removed with passive regen, round 17 — see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
   // Hard-tier number is a bot artifact. Needs Remi's feel read (BALANCE 15D).
   // history: docs/history/2026-08-08-constants-sweeps.md#items-treads-and-cape-round-15
-  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'Knockback resistance.' },
+  cape:   { name: 'Cape of the Magi',     cost: 6, maxLevel: 3, desc: 'Knockback resistance.' },
   // Studied 2026-08-07 after Remi's "really really weak" report: lava is only
   // ~8.5% of all damage (hypothesis false) and the sword measured 2nd-strongest
   // item; the weak FEEL was scoreboard vs regen-lock — round 16 added the green
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
-  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
+  sword:  { name: 'Blood Sword',          cost: 8, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
             desc: 'Every 4th fireball echoes: a second one fires right behind it.' },
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
-  // here from the element roster, same costs (10+8+8) and same numbers — his
-  // reasoning: elements are the FIREBALL's progression now, and a thing that
-  // affects ALL spells is thematically an item. `costs` is a per-level price
-  // array (itemCost reads it); items without one keep their flat cost.
-  hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
+  // here from the element roster — his reasoning: elements are the FIREBALL's
+  // progression now, and a thing that affects ALL spells is thematically an
+  // item. Round 20: its element-era `costs` curve dropped, flat 8 g like every
+  // other item. (`costs` is still supported by itemCost — elements use it.)
+  hourglass: { name: 'Hourglass of Haste', cost: 8, maxLevel: 3,
             desc: 'Ability Haste: all your cooldowns run faster.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
-// design for most items (round 12): every level costs the same, and the
-// shrinking effect is the brake. An item may carry a `costs` array instead
-// (round 16: the hourglass keeps its element-era 10+8+8 curve).
+// design (round 12, universal since round 20): every level costs the same, and
+// the shrinking effect is the brake. A spec may carry a `costs` array instead
+// — no item does today, elements do.
 export function itemCost(key, owned = 0) {
   const spec = ITEMS[key];
   if (!spec) return 0;
@@ -371,12 +374,12 @@ export const ELEMENTS = {
   // Tick flat at 1; levels buy duration + aura. Lethal tick takes the kill
   // (creator's — or the spreader's when the creator catches it back). Trail dead.
   // history: docs/history/2026-08-08-round17-battery.md#venom (the old DoT)
-  // Round 19.4 buff (Remi): longer sickness, much wider aura. Was dotTime
-  // [2,3,4], auraR [4,6,8].
+  // Round 20 buff (Remi): longer sickness + wider aura again. Revert is
+  // dotTime [3,4,5], auraR [8,12,16] (round 19.4; before that [2,3,4]/[4,6,8]).
   malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Spread diseases.',
            long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each.',
-           fx: { tickDmg: 1, dotTime: [3, 4, 5], tickEvery: 1, auraR: [8, 12, 16] } },
+           fx: { tickDmg: 1, dotTime: [4, 5, 6], tickEvery: 1, auraR: [10, 14, 18] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
   // ⚠ The burst lever is VIOLENTLY STEEP (+20% ≈ +14 points); old sweep at git c38730f.
@@ -412,13 +415,13 @@ export const ELEMENTS = {
   // Anger (Remi's mark-hunt rework of momentum): markDelay s into each round,
   // then markEvery s after each claim, ONE red mark lands on a random enemy —
   // a fireball hit on them banks +markDmg damage, game-long and uncapped.
-  // Levels buy mark FREQUENCY only. Round 19.3 (Remi, post-playtest nerf:
-  // "reducing the frequency of marks"): markEvery [10,7,5] -> [15,10,5].
+  // Levels buy mark FREQUENCY only. Round 20 nerf (Remi): markEvery slowed
+  // again — revert is [15, 10, 5] (round 19.3, itself from [10,7,5]).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Infinite scaling.',
            long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
-           fx: { markEvery: [15, 10, 5], markDmg: 0.5, markDelay: 0.5,
+           fx: { markEvery: [20, 15, 10], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 18.2 (Remi): NO sting — every ball is a NORMAL fireball; the penalty
   // is dmg AND kb × [0.5,0.75,1], multiplicative with midas like any multiplier.
@@ -462,7 +465,8 @@ export const ELEMENTS = {
   // unlocks pure passthrough — everyone on the line takes a full hit and every
   // on-hit effect pays per enemy. Old pierce spec + sweeps: git c38730f.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-ghost
-  ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 5, 12],
+  // Round 20 (Remi): lv3 price cut 12 -> 10.
+  ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 5, 10],
            desc: 'Faster projectile.',
            long: 'Your fireball flies faster. Lv3: it passes through people, hitting everyone on the line.',
            fx: { projSpeedMult: [1.15, 1.3, 1.3], pierce: true,
