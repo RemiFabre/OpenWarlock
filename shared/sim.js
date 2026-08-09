@@ -1684,7 +1684,12 @@ function stepBattle(state, dt) {
         mosquitoPair(state, owner, true);
         spawnFireball(state, owner, ds.level, ds.dx, ds.dy,
           { engorged: vampireCharge(state, owner) });
-        state.events.push({ t: 'cast', id: owner.id, spell: 'fireball', x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy });
+        // `trail: true` marks this as the pair's SECOND ball, not a keypress.
+        // The client renders/sounds it exactly like any cast (it IS a fireball
+        // leaving the muzzle); the harness's cooldown invariant skips it, since
+        // no cooldown was paid for it (test/harness/check.js).
+        state.events.push({ t: 'cast', id: owner.id, spell: 'fireball',
+          x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy, trail: true });
       }
     }
     state.delayedShots = rest;

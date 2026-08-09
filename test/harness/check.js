@@ -95,7 +95,10 @@ export function checkJournal(lines) {
         if (ev.t === 'round') {
           // round event fires at countdown start; digest will re-sync alive set
         }
-        if (ev.t === 'cast') {
+        if (ev.t === 'cast' && !ev.trail) {
+          // `trail` = mosquito's second ball (round 20.1): a real fireball, but
+          // nobody pressed a key and no cooldown was paid, so it is not a cast
+          // for the cooldown invariant. The tolerance below stays as it is.
           const key = `${ev.id}/${ev.spell}`;
           const spec = SPELLS[ev.spell];
           if (spec) {

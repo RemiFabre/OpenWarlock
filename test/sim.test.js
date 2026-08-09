@@ -1864,16 +1864,27 @@ describe('elemental mode', () => {
     a.x = 0; a.y = 0; a.cooldowns = {};
     b.x = 6; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 9999; b.hp = 9999;
+    state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
+    // the LEAD is a keypress; the trailing ball is not — it is tagged `trail`
+    // so cooldown-auditing consumers (test/harness/check.js) can tell them
+    // apart, while the client still renders and sounds both as casts.
+    const leadCast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball');
+    expect(leadCast.trail).toBeUndefined();
     const hits = [];
+    const trailCasts = [];
     let peak = 0;
     for (let i = 0; i < 30; i++) {
       state.events = [];
       step(state, DT);
-      for (const e of state.events)
+      for (const e of state.events) {
         if (e.t === 'hit' && e.id === 'p1') hits.push(e);
+        if (e.t === 'cast' && e.spell === 'fireball') trailCasts.push(e);
+      }
       peak = Math.max(peak, Math.abs(b.vx));
     }
+    expect(trailCasts.length).toBe(1);
+    expect(trailCasts[0].trail).toBe(true);
     // the pair BOTH landed (the point of the no-push lead), for 2× damage...
     expect(hits.length).toBe(2);
     for (const h of hits) expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0], 5);

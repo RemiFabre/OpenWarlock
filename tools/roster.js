@@ -56,7 +56,11 @@ export function expandCore(core) {
 // core enters the cost band — so hand-edited cores stay in spec without
 // bookkeeping. Purity probes (noPad) are exempt: their shelf EXHAUSTS below
 // the band, which is itself a finding, stated in the doc.
-const FILLER = ['sword', 'amulet', 'boots', 'cape', 'treads', 'hourglass', 'echo'];
+// ⚠ Round 20 (echo deleted, items flat 6/8 g): the WHOLE item shelf is now
+// 126 g (sword/amulet/hourglass 8×3, boots/treads/cape 6×3), i.e. BELOW the
+// 150 g band — an items-only core can no longer fill its own budget and the
+// padder hits shelf exhaustion. Stated as a finding, not papered over.
+const FILLER = ['sword', 'amulet', 'boots', 'cape', 'treads', 'hourglass'];
 export function paddedCore(entry) {
   if (entry.noPad) return entry.core;
   const core = entry.core.map(x => [...x]);
@@ -79,6 +83,16 @@ export function paddedCore(entry) {
   return core;
 }
 
+// true when the padder ran out of shelf: every FILLER item is at max level and
+// the core is STILL under the band. Round 20 made this common (126 g shelf).
+export function shelfExhausted(entry) {
+  const core = paddedCore(entry);
+  if (coreCost(core) >= COST_TARGET[0]) return false;
+  const lv = {};
+  for (const [k, to] of core) lv[k] = Math.max(lv[k] || 0, to);
+  return FILLER.every(k => (lv[k] || 0) >= ITEMS[k].maxLevel);
+}
+
 export const ROSTER = {
   // ---- Family A: system purity — price each shelf as a class --------------
   'A1-items-sustain': {
@@ -87,11 +101,14 @@ export const ROSTER = {
     core: [['amulet', 1], ['sword', 1], ['amulet', 2], ['sword', 2],
       ['amulet', 3], ['sword', 3], ['cape', 2], ['hourglass', 2], ['boots', 3]],
   },
+  // Round 20: echo deleted, so the mobility half is now boots+treads+cape+
+  // hourglass MAXED = 78 g and the padder tops it up with sword/amulet.
   'A2-items-mobility': {
     family: 'A', fantasy: "The item shelf's utility half: speed, lava, armor.",
     tests: 'items as a class (mobility half)',
     core: [['boots', 1], ['treads', 1], ['boots', 2], ['cape', 1], ['boots', 3],
-      ['treads', 2], ['cape', 2], ['treads', 3], ['cape', 3], ['hourglass', 3], ['echo', 1]],
+      ['treads', 2], ['cape', 2], ['treads', 3], ['cape', 3], ['hourglass', 1],
+      ['hourglass', 2], ['hourglass', 3]],
   },
   'A3-elements-only': {
     family: 'A', noPad: true, fantasy: 'Pure fireball stat scaling, zero items.',
@@ -152,12 +169,16 @@ export const ROSTER = {
     core: [['sword', 3], ['amulet', 3], ['boots', 1], ['boots', 2],
       ['cape', 1], ['treads', 1], ['boots', 3], ['cape', 2], ['hourglass', 1]],
   },
+  // Round 20: echo is gone, so "one of everything" is six items. The whole
+  // shelf maxed = 126 g < the band — noPad, shelf exhaustion BY DESIGN.
   'B6-item-breadth': {
-    family: 'B', fantasy: 'One of everything before any second level (the round-15 champion).',
+    family: 'B', noPad: true,
+    fantasy: 'One of everything before any second level (the round-15 champion).',
     tests: 'breadth (vs B5) for items, post-reworks',
     core: [['sword', 1], ['amulet', 1], ['boots', 1], ['cape', 1], ['treads', 1],
-      ['hourglass', 1], ['echo', 1], ['sword', 2], ['amulet', 2], ['boots', 2],
-      ['cape', 2], ['treads', 2], ['hourglass', 2], ['echo', 2]],
+      ['hourglass', 1], ['sword', 2], ['amulet', 2], ['boots', 2],
+      ['cape', 2], ['treads', 2], ['hourglass', 2], ['sword', 3], ['amulet', 3],
+      ['boots', 3], ['cape', 3], ['treads', 3], ['hourglass', 3]],
   },
 
   // ---- Family C: spell-scaling probes --------------------------------------
@@ -241,9 +262,11 @@ export const ROSTER = {
   'D7-stormcaller': {
     family: 'D', fantasy: 'The kit never stops: bolt on cooldown, refund on every hit.',
     tests: 'question M: is a dedicated cadence build viable-but-honest?',
+    // Round 20: the echo-stone slot became a SECOND button for the refund to
+    // chew on (boomerang) — same intent, the deleted item's gold re-spent.
     core: [['arcane', 2], ['lightning', 1], ['arcane', 3], ['hourglass', 1],
       ['lightning', 2], ['hourglass', 2], ['lightning', 3], ['hourglass', 3],
-      ['echo', 1], ['amulet', 2], ['sword', 1]],
+      ['boomerang', 1], ['amulet', 2], ['sword', 1]],
   },
   'D8-juggernaut': {
     family: 'D', fantasy: 'Outlive everyone; the ring does the killing.',
@@ -262,6 +285,31 @@ export const ROSTER = {
     tests: 'the mobility-spell package (rush+blink) as a fighting style',
     core: [['boots', 1], ['rush', 1], ['ember', 1], ['teleport', 1], ['ember', 2],
       ['boots', 2], ['shield', 1], ['ember', 3], ['rush', 2], ['sword', 2], ['amulet', 2], ['boots', 3]],
+  },
+
+  // ---- Family E: cooldown reduction (Remi's question M) ---------------------
+  // Remi, round 20: "I suspect CDR stacking is secretly strong and untested."
+  // The two CDR axes are arcane (haste [18,32,32] on the FIREBALL ONLY, plus a
+  // lv3 refund that shaves the KIT's cooldowns on every fireball hit — never
+  // its own) and the hourglass (haste [10,18,26] on EVERYTHING). Haste SUMS:
+  // maxed together the fireball casts at 1 + 58/100 = 1.58x rate. D7 already
+  // probes CDR × ONE spell maxed; E1 probes CDR × fireball THROUGHPUT (mosquito
+  // pairs), E2 probes CDR × kit WIDTH. Three points on the same axis.
+  'E1-hastemaker': {
+    family: 'E', fantasy: 'Cast faster, and every so often the cast is two balls.',
+    tests: "question M: CDR x fireball throughput — arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave",
+    core: [['arcane', 1], ['mosquito', 1], ['hourglass', 1], ['arcane', 2],
+      ['arcane', 3], ['mosquito', 2], ['mosquito', 3], ['lightning', 1],
+      ['boomerang', 1], ['shield', 1], ['lightning', 2], ['boomerang', 2],
+      ['teleport', 1], ['lightning', 3]],
+  },
+  'E2-chronomancer': {
+    family: 'E', fantasy: 'Five buttons, none of them ever off cooldown for long.',
+    tests: "question M: CDR x kit WIDTH — the same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)",
+    core: [['hourglass', 1], ['arcane', 1], ['hourglass', 2], ['arcane', 2],
+      ['hourglass', 3], ['arcane', 3], ['lightning', 1], ['boomerang', 1],
+      ['shield', 1], ['rush', 1], ['teleport', 1], ['shield', 2], ['rush', 2],
+      ['teleport', 2]],
   },
 };
 
@@ -282,12 +330,15 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
         const titles = { A: 'Family A — system purity (price each shelf as a class)',
           B: 'Family B — depth vs breadth, per system',
           C: 'Family C — spell-scaling probes',
-          D: 'Family D — play-style archetypes' };
+          D: 'Family D — play-style archetypes',
+          E: 'Family E — cooldown reduction (question M)' };
         out += `\n## ${titles[fam]}\n\n`;
       }
       const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
       const padded = paddedCore(s);
-      out += `- **${id}** (${coreCost(padded)} g${s.noPad ? ', shelf exhausts here BY DESIGN' : ''}): ${s.fantasy}\n`;
+      const note = s.noPad ? ', shelf exhausts here BY DESIGN'
+        : shelfExhausted(s) ? ', ⚠ item shelf EXHAUSTED below the band (round 20: the whole item shelf is 126 g)' : '';
+      out += `- **${id}** (${coreCost(padded)} g${note}): ${s.fantasy}\n`;
       out += `  - order: ${order(padded)}\n`;
       out += `  - tests: ${s.tests}\n`;
     }
@@ -295,7 +346,9 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
   } else {
     for (const [id, s] of Object.entries(ROSTER)) {
       const c = coreCost(paddedCore(s));
-      const flag = s.noPad ? '  (pure shelf, exempt)' : c < lo ? '  ⚠ UNDER' : c > hi ? '  ⚠ OVER' : '';
+      const flag = s.noPad ? '  (pure shelf, exempt)'
+        : shelfExhausted(s) ? '  (item shelf EXHAUSTED — 126 g is the whole shelf since round 20)'
+        : c < lo ? '  ⚠ UNDER' : c > hi ? '  ⚠ OVER' : '';
       console.log(`${String(c).padStart(4)} g  ${id}${flag}`);
     }
   }
