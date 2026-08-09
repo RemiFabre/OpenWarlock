@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-09 (round 19, built overnight by subagents). Read this first, then
+*Last updated 2026-08-09 (round 20). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -39,38 +39,47 @@ Agent context usage on this project is **CRITICAL**. The rules:
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   — NEVER bypass it; Pages lags pushes by up to ~10 min (CDN).
 - **ROUNDS 19.x shipped through the day** (Remi playtesting live): Malady 🦠
-  (contagion, buffed 3/4/5 s + aura 8/12/16), Anger 🔴 (mark hunt, 15/10/5 s),
-  gale uniform
-  buffed (kbAdd [10,20,30], gust ADD [30,60,90]), Bomb 💣 (name still
+  (contagion) and Anger 🔴 (mark hunt) replaced venom and momentum, gale
+  uniform buffed (kbAdd [10,20,30], gust ADD [30,60,90]), Bomb 💣 (name still
   PLACEHOLDER), Switcheroo 🎭 (1 s victim stun; name candidates in notes),
   cape [0.88,0.78,0.70], shop 2.x (uniform tiles, tags, hover-everything,
   key rebinding with owned-key guard), two-button join + manifesto, bots
-  never stop shopping. Story: REMI_NOTES.md (19.5 at top); numbers: BALANCE.md.
-- **ROUND 20.1 — MOSQUITO REWORK** (Remi, final): the dmg/kb tax and the
-  arm/cash trap are GONE, and the Echo Stone item is MERGED IN and deleted.
-  Every `doubleEvery`th cast fireball ([6,5,4] by level) fires as a PAIR: a
-  LEAD ball with ZERO knockback (full damage, every rider) plus a fully normal
-  TRAILING ball 0.15 s behind on the same aim. A trailing ball advances both
-  every-N counters (vampire's and mosquito's own) but can NEVER double — hard
-  chain guard, test-locked. Bots treat mosquito like any element again.
-  ⚠ UNMEASURED: no arena/strategy numbers exist for the new shape yet.
-- **Waiting on Remi**: mosquito pair feel (20.1), anger strength (question
-  K — strategy instrument reads 78%), sword-by-structure (L), CDR (M), cape
-  (B), Bomb + Switcheroo names.
-- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-19 — re-run before
-  quoting it.
+  never stop shopping. ⚠ Round 19's element NUMBERS are superseded by round 20
+  below — current values live in the rules snapshot and BALANCE.md. Story:
+  `docs/history/2026-08-09-remi-notes-round-19.md`.
+- **ROUND 20 SHIPPED** (r207): anger `markEvery [10,7,5] → [20,15,10]`
+  (nerf); ghost lv3 12 → 10 g; malady `auraR [10,14,18]` / `dotTime [4,5,6]`
+  (buff); **every item flat 6 g (boots/treads/cape) or 8 g
+  (sword/amulet/hourglass) per level**; **MOSQUITO REWORK** (Remi, final) —
+  the dmg/kb tax and the arm/cash trap are GONE and the Echo Stone item is
+  MERGED IN and deleted: every `doubleEvery`th cast fireball ([6,5,4]) fires
+  as a PAIR, a LEAD ball with ZERO knockback (full damage, every rider) plus a
+  fully normal TRAILING ball 0.15 s behind on the same aim; a trailing ball
+  advances both every-N counters (vampire's and mosquito's own) but can NEVER
+  double (hard chain guard, test-locked); terra lv3 smashes pillars; BUILDS =
+  the ten tournament archetypes, Elo-ordered.
+- **MEASURED at r207 — the NEW strategy baseline**:
+  `docs/history/2026-08-09-round20-elo.md` (ELO #2, 30 strategies × 8000
+  games × 2 seeds). The mosquito rework demoted everything paired with it
+  (tycoon 1909 → 1571, leech 1701 → 1455, Chainer 1504 → 1251 — "midas ×
+  mosquito" is VOID); anger is #1/#3 *in rank* despite its nerf (Elo is
+  zero-sum here — it cannot say anger got absolutely weaker); the item price
+  cut did NOT move items off the bottom; question M answered — the new CDR
+  family lands E2-chronomancer (arcane3+hourglass3 + five pilotable buttons)
+  **7th of 30**, E1 (CDR × mosquito) 18th. §6 is the DPS math for why stacked
+  CDR isn't OP (haste SUMS, `cd = base/(1+h/100)` is concave: 5 g of ember lv3
+  beats a maxed 24 g Hourglass). ⚠ Side effect: echo gone + flat items = **the
+  whole item shelf is 126 g**, under roster.js's 150-185 g band, so items-only
+  cores under-spend and spill into the exhaust tail.
+- **Waiting on Remi**: mosquito pair feel (20.1 — never yet in human hands),
+  anger strength (question K), sword-by-structure (L), whether
+  E2-chronomancer's 7th-of-30 is where he wants CDR (M), cape (B),
+  Bomb + Switcheroo names.
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-20 — quote
+  `docs/history/2026-08-09-round20-elo.md` instead.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
-- ⚠ **LANE NOTE (2026-08-09, ~15:00 UTC)**: a long-context session is running
-  the strategy ELO tournament (tools/elo.js over tools/roster.js, 8000 games
-  × 2 seeds, pinned at r200/45b4a48) and is CODE-FROZEN — it will only write
-  the report. New agents: work freely, but DON'T edit tools/roster.js,
-  tools/elo.js or docs/ARCHETYPES.md until the report lands, and know that
-  balance-number changes land AFTER the pinned commit (the ELO measures
-  r200's numbers). ⚠ FOLLOW-UP OWED: round 20.1 deleted the Echo Stone, and
-  `tools/roster.js` still lists `echo` (FILLER + 3 cores) — left untouched by
-  the freeze; strip it before the next ELO run.
 
 ## What this is
 
@@ -112,11 +121,13 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 294 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 304 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
+| `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
+| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-09-round20-elo.md` |
 | `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots — prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
@@ -126,7 +137,7 @@ build step, Node ESM, only dep is `ws`.
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
 | `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive — read on demand only)** |
 
-## Game rules snapshot (post-round-19, one line each — details in constants.js and BALANCE.md)
+## Game rules snapshot (post-round-20, one line each — details in constants.js and BALANCE.md)
 
 - First to **15 kills**, 25-round cap; countdown → battle → roundEnd → shop.
   Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
@@ -144,21 +155,27 @@ build step, Node ESM, only dep is `ws`.
   earn-spread cap test-enforced. Midas is a mark-then-cash rhythm (question J
   closed).
 - **Fireball locked at lv1 in elemental** (default ruleset) — 11 elements are
-  its progression, all private-stacked riders: ember=damage, terra=size,
+  its progression, all private-stacked riders: ember=damage [1,2,4],
+  terra=size (lv3 SMASHES pillars, ball consumed — round 20.2),
   gale=push + flat gust every 3rd stack from LV1 (round 19), arcane=haste
-  [18,32] + lv3 kit refund (NEVER its own fireball — 66-74% feedback loop,
-  twice measured), ghost=speed (lv3 pierce), malady=ex-venom two-hit CONTAGION
-  (1 dmg/tick, spreading aura, once-per-instance immunity, creator can catch
-  it back; lethal tick credits creator/spreader), frost=stacks-to-CC,
-  anger=ex-momentum MARK HUNT (red mark on a random enemy every [10,7,5] s,
-  claim = +0.5 fireball dmg forever), mosquito=every [6,5,4]th cast fires a
-  PAIR (no-push lead + normal trailing ball, round 20.1),
-  vampire=every-5th engorged heal, midas. Classic keeps the 3-level fireball.
+  [18,32,32] + lv3 kit refund 1 s/hit (NEVER its own fireball — 66-74%
+  feedback loop, twice measured), ghost=speed (lv3 pierce, 10 g),
+  malady=ex-venom two-hit CONTAGION (1 dmg/tick, `dotTime [4,5,6]`,
+  aura r [10,14,18], once-per-instance immunity, creator can catch it back;
+  lethal tick credits creator/spreader), frost=stacks-to-CC,
+  anger=ex-momentum MARK HUNT (red mark on a random enemy every
+  **[20,15,10] s** — round 20 nerf, claim = +0.5 fireball dmg forever),
+  mosquito=every [6,5,4]th cast fires a PAIR (no-push lead + normal trailing
+  ball, round 20.1), vampire=every-5th engorged heal, midas.
+  Classic keeps the 3-level fireball.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
-- **Items: 3 levels**, cumulative `ITEM_FX` totals. Sword is mandatory by
-  structure (question L). Cape is pilot-sign-flipping — never buff it off
-  Hard-bot tables.
+- **Items: 3 levels**, cumulative `ITEM_FX` totals, **flat price per level
+  since round 20**: 6 g boots/treads/cape, 8 g sword/amulet/hourglass — so the
+  WHOLE shelf is 126 g, and the cut did NOT move items off the bottom of the
+  strategy table. Sword is mandatory by structure (question L). Cape is
+  pilot-sign-flipping — never buff it off Hard-bot tables. Echo Stone is
+  DELETED (merged into mosquito, round 20.1).
 - **Spells** (round 19): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
   ignores pillars/walls; delay+radius NEVER level); **Swap** 3 levels 10 g,
   speed 50, range [40,55,70], cd −1 s/lv, 1 dmg stamps lava credit; **Blink**
@@ -206,7 +223,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 294 green
+npx vitest run                                   # 304 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

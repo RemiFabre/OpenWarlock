@@ -1,9 +1,13 @@
 # Bot strategies — the chart
 
-*⚠ Every number below predates ROUND17 Session A (2026-08-08: haste, Swap,
-sky-bolt lightning). The ranking is still the best available map of the meta,
-but the CDR rows measured the old compounding multipliers — Session B re-runs
-the study.*
+*⚠ **STALE — do not quote the win-rate tables below.** Every number here
+predates round 17's haste rework and everything since, so the CDR rows measure
+the old *compounding* multipliers (haste sums now) and the mosquito rows
+measure the deleted arm/cash trap. **The current strategy ranking is the ELO
+tournament: `docs/history/2026-08-09-round20-elo.md`** (30 strategies × 8000
+games × 2 seeds at r207, with the CDR family and the round-20 mosquito).
+The difficulty-tier descriptions below are still accurate — that half of the
+file is what to read.*
 
 *A bot is a **difficulty** (how it fights) × a **strategy** (what it buys).
 Both are picked in the lobby: each difficulty button has a strategy dropdown

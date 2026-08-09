@@ -81,6 +81,50 @@ push, no riders, power tier); Swap 3 lv (speed 50, range [40,55,70], cd
 mid-charge now); Mirror Walls block bodies; frost verified UNCHANGED (slow
 never touched knockback; lv1 already 30%).
 
+**Round 20 (2026-08-09, r207)**: anger `markEvery [10,7,5] → [20,15,10]`
+(nerf); ghost lv3 12 → 10 g; malady `dotTime [4,5,6]` + `auraR [10,14,18]`
+(buff); **every item flat per level — 6 g boots/treads/cape, 8 g
+sword/amulet/hourglass** (Remi: "buy an item every round even with zero
+kills"), so the whole item shelf is now 126 g; **mosquito reworked** — no
+dmg/kb tax, no arm/cash trap, every [6,5,4]th cast fires a PAIR (no-push lead
++ normal trailing ball 0.15 s behind, both carrying every rider; trailing
+balls advance the every-N counters but can never chain), and the **Echo Stone
+item is DELETED**, merged in; terra lv3 smashes pillars.
+
+### The strategy ELO table — THE current ranking (r207, 30 strategies, 8000 games × 2 seeds)
+
+Full table, diffs and blind spots: **`docs/history/2026-08-09-round20-elo.md`**
+(it replaces the r200 baseline). Instrument: `node tools/elo.js --games=8000
+--seed=1` — random 4-of-roster Hard lobbies in elemental, Bradley-Terry over
+all pairwise placements, **1500 = roster average, +173 ≈ a 73% pairwise
+favourite**. ⚠ **It is a RANKING, not a strength meter** — the fit pins the
+average at 1500, so a strategy can gain 200 Elo purely because its rivals got
+worse. Zero unfinished games; cross-seed drift 26 Elo. Headlines:
+
+- **The mosquito rework demoted everything that paired with it** — tycoon
+  (midas×mosquito) 1909 → 1571 and off the top spot, leech (vampire×mosquito)
+  1701 → 1455, the Chainer 1504 → 1251. The old trap gave **4 rider procs per
+  pair**; the new pair is only ×1.20-1.33 balls. The round-19 finding "midas ×
+  mosquito is the champion economy engine" is **VOID**.
+- **Anger is #1 (2037) and #3 (1878) in rank despite its own nerf** — that is
+  the zero-sum effect of the four mosquito builds falling. This instrument has
+  no absolute scale and cannot say whether anger got weaker (question K).
+- **The item price cut did NOT move items**: band was 982-1387, now 1099-1341,
+  still the bottom of the table, A2-items-mobility last of 30. Meanwhile
+  elements-only reaches 1673 on 102 g total.
+- **Don't max spells** reconfirmed and stronger: lightning lv1 + ember
+  (C2 1714) beats lightning maxed (C1 1338) by ~380 Elo.
+- **CDR answered (question M)**: the new family E lands E2-chronomancer
+  (arcane3 + hourglass3 + five pilotable buttons) **7th of 30 at 1697**,
+  D7-stormcaller (same haste, one spell maxed) 14th, E1-hastemaker (CDR ×
+  mosquito) 18th. Viable and honest, not OP. The gold-for-gold math is in §6
+  of the report: haste **sums** and `cd = base/(1+h/100)` is concave, so the
+  full 47 g CDR core buys 0.041 dps/gold vs ember's 0.119 — **5 g of ember lv3
+  (×1.222 damage) beats a maxed 24 g Hourglass (×1.197 rate)** on the same
+  fireball. Measured alongside: bots do cast on cooldown (realized ×1.575 of a
+  nominal ×1.58), but **every extra ball converts 5-7% worse** than the ones
+  before it, because knockback shoves the target out of the next ball's path.
+
 ### The mixed table (one element per seat, Hard, 800 games × seeds 1/7, round-19 HEAD 2026-08-09)
 
 | element | s1 | s7 | | element | s1 | s7 |
@@ -101,6 +145,10 @@ never cluster (contagion) or exploit positioning (gust) — the lab cannot
 express either mechanic; human games are the instrument.
 
 ### The item ladder (1500 games, seat capped at that level, at `62de05b`)
+
+⚠ **Prices below are pre-round-20** (items are flat 6/8 g now, whole shelf
+126 g). The effect columns still hold; the gold cost of each rung does not.
+And the cut did not help: see the ELO headlines above.
 
 | item | lv0 | lv1 | lv2 | lv3 | | item | lv0 | lv1 | lv2 | lv3 |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -153,11 +201,18 @@ accept the sword as the price of the readable lock; give lifesteal its own
 soft lock; or revisit REGEN_LOCK_MULT (0 → 0.1-ish keeps the sentence "pauses
 your regen" approximately true). Numbers for all three on request.
 
-**M. (round 17) Are the CDR builds where you want them?** cadence 11.3,
-double-cdr 10.5/12.9, arcane 11.9-13.7 mixed — the stack went from auto-win to
-bottom-third. If a dedicated cadence build should be viable-but-honest
-(~30-40%), the levers are arcane's fireball haste or hourglass costs; nothing
-here acts without your read.
+**M. (round 17, MEASURED round 20 — now a feel call) Are the CDR builds where
+you want them?** A dedicated family was built and run:
+**E2-chronomancer** (arcane3 + hourglass3, then lightning/boomerang/shield/
+rush/blink at lv1 and their lv2 cooldown levels) is **7th of 30, Elo 1697** ≈
+a 76% pairwise favourite vs an average strategy; D7-stormcaller (same haste,
+lightning maxed instead) 14th at 1531; E1-hastemaker (CDR × mosquito) 18th at
+1438. So: viable and honest, top quartile, 340 Elo behind the leader.
+The value lives in **arcane lv3's refund × kit WIDTH** (1 s off every other
+cooldown per fireball hit ≈ +25-37 Ability Haste on the rest of your kit for
+12 g), not in the fireball's own cadence. Why stacking is not OP:
+`docs/history/2026-08-09-round20-elo.md` §6. Levers if your feel disagrees:
+arcane's `haste`/`hitRefund`, hourglass cost. Your read decides.
 
 **B. The Cape of the Magi** — unchanged (lab can't agree on the sign; only
 your playtest settles it). **E. Midas's real value** rides on shopping depth,
@@ -180,12 +235,14 @@ node tools/arena.js --ladder=all --games=1500 --seed=1        # the item ladder
 node tools/arena.js --ladder=sword --games=1500 --seed=1 --fx=sword.lifesteal=0.12,0.20,0.28
 node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markEvery=16,12,8
 node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markDmg=0.3
-node tools/strategy-study.js --games=4000 --seed=1            # the strategy table (and --seed=7)
+node tools/elo.js --games=8000 --seed=1                       # THE strategy ranking (and --seed=2), ~20 min each
+node tools/roster.js                                         # roster cost check (--doc regenerates docs/ARCHETYPES.md)
+node tools/strategy-study.js --games=4000 --seed=1            # the older strategy table (and --seed=7)
 node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme column
 node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
 node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
-npx vitest run                                                # 294 green
+npx vitest run                                                # 304 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 ```
