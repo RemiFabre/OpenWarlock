@@ -88,9 +88,18 @@ export function setDraft(state, on) {
   return true;
 }
 
+// Same stream as makeRng(seed), but the cursor lives ON the state (rngA) so a
+// serialize/restore resumes mid-stream — host migration (browser-hosting §B4)
+// needs a restored game to replay step-for-step, and a closure can't survive a
+// JSON round-trip. rngA is lazily seeded, so pre-existing states just work.
 function rng(state) {
-  if (!state._rng) state._rng = makeRng(state.seed);
-  return state._rng();
+  if (state.rngA == null) state.rngA = state.seed >>> 0;
+  let a = state.rngA | 0;
+  a = (a + 0x6D2B79F5) | 0;
+  state.rngA = a >>> 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
 // ---- players ------------------------------------------------------------

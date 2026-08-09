@@ -11,7 +11,7 @@ import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
 import {
   nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
 } from './coop.js';
-import { selectTransport } from './transport.js';
+import { selectTransport, createRtcHostTransport } from './transport.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -114,7 +114,8 @@ function setConnBanner(msg) {
 let joinedName = null;     // name we joined with; non-null enables auto-reconnect
 let reconnectTimer = null;
 let transport = null;
-const transportP = selectTransport().then((t) => {
+
+function wireTransport(t) {
   transport = t;
   t.onMessage(onMessage);
   t.onClose((err) => {
@@ -122,12 +123,23 @@ const transportP = selectTransport().then((t) => {
     setConnBanner('Connection lost — reconnecting…');
     scheduleReconnect();
   });
+}
+
+const transportP = selectTransport().then((t) => {
+  wireTransport(t);
   if (t.kind === 'solo') {
     // no server behind this page: say so up front — "Enter" starts a private
     // solo room where bots are added from the lobby, all inside this tab
     const el = $('netMode');
     el.textContent = '🤖 No server here — Enter opens a solo arena in this tab. Add bots in the lobby.';
     el.classList.remove('hidden');
+  }
+  if (t.kind === 'rtc') {
+    // this tab was invited (#r=CODE): Enter joins the host's lobby over WebRTC
+    const el = $('netMode');
+    el.textContent = `🔗 Invited to room ${t.code} — Enter joins the host's game, peer-to-peer.`;
+    el.classList.remove('hidden');
+    $('hostRow').classList.add('hidden'); // you can't host while joining someone
   }
   return t;
 });
@@ -151,11 +163,13 @@ function onMessage(m) {
     if (snaps.length > 40) snaps.shift();
     if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
     window.__phase = m.s.phase; // test/debug hook
+    window.__snapN = (window.__snapN || 0) + 1; // test hook: snapshots received
   } else if (m.t === 'denied') {
     toast(m.reason);
-    // kicked or banned: stop the auto-reconnect loop and show the join
+    // kicked, banned, or the RTC room is gone ("no such room" — the host
+    // closed their tab): stop the auto-reconnect loop and show the join
     // screen again — otherwise this tab would hammer the server forever
-    if (/kicked|banned/.test(String(m.reason || ''))) {
+    if (/kicked|banned|room/.test(String(m.reason || ''))) {
       joinedName = null;
       clearTimeout(reconnectTimer); reconnectTimer = null;
       myId = null;
@@ -474,6 +488,55 @@ async function doJoin() {
 }
 $('joinBtn').addEventListener('click', doJoin);
 $('name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
+
+// ---- hosting online (docs/BRIEF-browser-hosting.md §B3) ---------------------
+// "Host online" swaps the transport for an rtc-host BEFORE joining: the same
+// in-tab engine as solo, plus a signalling room whose code becomes the invite
+// link. The host is a player; friends open the link and land in this lobby.
+
+function inviteLink(code) {
+  const u = new URL(location.href);
+  u.hash = `r=${code}`;
+  u.searchParams.delete('mode'); // a pinned mode would fight the guest's transport pick
+  return u.toString();
+}
+
+let hostCode = null;
+function showHostbar(code) {
+  hostCode = code;
+  $('hostCode').textContent = code;
+  $('hostbar').classList.remove('hidden');
+  toast(`room ${code} is open — send friends the invite link`);
+}
+$('copyLinkBtn').addEventListener('click', async () => {
+  if (!hostCode) return;
+  const link = inviteLink(hostCode);
+  try { await navigator.clipboard.writeText(link); toast('invite link copied — send it to your friends'); }
+  catch { prompt('Copy this invite link:', link); } // clipboard needs https/localhost
+});
+// the host tab has no filesystem, so the journal lives in memory (capped) and
+// leaves through this button — do not lose the debugging story silently (§B5)
+$('hostLogBtn').addEventListener('click', () => {
+  if (!transport || !transport.journal) return;
+  const lines = transport.journal().map((x) => JSON.stringify(x)).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines], { type: 'application/x-ndjson' }));
+  a.download = `warlock-host-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+async function doHost() {
+  initSfx(); initMusic(); // the same user gesture rules as doJoin
+  const name = $('name').value.trim() || 'warlock';
+  localStorage.setItem('warlockName', name);
+  await transportP; // don't race the initial selection
+  if (!transport || transport.kind !== 'rtc-host') {
+    wireTransport(createRtcHostTransport({ onRoom: showHostbar, onError: toast }));
+  }
+  connect(name);
+}
+$('hostBtn').addEventListener('click', doHost);
 
 // avatar picker grid
 {
