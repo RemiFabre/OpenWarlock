@@ -1930,6 +1930,9 @@ function stepProjectiles(state, dt) {
           for (const p of [owner, other]) {
             p.moveTarget = null; p.dash = null; p.charging = null;
           }
+          // round 19.2 (Remi): the victim wakes up stunned — the caster's
+          // combo window. Spec-driven; the caster is deliberately free.
+          if (spec.stunT) other.stunT = Math.max(other.stunT || 0, spec.stunT);
           // no `id` field on purpose: a swap always shows both ends, even if
           // one of them is vanished (revealing is the accepted cost)
           state.events.push({ t: 'swapped', a: owner.id, b: other.id,

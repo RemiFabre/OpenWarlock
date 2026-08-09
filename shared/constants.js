@@ -246,7 +246,9 @@ export const SPELLS = {
     // legible). His to re-pick — candidates brainstormed in REMI_NOTES.
     name: 'Switcheroo', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 6, 6],
     cooldown: [13, 12, 11], speed: 50, radius: 0.9, range: [40, 55, 70],
-    damage: 1,
+    // round 19.2 (Remi): the VICTIM is stunned after the trade — the combo
+    // window ("swap them, then hit them"); the caster stays free
+    damage: 1, stunT: 1,
     desc: 'Hit an enemy to trade places.',
     long: 'Fire a bolt. Hit an enemy and you swap positions and momentum with them.',
   },

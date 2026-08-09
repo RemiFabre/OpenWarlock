@@ -3120,6 +3120,11 @@ describe('power spells & pillar', () => {
     expect(a.moveTarget).toBe(null);                 // stale intent wiped on both
     expect(b.moveTarget).toBe(null);
     expect(b.hp).toBeLessThan(b.maxHp);              // the 1 damage landed
+    // round 19.2 (Remi): the VICTIM is stunned after the trade (the combo
+    // window), the caster stays free to act on it
+    expect(b.stunT).toBeCloseTo(SPELLS.swap.stunT, 5);
+    expect(a.stunT).toBe(0);
+    expect(castSpell(state, 'p1', 'fireball', 0, 0)).toBe(false); // stunned = silent
   });
 
   it('swap: the lava save — and the victim burning to death credits the caster', () => {
