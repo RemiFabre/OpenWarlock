@@ -1045,7 +1045,8 @@ function spellTip(key, spec, level, maxLevel) {
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.desc, spec.long,
+  // one message per hover (Remi, round 19.6): spells carry everything in desc
+  return tipShell(ICONS[key], spec.name, spec.desc, null,
     `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -1063,7 +1064,9 @@ function elementTip(key, spec, level) {
     // the one boilerplate line that earns its place: what haste MEANS
     spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(spec.icon, spec.name, spec.desc, spec.long,
+  // the card already wears the short tag — the hover shows ONLY the long
+  // explanation (Remi, round 19.6: say it once)
+  return tipShell(spec.icon, spec.name, spec.long || spec.desc, null,
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
 }
 
@@ -1089,7 +1092,7 @@ function itemTip(key, spec, level) {
     live ? `With that, ${live}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.desc, spec.long,
+  return tipShell(ICONS[key], spec.name, spec.desc, null,
     `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
 }
 

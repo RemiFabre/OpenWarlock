@@ -6,6 +6,39 @@ dictation. Built by sequential focused subagents, each change one commit.
 chromium+webkit robustness, reconnect e2e, arena sanity, and the new
 static-solo test). Pull, restart the server, hard-refresh everyone.*
 
+## ROUND 19.7 — one-message tooltips + the combo bots are in
+
+- **Tooltips say it once now**: spells carry ONE merged line (your dictated
+  texts verbatim: lightning, meteor, bomb...), element hovers show only the
+  long explanation (the tag already lives on the card), items show one line
+  ("Lifesteal: your damage heals you." / "Every 4th fireball echoes: a
+  second one fires right behind it."). All `long` fields on spells/items
+  deleted — one truth, no drift.
+- **The Chainer build is in the lobby dropdown**: fireball → frost →
+  lightning → gale → mosquito lv1s, then those four round-robin. Bots now
+  drop the sky-bolt ON a slowed/stunned/2-stack target (no lead, no aim
+  error — the CC covers the telegraph), and METEOR became the first power
+  spell bots pilot: they buy it only when a build lists it and cast it only
+  into a hold that outlasts the 1.25 s fall. Bots also dodge meteor
+  telegraphs now (they only dodged bolts before).
+- **Your combo questions, measured** (full tables in the agent report;
+  every number is Hard-bot play):
+  - Strategy mirror (2000 games × 2 seeds, 25% = even): combo-bolt 11.8%,
+    combo-meteor 6.8/6.0% — weak IN BOT HANDS. The pilots do fire (~17
+    bolts + ~1.7 CC-meteors per round across 4 seats); what bots can't do
+    is your "perma-combo into lava": pre-casting on the 3rd-stack read,
+    aiming the gale launch, chaining windows. Flagged as pilot-limited, not
+    number-buffed.
+  - **Frost thresholds for TRUE combos** (500 trials/cell, spell dropped
+    dead-on the CC'd body): lv1's ×0.7 slow holds nobody (0-15% hits).
+    lv2's ×0.5 slow pins BOTH bolt and meteor on a base-speed target
+    (100%) — but one or two boots levels flip meteor back to an escape.
+    **lv3's stun is the only guarantee against anyone with boots**, for
+    meteor especially. So: bolt combos come online at frost lv2 vs slow
+    targets; the meteor true-combo effectively needs lv3.
+- Lightning vs meteor for the combo slot: bolt wins in bot hands (11.8 vs
+  6.8) — cheaper telegraph, no purchase gate. Human verdict is yours.
+
 ## ROUND 19.6 — treads/cape/rush + your regen theory ANSWERED
 
 Shipped (r190): treads soften to −25/−50/−65% lava damage (a 10 g full

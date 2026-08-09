@@ -152,8 +152,7 @@ export const SPELLS = {
     // passive regen, which is what made round 1 a 52-second stalemate
     cooldown: [2.1, 1.85, 1.6], speed: 41, radius: 0.8, range: Infinity,
     damage: [7, 10, 14], knockback: [65, 70, 76],
-    desc: 'Your bread and butter.',
-    long: 'A medium projectile with strong knockback.',
+    desc: 'Your bread and butter: a medium projectile with strong knockback.',
   },
   lightning: {
     // Round 17 (docs/ROUND17.md §2): hitscan → telegraphed sky-bolt. Mark a
@@ -168,8 +167,7 @@ export const SPELLS = {
     name: 'Lightning', hotkey: 'W', maxLevel: 3, costs: [10, 6, 6],
     cooldown: [6, 5.5, 5], range: Infinity, radius: 2.2, delay: 0.5,
     damage: [12, 15, 18], knockback: [70, 78, 86],
-    desc: 'Mark a spot, the bolt strikes it.',
-    long: 'Mark a spot and the bolt strikes it 0.5 s later. No pillar or wall can shield it.',
+    desc: 'Mark a spot, the bolt strikes it. No pillar or wall can shield it.',
   },
   boomerang: {
     // 2026-08-06 rework (Remi: "nobody ever plays it, make it exciting"):
@@ -183,7 +181,6 @@ export const SPELLS = {
     cooldown: 5.5, speed: 31, radius: 1.4, outDistance: Infinity,
     damage: [4, 6, 8], knockback: [50, 59, 68],
     desc: 'Tap again to recall it early; catch it to halve the cooldown.',
-    long: 'Flies out and returns to the launch point. Tap again to recall it early; catch it to halve the cooldown.',
   },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
@@ -191,27 +188,23 @@ export const SPELLS = {
     // Revert path: costs [12, 8], range [18, 26].
     name: 'Blink', hotkey: 'F', maxLevel: 2, costs: [10, 8],
     cooldown: [16, 12], range: [22, 22],
-    desc: 'Blink to cursor. Cancels your momentum.',
-    long: 'Teleport to your cursor, up to the range. Your momentum is cancelled.',
+    desc: 'Blink to your cursor. Your momentum is cancelled.',
   },
   shield: {
     name: 'Shield', hotkey: 'D', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 12], duration: 1.25,
     desc: 'Reflects projectiles back at their owner.',
-    long: 'While it lasts, projectiles that hit you fly back at whoever fired them.',
   },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 6],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
     damage: [5, 8], knockback: [79, 79],
-    desc: 'Dash through enemies, blasting them aside.',
-    long: 'Dash forward. Enemies you pass through take damage and knockback.',
+    desc: 'Dash through enemies: damage and knockback on the way. Casting cancels your momentum.',
   },
   pillar: {
     name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [10, 6],
     cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
-    desc: 'Raise a pillar: cover and blocker.',
-    long: 'Raise an obsidian pillar at your cursor. It blocks projectiles, bodies and knockback until it expires.',
+    desc: 'Raise an obsidian pillar: it blocks projectiles, bodies and knockback.',
   },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
@@ -222,8 +215,7 @@ export const SPELLS = {
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [14, 8],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
     damage: [16, 24], knockback: [110, 130],
-    desc: 'Mark a spot, a rock falls on it.',
-    long: 'Mark a spot and a rock falls on it after a delay: heavy damage and a radial blast.',
+    desc: 'Mark a spot, a rock falls on it: heavy damage and a radial blast.',
   },
   nova: {
     // Round 19 (Remi, voice — his name for it was garbled; round 19.1 second
@@ -237,8 +229,7 @@ export const SPELLS = {
     // knockback 0 is DELIBERATE data, not an omission: Remi wants "push: 0"
     // printed in the hover stats so the no-push identity is stated.
     damage: [10, 14, 18], radius: [4.5, 5.5, 6.5], knockback: 0,
-    desc: 'Flies over everything, explodes after a moment.',
-    long: 'The orb flies over bodies, pillars and walls, parks at your click, then explodes. Damage only, no push.',
+    desc: 'Flies over everything, explodes after a moment. Damage only, no push.',
   },
   swap: {
     // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
@@ -252,21 +243,18 @@ export const SPELLS = {
     // round 19.2 (Remi): the VICTIM is stunned after the trade — the combo
     // window ("swap them, then hit them"); the caster stays free
     damage: 1, stunT: 1,
-    desc: 'Hit an enemy to trade places.',
-    long: 'Fire a bolt. Hit an enemy and you swap positions and momentum with them.',
+    desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned.',
   },
   repulse: {
     name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 8],
     cooldown: [16, 13], charge: 2, radius: [9, 11],
     damage: [8, 12], knockback: [130, 150],
-    desc: 'Charge, then blast everyone around you.',
-    long: 'Charge for 2 s, then blast everyone around you away. Blink and Rush still work while charging.',
+    desc: 'Charge, then blast everyone around you. Blink and Rush still work while charging.',
   },
   wall: {
     name: 'Mirror Wall', hotkey: 'C', tier: 'power', maxLevel: 2, costs: [14, 8],
     cooldown: [18, 15], range: Infinity, length: [8, 11], duration: 5,
-    desc: 'Reflects enemy projectiles. Yours pass.',
-    long: 'Raise a wall that reflects enemy projectiles back at them. Your own pass through.',
+    desc: 'Raise a wall that reflects enemy projectiles back at them. Your own pass through.',
   },
   // Invisibility (round 12): no restrictions on purpose — levels buy DURATION only.
   // ⚠ Non-negotiable: strip it in snapshot() AND mask bot perception, or devtools
@@ -277,8 +265,7 @@ export const SPELLS = {
     // round 18.1 (Remi): casting anything else REVEALS you (see castSpell)
     name: 'Vanish', hotkey: 'V', maxLevel: 3, costs: [10, 10, 10],
     cooldown: [14, 13, 12], duration: [1, 2, 3],
-    desc: 'Invisible for a moment. Casting reveals you.',
-    long: 'You turn invisible. Casting any other spell reveals you, and you can still be hit.',
+    desc: 'Invisible for a moment. Casting reveals you, and you can still be hit.',
   },
 };
 
@@ -288,34 +275,34 @@ export const SPELLS = {
 // Values are ABSOLUTE CUMULATIVE totals at that level, never per-level increments.
 // history: docs/history/2026-08-08-constants-sweeps.md#items
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: 'Move speed.', long: 'You move faster.' },
-  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: 'Lava resistance.', long: 'Swimming burns you for much less.' },
+  boots:  { name: 'Boots of Speed',       cost: 10, maxLevel: 3, desc: 'Move speed.' },
+  treads: { name: 'Lava Treads',          cost: 10, maxLevel: 3, desc: 'Lava resistance.' },
   // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
-  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: 'Max HP.', long: 'More maximum health.' },
+  amulet: { name: 'Amulet of Health',     cost: 12, maxLevel: 3, desc: 'Max HP.' },
   // (Ring of Regeneration removed with passive regen, round 17 — see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
   // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
   // Hard-tier number is a bot artifact. Needs Remi's feel read (BALANCE 15D).
   // history: docs/history/2026-08-08-constants-sweeps.md#items-treads-and-cape-round-15
-  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'Knockback resistance.', long: 'You get knocked around less, and into the lava less.' },
+  cape:   { name: 'Cape of the Magi',     cost: 12, maxLevel: 3, desc: 'Knockback resistance.' },
   // Studied 2026-08-07 after Remi's "really really weak" report: lava is only
   // ~8.5% of all damage (hypothesis false) and the sword measured 2nd-strongest
   // item; the weak FEEL was scoreboard vs regen-lock — round 16 added the green
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
-  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal.', long: 'Your damage heals you, poison included but never lava. The only healing in the game.' },
+  sword:  { name: 'Blood Sword',          cost: 15, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
   echo:   { name: 'Echo Stone', cost: 16, mode: 'elemental', maxLevel: 1,
-            desc: 'Extra fireballs.', long: 'Every 4th fireball echoes: a second one fires right behind it, same aim.' },
+            desc: 'Every 4th fireball echoes: a second one fires right behind it.' },
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
   // here from the element roster, same costs (10+8+8) and same numbers — his
   // reasoning: elements are the FIREBALL's progression now, and a thing that
   // affects ALL spells is thematically an item. `costs` is a per-level price
   // array (itemCost reads it); items without one keep their flat cost.
   hourglass: { name: 'Hourglass of Haste', cost: 10, costs: [10, 8, 8], maxLevel: 3,
-            desc: 'Ability Haste.', long: 'All your cooldowns run faster, spells included.' },
+            desc: 'Ability Haste: all your cooldowns run faster.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
