@@ -556,7 +556,46 @@ $('keysCloseBtn').addEventListener('click', closeKeysPanel);
 $('joinKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 $('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 
-// Every key label in the UI (panel, spell bar, join hint) reflects current bindings.
+// ---- in-shop rebind popup ---------------------------------------------------
+// Click a spell's key chip in the shop, press the new key. Unlike the keys
+// panel (which swaps), a conflict CANCELS and a toast names the owner (Remi,
+// round 18). The capture-phase listener eats every keydown while it is open.
+let rebindSpell = null;
+function openRebind(spell) {
+  cancelCapture();
+  rebindSpell = spell;
+  $('rebindMsg').innerHTML = `Press the key you want for <b>${esc(SPELLS[spell].name)}</b>`;
+  $('rebind').classList.remove('hidden');
+  window.addEventListener('keydown', onRebindKey, true);
+}
+function closeRebind() {
+  rebindSpell = null;
+  $('rebind').classList.add('hidden');
+  window.removeEventListener('keydown', onRebindKey, true);
+}
+function onRebindKey(e) {
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (e.key === 'Escape') { closeRebind(); return; }
+  const k = e.key.toLowerCase();
+  if (k.length !== 1) return; // only single printable chars bind — keep waiting
+  const spell = rebindSpell;
+  if (keyBindings[spell] === k) { closeRebind(); return; } // same key: quiet close
+  const other = spellForKey(k);
+  if (other) {
+    closeRebind();
+    toast(`${keyLabel(k)} is already ${SPELLS[other].name} — ` +
+      `${SPELLS[spell].name} stays on ${keyLabel(keyBindings[spell])}`);
+    return;
+  }
+  keyBindings[spell] = k;
+  saveKeys();
+  closeRebind();
+  refreshKeyUi();
+}
+
+// Every key label in the UI (panel, spell bar, shop chips, join hint) reflects
+// current bindings.
 function refreshKeyUi() {
   for (const [spell, btn] of Object.entries(keyRows)) {
     btn.classList.remove('capturing');
@@ -564,6 +603,8 @@ function refreshKeyUi() {
   }
   for (const [spell, el] of Object.entries(spellEls))
     el.querySelector('.key').textContent = keyLabel(keyBindings[spell]);
+  for (const chip of document.querySelectorAll('.keychip'))
+    chip.textContent = keyLabel(keyBindings[chip.dataset.spell]);
   $('joinKeyHint').innerHTML = Object.keys(SPELLS)
     .map((spell) => `<kbd>${esc(keyLabel(keyBindings[spell]))}</kbd>`).join('');
 }
@@ -1072,8 +1113,21 @@ function buildShop(container, mode = 'classic') {
       <span class="stats">${spellStatLine(spec, 1)}</span></span><span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
-    container.appendChild(b);
-    const w = { key, spec, el: b, kind: 'spell' };
+    // key chip (spells only): sits OUTSIDE the buy button in a relative wrapper
+    // — a disabled button (max level / can't afford) eats clicks on its
+    // children, and the chip must stay clickable to open the rebind popup.
+    const wrap = document.createElement('div');
+    wrap.className = 'warewrap';
+    const chip = document.createElement('span');
+    chip.className = 'keychip';
+    chip.dataset.spell = key;
+    chip.title = 'Click to rebind this key';
+    chip.textContent = keyLabel(keyBindings[key]);
+    chip.addEventListener('click', (e) => { e.stopPropagation(); openRebind(key); });
+    wrap.appendChild(b);
+    wrap.appendChild(chip);
+    container.appendChild(wrap);
+    const w = { key, spec, el: b, wrap, kind: 'spell' };
     attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
     wares.push(w); inSection(w);
   };
@@ -1142,8 +1196,9 @@ function buildShop(container, mode = 'classic') {
       : (items[w.key] || 0);
     for (const w of wares) {
       // pooled and not yet drafted → this shelf is empty in this game
+      // (spells hide their wrapper — the key chip must vanish with the ware)
       const locked = pool.has(w.key) && ownedOf(w) < 1;
-      w.el.classList.toggle('hidden', locked);
+      (w.wrap || w.el).classList.toggle('hidden', locked);
       if (locked) { w.el.disabled = true; continue; }
       const cost = w.el.querySelector('.cost');
       if (w.kind === 'spell') {
@@ -1212,7 +1267,7 @@ function buildShop(container, mode = 'classic') {
     // heading, so a label lives or dies with its wares
     for (const lab of labels)
       lab.el.classList.toggle('hidden', lab.wares.length > 0 &&
-        lab.wares.every(w => w.el.classList.contains('hidden')));
+        lab.wares.every(w => (w.wrap || w.el).classList.contains('hidden')));
     refreshTip(); // a purchase just changed what the open tooltip should say
   };
 

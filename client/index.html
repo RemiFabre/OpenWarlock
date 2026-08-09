@@ -215,6 +215,17 @@
   .ware .cost { color: var(--gold); flex: none; text-align: right; }
   .ware .cost.owned { color: var(--ok); }
   .ware .cost .nth { display: block; font-size: 10px; color: var(--ash); }
+  /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
+     wrapper NEXT TO the buy button — inside a disabled button it'd be dead. */
+  .warewrap { position: relative; display: flex; }
+  .keychip {
+    position: absolute; right: 5px; bottom: 4px; cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px;
+    line-height: 16px; padding: 0 5px; border-radius: 3px;
+    color: var(--ash); background: var(--obsidian); border: 1px solid #3a2c22;
+  }
+  .keychip:hover { border-color: var(--ember); color: var(--ember); }
+  #rebind { z-index: 80; }
   .shoplabel { grid-column: 1 / -1; color: var(--ash); font-size: 12px;
     text-transform: uppercase; letter-spacing: .12em; margin-top: 10px;
     border-bottom: 1px solid var(--line); padding-bottom: 4px; }
@@ -408,7 +419,10 @@
   }
 
   #toast {
+    /* above every overlay (shop, rebind popup) — a rebind-conflict toast has
+       to be readable over the shop backdrop */
     position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%);
+    z-index: 210; pointer-events: none;
     color: var(--blood); font-size: 14px; transition: opacity .4s; opacity: 0;
     text-shadow: 0 1px 2px #000;
   }
@@ -480,7 +494,6 @@
     </div>
     <div class="spbody"><table id="specStats" class="stats"></table></div>
   </div>
-  <div id="toast"></div>
 </div>
 
 <div id="tip" class="hidden"></div>
@@ -584,6 +597,14 @@
   </div>
 </div>
 
+<!-- in-shop key rebind popup: opened by a shop key chip, closed by main.js -->
+<div id="rebind" class="overlay hidden">
+  <div class="slab" style="--w:420px">
+    <p id="rebindMsg" style="font-size:16px; margin:4px 0 10px"></p>
+    <p class="hint" style="margin-top:0"><kbd>Esc</kbd> to cancel</p>
+  </div>
+</div>
+
 <div id="gameover" class="overlay hidden">
   <div class="slab fit">
     <h1 class="display" style="font-size:28px">The Ashes Settle</h1>
@@ -598,6 +619,10 @@
 
 <button id="musicBtn" type="button" title="Music on/off">♫</button>
 <button id="muteBtn" type="button" title="Sound on/off">🔊</button>
+
+<!-- toast sits OUTSIDE #hud: fixed-position #hud is its own stacking context
+     (Chrome), which trapped the toast underneath the shop/lobby overlays -->
+<div id="toast"></div>
 
 <script type="module" src="/client/main.js"></script>
 </body>
