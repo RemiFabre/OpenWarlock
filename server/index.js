@@ -1,6 +1,11 @@
-// OpenWarlock — authoritative game server.
+// OpenWarlock — Node adapter around the authoritative room (shared/engine.js).
 // One process = one game (lobby -> rounds -> gameover -> back to lobby).
 // Serves the static client over HTTP and the game over WebSocket.
+//
+// The engine owns everything portable (seating, the wire switch, ghosts,
+// name-bans, kick, autostart, lobby resets). THIS file owns the Node costume:
+// http static serving, /health, ws + heartbeats, the JSONL journal, crash
+// dumps, and IP-based bans. Same wire protocol as before the extraction.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -8,12 +13,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import {
-  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
-  setSpectator, fighters, setMode, setDraft, setTesting, draftPick,
-} from '../shared/sim.js';
-import { TICK_RATE, SNAPSHOT_RATE, BOTS, BUILDS } from '../shared/constants.js';
+import { createEngine } from '../shared/engine.js';
+import { snapshot } from '../shared/sim.js';
+import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -37,7 +39,7 @@ function crashDump(kind, err) {
   const entry = {
     ms: Date.now(), tick, k: 'crash', kind,
     error: String(err && err.stack || err),
-    state: (() => { try { return snapshot(game); } catch { return 'unserializable'; } })(),
+    state: (() => { try { return snapshot(engine.game); } catch { return 'unserializable'; } })(),
   };
   try {
     // Write synchronously: process.exit(1) follows immediately and would drop
@@ -71,6 +73,7 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
   if (urlPath === '/health') {
+    const game = engine.game;
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       ok: true, tick, phase: game.phase, round: game.round,
@@ -100,68 +103,54 @@ const httpServer = http.createServer((req, res) => {
   });
 });
 
-// ---- game state ----------------------------------------------------------
+// ---- the room + this adapter's connection bookkeeping ----------------------
 
-let game = createGame({ seed: SEED });
 let nextConnId = 1;
-let nextBotId = 1;
 const sockets = new Map(); // playerId -> ws
-let lastPhase = game.phase;
 
-const BOT_NAMES = ['Gul\'dan', 'Kil\'jaeden', 'Cho\'gall', 'Teron', 'Nerzhul', 'Archimonde'];
-const BOT_AVATARS = ['👹', '💀', '👺', '🧟', '🐉', '😈'];
+// Bans (until the server restarts): a kicked-with-ban player is blocked by
+// NAME (engine) and by IP (here). Name catches the classic offender — an
+// abandoned tab that auto-reconnects under the same name 2 s after every
+// kick; IP catches renames. Behind cloudflared every socket is local, so
+// trust the CF-Connecting-IP header first.
+const bannedIps = new Set();
+const ipsById = new Map(); // playerId -> remote ip
+const ipOf = (req) => String(
+  req.headers['cf-connecting-ip'] ||
+  String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+  req.socket.remoteAddress || '');
 
-function broadcast(obj) {
-  const msg = JSON.stringify(obj);
-  for (const ws of sockets.values()) if (ws.readyState === 1) ws.send(msg);
-}
+let journaledEvents = 0;
 
-// Seats that count against MAX_PLAYERS: co-op campaign monsters are spawned by
-// the simulation and must never keep a human out of their own game.
-function playerCount() {
-  return Object.values(game.players).filter(p => !p.wave).length;
-}
-
-function maybeAutoStart() {
-  if (game.phase !== 'lobby') return;
-  const humans = Object.values(game.players).filter(p => !p.bot);
-  // co-op is playable solo (the campaign scales to the party); the free-for-all
-  // rulesets still need somebody to fight
-  const need = game.mode === 'coop' ? 1 : 2;
-  if (humans.length >= 1 && humans.every(p => p.ready) && fighters(game).length >= need) {
-    startGame(game);
-  }
-}
-
-// How long the final standings stay up for the stragglers once somebody has
-// clicked Continue.
-const AGAIN_GRACE_MS = Number(process.env.AGAIN_GRACE_MS || 45000);
-let againTimer = null;
-
-function resetToLobby() {
-  journal('reset', {});
-  clearTimeout(againTimer); againTimer = null;
-  ghosts.clear(); // progress stashes never outlive the game they came from
-  const old = game.players;
-  const wasDraft = game.draft;
-  const wasTesting = game.testing;
-  // the ruleset (like avatars) survives "play again"
-  game = createGame({ seed: SEED + game.round + 1, mode: game.mode });
-  // ...and so do the draft and testing toggles (the pool is re-rolled per game)
-  game.draft = wasDraft;
-  game.testing = wasTesting;
-  // the new game starts with an empty events array; a stale counter would
-  // make the journal skip the first events of the new game
-  journaledEvents = 0;
-  for (const [id, p] of Object.entries(old)) {
-    if (p.wave) continue; // campaign monsters belong to the level, not the lobby
-    if (p.bot || sockets.has(id)) {
-      const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind, build: p.build });
-      np.ready = false;
-      np.spectator = p.spectator;
+const engine = createEngine({
+  seed: SEED,
+  maxPlayers: MAX_PLAYERS,
+  againGraceMs: Number(process.env.AGAIN_GRACE_MS || 45000),
+  resetGraceMs: Number(process.env.RESET_GRACE_MS || 60_000),
+  onSend: (connId, msg) => {
+    const ws = sockets.get(connId);
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+  },
+  onKick: (connId, { ban }) => {
+    if (ban) {
+      const tip = ipsById.get(connId);
+      if (tip) bannedIps.add(tip);
     }
-  }
-}
+    const tws = sockets.get(connId);
+    if (tws) {
+      try { tws.close(); } catch { }
+      sockets.delete(connId);
+    }
+  },
+  onUnbanAll: () => bannedIps.clear(),
+  externalBans: () => bannedIps.size,
+  onLog: (k, data) => {
+    // a reset starts a NEW game with an empty events array; a stale cursor
+    // would make the journal skip the first events of the new game
+    if (k === 'reset') journaledEvents = 0;
+    journal(k, data);
+  },
+});
 
 // ---- websocket protocol ---------------------------------------------------
 // client -> server: join, ready, spectate, mode, draft, move, cast, buy,
@@ -196,47 +185,6 @@ setInterval(() => {
   }
 }, PING_MS);
 
-// Bans (until the server restarts): a kicked-with-ban player is blocked by
-// NAME and by IP. Name catches the classic offender — an abandoned tab that
-// auto-reconnects under the same name 2 s after every kick; IP catches
-// renames. Behind cloudflared every socket is local, so trust the
-// CF-Connecting-IP header first.
-const bannedNames = new Set();
-const bannedIps = new Set();
-
-// Reconnect persistence (2026-08-05): a human who drops mid-game keeps their
-// progress. On disconnect during a running game the player's earnings/score/
-// build are stashed under their normalized NAME; the next join with that name
-// gets them back (10-minute freshness cap). Stashes die with the game
-// (resetToLobby) — names are trusted within a friends lobby, same as bans.
-const GHOST_TTL_MS = 10 * 60 * 1000;
-const ghosts = new Map(); // normName -> {at, ...progress}
-
-// Humans-all-gone mid-game: wait this long for a reconnect before resetting.
-const RESET_GRACE_MS = Number(process.env.RESET_GRACE_MS || 60_000);
-let lobbyResetTimer = null;
-function scheduleLobbyReset() {
-  if (lobbyResetTimer) return;
-  journal('reset-scheduled', { inMs: RESET_GRACE_MS });
-  lobbyResetTimer = setTimeout(() => {
-    lobbyResetTimer = null;
-    // a human made it back during the grace window: keep the game alive
-    if (Object.values(game.players).some(p => !p.bot)) return;
-    resetToLobby();
-  }, RESET_GRACE_MS);
-}
-function cancelLobbyReset() {
-  if (!lobbyResetTimer) return;
-  clearTimeout(lobbyResetTimer);
-  lobbyResetTimer = null;
-}
-const ipsById = new Map(); // playerId -> remote ip
-const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16);
-const ipOf = (req) => String(
-  req.headers['cf-connecting-ip'] ||
-  String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
-  req.socket.remoteAddress || '');
-
 wss.on('connection', (ws, req) => {
   const id = 'c' + nextConnId++;
   const ip = ipOf(req);
@@ -256,46 +204,20 @@ wss.on('connection', (ws, req) => {
     journal('msg', { id, m });
     if (!joined) {
       if (m.t !== 'join') return;
-      if (bannedNames.has(normName(m.name)) || (ip && bannedIps.has(ip))) {
+      // IP ban is this adapter's check; the engine handles the name ban inside join()
+      if (ip && bannedIps.has(ip)) {
         journal('banned-join', { id, ip, name: String(m.name || '').slice(0, 16) });
         ws.send(JSON.stringify({ t: 'denied', reason: 'banned from this lobby' }));
         ws.close();
         return;
       }
-      if (playerCount() >= MAX_PLAYERS) {
-        ws.send(JSON.stringify({ t: 'denied', reason: 'game is full' }));
+      const r = engine.join(id, { name: m.name, avatar: m.avatar });
+      if (!r.ok) {
+        if (r.reason === 'banned from this lobby')
+          journal('banned-join', { id, ip, name: String(m.name || '').slice(0, 16) });
+        ws.send(JSON.stringify({ t: 'denied', reason: r.reason }));
         ws.close();
         return;
-      }
-      const pl = addPlayer(game, id, m.name || 'warlock', {
-        avatar: typeof m.avatar === 'string' ? m.avatar : undefined,
-      });
-      if (game.phase === 'countdown') {
-        // the fight hasn't started yet — seat them straight into this round
-        pl.alive = true;
-        const n = Object.keys(game.players).length;
-        const a = n * 2.39996; // golden angle: spreads any number of joiners
-        const r = 56 * 0.6;
-        pl.x = Math.cos(a) * r; pl.y = Math.sin(a) * r;
-      } else if (game.phase !== 'lobby') {
-        // mid-battle joiners are seated but dead until the next round
-        pl.alive = false;
-      }
-      cancelLobbyReset(); // a human is back: the game no longer needs to die
-      // returning player? restore the progress their dropped socket stashed
-      const ghost = ghosts.get(normName(m.name));
-      if (ghost && Date.now() - ghost.at < GHOST_TTL_MS && game.phase !== 'lobby') {
-        pl.color = ghost.color;
-        if (pl.avatar === '🧙') pl.avatar = ghost.avatar;
-        pl.gold = ghost.gold; pl.goldEarned = ghost.goldEarned;
-        pl.kills = ghost.kills; pl.deaths = ghost.deaths;
-        pl.dmgDealt = ghost.dmgDealt;
-        pl.maxHp = ghost.maxHp; // amulet hp travels here — never re-apply items
-        pl.hp = Math.min(pl.hp, pl.maxHp);
-        pl.spells = ghost.spells; pl.items = ghost.items; pl.elements = ghost.elements;
-        pl.angerMarks = ghost.angerMarks || 0; // the permanent anger bank survives
-        ghosts.delete(normName(m.name));
-        journal('reconnect-restore', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
       }
       sockets.set(id, ws);
       ipsById.set(id, ip);
@@ -303,174 +225,27 @@ wss.on('connection', (ws, req) => {
       ws.send(JSON.stringify({ t: 'welcome', id }));
       return;
     }
-    const pl = game.players[id];
-    if (!pl) return;
-    switch (m.t) {
-      case 'ready':
-        if (game.phase === 'shop') { setShopReady(game, id, !!m.ready); break; }
-        pl.ready = !!m.ready;
-        maybeAutoStart();
-        break;
-      case 'shopPause':
-        setShopPause(game, id, !!m.on);
-        break;
-      case 'spectate':
-        setSpectator(game, id, !!m.on);
-        maybeAutoStart();
-        break;
-      case 'mode':
-        // any player may flip the ruleset, but only in the lobby;
-        // setMode validates both the phase and the value
-        if (typeof m.mode === 'string') setMode(game, m.mode);
-        break;
-      case 'draft':
-        // draft mode is an INDEPENDENT flag, not a fourth ruleset: it composes
-        // with classic, elemental and co-op. Lobby only, like 'mode'.
-        setDraft(game, !!m.on);
-        break;
-      case 'testing':
-        // testing sandbox: chosen starting gold, game opens in an untimed
-        // shop. A flag like draft, lobby only; setTesting validates.
-        setTesting(game, !!m.on, m.gold);
-        break;
-      case 'draftPick': {
-        const r = draftPick(game, id, String(m.id || ''));
-        journal('draftPick', { id, thing: m.id, ok: r.ok, err: r.err });
-        if (!r.ok) ws.send(JSON.stringify({ t: 'denied', reason: r.err }));
-        break;
-      }
-      case 'move':
-        if (typeof m.x === 'number' && typeof m.y === 'number')
-          setMoveTarget(game, id, m.x, m.y);
-        break;
-      case 'cast':
-        if (typeof m.x === 'number' && typeof m.y === 'number' && typeof m.key === 'string')
-          castSpell(game, id, m.key, m.x, m.y);
-        break;
-      case 'buy': {
-        const r = buy(game, id, String(m.id || ''));
-        journal('buy', { id, thing: m.id, ok: r.ok, err: r.err });
-        if (!r.ok) ws.send(JSON.stringify({ t: 'denied', reason: r.err }));
-        break;
-      }
-      case 'addBot': {
-        if (game.phase !== 'lobby' || playerCount() >= MAX_PLAYERS) break;
-        const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
-        // build strategy: explicit lobby pick, or a random one ('random'/absent)
-        const buildKeys = Object.keys(BUILDS);
-        const build = typeof m.build === 'string' && Object.hasOwn(BUILDS, m.build)
-          ? m.build : buildKeys[(Math.random() * buildKeys.length) | 0];
-        const bid = 'bot' + nextBotId++;
-        const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {
-          bot: true, kind, build, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
-        });
-        bp.ready = true;
-        maybeAutoStart();
-        break;
-      }
-      case 'removeBot': {
-        const bots = Object.values(game.players).filter(p => p.bot);
-        if (bots.length && game.phase === 'lobby') removePlayer(game, bots[bots.length - 1].id);
-        break;
-      }
-      case 'kick': {
-        // lobby-only: boot a HUMAN player (ghost seats, AFK friends). With
-        // ban:true their name+ip stay blocked until the server restarts —
-        // else an abandoned tab just auto-reconnects 2 s later, forever.
-        if (game.phase !== 'lobby' || typeof m.id !== 'string') break;
-        const target = game.players[m.id];
-        if (!target || target.bot || m.id === id) break;
-        if (m.ban) {
-          bannedNames.add(normName(target.name));
-          const tip = ipsById.get(m.id);
-          if (tip) bannedIps.add(tip);
-        }
-        const tws = sockets.get(m.id);
-        if (tws) {
-          try { tws.send(JSON.stringify({ t: 'denied', reason: m.ban ? 'banned from this lobby' : 'kicked from the lobby' })); } catch { }
-          try { tws.close(); } catch { }
-          sockets.delete(m.id);
-        }
-        journal('kick', { by: id, target: m.id, ban: !!m.ban });
-        removePlayer(game, m.id);
-        maybeAutoStart();
-        break;
-      }
-      case 'unbanAll': {
-        journal('unbanAll', { by: id, names: bannedNames.size, ips: bannedIps.size });
-        bannedNames.clear();
-        bannedIps.clear();
-        break;
-      }
-      case 'again':
-        // Everyone reads the final standings at their own pace, so one player
-        // hitting Continue must NOT yank the table off everybody else's
-        // screen (that was the "the scores vanish before I can look" report).
-        // The lobby comes back when every connected human has acknowledged.
-        if (game.phase !== 'gameover') break;
-        pl.againReady = true;
-        journal('again', { id });
-        if (Object.values(game.players).every(p => p.bot || !sockets.has(p.id) || p.againReady)) {
-          clearTimeout(againTimer); againTimer = null;
-          resetToLobby();
-        } else if (!againTimer) {
-          // ...but one AFK player must not hold the lobby hostage forever
-          againTimer = setTimeout(() => {
-            againTimer = null;
-            if (game.phase === 'gameover') resetToLobby();
-          }, AGAIN_GRACE_MS);
-        }
-        break;
-    }
+    engine.message(id, m);
   });
 
   ws.on('close', () => {
     if (!joined) return;
     journal('disconnect', { id });
-    // stash a mid-game fighter's progress so a reconnect (same name) keeps it
-    const pl = game.players[id];
-    if (pl && !pl.bot && !pl.spectator &&
-        game.phase !== 'lobby' && game.phase !== 'gameover') {
-      ghosts.set(normName(pl.name), {
-        at: Date.now(), color: pl.color, avatar: pl.avatar,
-        gold: pl.gold, goldEarned: pl.goldEarned, kills: pl.kills,
-        deaths: pl.deaths, dmgDealt: pl.dmgDealt, maxHp: pl.maxHp,
-        spells: { ...pl.spells }, items: { ...pl.items },
-        elements: { ...(pl.elements || {}) },
-        // Anger's mark bank is game-long, so a tunnel hiccup must not erase
-        // the power earned over 20 rounds of claimed marks
-        angerMarks: pl.angerMarks || 0,
-      });
-      journal('reconnect-stash', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
-    }
     sockets.delete(id);
     ipsById.delete(id);
-    removePlayer(game, id);
-    if (playerCount() === 0 || Object.values(game.players).every(p => p.bot)) {
-      // don't let bot-only games spin forever — but if a game is RUNNING,
-      // give the vanished humans a grace window to reconnect first (a tunnel
-      // hiccup must not wipe a solo-vs-bots game; see the ghost stash above)
-      if (game.phase === 'lobby' || game.phase === 'gameover') resetToLobby();
-      else scheduleLobbyReset();
-    }
+    engine.leave(id);
   });
 });
 
 // ---- game loop -------------------------------------------------------------
 
 const DT = 1 / TICK_RATE;
-let journaledEvents = 0;
+let lastPhase = engine.game.phase;
 setInterval(() => {
   tick++;
-  step(game, DT);
+  engine.tick(DT);
+  const game = engine.game;
 
-  // bots act; on entering shop they spend their gold once
-  for (const p of Object.values(game.players)) {
-    if (p.bot) stepBot(game, p.id, DT);
-  }
-  if (game.phase === 'shop' && lastPhase !== 'shop') {
-    for (const p of Object.values(game.players)) if (p.bot) botShop(game, p.id);
-  }
   if (journalStream) {
     // journal game events as they appear (snapshot loop drains the array).
     // Events go first: they chronologically precede any phase change they caused.
@@ -498,37 +273,16 @@ setInterval(() => {
 }, 1000 / TICK_RATE);
 
 setInterval(() => {
+  const game = engine.game;
   // journal any events that appeared since the last game tick (e.g. casts
-  // triggered directly by client messages) before draining
+  // triggered directly by client messages) before the engine drains them
   for (; journaledEvents < game.events.length; journaledEvents++)
     journal('event', { e: game.events[journaledEvents] });
-  if (sockets.size === 0) { game.events = []; journaledEvents = 0; return; }
-  const events = game.events;
-  game.events = [];
-  journaledEvents = 0;
-  // PER-VIEWER snapshots (round 12): element stacks are private to whoever
-  // applied them, so there is no longer one blob that is correct for everyone —
-  // each socket gets its own view. snapshot() is cheap (a field copy per
-  // player) and this caps out at MAX_PLAYERS sockets at SNAPSHOT_RATE.
-  // The EVENT stream is per-viewer for the same reason: events carry positions,
-  // so a Vanish that only stripped the snapshot would leak the hidden player
-  // through their own casts and hits (viewEvents; no-op when nobody is hidden).
-  // per-player RTT (server-level, like `bans`): one shared blob — a ping is
-  // not a secret, and every viewer wants to see who is lagging
-  const pings = {};
+  // per-player RTT: measured here on the real socket, reported by the engine
   for (const [pid, pws] of sockets)
-    if (pws.pingMs != null) pings[pid] = Math.round(pws.pingMs);
-  const havePings = Object.keys(pings).length > 0;
-  for (const [id, ws] of sockets) {
-    if (ws.readyState !== 1) continue;
-    ws.send(JSON.stringify({
-      t: 'snap', s: snapshot(game, id), e: viewEvents(game, events, id),
-      // lobby ban count (server-level, not game state): the client shows its
-      // "Unban all" button only when there is actually something to lift
-      ...(bannedNames.size + bannedIps.size ? { bans: bannedNames.size + bannedIps.size } : {}),
-      ...(havePings ? { pings } : {}),
-    }));
-  }
+    if (pws.pingMs != null) engine.setPing(pid, Math.round(pws.pingMs));
+  engine.pushSnapshots();
+  journaledEvents = 0; // pushSnapshots drained game.events
 }, 1000 / SNAPSHOT_RATE);
 
 // ---- go --------------------------------------------------------------------
