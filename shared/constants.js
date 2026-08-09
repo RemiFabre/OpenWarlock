@@ -381,14 +381,15 @@ export const ELEMENTS = {
            desc: 'Bigger fireball.',
            long: 'A bigger ball is much easier to land. Cheap, no tricks — and every on-hit effect loves the extra hits.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65] } },
-  // Round 17.2 (Remi, live): element levels buy BANKING SPEED (points/hit),
-  // never bigger bonuses; every evolveEvery points = +evolveDmg damage,
-  // linear and UNCAPPED. Points are game-long (permanence is the design).
+  // Anger (Remi's mark-hunt rework of momentum): markDelay s into each round,
+  // then markEvery s after each claim, ONE red mark lands on a random enemy —
+  // a fireball hit on them banks +markDmg damage, game-long and uncapped.
+  // Levels buy mark FREQUENCY only. ⚠ markEvery numbers are untuned defaults.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
-  momentum: { name: 'Momentum', icon: '⚙️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Late-game scaling.',
-           long: 'Every landed fireball banks evolution points — 1, 2 or 3 per hit by level. Every 50 points your fireball permanently EVOLVES: +3 damage, forever.',
-           fx: { pointsPerHit: [1, 2, 3], evolveEvery: 50, evolveDmg: 3,
+  anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
+           desc: 'Hunt the mark.',
+           long: 'Every few seconds a red mark appears on an enemy: hit them with your fireball to claim it — +0.5 fireball damage, forever. Levels make marks appear faster.',
+           fx: { markEvery: [10, 7, 5], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 18.2 (Remi): NO sting — every ball is a NORMAL fireball; the penalty
   // is dmg AND kb × [0.5,0.75,1], multiplicative with midas like any multiplier.
@@ -519,10 +520,10 @@ export const BOT_TARGETING = {
 // where the shopping really happens.
 export const BUILDS = {
   bruiser: { name: 'Bruiser',
-    desc: 'Stands its ground and trades: HP and lifesteal under the fireball. Elemental picks: vampire, ember, momentum — it heals through you now and out-damages you later.',
+    desc: 'Stands its ground and trades: HP and lifesteal under the fireball. Elemental picks: vampire, ember, anger — it heals through you now and out-damages you later.',
     order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'cape', 'treads'] },
   sniper:  { name: 'Sniper',
-    desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: malady, ghost, momentum — the plague keeps spreading while it repositions.',
+    desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: malady, ghost, anger — the plague keeps spreading while it repositions.',
     order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape'] },
   escape:  { name: 'Escape artist',
     desc: 'A fireball with an escape button: slippery, never where you aimed. Elemental picks: arcane, ghost, mosquito — fast, faster, and a trap on your body.',

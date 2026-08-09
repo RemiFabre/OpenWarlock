@@ -38,7 +38,7 @@ const progress = process.stderr.isTTY ? console.error : () => {};
 const EXHAUST_PASS = [
   'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
   'hourglass', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
-  'vampire', 'momentum', 'boomerang', 'rush', 'shield', 'teleport', 'echo',
+  'vampire', 'anger', 'boomerang', 'rush', 'shield', 'teleport', 'echo',
   'frost', 'mosquito', 'midas',
 ];
 
@@ -74,9 +74,9 @@ export const STRATEGIES = {
     core: ['vampire', 'vampire', 'vampire', 'amulet', 'sword', 'amulet',
       'sword', 'amulet', 'sword'],
   },
-  'momentum-scaling': {
-    desc: 'Late-game scaling: max momentum immediately and feed the permanent ramp with terra (a bigger ball lands more hits), banking on a cannon by round 10.',
-    core: ['momentum', 'momentum', 'momentum', 'terra', 'terra', 'terra',
+  'anger-scaling': {
+    desc: 'Late-game scaling: max anger immediately for the fastest mark cadence, terra so the claiming hits are easy to land, banking permanent damage into a cannon by round 10.',
+    core: ['anger', 'anger', 'anger', 'terra', 'terra', 'terra',
       'amulet', 'amulet'],
   },
   'mosquito-combo': {

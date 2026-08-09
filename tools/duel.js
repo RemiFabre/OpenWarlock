@@ -14,11 +14,11 @@
 //
 // What this lab CANNOT see: multi-enemy dynamics (malady's contagion, gale
 // ring-outs into a crowd), round-to-round economy, and human dodging — bot
-// duels overprice raw dps and underprice aim/utility. Momentum's banked hits
+// duels overprice raw dps and underprice aim/utility. Anger's claimed marks
 // are an INPUT here (stated per stage), not earned in the duel.
 //
 //   node tools/duel.js --games=60 --seed=1        (~5 min)
-//   node tools/duel.js --stage=late --only=momentum,ember
+//   node tools/duel.js --stage=late --only=anger,ember
 
 import {
   createGame, addPlayer, startGame, step, stepBot, buy,
@@ -36,7 +36,7 @@ const arg = (n, d) => {
 export const ARCHETYPES = {
   ember:     ['ember', 'ember', 'ember', 'amulet', 'sword', 'boots'],
   cadence:   ['arcane', 'arcane', 'hourglass', 'hourglass', 'hourglass', 'amulet'],
-  momentum:  ['momentum', 'momentum', 'momentum', 'terra', 'amulet', 'sword'],
+  anger:     ['anger', 'anger', 'anger', 'terra', 'amulet', 'sword'],
   malady:    ['malady', 'malady', 'malady', 'terra', 'amulet', 'sword'],
   mosquito:  ['mosquito', 'mosquito', 'mosquito', 'amulet', 'sword', 'boots'],
   vampire:   ['vampire', 'vampire', 'vampire', 'sword', 'amulet', 'boots'],
@@ -44,12 +44,13 @@ export const ARCHETYPES = {
   lifesteal: ['sword', 'sword', 'sword', 'ember', 'amulet', 'boots'],
 };
 
-// Stage = total gold ever earned by that point, plus momentum's banked hits
-// (BOT-paced: a Hard carrier banks ~172/game median; halve for a human read).
+// Stage = total gold ever earned by that point, plus anger's claimed marks
+// (untuned guesses off the mark cadence — a lv3 hunter claims a few per round;
+// bonus-equivalent to the old momentum stages: +1 / +4 / +9 dmg).
 export const STAGES = {
-  early: { gold: 20, momentumHits: 15 },
-  mid:   { gold: 60, momentumHits: 80 },
-  late:  { gold: 110, momentumHits: 160 },
+  early: { gold: 20, angerMarks: 2 },
+  mid:   { gold: 60, angerMarks: 8 },
+  late:  { gold: 110, angerMarks: 18 },
 };
 
 function spend(state, id, list, budget) {
@@ -73,8 +74,8 @@ function duel(nameA, nameB, stage, seed) {
   state.phase = 'shop';
   spend(state, 'a', ARCHETYPES[nameA], STAGES[stage].gold);
   spend(state, 'b', ARCHETYPES[nameB], STAGES[stage].gold);
-  state.players.a.momentumHits = nameA === 'momentum' ? STAGES[stage].momentumHits : 0;
-  state.players.b.momentumHits = nameB === 'momentum' ? STAGES[stage].momentumHits : 0;
+  state.players.a.angerMarks = nameA === 'anger' ? STAGES[stage].angerMarks : 0;
+  state.players.b.angerMarks = nameB === 'anger' ? STAGES[stage].angerMarks : 0;
   step(state, DT); // both are bots => everyone ready => the round starts
   let t = 0;
   while (t < 90) {
@@ -96,9 +97,9 @@ const names = onlyArg ? onlyArg.split(',') : Object.keys(ARCHETYPES);
 const stages = stageArg ? [stageArg] : Object.keys(STAGES);
 
 for (const stage of stages) {
-  const { gold, momentumHits } = STAGES[stage];
+  const { gold, angerMarks } = STAGES[stage];
   console.log(`\n=== ${stage.toUpperCase()} — both duelists spend the SAME ${gold} g down different lists` +
-    ` (momentum enters with ${momentumHits} banked hits, bot-paced) ===`);
+    ` (anger enters with ${angerMarks} claimed marks, stage guess) ===`);
   console.log('win% = share of decided duels won (50 = equal kits); vs FIELD = mean across pairings');
   const wins = {}, ttks = {}, draws = { n: 0, total: 0 };
   for (const n of names) { wins[n] = {}; ttks[n] = []; }

@@ -259,6 +259,12 @@ function onEvent(e) {
     // on-hit indicators (two damage numbers, two +1 g…) show the effect — without
     // this you see the payoff and never learn what triggered it.
     case 'biteHit': fx.push({ ...e, type: 'biteHit', at: now, dur: 0.6 }); break;
+    // anger: a red mark just got claimed — small red burst on the victim, and
+    // the claimant hears the kill jingle (the trophy sound; no new audio assets)
+    case 'angerClaim':
+      fx.push({ ...e, type: 'angerClaim', at: now, dur: 0.6 });
+      if (e.by === myId) playSfx('kill');
+      break;
     // malady: somebody just caught the plague — one-shot burst + a sound cue
     // (the drain slurp reused: sick and wet, and no new audio assets)
     case 'infected':
@@ -737,10 +743,10 @@ const FX_FIELDS = {
   tickEvery: ['ticks every', fmtSec],
   auraR: ['contagion radius', fmtNum],
   goldOnHit: ['gold per cashed mark', (v) => `+${fmtNum(v)} g`],
-  pointsPerHit: ['evolution points per hit', fmtNum],
-  evolveEvery: ['evolves every', (v) => `${fmtNum(v)} points`],
-  evolveDmg: ['each evolution', (v) => `+${fmtNum(v)} dmg, forever`],
-  rampPermanent: ['your points', (v) => (v ? 'never reset — they are yours for the game' : 'reset each round')],
+  markEvery: ['a mark appears every', fmtSec],
+  markDmg: ['each claimed mark', (v) => `+${fmtNum(v)} dmg, forever`],
+  markDelay: ['first mark after', fmtSec],
+  rampPermanent: ['your claimed marks', (v) => (v ? 'never reset — they are yours for the game' : 'reset each round')],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
   chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
   cdFloor: ['a refund never goes below', fmtSec],
@@ -1013,7 +1019,7 @@ const ELEMENT_ROWS = [
   ['Elements ⚗️ (your fireball\'s stat axes)',
     ['ember', 'terra', 'gale', 'arcane', 'ghost']],
   ['Mutations 🧬 (they change what your fireball does)',
-    ['malady', 'frost', 'momentum', 'mosquito', 'vampire', 'midas']],
+    ['malady', 'frost', 'anger', 'mosquito', 'vampire', 'midas']],
 ];
 const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 
@@ -1290,7 +1296,13 @@ function kitIcons(p) {
   for (const [k, lv] of Object.entries(p.items || {}))
     if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
   for (const [k, v] of Object.entries(p.elements || {}))
-    if (v > 0 && ELEMENTS[k]) parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}`);
+    if (v > 0 && ELEMENTS[k]) {
+      // anger wears its earned bonus on the tag (angerMarks rides every
+      // player's snapshot entry in elemental, so this works for everyone)
+      const bonus = k === 'anger' && +p.angerMarks > 0
+        ? `<span class="klv">+${(+p.angerMarks * ELEMENTS.anger.fx.markDmg).toFixed(1)}</span>` : '';
+      parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}${bonus}`);
+    }
   return parts.join(' ');
 }
 
@@ -1605,15 +1617,15 @@ function updateUi(s) {
   // around, and the frost stacks riding on you are a countdown to a stun.
   const buffs = [];
   if (inGame && m && !m.spectator) {
-    const momLv = (m.elements && m.elements.momentum) || 0;
-    if (momLv > 0) {
-      // round 17.2: the quest counter — banked points, earned damage, and
-      // points until the next (uncapped) evolution
-      const f = ELEMENTS.momentum.fx;
-      const pts = Math.max(0, +m.momentumHits || 0);
-      const evo = Math.floor(pts / f.evolveEvery);
-      buffs.push(`<span class="buff crit">${ELEMENTS.momentum.icon} +${fmtNum(evo * f.evolveDmg)} dmg` +
-        ` · ${f.evolveEvery - (pts % f.evolveEvery)} points to evolve</span>`);
+    const angLv = (m.elements && m.elements.anger) || 0;
+    if (angLv > 0) {
+      // anger: the earned damage bank, plus whether your mark is out right now
+      // (the red pip on the enemy's body is the real UI — this just confirms it)
+      const f = ELEMENTS.anger.fx;
+      const marks = Math.max(0, +m.angerMarks || 0);
+      const markUp = playerList.some(p => p.myStacks && p.myStacks.anger > 0);
+      buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg` +
+        (markUp ? ' · mark is OUT — hunt it' : '') + '</span>');
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)

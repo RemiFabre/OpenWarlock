@@ -1282,7 +1282,7 @@ describe('elemental mode', () => {
     const a = snapshot(state, 'p0').players.p0;
     expect(a.myStacks).toBeUndefined();
     expect(a.stacksOnMe).toBeUndefined();
-    expect(a.momentumHits).toBeUndefined();
+    expect(a.angerMarks).toBeUndefined();
     expect(a.vampN).toBeUndefined();
     // ...and neither do classic PROJECTILES: pierce/pierced/engorged are all
     // internal or elemental-only, so the projectile wire is unchanged
@@ -1531,93 +1531,223 @@ describe('elemental mode', () => {
     expect(b2.lastHitBy).toBe(null);        // round-9 rule: DoT never stamps
   });
 
-  // ---- momentum ⚙️ ------------------------------------------------------
-  // Every number below is read out of ELEMENTS.momentum.fx: AGENTS.md — balance
+  // ---- anger 🔴 (momentum → Anger rework: the mark hunt) -----------------
+  // Every number below is read out of ELEMENTS.anger.fx: AGENTS.md — balance
   // tests must not pin constants the owner is still tuning.
-  it('momentum ⚙️: banked points evolve the ball every 50, forever (round 17.2)', () => {
-    const f = ELEMENTS.momentum.fx;
-    const base = SPELLS.fireball.damage[0];
-    // hit 1: no bracket yet — exactly a plain fireball, and it banked
-    // pointsPerHit[0] points (element lv1)
-    const s1 = hitWith('momentum');
-    const b1 = s1.players.p1;
-    expect(b1.maxHp - b1.hp).toBeCloseTo(base, 1);
-    expect(s1.players.p0.momentumHits).toBe(f.pointsPerHit[0]);
-    // damage dealt with `pts` already banked (element lv1)
-    const dealtAt = (pts) => {
-      const st = hitWith('momentum');
-      const a = st.players.p0, b = st.players.p1;
-      a.momentumHits = pts;
-      b.maxHp = 999; b.hp = 999; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
-      a.cooldowns = {};
-      castSpell(st, 'p0', 'fireball', 20, 0);
-      run(st, 0.4);
-      return 999 - b.hp;
-    };
-    expect(dealtAt(f.evolveEvery - 1)).toBeCloseTo(base, 1);                    // not yet
-    expect(dealtAt(f.evolveEvery)).toBeCloseTo(base + f.evolveDmg, 1);          // evolved
-    expect(dealtAt(f.evolveEvery * 4)).toBeCloseTo(base + 4 * f.evolveDmg, 1);  // linear...
-    expect(dealtAt(f.evolveEvery * 10)).toBeCloseTo(base + 10 * f.evolveDmg, 1); // ...and UNCAPPED
-    // element levels buy BANKING SPEED, never bigger bonuses
-    expect(f.pointsPerHit[1]).toBeGreaterThan(f.pointsPerHit[0]);
-    expect(f.pointsPerHit[2]).toBeGreaterThan(f.pointsPerHit[1]);
-    // lv3 banks pointsPerHit[2] per landed hit
-    const s3 = hitWith({ momentum: 3 });
-    expect(s3.players.p0.momentumHits).toBe(f.pointsPerHit[2]);
+  const angerOn = (pl, by) => stacksOf(pl, 'anger', by);
+  const totalAnger = (state, by) =>
+    Object.values(state.players).reduce((s, q) => s + angerOn(q, by), 0);
+
+  it('anger 🔴: the first mark lands markDelay after battle starts, on ONE living opponent', () => {
+    const f = ELEMENTS.anger.fx;
+    const state = elementalBattle(3);
+    state.players.p0.elements = { anger: 1 };
+    // park everyone so nothing dies or hits while we watch the clock
+    state.players.p1.x = 10; state.players.p1.y = 0;
+    state.players.p2.x = -10; state.players.p2.y = 5;
+    run(state, f.markDelay - 3 * DT);       // just before the delay elapses
+    expect(totalAnger(state, 'p0')).toBe(0);
+    run(state, 5 * DT);                     // ...and just after
+    expect(totalAnger(state, 'p0')).toBe(1);
+    expect(angerOn(state.players.p0, 'p0')).toBe(0);   // never self
+    // owner-private on the wire: the owner sees it (myStacks), the victim sees
+    // it (stacksOnMe), a third party sees nothing at all
+    const vid = state.players.p0._angerTarget;
+    expect(['p1', 'p2']).toContain(vid);
+    const asOwner = snapshot(state, 'p0').players[vid];
+    expect(asOwner.myStacks && asOwner.myStacks.anger).toBe(1);
+    const asVictim = snapshot(state, vid).players[vid];
+    expect(asVictim.stacksOnMe && asVictim.stacksOnMe.anger).toBe(1);
+    const third = vid === 'p1' ? 'p2' : 'p1';
+    expect(snapshot(state, third).players[vid].myStacks).toBeUndefined();
   });
 
-  it('momentum is DAMAGE ONLY: a huge stack pushes exactly as hard as none', () => {
-    // round 12 dropped the knockback half of the ramp: a big Momentum stack must
-    // melt people, not launch them into the lava (gale and ember do that)
-    const peak = (hits) => {
-      const s = hitWith('momentum');
-      const a = s.players.p0, b = s.players.p1;
-      a.momentumHits = hits;
-      b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
-      a.cooldowns = {};
-      castSpell(s, 'p0', 'fireball', 20, 0);
-      for (let i = 0; i < 12; i++) { step(s, DT); if (b.vx > 1) break; }
-      return b.vx;
-    };
-    const cold = peak(0);
-    expect(cold).toBeGreaterThan(1);          // it does push, just not more
-    expect(peak(40)).toBeCloseTo(cold, 5);
-    expect(ELEMENTS.momentum.fx.rampKb).toBeUndefined(); // and the spec agrees
+  it('one active mark per owner: the cadence never deals a second while one is out', () => {
+    const f = ELEMENTS.anger.fx;
+    const state = elementalBattle(3);
+    state.players.p0.elements = { anger: 3 };   // lv3 = the fastest cadence
+    state.players.p1.x = 10; state.players.p1.y = 0;
+    state.players.p2.x = -10; state.players.p2.y = 5;
+    run(state, f.markDelay + 2 * f.markEvery[2] + 1);   // several cadences pass, unclaimed
+    expect(totalAnger(state, 'p0')).toBe(1);
+    // levels buy FREQUENCY: higher level = shorter wait, never a bigger bonus
+    expect(f.markEvery[1]).toBeLessThan(f.markEvery[0]);
+    expect(f.markEvery[2]).toBeLessThan(f.markEvery[1]);
+    expect(Array.isArray(f.markDmg)).toBe(false);
   });
 
-  it('the damage number splits base from the momentum bonus (the white number)', () => {
-    // AGENTS.md scar: this element ramped correctly for weeks and still read as
-    // broken. The hit event has to carry the split, or the client cannot show it.
-    const f = ELEMENTS.momentum.fx;
+  it('claiming: a fireball on YOUR marked target banks +1 forever; the NEXT hit carries the bonus', () => {
+    const f = ELEMENTS.anger.fx;
     const base = SPELLS.fireball.damage[0];
-    const state = hitWith('momentum');
+    const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
-    a.momentumHits = f.evolveEvery;          // one evolution banked
-    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
-    a.cooldowns = {};
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { anger: 1 };
+    b.stacks = { anger: { p0: 1 } };   // hand-place the mark: this test is the claim
+    a._angerTarget = 'p1';
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
-    const hit = state.events.find(e => e.t === 'hit' && e.id === 'p1');
-    expect(hit).toBeTruthy();
-    expect(hit.bonus).toBeCloseTo(f.evolveDmg, 5);  // the evolution IS the white number
-    expect(hit.amount - hit.bonus).toBeCloseTo(base, 5);
-    // a plain fireball carries no bonus field at all
-    const plain = hitWith('ember');
-    expect(plain.events.find(e => e.t === 'hit' && e.id === 'p1').bonus).toBeUndefined();
+    expect(a.angerMarks).toBe(1);
+    expect(angerOn(b, 'p0')).toBe(0);                  // consumed
+    const claim = state.events.find(e => e.t === 'angerClaim');
+    expect(claim && claim.id).toBe('p1');
+    expect(claim.by).toBe('p0');
+    // the claiming hit itself was a plain fireball — the +markDmg starts NEXT hit
+    const h0 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h0.bonus).toBeUndefined();
+    expect(h0.amount).toBeCloseTo(base, 5);
+    // next fireball: base red number + markDmg white bonus, split on the event
+    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    a.x = 0; a.y = 0; a.cooldowns = {};
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const h1 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h1.bonus).toBeCloseTo(f.markDmg, 5);
+    expect(h1.amount - h1.bonus).toBeCloseTo(base, 5);
+    expect(a.angerMarks).toBe(1);   // the unmarked hit banked nothing
   });
 
-  it('momentum ramp SURVIVES a round boundary (it is permanent now)', () => {
-    expect(ELEMENTS.momentum.fx.rampPermanent).toBe(true);
-    const state = hitWith('momentum');
-    expect(state.players.p0.momentumHits).toBe(1);
-    // kill everyone else -> round ends -> next round starts, ramp intact
+  it('a hit on a NON-marked target grants nothing: no mark, no bonus, no event', () => {
+    const state = hitWith('anger');
+    expect(state.players.p0.angerMarks).toBe(0);
+    expect(state.events.some(e => e.t === 'angerClaim')).toBe(false);
+    const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h.bonus).toBeUndefined();
+  });
+
+  it('cadence: after a claim the next mark waits exactly markEvery seconds', () => {
+    const f = ELEMENTS.anger.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = -10; state.players.p2.y = 5;
+    state.pillars = [];
+    a.elements = { anger: 3 };
+    b.stacks = { anger: { p0: 1 } };
+    a._angerTarget = 'p1';
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    expect(a.angerMarks).toBe(1);
+    const claim = state.events.find(e => e.t === 'angerClaim');
+    expect(claim).toBeTruthy();
+    // park the pair so nothing else happens while the cadence runs
+    b.x = 10; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    const wait = f.markEvery[2];   // lv3 owner: the fastest cadence
+    run(state, wait - 1);          // claim happened ≤0.4 s in: still inside the wait
+    expect(totalAnger(state, 'p0')).toBe(0);
+    run(state, 1.5);               // the cadence has now elapsed
+    expect(totalAnger(state, 'p0')).toBe(1);
+  });
+
+  it('a marked player DYING clears the mark; the fresh roll waits the cadence', () => {
+    const f = ELEMENTS.anger.fx;
+    const state = elementalBattle(4);
+    const a = state.players.p0;
+    a.elements = { anger: 3 };
+    for (const [id, pos] of [['p1', [10, 0]], ['p2', [-10, 5]], ['p3', [0, 12]]])
+      Object.assign(state.players[id], { x: pos[0], y: pos[1], vx: 0, vy: 0, moveTarget: null });
+    run(state, f.markDelay + 2 * DT);
+    const vid = a._angerTarget;
+    expect(vid).toBeTruthy();
+    // drown the marked victim in the lava
+    const v = state.players[vid];
+    v.hp = 0.01; v.x = ARENA.START_RADIUS + 5; v.moveTarget = null;
+    run(state, 0.2);
+    expect(v.alive).toBe(false);
+    expect(angerOn(v, 'p0')).toBe(0);          // the corpse carries no mark
+    expect(a._angerTarget == null).toBe(true);
+    const tClear = state.time;
+    run(state, f.markEvery[2] - 0.5 - (state.time - tClear));
+    expect(totalAnger(state, 'p0')).toBe(0);   // fresh roll only AFTER the cadence
+    run(state, 1);
+    expect(totalAnger(state, 'p0')).toBe(1);
+    const nid = a._angerTarget;
+    expect(nid).not.toBe(vid);                 // a LIVING opponent, never the corpse
+    expect(state.players[nid].alive).toBe(true);
+  });
+
+  it('anger marks (the bonus) SURVIVE a round boundary; the MARK itself does not', () => {
+    expect(ELEMENTS.anger.fx.rampPermanent).toBe(true);
+    const state = elementalBattle(3);
+    const a = state.players.p0;
+    a.elements = { anger: 1 };
+    a.angerMarks = 3;                            // hand-banked: the claim path is covered above
+    state.players.p2.stacks = { anger: { p0: 1 } };
+    a._angerTarget = 'p2';
+    // kill everyone else -> round ends -> next round starts, bank intact
     state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
     state.players.p2.hp = 0.01; state.players.p2.x = ARENA.START_RADIUS + 5;
     run(state, 1 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
     expect(state.phase).toBe('battle');
     expect(state.round).toBeGreaterThan(1);
-    expect(state.players.p0.momentumHits).toBe(1);
+    expect(state.players.p0.angerMarks).toBe(3);
+    // startRound wiped the old mark; ~1 s into the new battle the hunt re-dealt
+    // exactly ONE fresh one (never a stale duplicate)
+    expect(totalAnger(state, 'p0')).toBe(1);
+  });
+
+  it('marks roll off the SEEDED rng: same seed, same hunt sequence', () => {
+    const f = ELEMENTS.anger.fx;
+    const hunt = (seed) => {
+      const state = createGame({ seed, mode: 'elemental' });
+      for (let i = 0; i < 4; i++) addPlayer(state, `p${i}`, `P${i}`);
+      startGame(state);
+      run(state, ROUND.COUNTDOWN + DT);
+      const a = state.players.p0;
+      a.elements = { anger: 3 };
+      const seq = [];
+      while (seq.length < 10 && state.phase === 'battle') {
+        step(state, DT);
+        if (a._angerTarget) {
+          seq.push(a._angerTarget);
+          // hand-claim so the hunt rolls again immediately (rng order intact)
+          const v = state.players[a._angerTarget];
+          v.stacks = {};
+          a._angerTarget = null;
+          a._angerNext = state.time;
+        }
+      }
+      return seq.join(',');
+    };
+    expect(hunt(7)).toBe(hunt(7));
+    expect(hunt(7).split(',').length).toBe(10);
+    expect(f.markDelay).toBeGreaterThan(0);   // and the delay is a real number
+  });
+
+  it('co-op: anger marks never spawn (the campaign stays untouched)', () => {
+    const f = ELEMENTS.anger.fx;
+    const state = createGame({ seed: 3, mode: 'coop' });
+    addPlayer(state, 'h', 'Hero');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    state.players.h.elements = { anger: 3 };
+    run(state, f.markDelay + f.markEvery[2] + 1);
+    expect(totalAnger(state, 'h')).toBe(0);
+    expect(state.players.h._angerTarget == null).toBe(true);
+  });
+
+  it('every damage multiplier scales BOTH halves: mosquito lv1 halves base AND bonus', () => {
+    const f = ELEMENTS.anger.fx;
+    const base = SPELLS.fireball.damage[0];
+    const mult = ELEMENTS.mosquito.fx.dmgMult[0];
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { anger: 1, mosquito: 1 };
+    a.angerMarks = 4;                          // an earned bank, mid-game sized
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h.bonus).toBeCloseTo(4 * f.markDmg * mult, 5);
+    expect(h.amount - h.bonus).toBeCloseTo(base * mult, 5);
   });
 
   // ---- mosquito 🦟 (round 18.2: normal balls, penalty + trap) --------------
@@ -1673,24 +1803,25 @@ describe('elemental mode', () => {
 
   it("round 18.2: a mosquito owner's ball is a normal fireball — every rider rides", () => {
     // No sting any more: the same hit that arms the trap applies the full
-    // rider set (malady/midas/momentum...), stamps lastHitBy, the works.
-    const state = hitWith({ mosquito: 1, midas: 3, malady: 3, momentum: 3 });
+    // rider set (malady/midas/anger...), stamps lastHitBy, the works.
+    const state = hitWith({ mosquito: 1, midas: 3, malady: 3, anger: 3 });
     const a = state.players.p0, b = state.players.p1;
     expect(stacksOf(b, 'malady', 'p0')).toBe(1);     // malady's first hit: armed
     expect(stacksOf(b, 'midas', 'p0')).toBe(1);      // mark planted...
     expect(a.gold).toBe(GOLD.START);                 // ...but not yet cashed
-    expect(a.momentumHits).toBe(ELEMENTS.momentum.fx.pointsPerHit[2]);
+    expect(a.angerMarks).toBe(0);                    // anger: no mark, no claim
     expect(mosqOn(b, 'p0')).toBe(1);                 // and the trap is armed
     expect(b.lastHitBy && b.lastHitBy.id).toBe('p0');
   });
 
   it('round 18.2: one armed+cashed pair = exactly 4 on-hit procs (2 landed casts)', () => {
     // Every ball applies riders now: arm hit (1) + trigger hit (1) + procBalls
-    // (2) = 4 applications, vs 2 for two plain casts. Momentum lv1 banks 1
-    // point per application, so the pair must bank exactly 4.
-    const state = mosquitoProc({ mosquito: 1, momentum: 1 }, { hp: 9999 });
-    expect(state.players.p0.momentumHits)
-      .toBe(2 + ELEMENTS.mosquito.fx.procBalls);
+    // (2) = 4 applications, vs 2 for two plain casts. Midas' two-hit rhythm
+    // counts them: plant → cash → plant → cash = exactly 2 payouts, no stack left.
+    const state = mosquitoProc({ mosquito: 1, midas: 1 }, { hp: 9999 });
+    expect(state.players.p0.gold)
+      .toBe(GOLD.START + 2 * ELEMENTS.midas.fx.goldOnHit[0]);
+    expect(stacksOf(state.players.p1, 'midas', 'p0')).toBe(0);
   });
 
   // Hit `b` twice from `a`: the first ball arms the trap, the second spends it.
@@ -2364,7 +2495,7 @@ describe('elemental mode', () => {
         * f.chargeLifesteal[2], 1);
   });
 
-  it('the vampire charge counter RESETS on a round boundary (unlike momentum)', () => {
+  it('the vampire charge counter RESETS on a round boundary (unlike anger marks)', () => {
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(2);
     const a = state.players.p0;

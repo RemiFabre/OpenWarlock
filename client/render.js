@@ -51,7 +51,8 @@ const TAU = Math.PI * 2;
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
   frost: '#8fd8ff', malady: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
-  momentum: '#d8dee9',
+  // anger: the red ball IS the brand — the core shifts hard toward red
+  anger: '#ff5040',
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
   // arterial red (and it also gets the engorged halo below)
   ghost: '#dcd6ff', vampire: '#e0405a',
@@ -60,8 +61,9 @@ const ELEM_CORE = {
 // Round 17 §12 — the fireball is ONE additive stack of layers, in draw order:
 //   base ball (terra sizes it, the strongest rider tints it)
 //   → element accents (one per element the ball carries, they compose)
-//   → momentum evolution (extra flame wings + motes = the tier)
 //   → event overlay (engorged, which also owns the BASE color).
+// (The old momentum tier wings are GONE — Remi: the giant tier balls LOOKED
+// like they hit but didn't. Every accent stays near the true hitbox radius.)
 // Both readings matter: the owner sees the build they bought fly, a defender
 // reads what is coming at them. Accents are cheap strokes on purpose — this
 // runs per projectile per frame, so no gradients and no allocations here.
@@ -172,46 +174,20 @@ const ACCENTS = {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, r * 1.45, ang + 2.2, ang + 4.1); ctx.stroke();
   },
-};
-
-// momentum tier → its flame-wing color (index = tier - 1). Kept as constants so
-// the per-frame path never builds a color string.
-const TIER_TRAIL = ['rgba(255, 186, 70, 0.50)', 'rgba(255, 132, 40, 0.50)', 'rgba(255, 74, 30, 0.52)'];
-
-// The evolution tier is read the way the sim reads it (ELEMENTS.momentum.fx
-// .tierHits against the OWNER's game-long landed hits) — the ball must never
-// claim a tier the damage roll won't honor.
-function momentumTier(hits) {
-  // evolutions are uncapped since round 17.2; the WINGS cap at 3 pairs so the
-  // ball stays readable — the HUD carries the true number
-  return Math.min(3, Math.floor(hits / ELEMENTS.momentum.fx.evolveEvery));
-}
-
-// Momentum's layer: one extra flame wing per tier, plus a ring of motes. This is
-// the whole point of the element being visible — 4 motes = tier 1, 12 = tier 3.
-function drawEvolution(ctx, x, y, r, ang, t, tier) {
-  ctx.lineCap = 'round';
-  for (let i = 1; i <= tier; i++) {
-    ctx.strokeStyle = TIER_TRAIL[i - 1];
-    ctx.lineWidth = r * 0.8;
-    for (let s = -1; s <= 1; s += 2) {
-      const a = ang + s * 0.3 * i;
+  // the mark hunt: hot red embers orbiting TIGHT to the ball. Honest by design
+  // (the drawEngorged bar): the red core + these accents never claim more than
+  // ~the true hitbox radius, unlike the old momentum wings.
+  anger: (ctx, x, y, r, lv, ang, t) => {
+    ctx.fillStyle = 'rgba(255, 90, 70, 0.9)';
+    for (let i = 0; i < 2 + lv; i++) {
+      const a = t * 6 + i * (TAU / (2 + lv));
+      const d = r * (0.85 + 0.25 * Math.sin(t * 9 + i * 2));
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - Math.cos(a) * r * (3 + i), y - Math.sin(a) * r * (3 + i));
-      ctx.stroke();
+      ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.18, 0, TAU);
+      ctx.fill();
     }
-  }
-  const motes = tier * 4;
-  ctx.fillStyle = 'rgba(255, 236, 180, 0.95)';
-  for (let i = 0; i < motes; i++) {
-    const a = t * 4 + (i / motes) * TAU;
-    const d = r * (2.35 + 0.3 * Math.sin(t * 7 + i));
-    ctx.beginPath();
-    ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.2, 0, TAU);
-    ctx.fill();
-  }
-}
+  },
+};
 
 // Vampire's engorged ball (every chargeEvery'th cast — 5 since round 16): an
 // halo with a 🧛 rider. It keeps every other layer — only the base color is
@@ -470,14 +446,9 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       let core = '#ffab40', coreLv = 0;
       if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
       if (pr.engorged) core = '#ff2340';
-      // momentum's tier rides on the OWNER's game-long hit count (§6)
-      let tier = 0;
-      if (el && el.momentum) {
-        const own = players.find(p => p && p.id === pr.owner);
-        tier = momentumTier((own && own.momentumHits) || 0);
-      }
-      // base ball: trail + core glow, both tinted
-      const tail = 4 + tier;   // the evolved ball throws a longer wake
+      // base ball: trail + core glow, both tinted (anger's red core comes from
+      // ELEM_CORE — the earned bank never inflates the ball's apparent size)
+      const tail = 4;
       const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
       g.addColorStop(0, 'rgba(255, 120, 30, 0)');
       g.addColorStop(1, 'rgba(255, 150, 60, 0.6)');
@@ -485,7 +456,6 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath();
       ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
       ctx.lineTo(x, y); ctx.stroke();
-      if (tier > 0) drawEvolution(ctx, x, y, r, ang, t, tier);
       const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
       glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
       glow.addColorStop(0.35, core);
@@ -683,6 +653,24 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath();
       ctx.arc(x - r * 1.75, y, 3.2, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+    }
+    // Anger mark: the hunt is on — this body wears the red orb. Upper-right
+    // diagonal (a free slot: frost owns the top arc, gale the bottom dashes,
+    // midas the right, malady the left, mosquito the low center). Shown to the
+    // owner (myStacks) and the marked victim (stacksOnMe) alike.
+    if (mine && mine.anger > 0) {
+      const px = x + r * 1.24, py = y - r * 1.24;
+      ctx.fillStyle = 'rgba(255, 70, 55, 0.95)';
+      ctx.strokeStyle = 'rgba(110, 10, 10, 0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(px, py, 3.4, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      // a tiny glint so it reads as an orb, not a dot
+      ctx.fillStyle = 'rgba(255, 220, 210, 0.9)';
+      ctx.beginPath();
+      ctx.arc(px - 1, py - 1, 1.1, 0, Math.PI * 2);
+      ctx.fill();
     }
     if (mine && mine.mosquito > 0) {
       // the trap is armed: your next fireball on this body doubles.
@@ -1148,6 +1136,20 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.textAlign = 'center';
         ctx.font = `${Math.round(13 + 6 * k)}px serif`;
         ctx.fillText('🦠', x, y - 18 - 20 * k);
+        ctx.restore();
+        break;
+      }
+      case 'angerClaim': {
+        // a red mark just got claimed: one hard little red burst + the brand.
+        // Small on purpose — the permanent reward lives on the scoreboard tag.
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(255, 80, 60, ${a})`;
+        ctx.lineWidth = 3 * a + 1;
+        ctx.beginPath(); ctx.arc(x, y, (1 + 4 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.font = `${Math.round(11 + 5 * k)}px serif`;
+        ctx.fillText('🔴', x, y - 18 - 18 * k);
         ctx.restore();
         break;
       }

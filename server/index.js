@@ -293,7 +293,7 @@ wss.on('connection', (ws, req) => {
         pl.maxHp = ghost.maxHp; // amulet hp travels here — never re-apply items
         pl.hp = Math.min(pl.hp, pl.maxHp);
         pl.spells = ghost.spells; pl.items = ghost.items; pl.elements = ghost.elements;
-        pl.momentumHits = ghost.momentumHits || 0; // the permanent ramp survives
+        pl.angerMarks = ghost.angerMarks || 0; // the permanent anger bank survives
         ghosts.delete(normName(m.name));
         journal('reconnect-restore', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
       }
@@ -437,9 +437,9 @@ wss.on('connection', (ws, req) => {
         deaths: pl.deaths, dmgDealt: pl.dmgDealt, maxHp: pl.maxHp,
         spells: { ...pl.spells }, items: { ...pl.items },
         elements: { ...(pl.elements || {}) },
-        // Momentum's ramp is game-long, so a tunnel hiccup must not erase the
-        // power earned over 20 rounds of landed fireballs
-        momentumHits: pl.momentumHits || 0,
+        // Anger's mark bank is game-long, so a tunnel hiccup must not erase
+        // the power earned over 20 rounds of claimed marks
+        angerMarks: pl.angerMarks || 0,
       });
       journal('reconnect-stash', { id, name: pl.name, kills: pl.kills, gold: pl.gold });
     }

@@ -160,9 +160,11 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     poisonBy: null,        // malady: who a lethal tick credits (creator or spreader)
     malady: null,          // malady: {inst, by} — the infection riding this body
     vampN: 0,              // vampire: fireballs CAST this round (every 3rd is engorged)
-    // momentum: fireball hits landed for the WHOLE GAME (the ramp is permanent
-    // — deliberately NOT cleared in startRound, see ELEMENTS.momentum)
-    momentumHits: 0,
+    // anger: marks CLAIMED for the WHOLE GAME (the bonus is permanent —
+    // deliberately NOT cleared in startRound, see ELEMENTS.anger)
+    angerMarks: 0,
+    _angerTarget: null,    // anger: who carries my mark right now (round-scoped)
+    _angerNext: Infinity,  // anger: state.time the next mark may land (startRound arms it)
     echoN: 0,              // echo stone: fireballs cast this round
     dash: null,            // {dx, dy, left, hit:Set-as-object}
     lastHitBy: null,       // {id, t}  t = state.time when hit
@@ -910,7 +912,7 @@ function applyDamage(state, target, amount, sourceId,
         src.healLifesteal += healed;   // scoreboard column
         // 2026-08-08 (Remi, round 16): EVERY meaningful lifesteal heal gets a
         // green "+N" over the healed player — the Blood Sword used to be
-        // deliberately silent and read as broken because of it (the momentum/
+        // deliberately silent and read as broken because of it (the old ramp/
         // mosquito scar: a correct mechanic with no on-screen presence is a bug
         // in practice). The >= 1 floor keeps sub-point poison-tick heals from
         // spamming; a full point is a popup, a rounding crumb is not.
@@ -924,7 +926,7 @@ function applyDamage(state, target, amount, sourceId,
   if (!silent)
     state.events.push({
       t: 'hit', id: target.id, amount, x: target.x, y: target.y,
-      ...(bonus > 0 ? { bonus } : {}),  // momentum: shown above the damage
+      ...(bonus > 0 ? { bonus } : {}),  // anger: shown above the damage
     });
   if (target.hp <= 0) kill(state, target, sourceId);
 }
@@ -1075,13 +1077,16 @@ function startRound(state) {
     // Stone's (the other "every Nth cast" mechanic). Deliberate: the rhythm you
     // are asked to count is "my 3rd fireball of this fight", and carrying a
     // half-charged counter across a shop would make the first shot of a round
-    // randomly engorged with nothing on screen having explained why. Momentum is
+    // randomly engorged with nothing on screen having explained why. Anger is
     // the one element that persists, and that is stated in its spec — this one
     // is not, so it follows the local precedent. Test-locked.
     pl.vampN = 0;
-    // pl.momentumHits is DELIBERATELY not reset: the Momentum ramp is permanent
-    // for the whole game (ELEMENTS.momentum.fx.rampPermanent). Adding it here
-    // would silently delete the element's entire point.
+    // pl.angerMarks is DELIBERATELY not reset: Anger's claimed-mark bonus is
+    // permanent for the whole game (ELEMENTS.anger.fx.rampPermanent). Adding it
+    // here would silently delete the element's entire point. The MARK itself
+    // dies with the round (stacks wiped above) — the hunt re-arms below.
+    pl._angerTarget = null;
+    pl._angerNext = ELEMENTS.anger.fx.markDelay;
     pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
     pl.roundKills = 0;
@@ -1443,6 +1448,32 @@ function stepBattle(state, dt) {
     }
   }
 
+  // Anger mark hunt (elemental VERSUS only — co-op never deals a mark, the
+  // campaign is priced without it). Each anger owner has at most ONE mark out:
+  // markDelay s into the round, then markEvery s after each claim or after the
+  // marked victim dies, a random LIVING opponent gets the red mark. Seeded rng:
+  // same seed, same hunt. The claim itself lives in applyElementsHit.
+  if (state.mode === 'elemental') {
+    const fA = ELEMENTS.anger.fx;
+    for (const pl of players) {
+      if (!pl.alive || !pl.elements || !(pl.elements.anger > 0)) continue;
+      if (pl._angerTarget != null) {
+        const tgt = state.players[pl._angerTarget];
+        if (tgt && tgt.alive) continue;              // the hunt is on
+        if (tgt) clearStacks(tgt, 'anger', pl.id);   // victim died (or left):
+        pl._angerTarget = null;                      // fresh roll after the cadence
+        pl._angerNext = state.time + efxV(fA.markEvery, pl.elements.anger);
+        continue;
+      }
+      if (state.time < (pl._angerNext ?? fA.markDelay)) continue;
+      const cands = players.filter(q => q !== pl && q.alive && hostile(pl, q));
+      if (!cands.length) continue;                   // nobody to hunt: retry next tick
+      const victim = cands[Math.floor(rng(state) * cands.length)];
+      addStack(victim, 'anger', pl.id);
+      pl._angerTarget = victim.id;
+    }
+  }
+
   for (const pl of players) {
     if (!pl.alive) continue;
     const st = stats(pl);
@@ -1799,9 +1830,9 @@ function stepProjectiles(state, dt) {
       const v = Math.hypot(pr.vx, pr.vy) || 1;
       let dmg = lvl(spec, 'damage', pr.level);
       let kb = lvl(spec, 'knockback', pr.level);
-      // Momentum's earned bonus rides along in its own accumulator so the
+      // Anger's earned bonus rides along in its own accumulator so the
       // floating damage number can show base and bonus separately (the white
-      // number over the red one IS the feature — see ELEMENTS.momentum). Every
+      // number over the red one IS the feature — see ELEMENTS.anger). Every
       // damage multiplier applies to both halves, so the split is exact and
       // does not depend on which order the riders happen to be iterated in.
       let ramp = 0;
@@ -1820,13 +1851,12 @@ function stepProjectiles(state, dt) {
           const f = ELEMENTS[ek].fx;
           if (f.dmgAdd) dmg += efxV(f.dmgAdd, el);
           if (f.kbAdd) kb += efxV(f.kbAdd, el);
-          if (f.evolveEvery) {
-            // momentum (round 17.2): banked points ALL GAME, +evolveDmg per
-            // completed bracket — linear, uncapped. Damage only; knockback
-            // untouched so a big bank melts, never launches.
+          if (f.markDmg) {
+            // anger: every CLAIMED mark is +markDmg, banked ALL GAME — linear,
+            // uncapped. Damage only; knockback untouched so a big bank melts,
+            // never launches.
             const own = state.players[pr.owner];
-            const pts = (own && own.momentumHits) || 0;
-            ramp += Math.floor(pts / f.evolveEvery) * f.evolveDmg;
+            ramp += ((own && own.angerMarks) || 0) * f.markDmg;
           }
           if (f.dmgMult) { dmg *= efxV(f.dmgMult, el); ramp *= efxV(f.dmgMult, el); }
           // flat knockback multiplier. Gale used to be the loud user of this;
@@ -2129,11 +2159,21 @@ function applyElementsHit(state, pr, target) {
         }
       }
     }
-    if (f.pointsPerHit && pr.owner != null) {
-      // momentum: bank pointsPerHit[level] toward the next evolution,
-      // for the rest of the GAME (never reset in startRound)
+    // anger: a FIREBALL hit on YOUR marked target claims the mark — +1 to the
+    // permanent bank (never reset in startRound), and the next mark waits
+    // markEvery s from NOW. FIREBALLS ONLY, the mosquito precedent — and its
+    // proc balls are real fireballs here too, like they are to midas.
+    if (f.markDmg && pr.owner != null && pr.type === 'fireball' &&
+        stackCount(target, 'anger', pr.owner) > 0) {
       const owner = state.players[pr.owner];
-      if (owner) owner.momentumHits = (owner.momentumHits || 0) + efxV(f.pointsPerHit, el);
+      if (owner) {
+        clearStacks(target, 'anger', pr.owner);
+        owner.angerMarks = (owner.angerMarks || 0) + 1;
+        owner._angerTarget = null;
+        owner._angerNext = state.time + efxV(f.markEvery, el);
+        state.events.push({ t: 'angerClaim', id: target.id, by: pr.owner,
+          x: target.x, y: target.y });
+      }
     }
     // arcane lv3 (round 16): a landed FIREBALL refunds seconds off every
     // cooldown the owner has running, per enemy hit. hitRefund is 0 below the
@@ -2274,7 +2314,7 @@ export function snapshot(state, viewerId = null) {
           maladyT: round2(p.poisonT),
           maladyR: round2(efxV(ELEMENTS.malady.fx.auraR, p.malady.inst.level)),
         } : {}),
-        momentumHits: p.momentumHits || 0, // so the HUD can show the ramp building
+        angerMarks: p.angerMarks || 0, // HUD + scoreboard: claimed marks = the permanent bonus
         // vampire: casts banked toward the next engorged ball, so the HUD can
         // count it down for you (2/3 → the next one is the big one)
         vampN: p.vampN || 0,
@@ -3193,8 +3233,8 @@ const BOT_BUILDS = {
 // ⚠ These lists are quoted in the BUILDS descs (shared/constants.js) — the
 // in-game strategy chart is generated from those, so change both together.
 const BUILD_ELEMENTS = {
-  bruiser: ['vampire', 'ember', 'momentum'],   // stands and trades: sustain + raw damage
-  sniper:  ['malady', 'ghost', 'momentum'],    // pokes from range: contagion and line shots
+  bruiser: ['vampire', 'ember', 'anger'],      // stands and trades: sustain + raw damage
+  sniper:  ['malady', 'ghost', 'anger'],       // pokes from range: contagion and line shots
   escape:  ['arcane', 'ghost', 'mosquito'],    // slippery: cadence, speed, setup
   turtle:  ['frost', 'terra', 'malady'],       // outlasts: control and attrition
   rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
