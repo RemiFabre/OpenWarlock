@@ -1971,6 +1971,80 @@ describe('elemental mode', () => {
       SPELLS.fireball.damage[0] * vf.chargeLifesteal[0], 1);
   });
 
+  // Round 20.4 regressions, both found while asking why the pair "feels wrong".
+  // The shield one reads as "my shield did nothing": it sent the ball back with
+  // full damage and, because the LEAD's kbScale rode along, zero shove.
+  //
+  // Shoot b (shielded, so the ball comes straight back) and return the PEAK
+  // shove the reflected ball puts on the caster. `pair` = make it the pair's
+  // no-push LEAD; otherwise it is an ordinary fireball, the control.
+  function reflectedShove(pair) {
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { mosquito: 1 };
+    if (pair) a.mosqN = ELEMENTS.mosquito.fx.doubleEvery[0] - 1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    a.maxHp = 9999; a.hp = 9999;
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.shieldT = SPELLS.shield.duration;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    state.delayedShots = []; // measure the LEAD alone: the trail would add a 2nd push
+    let peak = 0;
+    for (let i = 0; i < 20; i++) {
+      state.events = [];
+      step(state, DT);
+      peak = Math.max(peak, Math.abs(a.vx));
+      if (state.events.some(e => e.t === 'hit' && e.id === 'p0')) break;
+    }
+    return peak;
+  }
+
+  it('a REFLECTED pair lead pushes normally — the shield is not a damage-only wall', () => {
+    const control = reflectedShove(false);
+    expect(control).toBeGreaterThan(1);          // a reflected ball does shove
+    expect(reflectedShove(true)).toBeCloseTo(control, 4);
+  });
+
+  it('the TRAILING ball is pinned to the cast muzzle, not to where the owner ended up', () => {
+    // Knock/portal/repulse inside trailDelay used to teleport the twin: lead at
+    // y=0, trail from y=25. The pair must always fly the same line.
+    const f = ELEMENTS.mosquito.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0;
+    state.players.p1.x = 0; state.players.p1.y = 45;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { mosquito: 1 };
+    a.mosqN = f.doubleEvery[0] - 1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    const lead = state.projectiles[state.projectiles.length - 1];
+    const muzzle = { x: lead.x, y: lead.y, vx: lead.vx, vy: lead.vy };
+    expect(state.delayedShots.length).toBe(1);
+    a.x = 0; a.y = 25; a.vx = a.vy = 0;   // portalled/knocked mid-delay
+    const leadId = lead.id;
+    const evs = [];
+    // stop on the frame the trail leaves: it has flown exactly one tick then
+    for (let i = 0; i < Math.round((f.trailDelay + 2 * DT) / DT); i++) {
+      state.events = [];
+      step(state, DT);
+      for (const e of state.events) if (e.t === 'cast' && e.trail) evs.push(e);
+      if (!state.delayedShots.length) break;
+    }
+    expect(state.delayedShots.length).toBe(0);
+    const trail = state.projectiles.find(p => p.id > leadId && p.type === 'fireball');
+    expect(trail).toBeTruthy();
+    expect(trail.x).toBeCloseTo(muzzle.x + muzzle.vx * DT, 4);
+    expect(trail.y).toBeCloseTo(muzzle.y, 5);   // NOT the owner's y=25
+    expect(trail.vx).toBeCloseTo(muzzle.vx, 5);
+    expect(trail.vy).toBeCloseTo(muzzle.vy, 5);
+    expect(evs.length).toBe(1);                 // the client draws it there too
+    expect(evs[0].x).toBeCloseTo(muzzle.x, 5);
+    expect(evs[0].y).toBeCloseTo(muzzle.y, 5);
+  });
+
   it('the Echo Stone is GONE — merged into mosquito, absent from the catalogue', () => {
     expect(ITEMS.echo).toBeUndefined();
     expect(ITEM_FX.echo).toBeUndefined();

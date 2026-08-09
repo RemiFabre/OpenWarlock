@@ -458,8 +458,13 @@ export function castSpell(state, id, key, tx, ty) {
         ...(pair ? { kbScale: 0 } : {}),
       });
       if (pair) {
-        state.delayedShots.push(
-          { t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy });
+        // round 20.4: the trail's ORIGIN is pinned here, at the lead's muzzle,
+        // not read off the owner when it leaves — knock/portal/repulse inside
+        // trailDelay used to teleport the twin and split the pair absurdly.
+        state.delayedShots.push({
+          t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy,
+          ox: pl.x + dx * pl.radius * 0.5, oy: pl.y + dy * pl.radius * 0.5,
+        });
       }
       break;
     }
@@ -606,6 +611,10 @@ export function castSpell(state, id, key, tx, ty) {
 //
 // opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
 // pays, resolved at cast time so the projectile carries everything it needs.
+//
+// opts.ox/oy override the muzzle (round 20.4): mosquito's trailing ball flies
+// the SAME line as its lead, from where the lead left, however far the owner
+// has been knocked/portalled in the meantime.
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
@@ -622,9 +631,9 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
-    // half a body ahead of the caster
-    x: pl.x + dx * pl.radius * 0.5,
-    y: pl.y + dy * pl.radius * 0.5,
+    // half a body ahead of the caster (or the pinned muzzle, opts.ox/oy)
+    x: opts.ox != null ? opts.ox : pl.x + dx * pl.radius * 0.5,
+    y: opts.oy != null ? opts.oy : pl.y + dy * pl.radius * 0.5,
     vx: dx * speed, vy: dy * speed,
     traveled: 0,
     returning: false,
@@ -1684,13 +1693,13 @@ function stepBattle(state, dt) {
       if (owner && owner.alive) {
         mosquitoPair(state, owner, true);
         spawnFireball(state, owner, ds.level, ds.dx, ds.dy,
-          { engorged: vampireCharge(state, owner) });
+          { engorged: vampireCharge(state, owner), ox: ds.ox, oy: ds.oy });
         // `trail: true` marks this as the pair's SECOND ball, not a keypress.
         // The client renders/sounds it exactly like any cast (it IS a fireball
         // leaving the muzzle); the harness's cooldown invariant skips it, since
         // no cooldown was paid for it (test/harness/check.js).
         state.events.push({ t: 'cast', id: owner.id, spell: 'fireball',
-          x: owner.x, y: owner.y, dx: ds.dx, dy: ds.dy, trail: true });
+          x: ds.ox, y: ds.oy, dx: ds.dx, dy: ds.dy, trail: true });
       }
     }
     state.delayedShots = rest;
@@ -1836,6 +1845,7 @@ function stepProjectiles(state, dt) {
       pr.hit = {};
       pr.pierced = 0;   // ghost: a mirrored ball is a fresh ball, first victim again
       pr.traveled = 0;
+      delete pr.kbScale; // round 20.4: a reflected ball is just a ball — it pushes
       if (pr.type === 'boomerang') {
         pr.returning = false; pr.lost = false;
         pr.ox = pr.x; pr.oy = pr.y;
@@ -1861,6 +1871,9 @@ function stepProjectiles(state, dt) {
         pr.hit = {};
         pr.pierced = 0;  // ghost: reflected back at you as a fresh, un-pierced ball
         pr.traveled = 0;
+        // round 20.4: mosquito's LEAD came in with kbScale 0; sent back it is
+        // just a ball, and a shield that damages without shoving reads as broken
+        delete pr.kbScale;
         if (pr.type === 'boomerang') {
           // the reflector re-launches it: fresh legs, returns to THIS spot
           pr.returning = false;

@@ -1613,6 +1613,10 @@ function updateUi(s) {
   setVisible('topbar', !!myId && s.phase !== 'lobby' && s.phase !== 'shop' &&
     s.phase !== 'gameover' && !goPinned);
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
+  // round 20.4 (Remi: "the banner to invite should not be present in game as it
+  // takes space away"): the host banner is a LOBBY thing — friends only join
+  // there, and the copy-link button comes back with it. Revert = drop this line.
+  if (hostCode) setVisible('hostbar', s.phase === 'lobby');
   phaseSounds(s);
   phaseMusic(s);
   updateCoopHud(s); // co-op campaign level card + status strip (no-op elsewhere)

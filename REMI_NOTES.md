@@ -3,6 +3,19 @@
 *Round 20, 2026-08-09 (r207). Your shipped changes, then the measurement pass
 you asked for: **no balance changes were made in this pass — results only**.*
 
+## ROUND 20.4 — three small fixes (after your playtest)
+
+- **The invite banner is now LOBBY-ONLY** ("it takes space away in game"): the
+  📡 room-code strip with the 🔗 Copy invite link button shows while friends are
+  still joining and disappears the moment the match starts (countdown, battle,
+  round end, shop). It comes back every time you return to the lobby.
+- **A reflected mosquito lead ball pushes again.** Bug: the no-push lead kept
+  its "no knockback" flag when a Magic Shield or a Mirror Wall sent it back, so
+  it hit you for full damage with zero shove — the shield read as broken.
+- **The trailing ball no longer teleports.** Bug: it left from wherever you
+  were 0.15 s later, so a knockback/portal/repulse in that window split the
+  pair absurdly. It now always flies the same line, from the same muzzle.
+
 ## ROUND 20 — what shipped
 
 - **Mosquito reworked** (your final call): no more damage/knockback tax, no
