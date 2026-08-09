@@ -104,6 +104,12 @@ describe('signal server', () => {
     host.ws.close(); rival.ws.close();
   });
 
+  it('serves /health without CORS ceremony, as before', async () => {
+    const r = await fetch(`http://127.0.0.1:${srv.port}/health`);
+    expect(r.status).toBe(200);
+    expect((await r.json()).ok).toBe(true);
+  });
+
   it('idle rooms expire', async () => {
     const tiny = await createSignalServer({ port: 0, roomTtlMs: 80, sweepMs: 20 });
     const ws = new WebSocket(`ws://127.0.0.1:${tiny.port}`);
@@ -117,5 +123,128 @@ describe('signal server', () => {
     const m = await new Promise((r) => guest.once('message', (raw) => r(JSON.parse(raw))));
     expect(m.t).toBe('error');
     ws.close(); guest.close(); tiny.close();
+  });
+});
+
+// ---- anonymous usage counters (/beacon -> /stats) ---------------------------
+// The relay counts tiny anonymous beacons from client/analytics.js: visits per
+// transport mode, games started (with seat counts), games ended (with rounds).
+// Persistence is an injected store (statsStore) — these tests stub it; the
+// real HF uploader is never touched from vitest.
+
+const post = (port, body, type = 'text/plain') =>
+  fetch(`http://127.0.0.1:${port}/beacon`, {
+    method: 'POST', headers: { 'Content-Type': type }, body,
+  });
+const stats = async (port) => (await fetch(`http://127.0.0.1:${port}/stats`)).json();
+const today = () => new Date().toISOString().slice(0, 10);
+
+describe('usage counters', () => {
+  it('aggregates visit / game_start / game_end into per-day and all-time buckets', async () => {
+    const s = await createSignalServer({ port: 0 });
+    await post(s.port, JSON.stringify({ e: 'visit', mode: 'solo', v: '1.0.0' }));
+    await post(s.port, JSON.stringify({ e: 'visit', mode: 'server' }));
+    await post(s.port, JSON.stringify({ e: 'game_start', mode: 'solo', players: 4, humans: 1 }));
+    await post(s.port, JSON.stringify({ e: 'game_start', mode: 'rtc-host', players: 3, humans: 3 }));
+    await post(s.port, JSON.stringify({ e: 'game_end', mode: 'solo', rounds: 12 }));
+    const j = await stats(s.port);
+    expect(j.ok).toBe(true);
+    for (const b of [j.total, j.days[today()]]) {
+      expect(b.visits).toBe(2);
+      expect(b.by_mode).toEqual({ solo: 1, server: 1 });
+      expect(b.games).toBe(2);
+      expect(b.players_total).toBe(7);
+      expect(b.humans_total).toBe(4);
+      expect(b.game_ends).toBe(1);
+      expect(b.rounds_total).toBe(12);
+    }
+    s.close();
+  });
+
+  it('tolerates garbage, sendBeacon content types, and hostile numbers — always 204', async () => {
+    const s = await createSignalServer({ port: 0 });
+    expect((await post(s.port, 'not json at all')).status).toBe(204);
+    expect((await post(s.port, '')).status).toBe(204);
+    expect((await post(s.port, '{"e":"nonsense"}', 'application/json')).status).toBe(204);
+    expect((await post(s.port, JSON.stringify({ e: 'visit', mode: 'solo' }),
+      'text/plain;charset=UTF-8')).status).toBe(204); // what navigator.sendBeacon ships
+    // counts are clamped, never trusted: 1e9 players and negative rounds don't poison sums
+    await post(s.port, JSON.stringify({ e: 'game_start', players: 1e9, humans: -5 }));
+    await post(s.port, JSON.stringify({ e: 'game_end', rounds: -3 }));
+    const j = await stats(s.port);
+    expect(j.total.visits).toBe(1);
+    expect(j.total.players_total).toBe(64);   // per-beacon cap
+    expect(j.total.humans_total).toBe(0);
+    expect(j.total.rounds_total).toBe(0);
+    s.close();
+  });
+
+  it('CORS: OPTIONS preflight and permissive headers on /beacon and /stats', async () => {
+    const s = await createSignalServer({ port: 0 });
+    for (const path of ['/beacon', '/stats']) {
+      const pre = await fetch(`http://127.0.0.1:${s.port}${path}`, { method: 'OPTIONS' });
+      expect(pre.status).toBe(204);
+      expect(pre.headers.get('access-control-allow-origin')).toBe('*');
+    }
+    const r = await post(s.port, '{}');
+    expect(r.headers.get('access-control-allow-origin')).toBe('*');
+    const st = await fetch(`http://127.0.0.1:${s.port}/stats`);
+    expect(st.headers.get('access-control-allow-origin')).toBe('*');
+    s.close();
+  });
+
+  it('persistence: flushes dirty days + totals to the store, resumes on boot by merge-add', async () => {
+    // a fake store: the HF dataset reduced to an in-memory object
+    const disk = {};
+    const store = {
+      load: async (dayKey) => ({ day: disk[`days/${dayKey}.json`] || null, totals: disk['totals.json'] || null }),
+      save: async (files) => { Object.assign(disk, JSON.parse(JSON.stringify(files))); },
+    };
+    const a = await createSignalServer({ port: 0, statsStore: store });
+    await post(a.port, JSON.stringify({ e: 'visit', mode: 'solo' }));
+    await post(a.port, JSON.stringify({ e: 'game_start', players: 2, humans: 2 }));
+    await a.flushStats();
+    expect(disk[`days/${today()}.json`].visits).toBe(1);
+    expect(disk['totals.json'].games).toBe(1);
+    a.close();
+
+    // "restart": a fresh server on the same store resumes today's counts...
+    const b = await createSignalServer({ port: 0, statsStore: store });
+    await new Promise((r) => setTimeout(r, 20)); // boot load is async
+    await post(b.port, JSON.stringify({ e: 'visit', mode: 'solo' }));
+    const j = await stats(b.port);
+    expect(j.days[today()].visits).toBe(2); // 1 restored + 1 new
+    expect(j.total.games).toBe(1);          // restored via totals.json
+    await b.flushStats();
+    expect(disk[`days/${today()}.json`].visits).toBe(2);
+    b.close();
+  });
+
+  it('a failing store keeps the day dirty and retries on the next flush', async () => {
+    let fail = true;
+    const saved = [];
+    const store = {
+      load: async () => null,
+      save: async (files) => { if (fail) throw new Error('hf down'); saved.push(files); },
+    };
+    const s = await createSignalServer({ port: 0, statsStore: store });
+    await post(s.port, JSON.stringify({ e: 'visit', mode: 'server' }));
+    await s.flushStats();      // upload fails -> stays dirty
+    expect(saved.length).toBe(0);
+    fail = false;
+    await s.flushStats();      // retry succeeds
+    expect(saved.length).toBe(1);
+    expect(saved[0][`days/${today()}.json`].visits).toBe(1);
+    await s.flushStats();      // clean -> no third upload
+    expect(saved.length).toBe(1);
+    s.close();
+  });
+
+  it('without a store, /stats still counts in memory (local dev, no HF_TOKEN)', async () => {
+    const s = await createSignalServer({ port: 0 });
+    await post(s.port, JSON.stringify({ e: 'visit', mode: 'solo' }));
+    await s.flushStats(); // a no-op, must not throw
+    expect((await stats(s.port)).total.visits).toBe(1);
+    s.close();
   });
 });
