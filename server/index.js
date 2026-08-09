@@ -85,7 +85,9 @@ const httpServer = http.createServer((req, res) => {
   // BOTH this server and a static subpath host (GitHub Pages). Serving the
   // html at '/' would break those relative paths, hence the redirect.
   if (urlPath === '/') {
-    res.writeHead(302, { Location: '/client/' });
+    // keep the query: ?mode=solo|server typed on the root must reach the client
+    const search = (() => { try { return new URL(req.url, 'http://x').search; } catch { return ''; } })();
+    res.writeHead(302, { Location: '/client/' + search });
     res.end();
     return;
   }
