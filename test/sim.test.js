@@ -234,13 +234,14 @@ describe('lava', () => {
 describe('bot builds & piloting', () => {
   it('a lobby build strategy overrides the kind default in the shop', () => {
     const state = createGame({ seed: 5 });
-    addPlayer(state, 'b1', 'boomer-grunt', { bot: true, kind: 'grunt', build: 'boomer' });
+    addPlayer(state, 'b1', 'storm-grunt', { bot: true, kind: 'grunt', build: 'stormcaller' });
     addPlayer(state, 'b2', 'stock-grunt', { bot: true, kind: 'grunt' });
     state.phase = 'shop';
-    state.players.b1.gold = 40; state.players.b2.gold = 40;
+    state.players.b1.gold = 60; state.players.b2.gold = 60;
     botShop(state, 'b1'); botShop(state, 'b2');
-    expect(state.players.b1.spells.boomerang || 0).toBeGreaterThan(0); // boomer list
-    expect(state.players.b2.spells.boomerang || 0).toBe(0);           // grunt default
+    // hourglass discriminates: stormcaller's list buys it, no kind default does
+    expect(state.players.b1.items.hourglass || 0).toBeGreaterThan(0);
+    expect(state.players.b2.items.hourglass || 0).toBe(0);
   });
 
   it('bots actually cast the spells their build buys (boomerang pilot)', () => {
@@ -2992,7 +2993,7 @@ describe('elemental mode', () => {
     const picks = builds.map((b, i) => botElementFor({ build: b }, i));
     expect(new Set(picks).size).toBeGreaterThan(1);
     // and four bots sharing ONE build still spread across that build's list
-    const same = [0, 1, 2, 3].map(i => botElementFor({ build: 'bruiser' }, i));
+    const same = [0, 1, 2, 3].map(i => botElementFor({ build: 'warlord' }, i));
     expect(new Set(same).size).toBeGreaterThan(1);
     expect(state.mode).toBe('elemental'); // and elemental is the default now
   });
@@ -3069,17 +3070,17 @@ describe('power spells & pillar', () => {
     // omission, is what protects us. Meteor is the ONE exception: it has a
     // pilot now (the CC-gated cast), so an order that explicitly lists it may
     // buy it — everything else in the tier stays structurally unbuyable.
-    const orig = BUILDS.bruiser.order;
+    const orig = BUILDS.warlord.order;
     try {
-      BUILDS.bruiser.order = ['meteor', 'swap', 'repulse', 'wall', 'nova', 'fireball'];
-      bot.build = 'bruiser';
+      BUILDS.warlord.order = ['meteor', 'swap', 'repulse', 'wall', 'nova', 'fireball'];
+      bot.build = 'warlord';
       botShop(state, 'p0');
       for (const key of ['swap', 'repulse', 'wall', 'nova'])
         expect(bot.spells[key] || 0).toBe(0);
       expect(bot.spells.meteor).toBe(1);              // the piloted exception
       expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
     } finally {
-      BUILDS.bruiser.order = orig;
+      BUILDS.warlord.order = orig;
     }
   });
 
@@ -3089,7 +3090,7 @@ describe('power spells & pillar', () => {
     const state = freshBattle(2);
     state.phase = 'shop';
     const bot = state.players.p0;
-    bot.kind = 'berserker'; bot.build = 'bruiser'; bot.gold = 999;
+    bot.kind = 'berserker'; bot.build = 'warlord'; bot.gold = 999;
     for (let i = 0; i < 12; i++) botShop(state, 'p0');
     for (const key of Object.keys(SPELLS))
       if (SPELLS[key].tier === 'power') expect(bot.spells[key] || 0).toBe(0);
@@ -3398,7 +3399,7 @@ describe('testing sandbox: bots spend their pile (round 19.8)', () => {
   it('a bot given 100 g follows its whole strategy in the one untimed shop', () => {
     const state = createGame({ seed: 3, mode: 'elemental' });
     addPlayer(state, 'h', 'H');
-    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'warlord' });
     setTesting(state, true, 100);
     startGame(state);
     expect(state.phase).toBe('shop');
@@ -3417,16 +3418,18 @@ describe('testing sandbox: bots spend their pile (round 19.8)', () => {
   it('normal rounds keep the one-pass pacing (no change outside testing)', () => {
     const state = createGame({ seed: 3, mode: 'elemental' });
     addPlayer(state, 'h', 'H');
-    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'warlord' });
     startGame(state);
     run(state, ROUND.COUNTDOWN + DT);
     state.phase = 'shop';
     const b = state.players.b;
-    b.gold = 100;
+    b.gold = 999;
     botShop(state, 'b');
-    // one pass: at most one level per list entry — a rich bot still has gold
-    // left for later rounds (the per-round pacing is deliberate)
-    expect(b.gold).toBeGreaterThan(20);
+    // ONE pass never reaches the random fallback: warlord's list holds arcane
+    // twice (max 3) and cape once, so the path cannot complete in one pass —
+    // nothing outside the list may appear (treads/ghost are not in it)
+    expect(b.items.treads || 0).toBe(0);
+    expect(b.elements.ghost || 0).toBe(0);
   });
 });
 
@@ -3446,12 +3449,13 @@ describe('rush cancels momentum (round 19.6)', () => {
 
 describe('bots never open on mosquito (round 19.5)', () => {
   // Remi: mosquito is an amplifier — a bot must buy an on-hit user first.
-  it('every seat of the mosquito-carrying build starts on another element', () => {
-    for (let seat = 0; seat < 6; seat++) {
-      const state = createGame({ seed: 3 + seat, mode: 'elemental' });
+  // Round 20.2: the mosquito carriers are order-driven builds now; each must
+  // open on its on-hit partner, never the amplifier.
+  it('every mosquito-carrying build starts on another element', () => {
+    for (const build of ['tycoon', 'leech', 'chainer']) {
+      const state = createGame({ seed: 3, mode: 'elemental' });
       addPlayer(state, 'h', 'H');
-      for (let i = 0; i < seat; i++) addPlayer(state, `pad${i}`, `Pad${i}`);
-      addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'escape' });
+      addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build });
       startGame(state);
       run(state, ROUND.COUNTDOWN + DT);
       state.phase = 'shop';
@@ -3573,7 +3577,7 @@ describe('bot shopping never stops (round 19.1)', () => {
   function shopBot(mode, gold) {
     const state = createGame({ seed: 3, mode });
     addPlayer(state, 'h', 'H');
-    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'warlord' });
     startGame(state);
     run(state, ROUND.COUNTDOWN + DT);
     state.phase = 'shop';
@@ -3610,7 +3614,7 @@ describe('bot shopping never stops (round 19.1)', () => {
     // gold below the next list purchase: the fallback must not torch savings
     const state = createGame({ seed: 3, mode: 'classic' });
     addPlayer(state, 'h', 'H');
-    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'bruiser' });
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker', build: 'warlord' });
     startGame(state);
     run(state, ROUND.COUNTDOWN + DT);
     state.phase = 'shop';

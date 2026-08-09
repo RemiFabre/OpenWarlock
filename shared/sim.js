@@ -3326,15 +3326,9 @@ const BOT_BUILDS = {
 // ⚠ These lists are quoted in the BUILDS descs (shared/constants.js) — the
 // in-game strategy chart is generated from those, so change both together.
 const BUILD_ELEMENTS = {
-  bruiser: ['vampire', 'ember', 'anger'],      // stands and trades: sustain + raw damage
-  sniper:  ['malady', 'ghost', 'anger'],       // pokes from range: contagion and line shots
-  escape:  ['arcane', 'ghost', 'mosquito'],    // slippery: cadence, speed, setup
-  turtle:  ['frost', 'terra', 'malady'],       // outlasts: control and attrition
-  rusher:  ['gale', 'terra', 'ember'],         // dives and shoves: push and bulk
-  boomer:  ['arcane', 'midas', 'ember'],       // throws a lot: cadence and income
-  chainer: ['frost', 'gale', 'mosquito'],      // combo (round 20): hold, launch, amplify
-  // Round 20.1: the tournament archetypes. Element-bearing orders skip the
-  // pre-walk, so only the item-only build needs a themed list here.
+  // Round 20.2: the modern builds sequence their elements in their ORDER
+  // (which skips this pre-walk) — only the item-only build needs a themed
+  // list here. Legacy six retired with their BUILDS entries.
   juggernaut: ['terra', 'frost', 'vampire'],   // the wall still scales: bulk, control, sustain
 };
 const FALLBACK_ELEMENTS = ['ember', 'frost', 'malady', 'gale', 'terra', 'arcane'];
@@ -3424,7 +3418,11 @@ function botShopPass(state, id) {
       return state.mode !== 'elemental' || (pl.elements[k] || 0) >= ELEMENTS[k].maxLevel;
     return true;
   };
-  const elemList = state.mode === 'elemental'
+  // The pre-walk element list gates the fallback ONLY for builds that use
+  // the pre-walk — an order-driven build (round 20.2: most of them) skips it,
+  // so demanding its list here would lock the fallback out forever.
+  const orderHasElements = order.some(k => Object.hasOwn(ELEMENTS, k));
+  const elemList = state.mode === 'elemental' && !orderHasElements
     ? ((pl.build && BUILD_ELEMENTS[pl.build]) || FALLBACK_ELEMENTS) : [];
   const pathDone =
     order.every(k => maxed(k) ||

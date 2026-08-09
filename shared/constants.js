@@ -563,49 +563,14 @@ export const BOT_CC_CAST = {
 // ⚠ the element lists MUST match BUILD_ELEMENTS in shared/sim.js, which is
 // where the shopping really happens.
 export const BUILDS = {
-  bruiser: { name: 'Bruiser',
-    desc: 'Stands its ground and trades: HP and lifesteal under the fireball. Elemental picks: vampire, ember, anger — it heals through you now and out-damages you later.',
-    order: ['fireball', 'amulet', 'fireball', 'boots', 'sword', 'cape', 'treads'] },
-  sniper:  { name: 'Sniper',
-    desc: 'Lightning first: marks the ground under your feet from long range and finishes the wounded. Elemental picks: malady, ghost, anger — the plague keeps spreading while it repositions.',
-    order: ['lightning', 'fireball', 'boots', 'lightning', 'fireball', 'lightning', 'cape'] },
-  escape:  { name: 'Escape artist',
-    desc: 'A fireball with an escape button: slippery, never where you aimed. Elemental picks: arcane, ghost, mosquito — fast, faster, and a trap on your body.',
-    order: ['boots', 'fireball', 'teleport', 'fireball', 'fireball', 'cape', 'teleport'] },
-  turtle:  { name: 'Turtle',
-    desc: 'Shield and HP: outlasts you and lets the lava do the work. Elemental picks: frost, terra, malady — slow you, hit big, and bleed you out.',
-    order: ['shield', 'amulet', 'cape', 'shield', 'treads', 'fireball', 'fireball'] },
-  rusher:  { name: 'Rusher',
-    desc: 'Rush and lifesteal: dives in and shoves you toward the lava. Elemental picks: gale, terra, ember — every hit pushes, and the big ones push HARD.',
-    order: ['rush', 'fireball', 'boots', 'sword', 'fireball', 'rush', 'amulet', 'cape'] },
-  boomer:  { name: 'Boomer',
-    desc: 'Boomerang stacking: wide throws that hit going out AND coming back. Elemental picks: arcane, midas, ember — volume, income, damage.',
-    order: ['boomerang', 'fireball', 'boots', 'boomerang', 'amulet', 'boomerang', 'sword'] },
-  // Round 20 (Remi's playtest combo: "you almost perma-combo the opponent into
-  // the lava"). The order IS the combo: frost lv1 → lightning lv1 → gale lv1 →
-  // mosquito lv1, then those four round-robin to max — mosquito deliberately
-  // last (amplifier, never an opener — round 19.5). Elements in the order are
-  // fine: buy() takes both, and botShop skips its element pre-walk for orders
-  // that sequence their own elements.
-  chainer: { name: 'Chainer',
-    desc: 'Freeze, bolt, shove: frost holds you, the sky-bolt lands where you stand, gale throws you at the lava. Dodge BEFORE the third stack. Elemental picks: frost, gale, mosquito.',
-    order: ['fireball', 'frost', 'lightning', 'gale', 'mosquito',
-      'frost', 'lightning', 'gale', 'mosquito',
-      'frost', 'lightning', 'gale', 'mosquito', 'sword', 'amulet'] },
-  // Round 20.1 (Remi: "add all 10") — the tournament archetypes as lobby
-  // builds. Orders come from tools/roster.js cores (ELO baseline
-  // docs/history/2026-08-09-strategy-elo-tournament.md); element-bearing
-  // orders skip botShop's pre-walk automatically. Juggernaut is the one
-  // divergence from its lab probe: the lobby version keeps the element
-  // pre-walk (a lobby opponent should still scale) via BUILD_ELEMENTS.
+  // Round 20.2 (Remi): the modern ten only, ordered strongest -> weakest
+  // by the measured ELO baseline (docs/history/2026-08-09-strategy-elo-
+  // tournament.md) — deliberately UNLABELED in the UI. Legacy six
+  // (bruiser/sniper/escape/turtle/rusher/boomer) retired the same day.
   tycoon: { name: 'Tycoon',
     desc: 'Gets rich, then out-shops everyone: every hit pays and the trap doubles the payroll. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
     order: ['fireball', 'midas', 'mosquito', 'midas', 'hourglass', 'midas', 'mosquito',
       'sword', 'amulet', 'sword', 'amulet', 'sword', 'boots', 'amulet', 'boots'] },
-  executioner: { name: 'Executioner',
-    desc: 'Hunts the red mark and grows stronger forever. Deny the claims or watch the fireball snowball. Elemental picks: anger, ghost.',
-    order: ['fireball', 'anger', 'boots', 'anger', 'ghost', 'anger', 'boots', 'ghost',
-      'sword', 'boots', 'ghost', 'sword', 'amulet', 'amulet', 'sword'] },
   warlord: { name: 'Warlord',
     desc: 'No tricks, bigger numbers: raw damage over lifesteal and HP. The honest yardstick. Elemental picks: ember, arcane.',
     order: ['fireball', 'ember', 'ember', 'sword', 'amulet', 'ember', 'sword', 'amulet',
@@ -614,24 +579,33 @@ export const BUILDS = {
     desc: 'Heals off your face: every 5th ball is a feast and the trap volley speeds the count. Burst it down between feasts. Elemental picks: vampire, mosquito.',
     order: ['fireball', 'vampire', 'vampire', 'mosquito', 'sword', 'vampire', 'mosquito',
       'amulet', 'sword', 'amulet', 'mosquito', 'sword', 'amulet', 'boots'] },
-  phantom: { name: 'Phantom',
-    desc: 'One line, three victims: fast fireballs that pass THROUGH bodies. Never queue up behind a teammate. Elemental picks: ghost, ember.',
-    order: ['fireball', 'ghost', 'ghost', 'ember', 'ember', 'ghost', 'ember',
-      'sword', 'amulet', 'sword', 'amulet', 'sword', 'amulet', 'boots'] },
+  executioner: { name: 'Executioner',
+    desc: 'Hunts the red mark and grows stronger forever. Deny the claims or watch the fireball snowball. Elemental picks: anger, ghost.',
+    order: ['fireball', 'anger', 'boots', 'anger', 'ghost', 'anger', 'boots', 'ghost',
+      'sword', 'boots', 'ghost', 'sword', 'amulet', 'amulet', 'sword'] },
+  chainer: { name: 'Chainer',
+    desc: 'Freeze, bolt, shove: frost holds you, the sky-bolt lands where you stand, gale throws you at the lava. Dodge BEFORE the third stack. Elemental picks: frost, gale, mosquito.',
+    order: ['fireball', 'frost', 'lightning', 'gale', 'mosquito',
+      'frost', 'lightning', 'gale', 'mosquito',
+      'frost', 'lightning', 'gale', 'mosquito', 'sword', 'amulet'] },
   stormcaller: { name: 'Stormcaller',
     desc: 'The sky never stops: haste on everything, a bolt every window. Use cover and punish its paper body. Elemental picks: arcane.',
     order: ['fireball', 'arcane', 'arcane', 'lightning', 'arcane', 'hourglass', 'lightning',
       'hourglass', 'lightning', 'hourglass', 'echo', 'amulet', 'amulet', 'sword'] },
-  sumo: { name: 'Sumo',
-    desc: "Never mind damage: you fly, it doesn't. Every 3rd hit is a gust — stay off the rim. Elemental picks: gale.",
-    order: ['fireball', 'gale', 'cape', 'gale', 'boots', 'gale', 'cape', 'treads',
-      'cape', 'boots', 'treads', 'amulet', 'amulet', 'sword'] },
-  plaguebearer: { name: 'Plaguebearer',
-    desc: 'Wades into the pack; everyone leaves sick. Keep your distance from the green aura. Elemental picks: malady, terra.',
-    order: ['fireball', 'malady', 'malady', 'terra', 'treads', 'malady', 'terra',
-      'amulet', 'treads', 'terra', 'amulet', 'sword', 'sword', 'amulet'] },
+  phantom: { name: 'Phantom',
+    desc: 'One line, three victims: fast fireballs that pass THROUGH bodies. Never queue up behind a teammate. Elemental picks: ghost, ember.',
+    order: ['fireball', 'ghost', 'ghost', 'ember', 'ember', 'ghost', 'ember',
+      'sword', 'amulet', 'sword', 'amulet', 'sword', 'amulet', 'boots'] },
   juggernaut: { name: 'Juggernaut',
     desc: 'The wall: max HP, armor, lava boots. It will not die fast — focus it together or leave it for last. Elemental picks: terra, frost, vampire.',
     order: ['fireball', 'amulet', 'cape', 'treads', 'amulet', 'sword', 'cape',
       'amulet', 'sword', 'treads', 'cape', 'sword', 'treads', 'boots'] },
+  plaguebearer: { name: 'Plaguebearer',
+    desc: 'Wades into the pack; everyone leaves sick. Keep your distance from the green aura. Elemental picks: malady, terra.',
+    order: ['fireball', 'malady', 'malady', 'terra', 'treads', 'malady', 'terra',
+      'amulet', 'treads', 'terra', 'amulet', 'sword', 'sword', 'amulet'] },
+  sumo: { name: 'Sumo',
+    desc: "Never mind damage: you fly, it doesn't. Every 3rd hit is a gust — stay off the rim. Elemental picks: gale.",
+    order: ['fireball', 'gale', 'cape', 'gale', 'boots', 'gale', 'cape', 'treads',
+      'cape', 'boots', 'treads', 'amulet', 'amulet', 'sword'] },
 };

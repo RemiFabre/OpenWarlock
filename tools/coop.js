@@ -36,7 +36,7 @@ const MAX_TICKS = 30 * 60 * 20; // 20 sim-minutes hard cap per campaign run
 // One full campaign run. Returns a per-level log:
 //   [{level, cleared, time, deaths, partyAlive}]
 export function playCampaign({
-  party = 2, kind = 'berserker', build = 'bruiser', seed = 1,
+  party = 2, kind = 'berserker', build = 'warlord', seed = 1,
 } = {}) {
   const state = createGame({ seed, mode: 'coop' });
   for (let i = 0; i < party; i++) {
@@ -98,7 +98,7 @@ export function levelIncome(k, party) {
 }
 
 export function playLevel({
-  party = 2, kind = 'berserker', build = 'bruiser', seed = 1, level = 1, income = null,
+  party = 2, kind = 'berserker', build = 'warlord', seed = 1, level = 1, income = null,
 } = {}) {
   const state = createGame({ seed, mode: 'coop' });
   for (let i = 0; i < party; i++) {
@@ -138,7 +138,7 @@ export function playLevel({
 // Independent per-level table: `runs` isolated attempts at every level, for
 // every party size. This is the tuning view.
 export function levelTable({
-  runs = 100, parties = [1, 2, 3], kind = 'berserker', build = 'bruiser',
+  runs = 100, parties = [1, 2, 3], kind = 'berserker', build = 'warlord',
   seed = 11, income = null,
 } = {}) {
   const rows = [];
@@ -165,7 +165,7 @@ export function levelTable({
 
 // Sweep: `runs` campaigns per party size, aggregated per level.
 export function sweep({
-  runs = 200, parties = [1, 2, 3], kind = 'berserker', build = 'bruiser', seed = 7,
+  runs = 200, parties = [1, 2, 3], kind = 'berserker', build = 'warlord', seed = 7,
 } = {}) {
   const out = [];
   for (const party of parties) {
