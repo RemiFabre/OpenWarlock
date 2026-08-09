@@ -84,10 +84,29 @@ describe('engine: headless room (no sockets)', () => {
     expect(engine2.game.phase).toBe(engine.game.phase);
     expect(engine2.game.round).toBe(engine.game.round);
     expect(engine2.game.players.h1.hp).toBe(engine.game.players.h1.hp);
-    // ⚠ NOT asserted: step-for-step determinism after restore — game._rng is a
-    // closure the round-trip strips, so the rng stream restarts (engine.js
-    // documents this as the B4 blocker). The restored room must still PLAY:
+    // the restored room must still PLAY:
     expect(tickUntil(engine2, () => engine2.game.phase !== 'battle', 300)).toBe(true);
+    engine.destroy();
+    engine2.destroy();
+  });
+
+  it('serialize() restore is DETERMINISTIC: original and restored engines replay identically', () => {
+    // B4 (host migration) requirement: a peer resuming from a serialized blob
+    // must step exactly like the host would have. This needs the rng cursor to
+    // be a serializable field on the game, not a closure.
+    const { engine } = makeRoom(23);
+    engine.join('h1', { name: 'Fork' });
+    for (let i = 0; i < 3; i++) engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'glass' });
+    engine.message('h1', { t: 'ready', ready: true });
+    tickUntil(engine, () => engine.game.phase === 'battle', 30);
+    for (let i = 0; i < 3 * TICK_RATE; i++) engine.tick(DT); // burn some rng mid-battle
+
+    const engine2 = createEngine({ state: engine.serialize() });
+    // step BOTH through ~20 s of bot combat (heavy rng traffic), comparing often
+    for (let chunk = 0; chunk < 10; chunk++) {
+      for (let i = 0; i < 2 * TICK_RATE; i++) { engine.tick(DT); engine2.tick(DT); }
+      expect(JSON.stringify(engine2.serialize())).toBe(JSON.stringify(engine.serialize()));
+    }
     engine.destroy();
     engine2.destroy();
   });

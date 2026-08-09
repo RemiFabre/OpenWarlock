@@ -349,9 +349,8 @@ export function createEngine({
     },
 
     // B4 prep (host migration): the full room state as a JSON-safe blob.
-    // ⚠ game._rng is a closure and is deliberately stripped by the round-trip;
-    // it is lazily rebuilt from `seed`, so the rng STREAM restarts — fine for
-    // resuming play, NOT yet deterministic replay (fix the cursor before B4).
+    // The rng cursor is a plain field on the game (sim.js rng()), so a restored
+    // engine replays step-for-step identically — test-locked in engine.test.js.
     serialize() {
       return JSON.parse(JSON.stringify({ game, nextBotId, seed }));
     },
