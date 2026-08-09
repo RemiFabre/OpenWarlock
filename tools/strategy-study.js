@@ -36,7 +36,7 @@ const progress = process.stderr.isTTY ? console.error : () => {};
 // One canonical breadth pass: everything a berserker/stalker can use, sustain
 // and damage first. Repeated 3x so every level of everything is eventually
 // reachable (a list entry buys at most one level per shop pass).
-const EXHAUST_PASS = [
+export const EXHAUST_PASS = [
   'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
   'hourglass', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
   'vampire', 'anger', 'boomerang', 'rush', 'shield', 'teleport', 'echo',
