@@ -36,7 +36,8 @@ Agent context usage on this project is **CRITICAL**. The rules:
   flat gust, Nova 🧨 (PLACEHOLDER name), Swap/Blink retunes, vanish reveals on
   cast, tangible walls, ping everywhere, shop key rebinding. Story +
   garble-flag list: REMI_NOTES.md; numbers: BALANCE.md §Round 19. Browser
-  hosting (docs/BRIEF-browser-hosting.md) on a worktree branch, see notes.
+  hosting phase A MERGED (engine.js seam + static solo; Pages click and the
+  Safari B0 tab-test are Remi's — see REMI_NOTES).
 - **ROUND17-18 shipped and pushed 2026-08-08** (NO PASSIVE REGEN, 17.2 batch,
   portals/spawn-shuffle/ping; J and G CLOSED) —
   `docs/history/2026-08-08-round17-battery.md`.
