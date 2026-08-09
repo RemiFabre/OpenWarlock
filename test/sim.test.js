@@ -1307,14 +1307,16 @@ describe('elemental mode', () => {
   // One landed fireball from p0 on p1 (cooldown scrubbed). The victim stands
   // just beyond the SPEC's widest aura so a fresh max-level plague never laps
   // back over the shooter within the landing frame — derived, not pinned
-  // (the round-19.4 aura buff broke the old hardcoded 10).
+  // (the round-19.4 aura buff broke the old hardcoded 10). Stepping stops AT
+  // impact rather than for a fixed slice, so shrinking the aura (round 20.3
+  // halved it) can't quietly burn the fresh DoT clock the callers assert on.
   function landHit(state) {
     const a = state.players.p0, b = state.players.p1;
     const safe = Math.max(...ELEMENTS.malady.fx.auraR) + 4;
     a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
     b.x = safe; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     castSpell(state, 'p0', 'fireball', safe * 3, 0);
-    run(state, 0.9);
+    for (let i = 0; i < Math.round(1.5 / DT) && state.projectiles.length; i++) step(state, DT);
   }
 
   it('malady 🦠: the first hit plants a private stack, the SECOND infects', () => {
@@ -1431,22 +1433,47 @@ describe('elemental mode', () => {
     expect(b.malady.inst).not.toBe(inst);
   });
 
-  it("the creator catches their own plague back — its lethal tick is the SPREADER's kill", () => {
+  // Round 20.3 (Remi's ruling): the creator is seeded into the instance's
+  // immunity set, so standing in their own contagion is free. Replaces the
+  // round-19 "creator catches it back / lethal tick is the spreader's" test.
+  it('round 20.3: the creator is IMMUNE to their OWN instance, forever', () => {
     const state = maladyBattle(1, 4);              // 4 seats: a death can't end the round
     const a = state.players.p0, b = state.players.p1;
     landHit(state); landHit(state);
     const inst = b.malady.inst;
+    expect(inst.immune.p0).toBeTruthy();           // seeded at creation
     b.x = 0; b.y = 0; b.vx = b.vy = 0;
-    a.x = 1.5; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    a.x = 1.5; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;  // hugging the carrier
+    run(state, Math.min(1.5, efx(MF().dotTime, 1) - 0.5));
+    expect(a.malady || null).toBe(null);           // his own plague never takes him
+    expect(a.poisonT).toBe(0);
+    expect(b.poisonT).toBeGreaterThan(0);          // the carrier is still sick
+    expect(b.poisonBy).toBe('p0');                 // credit stays with the creator
+  });
+
+  it("round 20.3: the creator still catches ANOTHER player's malady", () => {
+    const state = maladyBattle(1, 4);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    // p1 owns a malady of their own and infects p2; p0 (a malady owner too)
+    // then hugs that carrier and must catch p1's instance normally.
+    b.elements = { malady: 1 };
+    b.x = 0; b.y = 0; b.vx = b.vy = 0; b.cooldowns = {};
+    c.x = 20; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    a.x = 0; a.y = -40; a.vx = a.vy = 0; a.moveTarget = null;
+    for (let i = 0; i < 2; i++) {
+      b.cooldowns = {};
+      castSpell(state, 'p1', 'fireball', 60, 0);
+      run(state, 0.9);
+      c.x = 20; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
+    }
+    expect(c.malady).toBeTruthy();                 // p2 carries p1's plague
+    const inst = c.malady.inst;
+    expect(inst.creator).toBe('p1');
+    expect(inst.immune.p0).toBeFalsy();            // p0 is NOT in someone else's set
+    a.x = 21; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
     run(state, 0.2);
-    expect(a.malady && a.malady.inst).toBe(inst);  // his own plague, back
-    expect(a.malady.by).toBe('p1');
-    expect(a.poisonBy).toBe('p1');                 // credit flips to the spreader
-    a.hp = 0.5; a.lastHitBy = null;
-    const k0 = b.kills;
-    run(state, MF().tickEvery + 0.3);
-    expect(a.alive).toBe(false);
-    expect(b.kills).toBe(k0 + 1);                  // the spreader takes the kill
+    expect(a.malady && a.malady.inst).toBe(inst);  // caught it
+    expect(a.poisonBy).toBe('p1');                 // credit: that instance's creator
   });
 
   it("kill credit: a lethal tick is the CREATOR's kill — even on a contagion catch", () => {

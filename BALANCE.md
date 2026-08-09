@@ -91,6 +91,12 @@ dmg/kb tax, no arm/cash trap, every [6,5,4]th cast fires a PAIR (no-push lead
 balls advance the every-N counters but can never chain), and the **Echo Stone
 item is DELETED**, merged in; terra lv3 smashes pillars.
 
+**Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
+(the aura was blanketing the arena) and the **creator is now IMMUNE to their
+own instance** — they still catch other players' plagues, and a lethal tick is
+always the creator's kill (the spreader-credit case is gone). ⚠ The ELO table
+below predates this: it was measured at r207 with the wide aura and catch-back.
+
 ### The strategy ELO table — THE current ranking (r207, 30 strategies, 8000 games × 2 seeds)
 
 Full table, diffs and blind spots: **`docs/history/2026-08-09-round20-elo.md`**

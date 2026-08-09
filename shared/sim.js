@@ -1490,7 +1490,8 @@ function stepBattle(state, dt) {
   // Malady contagion (elemental, round 19): every infected body radiates its
   // instance's aura — any OTHER living player inside catches the SAME instance
   // (fresh clock) unless it already infected them once: immunity is forever,
-  // so a plague can never ping-pong. Spreads to allies too (friendly-fire
+  // so a plague can never ping-pong, and since round 20.3 the creator is
+  // seeded immune to their own. Spreads to allies too (friendly-fire
   // precedent — hostile() is for targeting decisions, never damage paths).
   if (state.mode === 'elemental') {
     for (const pl of players) {
@@ -2048,7 +2049,9 @@ function galeHit(state, pr, target, level) {
 // and the clock), `immune` = {playerId: 1} for every body it has EVER taken —
 // an instance infects each player at most once, which is the no-ping-pong
 // rule. Plain object, never a Set: state must stay JSON-safe (crash dumps).
-// The creator starts OUTSIDE the set, so their own plague can come back.
+// Round 20.3 (Remi's ruling): the creator is seeded INTO the set at creation,
+// so their own plague can never come back on them — they still catch every
+// OTHER player's instance normally. Revert = drop them from the seed below.
 function infectMalady(state, target, inst, byId) {
   if (!target.alive) return;
   const f = ELEMENTS.malady.fx;
@@ -2057,9 +2060,9 @@ function infectMalady(state, target, inst, byId) {
   target.poisonTick = efxV(f.tickDmg, inst.level);
   target.poisonT = efxV(f.dotTime, inst.level);
   target._poisonNext = f.tickEvery;   // fresh sickness, fresh cadence
-  // lethal-tick credit: the creator's plague — unless the victim IS the
-  // creator (they caught it back): then whoever passed it to them owns it
-  target.poisonBy = inst.creator === target.id ? byId : inst.creator;
+  // lethal-tick credit: always the creator's plague. Since round 20.3 the
+  // creator is immune to their own instance, so there is no spreader case.
+  target.poisonBy = inst.creator;
   state.events.push({ t: 'infected', id: target.id, by: byId, x: target.x, y: target.y });
 }
 
@@ -2113,8 +2116,9 @@ function applyElementsHit(state, pr, target) {
       // infectMalady() and the stepBattle aura loop.
       if (stackCount(target, 'malady', pr.owner) > 0) {
         clearStacks(target, 'malady', pr.owner);
+        // round 20.3: the creator is seeded immune to their OWN instance
         infectMalady(state, target,
-          { creator: pr.owner, level: el, immune: {} }, pr.owner);
+          { creator: pr.owner, level: el, immune: { [pr.owner]: 1 } }, pr.owner);
       } else {
         addStack(target, 'malady', pr.owner);
       }

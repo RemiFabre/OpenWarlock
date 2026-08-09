@@ -161,7 +161,8 @@ build step, Node ESM, only dep is `ws`.
   [18,32,32] + lv3 kit refund 1 s/hit (NEVER its own fireball — 66-74%
   feedback loop, twice measured), ghost=speed (lv3 pierce, 10 g),
   malady=ex-venom two-hit CONTAGION (1 dmg/tick, `dotTime [4,5,6]`,
-  aura r [10,14,18], once-per-instance immunity, creator can catch it back;
+  aura r [5,7,9] — round 20.3, once-per-instance immunity, creator IMMUNE to
+  their own instance (still catches other players');
   lethal tick credits creator/spreader), frost=stacks-to-CC,
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
   **[20,15,10] s** — round 20 nerf, claim = +0.5 fireball dmg forever),

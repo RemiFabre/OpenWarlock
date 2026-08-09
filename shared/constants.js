@@ -370,15 +370,17 @@ export const ELEMENTS = {
   // Round 19 (Remi): venom → MALADY, the contagion rework. Two hits infect
   // (private stack, like midas); the sickness radiates auraR — anyone close
   // catches the SAME instance once each, ever (immunity set = no ping-pong).
-  // Tick flat at 1; levels buy duration + aura. Lethal tick takes the kill
-  // (creator's — or the spreader's when the creator catches it back). Trail dead.
+  // Tick flat at 1; levels buy duration + aura. Lethal tick is always the
+  // CREATOR's kill. Trail dead.
   // history: docs/history/2026-08-08-round17-battery.md#venom (the old DoT)
-  // Round 20 buff (Remi): longer sickness + wider aura again. Revert is
-  // dotTime [3,4,5], auraR [8,12,16] (round 19.4; before that [2,3,4]/[4,6,8]).
+  // Round 20.3 (Remi's ruling, live play): the aura was blanketing the arena —
+  // HALVED, and the creator is now immune to their OWN instance (they still
+  // catch other players' plagues; see infectMalady in shared/sim.js).
+  // Revert: auraR [10, 14, 18] (round 20; earlier [8,12,16], then [4,6,8]).
   malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Spread diseases.',
            long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each.',
-           fx: { tickDmg: 1, dotTime: [4, 5, 6], tickEvery: 1, auraR: [10, 14, 18] } },
+           fx: { tickDmg: 1, dotTime: [4, 5, 6], tickEvery: 1, auraR: [5, 7, 9] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
   // ⚠ The burst lever is VIOLENTLY STEEP (+20% ≈ +14 points); old sweep at git c38730f.
