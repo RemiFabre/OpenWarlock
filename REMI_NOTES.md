@@ -22,6 +22,13 @@ static-solo test). Pull, restart the server, hard-refresh everyone.*
   the counter advances by 2 and an on-threshold proc ball IS engorged and
   heals (it won't render red mid-volley; the green number + counter reset
   tell the story). Test-locked.
+- **Post-change instrument read** (4-seat strategy mirror, 2000 games, 25% =
+  even): mosquito-midas 24.9 (exactly baseline — the gold amp pays),
+  mosquito-combo still 0.8 even buying malady first — amplifying 1-damage
+  ticks doesn't buy back the fireball tax on bot tables. The usual caveats
+  (bots never cluster for contagion), but the shape suggests mosquito's
+  partner matters more than its own numbers: it works with midas, not with
+  malady. Anger-scaling 65% in this pool.
 
 ## ROUND 19.4 — your hour-away batch + the AI-games read (all pushed, r186)
 
