@@ -1,16 +1,16 @@
 {
   "credit": "Art & music by Remi Fabre, from 'Fire Nation Attacked' (HF Space RemiFabre/fire_nation_attacked). AAC 96k mono from 44.1kHz PCM; JPEG q65 from 1024x1536 PNG.",
-  "intro": { "title": "Overture", "music": "/assets/music/intro.m4a" },
+  "intro": { "title": "Overture", "music": "assets/music/intro.m4a" },
   "levels": [
-    { "n": 1,  "title": "What lies ahead?", "theme": "fox",      "music": "/assets/music/level01.m4a", "background": "/assets/backgrounds/level01.jpg" },
-    { "n": 2,  "title": "Forward.",         "theme": "gazelle",  "music": "/assets/music/level02.m4a", "background": "/assets/backgrounds/level02.jpg" },
-    { "n": 3,  "title": "Locked in.",       "theme": "dolphin",  "music": "/assets/music/level03.m4a", "background": "/assets/backgrounds/level03.jpg" },
-    { "n": 4,  "title": "Too much?",        "theme": "bull",     "music": "/assets/music/level04.m4a", "background": "/assets/backgrounds/level04.jpg" },
-    { "n": 5,  "title": "Too late.",        "theme": "snake",    "music": "/assets/music/level05.m4a", "background": "/assets/backgrounds/level05.jpg" },
-    { "n": 6,  "title": "The price.",       "theme": "bee",      "music": "/assets/music/level06.m4a", "background": "/assets/backgrounds/level06.jpg" },
-    { "n": 7,  "title": "Still standing.",  "theme": "bear",     "music": "/assets/music/level07.m4a", "background": "/assets/backgrounds/level07.jpg" },
-    { "n": 8,  "title": "Of course.",       "theme": "mandrill", "music": "/assets/music/level08.m4a", "background": "/assets/backgrounds/level08.jpg" },
-    { "n": 9,  "title": "Endure.",          "theme": "roost",    "music": "/assets/music/level09.m4a", "background": "/assets/backgrounds/level09.jpg" },
-    { "n": 10, "title": "Liberation.",      "theme": "bird",     "music": "/assets/music/level10.m4a", "background": "/assets/backgrounds/level10.jpg" }
+    { "n": 1,  "title": "What lies ahead?", "theme": "fox",      "music": "assets/music/level01.m4a", "background": "assets/backgrounds/level01.jpg" },
+    { "n": 2,  "title": "Forward.",         "theme": "gazelle",  "music": "assets/music/level02.m4a", "background": "assets/backgrounds/level02.jpg" },
+    { "n": 3,  "title": "Locked in.",       "theme": "dolphin",  "music": "assets/music/level03.m4a", "background": "assets/backgrounds/level03.jpg" },
+    { "n": 4,  "title": "Too much?",        "theme": "bull",     "music": "assets/music/level04.m4a", "background": "assets/backgrounds/level04.jpg" },
+    { "n": 5,  "title": "Too late.",        "theme": "snake",    "music": "assets/music/level05.m4a", "background": "assets/backgrounds/level05.jpg" },
+    { "n": 6,  "title": "The price.",       "theme": "bee",      "music": "assets/music/level06.m4a", "background": "assets/backgrounds/level06.jpg" },
+    { "n": 7,  "title": "Still standing.",  "theme": "bear",     "music": "assets/music/level07.m4a", "background": "assets/backgrounds/level07.jpg" },
+    { "n": 8,  "title": "Of course.",       "theme": "mandrill", "music": "assets/music/level08.m4a", "background": "assets/backgrounds/level08.jpg" },
+    { "n": 9,  "title": "Endure.",          "theme": "roost",    "music": "assets/music/level09.m4a", "background": "assets/backgrounds/level09.jpg" },
+    { "n": 10, "title": "Liberation.",      "theme": "bird",     "music": "assets/music/level10.m4a", "background": "assets/backgrounds/level10.jpg" }
   ]
 }

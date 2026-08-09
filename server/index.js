@@ -81,7 +81,15 @@ const httpServer = http.createServer((req, res) => {
     }));
     return;
   }
-  if (urlPath === '/') urlPath = '/client/index.html';
+  // The client lives at /client/ so its relative asset/script paths work from
+  // BOTH this server and a static subpath host (GitHub Pages). Serving the
+  // html at '/' would break those relative paths, hence the redirect.
+  if (urlPath === '/') {
+    res.writeHead(302, { Location: '/client/' });
+    res.end();
+    return;
+  }
+  if (urlPath === '/client' || urlPath === '/client/') urlPath = '/client/index.html';
   const file = path.normalize(path.join(ROOT, urlPath));
   const ok = file.startsWith(path.join(ROOT, 'client')) ||
              file.startsWith(path.join(ROOT, 'shared')) ||

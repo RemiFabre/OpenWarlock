@@ -1,4 +1,4 @@
-// Music — per-level soundtrack loops from /assets/manifest.json.
+// Music — per-level soundtrack loops from assets/manifest.json.
 // The manifest's levels also carry the background art and title used by
 // render.js (same round -> level mapping), so this module owns the manifest.
 // Every public call is try/catch-safe: a missing or blocked audio file must
@@ -31,18 +31,32 @@ function resolveIndex(n) {
   return (n * 2654435761) % levels.length; // Knuth hash, exact below 2^53
 }
 
+// Every asset path resolves against the repo root DERIVED FROM THIS MODULE'S
+// URL, never against the page origin: the same files must work at
+// http://localhost:3000/client/ and under a subpath like
+// RemiFabre.github.io/OpenWarlock/client/ (GitHub Pages). Manifest values are
+// root-relative ('assets/...'); a leading '/' from an older cached manifest is
+// tolerated by stripping it.
+const ROOT_BASE = new URL('..', import.meta.url);
+const assetUrl = (p) => new URL(String(p).replace(/^\//, ''), ROOT_BASE).href;
+
 // Fetch the manifest once at module load (no user gesture needed) and start
 // preloading the backgrounds so round transitions don't flash.
 (async () => {
   try {
-    const res = await fetch('/assets/manifest.json');
+    const res = await fetch(assetUrl('assets/manifest.json'));
     const m = await res.json();
     if (m && Array.isArray(m.levels)) {
-      if (m.intro && typeof m.intro.music === 'string') intro = m.intro;
-      levels = m.levels.filter(lv => lv && typeof lv === 'object');
+      if (m.intro && typeof m.intro.music === 'string')
+        intro = { ...m.intro, music: assetUrl(m.intro.music) };
+      levels = m.levels.filter(lv => lv && typeof lv === 'object')
+        .map(lv => ({
+          ...lv,
+          ...(typeof lv.music === 'string' ? { music: assetUrl(lv.music) } : {}),
+        }));
       images = levels.map(lv => {
         const img = new Image();
-        if (typeof lv.background === 'string') img.src = lv.background;
+        if (typeof lv.background === 'string') img.src = assetUrl(lv.background);
         return img;
       });
     }

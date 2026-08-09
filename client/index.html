@@ -625,6 +625,8 @@
      (Chrome), which trapped the toast underneath the shop/lobby overlays -->
 <div id="toast"></div>
 
-<script type="module" src="/client/main.js"></script>
+<!-- relative on purpose: this page must load from the Node server AND from a
+     static subpath host (GitHub Pages) — see docs/BRIEF-browser-hosting.md §A4 -->
+<script type="module" src="./main.js"></script>
 </body>
 </html>
