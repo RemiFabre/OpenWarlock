@@ -3,6 +3,14 @@
 *Round 20, 2026-08-09 (r207). Your shipped changes, then the measurement pass
 you asked for: **no balance changes were made in this pass — results only**.*
 
+## ROUND 20.5 — Switcheroo's stun now scales with the swap
+
+- **The victim's stun lasts as long as your fireball needs to reach them**:
+  after the trade you stand exactly the swapped distance apart, so the stun is
+  0.35 s of reaction time plus that flight time (1 s minimum, so short swaps
+  keep the old feel) — 1.0 s under ~27 units, 1.33 s at 40, 1.69 s at 55,
+  2.06 s at a full lv3 70-unit swap. The combo always has time to land.
+
 ## ROUND 20.4 — three small fixes (after your playtest)
 
 - **The invite banner is now LOBBY-ONLY** ("it takes space away in game"): the

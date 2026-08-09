@@ -1952,7 +1952,20 @@ function stepProjectiles(state, dt) {
           }
           // round 19.2 (Remi): the victim wakes up stunned — the caster's
           // combo window. Spec-driven; the caster is deliberately free.
-          if (spec.stunT) other.stunT = Math.max(other.stunT || 0, spec.stunT);
+          // Round 20.5 (Remi's ruling): the window must ALWAYS cover a combo
+          // fireball. Positions are already traded here, so the gap between
+          // them IS the distance swapped (the real one, never the nominal
+          // range): a base fireball — no element riders — crosses it in
+          // d / speed s, `pad` buys the human cast reaction, `min` floors short
+          // swaps at the old flat feel. Revert: flat `spec.stunT`.
+          const stunSpec = spec.stun;
+          let stun = spec.stunT || 0;
+          if (stunSpec) {
+            const d = Math.hypot(owner.x - other.x, owner.y - other.y);
+            stun = Math.max(stunSpec.min, stunSpec.pad + d / SPELLS.fireball.speed);
+            if (stunSpec.max) stun = Math.min(stun, stunSpec.max);
+          }
+          if (stun) other.stunT = Math.max(other.stunT || 0, stun);
           // no `id` field on purpose: a swap always shows both ends, even if
           // one of them is vanished (revealing is the accepted cost)
           state.events.push({ t: 'swapped', a: owner.id, b: other.id,

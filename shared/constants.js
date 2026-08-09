@@ -240,10 +240,17 @@ export const SPELLS = {
     // legible). His to re-pick — candidates brainstormed in REMI_NOTES.
     name: 'Switcheroo', hotkey: 'G', tier: 'power', maxLevel: 3, costs: [10, 6, 6],
     cooldown: [13, 12, 11], speed: 50, radius: 0.9, range: [40, 55, 70],
-    // round 19.2 (Remi): the VICTIM is stunned after the trade — the combo
-    // window ("swap them, then hit them"); the caster stays free
-    damage: 1, stunT: 1,
-    desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned.',
+    // Round 19.2 (Remi): the VICTIM is stunned after the trade — the combo
+    // window ("swap them, then hit them"); the caster stays free.
+    // Round 20.5 (Remi's ruling): that window now SCALES with the distance
+    // actually swapped, so the attacker ALWAYS has time to land the follow-up.
+    // After the trade the two stand exactly the swapped distance apart, so a
+    // base fireball needs dist / SPELLS.fireball.speed seconds of flight; `pad`
+    // is the human cast-reaction on top, `min` keeps short swaps at the old
+    // 1 s feel. Computed at resolution from the REAL positions (sim.js).
+    // Revert path (round 19.2): drop `stun`, restore `stunT: 1`.
+    damage: 1, stun: { pad: 0.35, min: 1 },
+    desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned — the longer the swap, the longer the stun.',
   },
   repulse: {
     name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 8],

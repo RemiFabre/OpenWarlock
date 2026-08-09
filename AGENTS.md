@@ -121,7 +121,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 304 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 309 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -179,7 +179,10 @@ build step, Node ESM, only dep is `ws`.
   DELETED (merged into mosquito, round 20.1).
 - **Spells** (round 19): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
   ignores pillars/walls; delay+radius NEVER level); **Swap** 3 levels 10 g,
-  speed 50, range [40,55,70], cd −1 s/lv, 1 dmg stamps lava credit; **Blink**
+  speed 50, range [40,55,70], cd −1 s/lv, 1 dmg stamps lava credit, victim stun
+  SCALES with the distance actually swapped (round 20.5: `stun {pad .35, min 1}`
+  + d / fireball speed → 1-2.06 s, the caster's combo ball always lands);
+  **Blink**
   [8,6] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
   artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
   pillars unlimited; vanish 1/2/3 s at 10 g — ANY cast while invisible
@@ -224,7 +227,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 304 green
+npx vitest run                                   # 309 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

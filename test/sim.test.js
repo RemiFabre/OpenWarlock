@@ -3109,10 +3109,63 @@ describe('power spells & pillar', () => {
     expect(b.moveTarget).toBe(null);
     expect(b.hp).toBeLessThan(b.maxHp);              // the 1 damage landed
     // round 19.2 (Remi): the VICTIM is stunned after the trade (the combo
-    // window), the caster stays free to act on it
-    expect(b.stunT).toBeCloseTo(SPELLS.swap.stunT, 5);
+    // window), the caster stays free to act on it. Round 20.5: the duration is
+    // computed from the swapped distance — 15 units here, which is short enough
+    // to sit on the floor.
+    expect(b.stunT).toBeCloseTo(swapStun(15), 5);
+    expect(b.stunT).toBeCloseTo(SPELLS.swap.stun.min, 5);
     expect(a.stunT).toBe(0);
     expect(castSpell(state, 'p1', 'fireball', 0, 0)).toBe(false); // stunned = silent
+  });
+
+  // Round 20.5 (Remi's ruling): the stun must ALWAYS cover the caster's
+  // follow-up fireball. Every number below is recomputed from the spec —
+  // `pad` + flight time of a BASE fireball over the distance actually swapped,
+  // floored by `min`, capped only if the spec grows a `max`.
+  function swapStun(d) {
+    const s = SPELLS.swap.stun;
+    let t = Math.max(s.min, s.pad + d / SPELLS.fireball.speed);
+    if (s.max) t = Math.min(t, s.max);
+    return t;
+  }
+
+  // Swap the two players over `d` units and report the stun the victim woke
+  // with. Level 3 so the bolt's range never limits the distance under test.
+  function stunAfterSwapOver(d) {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 3;
+    state.pillars = [];
+    a.x = -d / 2; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    b.x = d / 2; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'swap', d, 0);
+    expect(stepToSwap(state, 300)).toBeTruthy();
+    return b.stunT;
+  }
+
+  it('swap: a short swap keeps the floor, a long swap buys fireball flight time', () => {
+    // short: pad + 10/speed is under the floor, so the floor is what lands
+    expect(SPELLS.swap.stun.pad + 10 / SPELLS.fireball.speed)
+      .toBeLessThan(SPELLS.swap.stun.min);
+    expect(stunAfterSwapOver(10)).toBeCloseTo(SPELLS.swap.stun.min, 2);
+    // long: the formula clears the floor and the stun is exactly pad + d/speed
+    for (const d of [40, 70]) {
+      expect(swapStun(d)).toBeGreaterThan(SPELLS.swap.stun.min);
+      expect(stunAfterSwapOver(d)).toBeCloseTo(swapStun(d), 2);
+    }
+  });
+
+  it('swap: the stun never shrinks as the swap gets longer, and always outlasts the combo ball', () => {
+    const ds = [5, 10, 20, 40, 55, 70];
+    const stuns = ds.map(stunAfterSwapOver);
+    for (let i = 1; i < stuns.length; i++) {
+      expect(stuns[i]).toBeGreaterThanOrEqual(stuns[i - 1] - 1e-6);
+    }
+    // the whole point: the victim is still frozen when the follow-up base
+    // fireball (no element riders) crosses the gap the swap opened
+    for (let i = 0; i < ds.length; i++) {
+      expect(stuns[i]).toBeGreaterThan(ds[i] / SPELLS.fireball.speed);
+    }
   });
 
   it('swap: the lava save — and the victim burning to death credits the caster', () => {

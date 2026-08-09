@@ -907,7 +907,10 @@ const SPELL_FIELDS = {
   delay: ['impact delay', fmtSec],
   length: ['wall length', fmtNum],
 };
-const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound']);
+// `stun` is skipped here because it is not a per-level array but the RECIPE the
+// sim evaluates at resolution ({pad, min}) — spellTip prints the two readings a
+// player can act on instead (round 20.5).
+const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun']);
 // element fx whose array is NOT per-level (tierHits columns are tiers) —
 // their reading lives in another row's label instead. markDelay and
 // rampPermanent are display-only trims (Remi, round 19.4: those anger rows
@@ -1033,6 +1036,16 @@ function spellTip(key, spec, level, maxLevel) {
     // onward until caught — no spec field carries that, but the table must
     // not imply the flight ends where the throw does (Remi, round 19.4)
     if (field === 'outDistance') rows += tipRow('return distance', Infinity, maxLevel, fmt, level);
+  }
+  // Switcheroo's stun scales with how far you actually swapped (round 20.5), so
+  // there is no single number: show the floor and what a full-range swap buys,
+  // both recomputed from the spec exactly like the sim does it.
+  if (spec.stun) {
+    const rng = Array.isArray(spec.range) ? spec.range : [spec.range];
+    rows += tipRow('stun, short swap', spec.stun.min, maxLevel, fmtSec, level);
+    rows += tipRow('stun, full-range swap',
+      rng.map(r => Math.max(spec.stun.min, spec.stun.pad + r / SPELLS.fireball.speed)),
+      maxLevel, fmtSec, level);
   }
   rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
   const foot = [
