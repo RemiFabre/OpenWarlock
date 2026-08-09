@@ -19,8 +19,9 @@ duel matrix — the intuition layer behind questions K, L and M).*
   exhaust tail). The 25-strategy roster lives in **STRATEGIES.md**.
 - Bots never bait, aim bursts, or refuse trades — and a bot carrier lands a
   median **172 fireballs/game**, far above human pace: volume-scaling things
-  (momentum) read inflated, aimed things read at their floor. Extreme columns
-  show which way skill bends it.
+  (anger, ex-momentum) read inflated, aimed things read at their floor;
+  mechanics bots cannot express (malady's contagion, gale's gust positioning)
+  read at a FALSE floor. Extreme columns show which way skill bends it.
 
 ## Current state (round 17, 2026-08-08)
 
@@ -62,23 +63,42 @@ games, seed 1): mosquito 43.5 (at 17.2) → 46.1 after the rework —
 value-neutral on bots, which can't use the on-hit-amp fantasy anyway.
 ⚠ Momentum reads **99.6-100% on that instrument both BEFORE and after round
 18** — the uncapped 17.2 ramp on 172-hit bot carriers. Question K got louder,
-not new. The mixed/ladder tables below are now two reworks stale.
+not new.
 
-### The mixed table (one element per seat, Hard, 800 games × seeds 1/7, at `62de05b`)
+**Round 19 (overnight 2026-08-09, Remi's pre-sleep dictation)**: Malady 🦠
+replaces venom (two-hit infection, 1 dmg/tick, contagious aura r [4,6,8],
+duration [2,3,4] s, once-per-instance immunity, creator can catch it back,
+lethal tick credits creator/spreader; the trail AND venom's old 0.85 dmg tax
+are gone); Anger 🔴 replaces momentum (a red mark on a random enemy every
+[10,7,5] s, fireball-claim = +0.5 dmg forever, uncapped, game-long); mosquito
+= NORMAL balls taxed ×[0.5,0.75,1] dmg+kb (multiplicative with midas), trap
+arm/cash = 2 extra balls, 4 rider procs per pair; gale uniform (stacks from
+lv1, gust is a flat ADD [15,30,45] ≈ 70% of the old lv3 total, kbAdd
+[7,14,21], costs [10,8,8]); Nova 🧨 NEW spell (PLACEHOLDER name: fused
+artillery, flies over everything, flat AoE [10,14,18] r [4.5,5.5,6.5], no
+push, no riders, power tier); Swap 3 lv (speed 50, range [40,55,70], cd
+[13,12,11]); Blink [8,6] g flat range 22; vanish reveals on any cast (castable
+mid-charge now); Mirror Walls block bodies; frost verified UNCHANGED (slow
+never touched knockback; lv1 already 30%).
+
+### The mixed table (one element per seat, Hard, 800 games × seeds 1/7, round-19 HEAD 2026-08-09)
 
 | element | s1 | s7 | | element | s1 | s7 |
 |---|---|---|---|---|---|---|
-| ⚙️ Momentum | 85.9 | 89.2 | | 🌪️ Gale | 8.0 | 6.5 |
-| 🐍 Venom | 64.7 | 57.9 | | ❄️ Frost | 5.4 | 2.3 |
-| 🦟 Mosquito | 39.6 | 37.9 | | 👻 Ghost | 3.5 | 3.3 |
-| 🔥 Ember | 28.9 | 27.0 | | 🪨 Terra | 2.5 | 2.2 |
-| 🧛 Vampire | 20.8 | 20.7 | | 🪙 Midas | 0.0 | 0.4 |
-| 🔮 Arcane | 13.7 | 11.9 | | | | |
+| 🔴 Anger | 97.4 | 97.9 | | 🪙 Midas | 6.1 | 3.9 |
+| 🦟 Mosquito | 63.8 | 62.1 | | 🦠 Malady | 5.2 | 4.0 |
+| 🧛 Vampire | 35.8 | 29.3 | | ❄️ Frost | 4.7 | 4.0 |
+| 🔥 Ember | 33.6 | 38.6 | | 🪨 Terra | 3.2 | 3.0 |
+| 🔮 Arcane | 13.7 | 10.5 | | 👻 Ghost | 3.2 | 4.4 |
+| | | | | 🌪️ Gale | 2.2 | 1.1 |
 
-Venom meets its §7 target (out of the 90s, #2, top-third). Ember's trim
-landed (61.5 → ~28). Midas's 0.0 is the familiar gold-saturation floor
-(40-50 g unspent), deepened by the mark — question E still owns its real
-value. ⚠ Momentum is the table's #1 — see question K.
+⚠ Anger's ~98% is a SATURATED instrument (bots claim marks near-perfectly);
+sweeps barely move it — markEvery [16,12,8] → 94.1, markDmg 0.3 → 87.3
+(600 games, seed 1) — so the shipped numbers are the fantasy-first ones and
+the levers stay documented (question K, renamed). Mosquito 63% (tax version
+loves bot volume: 4 procs/pair). ⚠ Malady/gale floors are NOT trusted: bots
+never cluster (contagion) or exploit positioning (gust) — the lab cannot
+express either mechanic; human games are the instrument.
 
 ### The item ladder (1500 games, seat capped at that level, at `62de05b`)
 
@@ -117,13 +137,13 @@ softmax bots AND the venom/hourglass retunes — re-run before quoting it.
 
 *These need Remi, not more games. Ordered by how much rides on them.*
 
-**K. (round 17) Momentum's tiers on bot tables.** #1 at 85.9/89.2 mixed, but
-momentum-scaling the STRATEGY is healthy (28.5 Hard / 33.9 Extreme), and the
-mixed number rides on bot carriers banking 172 hits/game — a human sees tier 1,
-maybe tier 2. Classic bot-inflation shape (the round-12 rule says don't
-number-nerf around it). Measured lever if your feel agrees it's too much:
-`tierHits [40,90,150] → [60,130,220]` = 87.3 → 72.2 (still #1); `tierDmg` is
-the untested deeper lever. Your call.
+**K. (round 19, ex-momentum) Anger on bot tables.** ~98% mixed at every knob
+tried — bots claim marks near-perfectly, so the mirror cannot price the human
+cost of hunting a specific target (the element's whole design). Classic
+bot-inflation shape (round-12 rule: no number-nerfs around it). Measured
+levers if your FEEL says too much: `markEvery [10,7,5] → [16,12,8]` = 94.1;
+`markDmg 0.5 → 0.3` = 87.3 (both 600 games seed 1, still saturated). Human
+math at shipped numbers: a devoted lv3 hunter ≈ +2 dmg/round. Your call.
 
 **L. (round 17) The Blood Sword is mandatory by STRUCTURE.** Ladder lv0 1.3%,
 and cutting lifesteal a third only moves it to 5.7 — under the full-stop regen
@@ -158,14 +178,14 @@ draft; teaching bots to BUY them is still open.
 node tools/arena.js --mode=elemental --games=800 --seed=1     # the mixed table (and --seed=7)
 node tools/arena.js --ladder=all --games=1500 --seed=1        # the item ladder
 node tools/arena.js --ladder=sword --games=1500 --seed=1 --fx=sword.lifesteal=0.12,0.20,0.28
-node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=venom.tickDmg=0.5,1,1.5
-node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=momentum.tierHits=60,130,220
+node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markEvery=16,12,8
+node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markDmg=0.3
 node tools/strategy-study.js --games=4000 --seed=1            # the strategy table (and --seed=7)
 node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme column
 node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
 node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
-npx vitest run                                                # 245 green
+npx vitest run                                                # 274 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 ```

@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-08 (round 18, built mid-game in a worktree). Read this first, then
+*Last updated 2026-08-09 (round 19, built overnight by subagents). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -30,20 +30,21 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **ROUND18 built during Remi's live game** (2026-08-08, mid-game dictation):
-  per-player ping badge (server ws RTT), spawn seats dealt fresh each round,
-  4 lava portals → center teleport, mosquito rework (arming sting APPLIES
-  on-hit riders, 3 procs per armed+cashed pair, levels = fireball haste
-  [20,40,60]). 245 tests green, client screenshotted. Story: REMI_NOTES.md;
-  numbers: BALANCE.md §Round 18.
-- **ROUND17 shipped and pushed** earlier the same day (NO PASSIVE REGEN, the
-  17.2 batch; J and G CLOSED) — `docs/history/2026-08-08-round17-battery.md`.
-- **Waiting on Remi — questions K/L/M in BALANCE.md** (momentum on bot
-  tables — reads 99.6-100% on the element mirror since the 17.2 uncapped
-  ramp, flagged not nerfed; sword mandatory-by-structure; CDR bottom-third)
-  + standing feel items (B, E, F, H). Expect voice-dictated orders.
-- ⚠ STRATEGIES.md's 25-row table + BALANCE's mixed/ladder tables predate the
-  regen removal AND the 17.2/18 reworks — re-run before quoting them.
+- **ROUND19 built overnight 2026-08-09** (Remi's pre-sleep dictation, via
+  sequential subagents): Malady 🦠 replaces venom (contagion), Anger 🔴
+  replaces momentum (mark hunt), mosquito normal-balls-with-tax, gale uniform
+  flat gust, Nova 🧨 (PLACEHOLDER name), Swap/Blink retunes, vanish reveals on
+  cast, tangible walls, ping everywhere, shop key rebinding. Story +
+  garble-flag list: REMI_NOTES.md; numbers: BALANCE.md §Round 19. Browser
+  hosting (docs/BRIEF-browser-hosting.md) on a worktree branch, see notes.
+- **ROUND17-18 shipped and pushed 2026-08-08** (NO PASSIVE REGEN, 17.2 batch,
+  portals/spawn-shuffle/ping; J and G CLOSED) —
+  `docs/history/2026-08-08-round17-battery.md`.
+- **Waiting on Remi — questions K/L/M in BALANCE.md** (uncapped ramps read
+  ~100% on bot mirrors — anger inherits momentum's question K shape; sword
+  mandatory-by-structure; CDR bottom-third) + feel items (B, E, F, H).
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-19 (build keys were
+  repointed venom→malady, momentum→anger) — re-run before quoting it.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -85,7 +86,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/index.js` | authoritative server, 30 Hz, JSONL journal, `/health`, ws heartbeat reaper, lobby kick/ban, draft offers |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 245 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 274 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -99,7 +100,7 @@ build step, Node ESM, only dep is `ws`.
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
 | `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive — read on demand only)** |
 
-## Game rules snapshot (post-round-18, one line each — details in constants.js and BALANCE.md)
+## Game rules snapshot (post-round-19, one line each — details in constants.js and BALANCE.md)
 
 - First to **15 kills**, 25-round cap; countdown → battle → roundEnd → shop.
   Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
@@ -118,25 +119,30 @@ build step, Node ESM, only dep is `ws`.
   closed).
 - **Fireball locked at lv1 in elemental** (default ruleset) — 11 elements are
   its progression, all private-stacked riders: ember=damage, terra=size,
-  gale=push (lv3 gust), arcane=haste [18,32] + lv3 kit refund (NEVER its own
-  fireball — 66-74% feedback loop, twice measured), ghost=speed (lv3 pierce),
-  venom=refresh-only DoT (lethal tick takes the kill), frost=stacks-to-CC,
-  momentum=banked points +3 dmg/50 uncapped (17.2), mosquito=ON-HIT AMP
-  (arming sting applies riders, 3 procs per armed+cashed pair, levels =
-  fireball haste — round 18), vampire=every-5th engorged heal, midas.
-  Classic keeps the 3-level fireball.
+  gale=push + flat gust every 3rd stack from LV1 (round 19), arcane=haste
+  [18,32] + lv3 kit refund (NEVER its own fireball — 66-74% feedback loop,
+  twice measured), ghost=speed (lv3 pierce), malady=ex-venom two-hit CONTAGION
+  (1 dmg/tick, spreading aura, once-per-instance immunity, creator can catch
+  it back; lethal tick credits creator/spreader), frost=stacks-to-CC,
+  anger=ex-momentum MARK HUNT (red mark on a random enemy every [10,7,5] s,
+  claim = +0.5 fireball dmg forever), mosquito=NORMAL balls taxed ×[.5,.75,1]
+  dmg+kb, trap arm/cash fires 2 extra balls (4 rider procs per pair),
+  vampire=every-5th engorged heal, midas. Classic keeps the 3-level fireball.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
 - **Items: 3 levels**, cumulative `ITEM_FX` totals. Sword is mandatory by
   structure (question L). Cape is pilot-sign-flipping — never buff it off
   Hard-bot tables.
-- **Spells** (round 17): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
-  ignores pillars/walls; delay+radius NEVER level); hook → **Swap** (full
-  position+velocity trade, 1 dmg stamps lava credit); Teleport is named
-  **Blink**; pillars are unlimited per caster; vanish 1/2/3 s at flat 10 g;
-  ground-targeted spells have INFINITE range (bots use `BOLT_ENGAGE`-style
-  caps instead); ex-"power" spells sit in the normal shop at 12-14 g but
-  `tier: 'power'` REMAINS as the bot guard + draft filter.
+- **Spells** (round 19): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
+  ignores pillars/walls; delay+radius NEVER level); **Swap** 3 levels 10 g,
+  speed 50, range [40,55,70], cd −1 s/lv, 1 dmg stamps lava credit; **Blink**
+  [8,6] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
+  artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
+  pillars unlimited; vanish 1/2/3 s at 10 g — ANY cast while invisible
+  REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
+  mid-charge); Mirror Walls BLOCK BODIES (round 19); infinite ground-target
+  range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
+  REBINDABLE from the shop chips (owKeys localStorage).
 - **Vanish**: position stripped in `snapshot()` AND masked from bot perception
   (`BOT_MEMORY`) — both load-bearing, test-locked.
 - **Credit rules**: DoT never stamps last-hitter; a lethal poison tick DOES
@@ -174,7 +180,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 245 green
+npx vitest run                                   # 274 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
