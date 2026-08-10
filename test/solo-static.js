@@ -74,6 +74,22 @@ try {
   await page.waitForSelector('#lobby:not(.hidden)', { timeout: 5000 });
   console.log('joined the in-tab lobby');
 
+  const teamSel = '#playerList .teamsel select';
+  await page.focus(teamSel);
+  await page.evaluate((s) => { document.querySelector(s).dataset.focusProbe = 'kept'; }, teamSel);
+  await sleep(300);
+  if (await page.getAttribute(teamSel, 'data-focus-probe') !== 'kept')
+    fail('team selector was rebuilt while open');
+  await page.selectOption(teamSel, '2');
+  await page.click('#testingBtn');
+  await page.waitForSelector('#testingGoldWrap:not(.hidden)', { timeout: 3000 });
+  await page.click('#ideaBtn');
+  await page.waitForSelector('#ideaOverlay:not(.hidden)', { timeout: 3000 });
+  await page.click('#ideaCloseBtn');
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-lobby.png') });
+  await page.click('#testingBtn');
+  await page.waitForSelector('#testingGoldWrap.hidden', { state: 'attached', timeout: 3000 });
+
   await page.click('#addBot-berserker');
   await page.click('#readyBtn');
   await page.waitForFunction(() => window.__phase === 'battle', { timeout: 20000 });

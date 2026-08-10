@@ -625,15 +625,19 @@ let hostCode = null;
 function showHostbar(code) {
   hostCode = code;
   $('hostCode').textContent = code;
+  $('lobbyInviteUrl').textContent = inviteLink(code);
   $('hostbar').classList.remove('hidden');
-  toast(`room ${code} is open — send friends the invite link`);
+  $('lobbyHost').classList.remove('hidden');
+  toast('your online room is open — send friends the invite link');
 }
-$('copyLinkBtn').addEventListener('click', async () => {
+async function copyInviteLink() {
   if (!hostCode) return;
   const link = inviteLink(hostCode);
   try { await navigator.clipboard.writeText(link); toast('invite link copied — send it to your friends'); }
   catch { prompt('Copy this invite link:', link); } // clipboard needs https/localhost
-});
+}
+$('copyLinkBtn').addEventListener('click', copyInviteLink);
+$('copyLobbyLinkBtn').addEventListener('click', copyInviteLink);
 // the host tab has no filesystem, so the journal lives in memory (capped) and
 // leaves through this button — do not lose the debugging story silently (§B5)
 $('hostLogBtn').addEventListener('click', () => {
@@ -706,6 +710,11 @@ $('statsBtn').addEventListener('click', async () => {
   } catch { el.textContent = 'stats unreachable (relay asleep or offline)'; }
 });
 $('statsOverlay').addEventListener('click', () => $('statsOverlay').classList.add('hidden'));
+$('ideaBtn').addEventListener('click', () => $('ideaOverlay').classList.remove('hidden'));
+$('ideaCloseBtn').addEventListener('click', () => $('ideaOverlay').classList.add('hidden'));
+$('ideaOverlay').addEventListener('click', (e) => {
+  if (e.target === $('ideaOverlay')) $('ideaOverlay').classList.add('hidden');
+});
 // Update watcher (Remi: "do I have to wait 12 minutes?"): GitHub Pages caches
 // for 10 min, but a unique query string bypasses the CDN — so we can KNOW a
 // newer build exists even while we're still serving the old one. Check every
@@ -910,7 +919,7 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
     b.className = 'botadd';
     b.id = `addBot-${kind}`;
     b.title = spec.desc;
-    b.innerHTML = `+ ${esc(spec.name)} <span class="stars">${esc(botLabel(kind))}</span>`;
+    b.textContent = `+ ${botLabel(kind)}`;
     const sel = document.createElement('select');
     sel.className = 'botsel';
     sel.id = `botBuild-${kind}`;
@@ -1778,59 +1787,68 @@ function updateUi(s) {
   // round 20.4 (Remi: "the banner to invite should not be present in game as it
   // takes space away"): the host banner is a LOBBY thing — friends only join
   // there, and the copy-link button comes back with it. Revert = drop this line.
-  if (hostCode) setVisible('hostbar', s.phase === 'lobby');
+  if (hostCode) {
+    setVisible('hostbar', s.phase === 'lobby');
+    setVisible('lobbyHost', s.phase === 'lobby');
+  }
   phaseSounds(s);
   phaseMusic(s);
   updateCoopHud(s); // co-op campaign level card + status strip (no-op elsewhere)
 
   if (s.phase === 'lobby') {
     const list = $('playerList');
-    list.innerHTML = '';
-    for (const p of playerList) {
-      const div = document.createElement('div');
-      div.className = 'pl';
-      div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
-        <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
-      // Team number (round 21.3). You set your OWN — plus the bots', so one
-      // person can arrange a 2v2 without everybody clicking. Other humans show
-      // a read-only chip: their side is theirs to pick.
-      if (s.mode !== 'coop') {
-        if (p.id === myId || p.bot) {
-          const wrap = document.createElement('span');
-          wrap.className = 'teamsel';
-          wrap.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
-          const sel = document.createElement('select');
-          for (let n = 1; n <= TEAMS.MAX; n++) {
-            const o = document.createElement('option');
-            o.value = String(n); o.textContent = String(n);
-            sel.appendChild(o);
+    // Replacing a focused native select closes its menu. Leave the list alone
+    // until the player has picked a team, then the next snapshot refreshes it.
+    if (!(document.activeElement && document.activeElement.matches('#playerList .teamsel select'))) {
+      list.innerHTML = '';
+      for (const p of playerList) {
+        const div = document.createElement('div');
+        div.className = 'pl';
+        div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
+          <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
+          <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
+        // Team number (round 21.3). You set your OWN — plus the bots', so one
+        // person can arrange a 2v2 without everybody clicking. Other humans show
+        // a read-only chip: their side is theirs to pick.
+        if (s.mode !== 'coop') {
+          if (p.id === myId || p.bot) {
+            const wrap = document.createElement('span');
+            wrap.className = 'teamsel';
+            wrap.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
+            const sel = document.createElement('select');
+            for (let n = 1; n <= TEAMS.MAX; n++) {
+              const o = document.createElement('option');
+              o.value = String(n); o.textContent = String(n);
+              sel.appendChild(o);
+            }
+            sel.value = String(p.team || 1);
+            sel.style.color = teamTint(p.team);
+            sel.addEventListener('change', () => {
+              send({ t: 'team', n: +sel.value, ...(p.bot ? { id: p.id } : {}) });
+              sel.blur();
+            });
+            wrap.append('team', sel);
+            div.appendChild(wrap);
+          } else {
+            const chip = document.createElement('span');
+            chip.className = 'teamchip';
+            chip.innerHTML = `team ${teamNum(p.team)}`;
+            div.appendChild(chip);
           }
-          sel.value = String(p.team || 1);
-          sel.style.color = teamTint(p.team);
-          sel.addEventListener('change', () =>
-            send({ t: 'team', n: +sel.value, ...(p.bot ? { id: p.id } : {}) }));
-          wrap.append('team', sel);
-          div.appendChild(wrap);
-        } else {
-          const chip = document.createElement('span');
-          chip.className = 'teamchip';
-          chip.innerHTML = `team ${teamNum(p.team)}`;
-          div.appendChild(chip);
         }
+        // ban button on other humans: clears ghost seats AND keeps them out
+        // (name+ip blocked until the server restarts or someone unbans)
+        if (!p.bot && p.id !== myId) {
+          const kb = document.createElement('button');
+          kb.type = 'button';
+          kb.className = 'mini kick';
+          kb.title = `Ban ${p.name} from this lobby (until server restart / unban)`;
+          kb.textContent = '✕';
+          kb.addEventListener('click', () => send({ t: 'kick', id: p.id, ban: true }));
+          div.appendChild(kb);
+        }
+        list.appendChild(div);
       }
-      // ban button on other humans: clears ghost seats AND keeps them out
-      // (name+ip blocked until the server restarts or someone unbans)
-      if (!p.bot && p.id !== myId) {
-        const kb = document.createElement('button');
-        kb.type = 'button';
-        kb.className = 'mini kick';
-        kb.title = `Ban ${p.name} from this lobby (until server restart / unban)`;
-        kb.textContent = '✕';
-        kb.addEventListener('click', () => send({ t: 'kick', id: p.id, ban: true }));
-        div.appendChild(kb);
-      }
-      list.appendChild(div);
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
@@ -1858,7 +1876,7 @@ function updateUi(s) {
     testBtn.textContent = testOn ? 'Testing: 🧪 on' : 'Testing: off';
     testBtn.classList.toggle('elemental', testOn);
     testBtn.setAttribute('aria-pressed', testOn ? 'true' : 'false');
-    testGold.style.display = testOn ? '' : 'none';
+    $('testingGoldWrap').classList.toggle('hidden', !testOn);
     if (testOn && document.activeElement !== testGold)
       testGold.value = s.testing.gold;
     // a button that lifts bans is noise until a ban exists (Remi: "I didn't
