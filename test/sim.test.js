@@ -6373,3 +6373,261 @@ describe('Coal Brazier 🪔 (the passive damage aura, round 21.5)', () => {
     expect(snapshot(state, 'p1').players.p0.items.brazier).toBe(spec.maxLevel);
   });
 });
+
+// ---- Decoy 👥 (round 21.6) --------------------------------------------------
+// A pure MIRAGE: `clones` copies of you that live SPELLS.decoy.duration s, wander,
+// and mime every cast you make. Nothing they do has any gameplay effect — the
+// whole point of this block is proving the "no effect" half, so it leans on
+// negatives (nothing damaged, no counter advanced, no roster entry).
+describe('decoy 👥 (the mirage)', () => {
+  const spec = SPELLS.decoy;
+
+  // clean floor, players parked, p0 owning Decoy at `level`
+  function decoyBattle(n = 2, mode = 'classic', level = 1) {
+    const state = mode === 'elemental'
+      ? (() => {
+        const s = createGame({ seed: 42, mode: 'elemental' });
+        for (let i = 0; i < n; i++) addPlayer(s, `p${i}`, `Player${i}`);
+        startGame(s);
+        run(s, ROUND.COUNTDOWN + DT);
+        return s;
+      })()
+      : freshBattle(n);
+    state.pillars = [];
+    for (let i = 0; i < n; i++) {
+      const p = state.players[`p${i}`];
+      p.x = i * 8; p.y = 0; p.vx = 0; p.vy = 0; p.moveTarget = null; p.cooldowns = {};
+    }
+    state.players.p0.spells.decoy = level;
+    return state;
+  }
+
+  it('prices and shape come from the spec: lv2 buys the SECOND clone, cd is flat', () => {
+    expect(spec.maxLevel).toBe(2);
+    expect(spec.clones).toEqual([1, 2]);
+    // the upgrade is the extra body, so the cooldown deliberately never levels
+    expect(Array.isArray(spec.cooldown)).toBe(false);
+    expect(spec.tier).toBe('power');   // bots cannot pilot a bluff
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    const a = state.players.p0;
+    a.gold = 999;
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const g0 = a.gold;
+      expect(buy(state, 'p0', 'decoy').ok).toBe(true);
+      expect(a.spells.decoy).toBe(level);
+      expect(g0 - a.gold).toBe(spec.costs[level - 1]);
+    }
+    expect(buy(state, 'p0', 'decoy').ok).toBeFalsy();
+    expect(catalogue('classic').some(e => e.key === 'decoy')).toBe(true);
+  });
+
+  it('spawns `clones[level]` mirages at the caster, wearing their hp at spawn', () => {
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const state = decoyBattle(2, 'classic', level);
+      const a = state.players.p0;
+      a.hp = 73;
+      expect(castSpell(state, 'p0', 'decoy', a.x + 5, a.y)).toBe(true);
+      expect(state.clones.length).toBe(spec.clones[level - 1]);
+      for (const c of state.clones) {
+        expect(c.owner).toBe('p0');
+        expect(c.x).toBeCloseTo(a.x, 5);
+        expect(c.y).toBeCloseTo(a.y, 5);
+        expect(c.hp).toBe(73);
+        expect(c.maxHp).toBe(a.maxHp);
+      }
+      // ...and that hp is STATIC (my ruling): hurting the caster never moves it
+      a.hp = 12;
+      run(state, 1);
+      expect(state.clones.every(c => c.hp === 73)).toBe(true);
+    }
+  });
+
+  it('lives exactly `duration` seconds, then is gone', () => {
+    const state = decoyBattle();
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    run(state, spec.duration - 0.2);
+    expect(state.clones.length).toBe(1);
+    run(state, 0.4);
+    expect(state.clones.length).toBe(0);
+  });
+
+  it('dies with its caster, and never outlives the round', () => {
+    const state = decoyBattle();
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    expect(state.clones.length).toBe(1);
+    state.players.p0.hp = 1;
+    step(state, DT);
+    // killed by anything at all: the mirages go on the same frame
+    const before = state.clones.length;
+    expect(before).toBe(1);
+    state.players.p0.hp = 0.5;
+    castSpell(state, 'p1', 'fireball', state.players.p0.x, state.players.p0.y);
+    run(state, 1.5);
+    expect(state.players.p0.alive).toBe(false);
+    expect(state.clones.length).toBe(0);
+    // and a round boundary wipes them even if nobody died
+    const s2 = decoyBattle();
+    castSpell(s2, 'p0', 'decoy', 5, 0);
+    s2.players.p1.alive = false;   // last survivor standing ends the round
+    run(s2, 0.2);
+    expect(s2.phase).not.toBe('battle');
+    expect(s2.clones.length).toBe(0);
+  });
+
+  it('EVERYTHING passes through a clone: the ball behind it still lands', () => {
+    const state = decoyBattle(3);
+    const [a, b, c] = ['p0', 'p1', 'p2'].map(k => state.players[k]);
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    // one mirage parked squarely between the shooter and its victim
+    state.clones[0].x = 10; state.clones[0].y = 0; state.clones[0].pickT = 99;
+    b.x = 0; b.y = 0;                       // shooter
+    a.x = 0; a.y = 40;                      // the caster stands well out of it
+    c.x = 20; c.y = 0;                      // the victim, behind the mirage
+    const hp0 = c.hp;
+    castSpell(state, 'p1', 'fireball', 40, 0);
+    run(state, 1.2);
+    expect(c.hp).toBeLessThan(hp0);         // the ball flew straight through
+    expect(state.clones.length).toBe(1);    // …and the mirage is untouched
+    expect(state.clones[0].hp).toBe(Math.ceil(a.maxHp));
+  });
+
+  it('a clone is not a player: no roster entry, no fighter, no lava, no damage', () => {
+    const state = decoyBattle();
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    // not in state.players => no bot brain, no scoreboard, no round-end law
+    expect(Object.keys(state.players)).toEqual(['p0', 'p1']);
+    const cloneHp = state.clones[0].hp;
+    // shrink the arena to nothing: a real body would be swimming and burning
+    state.arenaRadius = 1;
+    run(state, 1);
+    expect(state.clones.length).toBe(1);
+    expect(state.clones[0].hp).toBe(cloneHp);
+    // and the wander target is clamped INSIDE the ring, so it never surfaces
+    // in the lava to out itself (my ruling)
+    for (let i = 0; i < 60; i++) {
+      step(state, DT);
+      if (!state.clones.length) break;
+      expect(Math.hypot(state.clones[0].x, state.clones[0].y))
+        .toBeLessThanOrEqual(state.arenaRadius + 0.001);
+    }
+    expect(a.alive).toBe(true);
+  });
+
+  it('mimes the caster\'s casts with phantom balls that hit nothing', () => {
+    const state = decoyBattle(2, 'elemental');
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    // park the mirage on its own lane, 20 units north, and the victim in front
+    state.clones[0].x = 0; state.clones[0].y = 20; state.clones[0].pickT = 99;
+    a.x = 0; a.y = 0;
+    b.x = 12; b.y = 20;                     // ONLY the phantom's lane
+    const hp0 = b.hp;
+    expect(castSpell(state, 'p0', 'fireball', 40, 0)).toBe(true);
+    expect(state.phantoms.length).toBe(1);
+    expect(state.projectiles.length).toBe(1);   // the real ball, and only it
+    run(state, 1.2);
+    expect(b.hp).toBe(hp0);                 // flew straight through the victim
+    expect(b.poisonT || 0).toBe(0);
+    expect(b.stacks && Object.keys(b.stacks.frost || {}).length).toBeFalsy();
+    // the phantom is culled by the same rule as a real fireball (a fireball's
+    // range is Infinity, so the world cull at 2× startRadius is the one)
+    run(state, (state.startRadius * 2) / SPELLS.fireball.speed + 1);
+    expect(state.phantoms.length).toBe(0);
+  });
+
+  it('a phantom cast arms NOTHING: no vampire, echo, anger or malady counter', () => {
+    const state = decoyBattle(2, 'elemental', 2);
+    const a = state.players.p0;
+    a.elements = { vampire: 1, mosquito: 1, anger: 1, malady: 1, midas: 1 };
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    expect(state.clones.length).toBe(2);
+    const v0 = a.vampN || 0, m0 = a.mosqN || 0;
+    expect(castSpell(state, 'p0', 'fireball', 40, 0)).toBe(true);
+    // ONE keypress = ONE tick of every every-Nth counter, whatever the mirages
+    // are doing on screen (two phantom balls flew)
+    expect(a.vampN - v0).toBe(1);
+    expect(a.mosqN - m0).toBe(1);
+    expect(state.phantoms.length).toBe(2);
+    // …and the phantoms are not projectiles, so nothing downstream can see them
+    expect(state.projectiles.every(p => p.owner === 'p0')).toBe(true);
+  });
+
+  it('mimes Echo\'s trailing twin as well, and it too hits nothing', () => {
+    const state = decoyBattle(2, 'elemental');
+    const a = state.players.p0, b = state.players.p1;
+    a.elements = { mosquito: 1 };
+    a.mosqN = ELEMENTS.mosquito.fx.doubleEvery[0] - 1;   // the next cast pairs
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    state.clones[0].x = 0; state.clones[0].y = 20; state.clones[0].pickT = 99;
+    a.x = 0; a.y = 0;
+    b.x = 12; b.y = 20;                     // only the mirage's lane
+    const hp0 = b.hp;
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    expect(state.phantoms.length).toBe(1);  // the lead
+    run(state, ELEMENTS.mosquito.fx.trailDelay + DT);
+    expect(state.phantoms.length).toBe(2);  // …and the twin, a beat later
+    run(state, 1.2);
+    expect(b.hp).toBe(hp0);
+  });
+
+  it('tags its mimed cast events so the harness cooldown invariant skips them', () => {
+    const state = decoyBattle();
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    const casts = state.events.filter(e => e.t === 'cast');
+    expect(casts.length).toBe(2);
+    expect(casts.filter(e => !e.phantom).map(e => e.id)).toEqual(['p0']);
+    const mime = casts.find(e => e.phantom);
+    expect(mime.id).toBe(state.clones[0].id);   // anchored on the CLONE
+    expect(mime.spell).toBe('fireball');
+  });
+
+  it('casting Decoy while invisible REVEALS you (the any-cast rule)', () => {
+    const state = decoyBattle();
+    const a = state.players.p0;
+    a.spells.vanish = 1;
+    expect(castSpell(state, 'p0', 'vanish', a.x, a.y)).toBe(true);
+    expect(a.vanishT).toBeGreaterThan(0);
+    expect(castSpell(state, 'p0', 'decoy', 5, 0)).toBe(true);
+    expect(a.vanishT).toBe(0);
+    expect(state.clones.length).toBe(1);
+  });
+
+  it('rides the wire in its own list — never in players, never a tell', () => {
+    const state = decoyBattle(2, 'classic', 2);
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'decoy', 5, 0);
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    const snap = snapshot(state, 'p1');
+    expect(snap.clones.length).toBe(2);
+    expect(Object.keys(snap.players)).toEqual(['p0', 'p1']);
+    for (const c of snap.clones) {
+      expect(c.owner).toBe('p0');
+      expect(snap.players[c.owner]).toBeTruthy();  // the client copies the look
+      expect(Number.isFinite(c.x) && Number.isFinite(c.y)).toBe(true);
+      expect(c.hp).toBe(Math.ceil(a.hp));
+    }
+    // the phantom balls travel INSIDE the ordinary projectile list, with no
+    // marker of their own: on the wire a mime looks like any other fireball
+    expect(snap.projectiles.length).toBe(3);
+    expect(snap.projectiles.some(p => p.phantom)).toBe(false);
+    expect(snap.projectiles.filter(p => p.owner !== 'p0').length).toBe(2);
+    // nobody has one out => the field is absent entirely (classic stays as it was)
+    expect(snapshot(freshBattle(2), 'p1').clones).toBeUndefined();
+  });
+
+  it('the invariant checker counts a mimed cast against nobody', async () => {
+    const { checkJournal } = await import('./harness/check.js');
+    const ev = (ms, id, extra = {}) => JSON.stringify({
+      k: 'event', ms, tick: ms, e: { t: 'cast', id, spell: 'boomerang', ...extra },
+    });
+    // two REAL casts inside one cooldown is a violation…
+    expect(checkJournal([ev(0, 'p0'), ev(200, 'p0')]).length).toBe(1);
+    // …the same pair from a mirage is not a cast at all
+    expect(checkJournal([ev(0, 'c1', { phantom: true }), ev(200, 'c1', { phantom: true })]))
+      .toEqual([]);
+  });
+});

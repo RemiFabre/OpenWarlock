@@ -101,10 +101,13 @@ export function checkJournal(lines) {
         if (ev.t === 'round') {
           // round event fires at countdown start; digest will re-sync alive set
         }
-        if (ev.t === 'cast' && !ev.trail) {
+        if (ev.t === 'cast' && !ev.trail && !ev.phantom) {
           // `trail` = mosquito's second ball (round 20.1): a real fireball, but
           // nobody pressed a key and no cooldown was paid, so it is not a cast
           // for the cooldown invariant. The tolerance below stays as it is.
+          // `phantom` = a Decoy clone miming its caster (round 21.6): the event
+          // is anchored on the CLONE and produces nothing but pixels — no
+          // cooldown, no projectile that can hit, no counter.
           const key = `${ev.id}/${ev.spell}`;
           const spec = SPELLS[ev.spell];
           if (spec) {

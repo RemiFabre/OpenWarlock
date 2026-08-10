@@ -61,6 +61,11 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     players: {},
     projectiles: [],
     delayedShots: [],      // mosquito: trailing balls waiting to fire (elemental)
+    // Decoy (round 21.6, SPELLS.decoy): pure cosmetics, kept OUT of `players`
+    // and OUT of `projectiles` on purpose — nothing that resolves damage,
+    // targeting or scoring can reach them, which is the whole safety argument.
+    clones: [],            // mirages: {id, owner, x, y, vx, vy, hp, maxHp, r, speed, left, ...}
+    phantoms: [],          // the balls those mirages "throw": motion + culling only
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     novas: [],             // nova bombs: {id,x,y,tx,ty,t,owner,level} — t null while flying
@@ -527,7 +532,18 @@ export function castSpell(state, id, key, tx, ty) {
   // Round 18.1 (Remi): a cast REVEALS an invisible caster — re-casting vanish
   // refreshes instead (its case below). The auto repulse burst in stepBattle
   // is a charge completing, NOT a cast: it never reveals.
+  // ⚠ Decoy is an ordinary cast here, so casting it while invisible reveals you
+  // (test-locked) — the clones are the only thing left standing.
   if (pl.vanishT > 0 && key !== 'vanish') pl.vanishT = 0;
+
+  // Decoy (round 21.6): the clones that MIME this cast are the ones standing
+  // BEFORE it resolves, so a Decoy cast is never mimed by the clones it just
+  // spawned; and `projFrom` lets mimicCast copy whatever projectiles this cast
+  // happens to create (fireball, its mosquito lead, boomerang, swap) without
+  // knowing a thing about which spell made them.
+  const miming = state.clones && state.clones.length
+    ? state.clones.filter(c => c.owner === id) : null;
+  const projFrom = state.projectiles.length;
 
   switch (key) {
     case 'fireball': {
@@ -699,9 +715,129 @@ export function castSpell(state, id, key, tx, ty) {
       state.events.push({ t: 'wallUp', x: cx, y: cy });
       break;
     }
+    case 'decoy': {
+      // Re-casting REPLACES your mirages rather than stacking them (the
+      // cooldown is 3× the lifetime, so this only ever matters in the sandbox).
+      spawnClones(state, pl, level);
+      break;
+    }
   }
+  if (miming && miming.length)
+    mimicCast(state, pl, miming, key, dx, dy, state.projectiles.slice(projFrom));
   state.events.push({ t: 'cast', id, spell: key, x: pl.x, y: pl.y, dx, dy });
   return true;
+}
+
+// ---- Decoy: the mirage (SPELLS.decoy, round 21.6) -------------------------
+// A clone is COSMETIC ONLY. It has no body, no collision, no team interaction
+// and no counters: enemy and friendly projectiles, repulse, zones, terra smash,
+// portals and lava all ignore it, and it ignores them back. It expires on its
+// own timer, when its caster dies, or at the round boundary — whichever first.
+//
+// ⚠ RULINGS (mine, round 21.6 — Remi's to veto, each is one line):
+//  - HP shown is the caster's hp AT SPAWN and never changes. The tell is real
+//    and deliberate: shoot the crowd and only the true body's bar moves.
+//  - The wander target is clamped INSIDE the safe ring, so a clone never walks
+//    into the lava (it would take no damage there and out itself instantly).
+//  - Appearance is the caster's LIVE look (colour, avatar, team, items — the
+//    client copies it every frame); only hp and the body radius are frozen.
+function spawnClones(state, pl, level) {
+  const spec = SPELLS.decoy;
+  state.clones = (state.clones || []).filter(c => c.owner !== pl.id);
+  const n = lvl(spec, 'clones', level);
+  for (let i = 0; i < n; i++) {
+    state.clones.push({
+      id: `${pl.id}~d${state.nextId++}`, owner: pl.id,
+      x: pl.x, y: pl.y, vx: 0, vy: 0,
+      hp: Math.max(1, Math.ceil(pl.hp)), maxHp: pl.maxHp, r: pl.radius,
+      speed: stats(pl).speed, left: spec.duration, pickT: 0, tx: pl.x, ty: pl.y,
+    });
+  }
+  state.events.push({ t: 'decoyUp', id: pl.id, x: pl.x, y: pl.y, n });
+}
+
+// Mirror one cast onto every clone: the same `cast` event (so the client's
+// existing flash/sound path fires at the clone) plus a PHANTOM copy of every
+// projectile the real cast produced, offset to the clone's position.
+// ⚠ `phantom: true` is the harness tag — test/harness/check.js must not count
+// these against the caster's cooldown, exactly like mosquito's `trail: true`.
+// Nothing here calls spawnFireball/vampireCharge/mosquitoPair, so no real
+// counter (vampire, mosquito, anger, malady, midas) can ever advance on a mime.
+function mimicCast(state, pl, clones, key, dx, dy, spawned) {
+  if (!state.phantoms) state.phantoms = [];
+  for (const c of clones) {
+    state.events.push({ t: 'cast', id: c.id, spell: key, x: c.x, y: c.y, dx, dy, phantom: true });
+    for (const pr of spawned) {
+      state.phantoms.push({
+        id: state.nextId++, type: pr.type, owner: c.id, level: pr.level,
+        x: c.x + (pr.x - pl.x), y: c.y + (pr.y - pl.y),
+        vx: pr.vx, vy: pr.vy, traveled: 0,
+        ...(pr.radius != null ? { radius: pr.radius } : {}),
+        ...(pr.elements ? { elements: pr.elements } : {}),
+        ...(pr.engorged ? { engorged: pr.engorged } : {}),
+      });
+    }
+  }
+}
+
+// Wander + expiry. Movement is the player's own: walk toward a target at the
+// caster's move speed, no friction games, no knockback — it just has to read as
+// a warlock kiting, so the target is re-picked every 0.5-1 s a short hop away.
+function stepClones(state, dt) {
+  if (!state.clones) state.clones = [];
+  if (!state.phantoms) state.phantoms = [];
+  if (state.clones.length) {
+    const keep = [];
+    for (const c of state.clones) {
+      const owner = state.players[c.owner];
+      c.left -= dt;
+      if (c.left <= 0 || !owner || !owner.alive) {
+        state.events.push({ t: 'decoyGone', id: c.id, x: c.x, y: c.y });
+        continue;
+      }
+      c.pickT -= dt;
+      if (c.pickT <= 0 || Math.hypot(c.tx - c.x, c.ty - c.y) < 0.4) {
+        c.pickT = 0.5 + rng(state) * 0.5;
+        const a = rng(state) * Math.PI * 2;
+        const hop = 3 + rng(state) * 6;
+        // ...and the drift bias: keep the previous heading half-weighted, so a
+        // clone crosses the ground like someone with a plan instead of jittering
+        const bx = c.tx - c.x, by = c.ty - c.y;
+        const bn = Math.hypot(bx, by) || 1;
+        let tx = c.x + (Math.cos(a) + (bx / bn) * 0.5) * hop;
+        let ty = c.y + (Math.sin(a) + (by / bn) * 0.5) * hop;
+        // clamp INSIDE the safe ring (see the ruling above)
+        const safe = Math.max(0, state.arenaRadius - c.r * 2);
+        const d = Math.hypot(tx, ty);
+        if (d > safe) { tx = tx / d * safe; ty = ty / d * safe; }
+        c.tx = tx; c.ty = ty;
+      }
+      const dx = c.tx - c.x, dy = c.ty - c.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1e-6) {
+        const move = Math.min(c.speed * dt, d);
+        c.x += (dx / d) * move; c.y += (dy / d) * move;
+      }
+      keep.push(c);
+    }
+    state.clones = keep;
+  }
+  // Phantom balls: the real projectile step MINUS every interaction — motion,
+  // range expiry and the world cull, nothing else. They pass through bodies,
+  // pillars, walls, shields and each other because no code but this touches them.
+  if (state.phantoms.length) {
+    const keep = [];
+    for (const pr of state.phantoms) {
+      const spec = SPELLS[pr.type];
+      pr.x += pr.vx * dt; pr.y += pr.vy * dt;
+      pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
+      if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
+      if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
+      if (Math.hypot(pr.x, pr.y) > state.startRadius * 2) continue;
+      keep.push(pr);
+    }
+    state.phantoms = keep;
+  }
 }
 
 // Fireball factory shared by castSpell and the mosquito trailing shot. Spawns
@@ -1088,6 +1224,13 @@ function kill(state, target, directSourceId) {
   // a statue cannot be killed (applyDamage returns early), so this only ever
   // runs for a body that died some other way — keep the flag off a corpse
   target.statueT = 0;
+  // decoy: your mirages die with you, on the same frame (round 21.6) — a
+  // corpse with three copies still kiting would be a lie nobody paid for
+  if (state.clones && state.clones.length) {
+    for (const c of state.clones)
+      if (c.owner === target.id) state.events.push({ t: 'decoyGone', id: c.id, x: c.x, y: c.y });
+    state.clones = state.clones.filter(c => c.owner !== target.id);
+  }
   // credit: direct source, else last hitter within the window
   let killerId = directSourceId != null && directSourceId !== target.id ? directSourceId : null;
   if (killerId == null && target.lastHitBy &&
@@ -1192,6 +1335,8 @@ function startRound(state) {
   state.pillars = [...state.pillars.filter(p => p.placedBy), ...makePillars(state)];
   state.projectiles = [];
   state.delayedShots = [];
+  state.clones = [];       // decoy: no mirage outlives the round it was cast in
+  state.phantoms = [];
   state.hazards = [];
   state.meteors = [];
   state.novas = [];
@@ -1348,6 +1493,10 @@ function makePillars(state) {
 }
 
 function endRound(state) {
+  // decoy: the mirages die with the round they were cast in — otherwise they
+  // would stand frozen on the round-end screen (nothing steps them there)
+  state.clones = [];
+  state.phantoms = [];
   const coop = state.mode === 'coop' && !!state.coop;
   const alive = fighters(state).filter(p => p.alive);
   // co-op has no single survivor: the whole surviving party "wins" the round
@@ -1920,8 +2069,15 @@ function stepBattle(state, dt) {
       const owner = state.players[ds.owner];
       if (owner && owner.alive) {
         mosquitoPair(state, owner, true);
+        const projFrom = state.projectiles.length;
         spawnFireball(state, owner, ds.level, ds.dx, ds.dy,
           { engorged: vampireCharge(state, owner) });
+        // decoy (21.6): the mirages throw the twin too, or an Echo owner's
+        // pair would count the bodies for the enemy
+        const miming = (state.clones || []).filter(c => c.owner === owner.id);
+        if (miming.length)
+          mimicCast(state, owner, miming, 'fireball', ds.dx, ds.dy,
+            state.projectiles.slice(projFrom));
         // `trail: true` marks this as the pair's SECOND ball, not a keypress.
         // The client renders/sounds it exactly like any cast (it IS a fireball
         // leaving the muzzle); the harness's cooldown invariant skips it, since
@@ -1932,6 +2088,11 @@ function stepBattle(state, dt) {
     }
     state.delayedShots = rest;
   }
+
+  // Decoy's mirages and their phantom balls (round 21.6). Stepped AFTER the
+  // players and BEFORE the projectiles on purpose: they are cosmetics, and
+  // stepProjectiles must never see one — nothing here can hit anything.
+  stepClones(state, dt);
 
   stepProjectiles(state, dt);
 
@@ -2648,7 +2809,25 @@ export function snapshot(state, viewerId = null) {
       x1: round2(w.x1), y1: round2(w.y1), x2: round2(w.x2), y2: round2(w.y2), owner: w.owner,
     })),
     players,
-    projectiles: state.projectiles.map(p => ({
+    // Decoy (round 21.6): the mirages ride in their OWN list, never in
+    // `players` — the scoreboard, the kill feed, the team HUD and the ranking
+    // all read `players`, so a clone can never reach any of them. The client
+    // rebuilds a player-shaped copy from `owner`'s entry at draw time, which is
+    // what makes a clone identical to its caster for free (name, colour,
+    // avatar, team ring, item auras). Absent when nobody has one out.
+    // ⚠ Known limit: devtools can tell a clone from a body (the vanish scar
+    // says client-side hiding is not enough). Accepted — Decoy is a bluff
+    // against a player's eyes, not an information-theoretic disguise.
+    ...(state.clones && state.clones.length ? {
+      clones: state.clones.map(c => ({
+        id: c.id, owner: c.owner, x: round2(c.x), y: round2(c.y),
+        hp: Math.ceil(c.hp), maxHp: c.maxHp, r: round2(c.r),
+      })),
+    } : {}),
+    // phantom balls are merged into the REAL projectile list and carry no tell
+    // of their own: on the wire a mime is a fireball like any other (its
+    // `owner` is a clone id, which only the swap tether ever looks up).
+    projectiles: [...state.projectiles, ...(state.phantoms || [])].map(p => ({
       id: p.id, type: p.type, x: round2(p.x), y: round2(p.y),
       vx: round2(p.vx), vy: round2(p.vy), owner: p.owner,
       ...(p.elements ? { elements: p.elements } : {}),

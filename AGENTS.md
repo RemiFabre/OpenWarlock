@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.5). Read this first, then
+*Last updated 2026-08-10 (round 21.6). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -137,6 +137,23 @@ Agent context usage on this project is **CRITICAL**. The rules:
   malady CARRIER leaks nothing either (x/y is stripped, so the client cannot
   draw the contagion ring; every event rides the victim) — no fix needed,
   test-locked both ways.
+- **ROUND 21.6 SHIPPED** — **new spell: Decoy 👥** ([10,5], `tier: 'power'`,
+  hotkey qwerty `z` / azerty `w`): lv1 one clone, lv2 two, alive 5 s. A clone is
+  a PURE MIRAGE — it lives in `state.clones` (never `state.players`) and its
+  mimed balls in `state.phantoms` (never `state.projectiles`), which is the whole
+  safety argument: nothing that resolves damage, targeting, scoring or bot
+  perception can reach one. `mimicCast()` copies whatever projectiles a real cast
+  produced (fireball + its mosquito lead/twin, boomerang, swap) onto each clone
+  and pushes a `cast` event tagged **`phantom: true`** — the harness cooldown
+  invariant skips it exactly like mosquito's `trail: true`. On the wire: a
+  `clones` list (id/owner/x/y/hp/maxHp/r, absent when empty) that the CLIENT
+  turns into a player-shaped copy of the caster at draw time (identical by
+  construction: name, colour, avatar, team ring, shield bubble, item auras),
+  plus phantoms merged untagged into `projectiles`. ⚠ RULINGS: clone hp is the
+  caster's hp AT SPAWN and never moves (the honest tell); the wander target is
+  clamped inside the safe ring so a clone never surfaces in lava; expiry =
+  timer / caster's death / round boundary, whichever first. Bots ignore them
+  entirely and always will (BALANCE.md ⚠ O).
 - **Waiting on Remi**: whether an N-vs-1 team's target should be capped by the
   number of enemies alive (3v1 always hits the 25-round cap today); mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
@@ -188,7 +205,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 363 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 376 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -262,7 +279,9 @@ build step, Node ESM, only dep is `ws`.
   artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
   pillars unlimited; **Statue** 🗿 = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
-  duration FLAT); vanish 1/2/3 s at 10 g — ANY cast while invisible
+  duration FLAT); **Decoy** 👥 = 5 s mirages that ape your casts and have zero
+  gameplay effect ([10,5], lv2 = a second clone, cd flat, power tier);
+  vanish 1/2/3 s at 10 g — ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
   mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost — Remi reverted it); infinite ground-target
   range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
@@ -304,7 +323,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 363 green
+npx vitest run                                   # 376 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

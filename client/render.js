@@ -926,7 +926,11 @@ function drawRoundEndBanner(view, vs, players, myId) {
     // The game is decided on kills, not on who took the last round — and since
     // round 21.3 on TEAM kills against 15 x size, which is rankTeams()' order
     // (a lobby of solo teams ranks identically to the old per-player sort).
-    const fs = players.filter(p => p && !p.spectator);
+    // `!p.clone`: Decoy mirages are drawn from this same list (client/main.js
+    // builds them out of their caster's entry), and a mirage must never count
+    // as a body in the standings. The sim already clears them at round end —
+    // this is the belt-and-braces half.
+    const fs = players.filter(p => p && !p.spectator && !p.clone);
     const top = rankTeams(fs)[0];
     const champ = fs.slice().sort((a, b) =>
       (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0))

@@ -322,6 +322,24 @@ export const SPELLS = {
     cooldown: [18, 15], range: Infinity, length: [8, 11], duration: 5,
     desc: 'Raise a wall that reflects enemy projectiles back at them. Your own pass through.',
   },
+  decoy: {
+    // Round 21.6 (Remi, final design): a pure MIRAGE. On cast, `clones` copies
+    // of you appear where you stand and live `duration` s. They render exactly
+    // like you (body, name, HP bar, team ring — appearance copied at spawn),
+    // wander erratically at your move speed, and MIME every cast you make
+    // (phantom balls that collide with nothing). Nothing a clone does has any
+    // gameplay effect: everything passes through them, they cannot be targeted,
+    // damaged or killed, and they never touch a counter, a stack or a stat.
+    // ⚠ lv2 buys the SECOND clone, so the cooldown is flat (contrast Statue,
+    // where lv2 buys cd) — the upgrade is the lie getting harder to read.
+    // ⚠ tier 'power': bots cannot pilot a bluff, so the guard keeps them from
+    // buying it (they would measure it at the do-nothing floor). Fooling bots
+    // is explicitly out of scope (BALANCE.md).
+    name: 'Decoy', hotkey: 'Z', tier: 'power', maxLevel: 2, costs: [10, 5],
+    cooldown: 16, duration: 5, clones: [1, 2],
+    desc: 'A harmless double.',
+    long: 'Spawns 5-second mirages of you that wander and ape your casts; they deal nothing, and everything passes straight through them.',
+  },
   // Invisibility (round 12): no restrictions on purpose — levels buy DURATION only.
   // ⚠ Non-negotiable: strip it in snapshot() AND mask bot perception, or devtools
   // sees through it / the top bot tier becomes an aimbot (docs/ROUND12.md N4).

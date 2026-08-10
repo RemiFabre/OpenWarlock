@@ -29,6 +29,9 @@ const ICONS = {
   // Revert = swap the two back.
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🏛️', vanish: '👁️',
   statue: '🗿',
+  // Decoy (round 21.6): the two silhouettes — "there are more of me than there
+  // should be". 👯 is Echo's, 👤/👥 were both free.
+  decoy: '👥',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   // 🔥 belongs to the ember element, so the brazier carries the lamp
@@ -46,12 +49,14 @@ const ICONS = {
 const KEY_PRESETS = {
   // statue sits on the PHYSICAL key left of pillar's S in both layouts
   // (qwerty A = azerty Q), so "stone next to stone" holds either way.
+  // decoy sits on the PHYSICAL key left of repulse's X in both layouts
+  // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a' },
+            statue: 'a', decoy: 'z' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q' },
+            statue: 'q', decoy: 'w' },
 };
 
 function loadKeys() {
@@ -295,6 +300,11 @@ function onEvent(e) {
     // viewEvents drops it, and that stays the design.
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.4 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
+    // Decoy (round 21.6): one flash where the mirages step out of you, a
+    // quieter one where each expires. The clones themselves are drawn as
+    // ordinary players (see interpolated()), so these only punctuate.
+    case 'decoyUp': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('teleport'); break;
+    case 'decoyGone': fx.push({ ...e, type: 'teleport', at: now, dur: 0.3 }); break;
     // Statue (round 21.4): a short transform pop at each end of the freeze —
     // the body itself is drawn as a gold column for the whole duration
     // (render.js), these two just punctuate it. Glassy up, softer down.
@@ -431,6 +441,34 @@ function interpolated(now) {
     players.push(pa && pa.alive && pb.alive && fin(pb.x) && fin(pb.y)
       ? { ...pb, x: lerp(pa.x, pb.x, k), y: lerp(pa.y, pb.y, k) }
       : pb);
+  }
+  // Decoy (round 21.6): the mirages arrive in their own snapshot list and
+  // become player-shaped HERE and nowhere else — every HUD (scoreboard, kill
+  // feed, team banding, ranking) reads `s.players`, which never holds one.
+  // The look is COPIED LIVE off the caster's own entry, so a clone is identical
+  // by construction: colour, avatar, name, team ring, brazier aura, shield
+  // bubble, even the frost/malady rings. Only hp is frozen (server ruling) and
+  // the two OWN-body fields are dropped: `vanishT` would draw the caster's
+  // dashed countdown on a clone, `statueT` a gold column.
+  const aClones = Array.isArray(a.s && a.s.clones) ? a.s.clones : [];
+  const prevClone = new Map(aClones.map(c => [c && c.id, c]));
+  for (const cb of (Array.isArray(s.clones) ? s.clones : [])) {
+    if (!cb || typeof cb !== 'object' || !fin(cb.x) || !fin(cb.y)) continue;
+    const src = (s.players || {})[cb.owner];
+    if (!src) continue;
+    const ca = prevClone.get(cb.id);
+    // eslint-disable-next-line no-unused-vars
+    const { vanishT, statueT, draftOffer, ...look } = src;
+    players.push({
+      ...look, id: cb.id, clone: true,
+      x: ca ? lerp(ca.x, cb.x, k) : cb.x, y: ca ? lerp(ca.y, cb.y, k) : cb.y,
+      hp: cb.hp, maxHp: cb.maxHp, radius: cb.r,
+      // `charging`/`shieldT`/the stack pips are deliberately LEFT live: a
+      // mirage that shows your repulse wind-up and your shield bubble (and
+      // reflects nothing) is the whole point. `inLava` is forced off because a
+      // clone is clamped inside the safe ring and can never be swimming.
+      alive: true, inLava: false,
+    });
   }
   const projectiles = [];
   const aProj = Array.isArray(a.s && a.s.projectiles) ? a.s.projectiles : [];
@@ -935,6 +973,7 @@ const SPELL_FIELDS = {
   charge: ['charge time', fmtSec],
   delay: ['impact delay', fmtSec],
   length: ['wall length', fmtNum],
+  clones: ['copies of you', fmtNum],
 };
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
 // sim evaluates at resolution ({pad, min}) — spellTip prints the two readings a
@@ -1218,7 +1257,7 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 const SPELL_ROWS = [
   ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'nova', 'repulse']],
   ['Defense', ['teleport', 'shield', 'statue', 'rush', 'pillar', 'wall']],
-  ['Special', ['swap', 'vanish']],
+  ['Special', ['swap', 'vanish', 'decoy']],
 ];
 const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 

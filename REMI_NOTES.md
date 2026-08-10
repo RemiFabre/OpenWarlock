@@ -1,6 +1,6 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Rounds 21.0-21.5, 2026-08-10. Your overnight rulings, applied. Round 20's notes
+*Rounds 21.0-21.6, 2026-08-10. Your overnight rulings, applied. Round 20's notes
 (the mosquito rework + the ELO measurement pass) are archived at
 `docs/history/2026-08-09-remi-notes-round-20.md`.*
 
@@ -197,8 +197,45 @@ ticks exactly like it heals off Malady's.
   tail. It joins the item shelf everywhere the labs enumerate one (the whole
   shelf is 129 g now, still under the roster's 150 g band).
 
+## Round 21.6 — a NEW spell: Decoy 👥, the harmless double
+
+Press it and **copies of you step out of your body**: one at level 1, **two at
+level 2**. They last **5 seconds**, they wander around like a player who is
+thinking, and **they throw everything you throw** — cast a fireball and each
+copy throws one too, on the same line, from its own hands. Their balls fly and
+fade and touch nothing. Nothing a copy does can hurt, push, infect, mark, heal
+or pay anybody, and nothing can hurt a copy: balls, Repulse, Meteor, Bomb,
+Switcheroo, terra 3, portals and lava all go straight through. They cannot be
+targeted or killed; they just run out.
+
+- **Cost 10 g, upgrade 5 g** (your medium tier). The upgrade is the second body,
+  so the **cooldown never levels** — a flat 16 s. Key: **Z** on QWERTY, **W** on
+  AZERTY (the same physical key, left of Repulse's X). Icon 👥 — 👯 is Echo's.
+- **They look exactly like you**: same colour, same name, same avatar, same
+  team ring, and even your shield bubble and Brazier ring show on them. I
+  screenshotted a bot with two copies from another player's screen — three
+  identical bodies, nothing to separate them. On your OWN screen you still wear
+  your red "this one is me" ring, which nobody else sees.
+- ⚠ **My rulings** (each is one line to change):
+  - **The HP bar is frozen at the moment they spawned.** Shoot the crowd and only
+    the real body's bar moves — that is the honest tell, and it means casting at
+    full health is the strongest bluff.
+  - **They never walk into the lava.** Their wander is clamped inside the safe
+    ring; a copy standing unharmed in the fire would give itself away instantly.
+  - **They die when you die**, on the same frame, and never survive the round.
+- **They vanish, then**: casting Decoy while invisible reveals you (the existing
+  any-cast rule) — but the copies stay, so it is "he was here, and now there are
+  three of him" instead of nothing.
+- ⚠ **Bots are not fooled and never will be.** A clone is deliberately not a
+  player in the simulation (that is exactly what makes it safe), and bot
+  targeting only sees players. So every lab prices Decoy at zero — that is the
+  instrument being honest, not the spell being weak. It is flagged power-tier so
+  bots don't buy a spell they cannot use. Your read is the only measurement.
+- ⚠ One honest limit: a player with the browser console open can tell a copy
+  from a body. Decoy is a bluff against eyes, not a cheat-proof disguise.
+
 ## Still waiting on you
 
-Echo (ex-Mosquito) pair feel in human hands, anger's strength, sword-by-structure,
+Decoy in human hands, Echo (ex-Mosquito) pair feel, anger's strength, sword-by-structure,
 whether the chronomancer CDR family's 7th-of-30 is where you want it, the cape,
 and names for Bomb 💣 and Nova 🧨.

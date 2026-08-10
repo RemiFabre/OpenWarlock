@@ -105,6 +105,17 @@ Owner and teammates exempt, co-op exempt, statues immune, a statue'd owner keeps
 burning, and it does NOT break vanish (Remi's ruling). Item shelf 108 → **129 g**
 — still under roster.js's 150 g band. UNMEASURED: no Elo pass has run with it.
 
+**Round 21.6 (2026-08-10)**: NEW spell **Decoy 👥**, [10, 5] g, `tier: 'power'`.
+lv1 = one clone, lv2 = two; they live 5 s, wander at your move speed, mime every
+cast you make with phantom balls, and have **zero** gameplay effect (no body,
+no collision, no targeting, no counters — everything passes through). ⚠ Its
+measured value is the DO-NOTHING FLOOR by construction, and always will be:
+**fooling bots is out of scope** (bot targeting reads `state.players`, which
+never holds a clone, and bot threat-dodging reads `state.projectiles`, which
+never holds a phantom). `tier: 'power'` keeps bots from buying a spell they
+cannot use. Every lab that enumerates spells will price it at ~0 — that is the
+instrument being honest, not the spell being weak. Human playtest only.
+
 **Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
 (the aura was blanketing the arena) and the **creator is now IMMUNE to their
 own instance** — they still catch other players' plagues, and a lethal tick is
@@ -249,6 +260,10 @@ so bots only reach it through the shopping exhaust tail or draft, and its bot
 pilot (shield's heuristic mirrored) cannot value 2 s of "nothing can touch me,
 but I stand still". Whether the duration, the 16/12 s cooldown or the price are
 right is a FEEL call after a human playtest, not a sweep.
+
+**O. Decoy 👥 (round 21.6) is UNMEASURABLE by the labs.** It is a bluff against
+a human's eyes; no bot can be fooled by one (see Current state above). Price,
+5 s lifetime and "lv2 = a second body" are feel calls.
 
 **D. Bots and the power tier**: §11 shipped pillar-cover and the Swap
 lava-save, but no build list contains a power spell, so they fire only via
