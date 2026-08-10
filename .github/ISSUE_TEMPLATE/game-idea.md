@@ -2,7 +2,7 @@
 name: Game idea
 about: Ask the AI agent to create an experimental version
 title: ''
-labels: experimental
+labels: enhancement, ai:queued
 assignees: ''
 ---
 
