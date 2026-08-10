@@ -374,6 +374,14 @@ export const ITEMS = {
   // other item. (`costs` is still supported by itemCost — elements use it.)
   hourglass: { name: 'Hourglass of Haste', cost: 7, maxLevel: 3,
             desc: 'Ability Haste: all your cooldowns run faster.' },
+  // Round 21.5 (Remi): the first PASSIVE-DAMAGE item — a burning ring around
+  // you, 1 dmg/s flat at every level, only the RADIUS levels (ITEM_FX below).
+  // `tickEvery` is the cadence of that damage (malady's machinery: discrete
+  // bites, never per-frame); the per-tick bite is auraDps × tickEvery, so the
+  // spec's "1 per second" stays the single truth. Owner + teammates never burn.
+  brazier: { name: 'Coal Brazier', cost: 7, maxLevel: 3, tickEvery: 1,
+            desc: 'Burns nearby foes.',
+            long: 'Enemies standing inside a small ring around you burn for 1 damage per second; the ring grows with the level. Teammates and you never feel it.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -410,6 +418,13 @@ export const ITEM_FX = {
   // lv0 12.9% on the ladder; this is the same ballpark.
   // history: docs/history/2026-08-08-round17-battery.md
   hourglass: { haste: [10, 18, 26] },
+  // Round 21.5, Coal Brazier: damage is FLAT (Remi — every level burns for the
+  // same 1/s), the RADIUS is the whole upgrade. Sized "modest" against
+  // PLAYER.RADIUS 1.4 and malady's auraR [5,7,9]: lv1 is ~2 body-widths of
+  // reach, lv3 is still half a malady lv1 aura. Measured centre-to-centre, and
+  // the client ring is drawn at exactly these numbers.
+  // ⚠ Neither field is a passive stat, so items.js ignores both by design.
+  brazier: { auraDps: 1, auraR: [3, 3.8, 4.6] },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------

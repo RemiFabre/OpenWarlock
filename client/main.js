@@ -31,7 +31,8 @@ const ICONS = {
   statue: '🗿',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
-  hourglass: '⏳',
+  // 🔥 belongs to the ember element, so the brazier carries the lamp
+  hourglass: '⏳', brazier: '🪔',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -987,6 +988,8 @@ const ITEM_FIELDS = {
   maxHp: ['max HP', (v) => `+${fmtNum(v)}`],
   lifesteal: ['lifesteal', (v) => `${fmtNum(Math.round(v * 1000) / 10)}%`],
   haste: ['ability haste', (v) => `+${fmtNum(v)}`],
+  auraDps: ['burn damage', (v) => `${fmtNum(v)}/s`],
+  auraR: ['burn radius', fmtNum],
 };
 
 // What the level you own actually bought, as a plain sentence. The maths lives
@@ -1002,6 +1005,7 @@ const ITEM_LIVE = {
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
+  brazier: (lv) => `enemies within ${fmtNum(itemFxAt('brazier', 'auraR', lv))} units of you burn for ${fmtNum(itemFxAt('brazier', 'auraDps', lv))} hp/s`,
 };
 
 // The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
@@ -1014,6 +1018,7 @@ const ITEM_TAG = {
   cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback`,
   sword: (lv) => `${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% lifesteal`,
   hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} haste`,
+  brazier: (lv) => `${fmtNum(itemFxAt('brazier', 'auraDps', lv))} dmg/s, r ${fmtNum(itemFxAt('brazier', 'auraR', lv))}`,
 };
 
 // One row of the per-level table. A scalar REPEATS in every level column
@@ -1130,7 +1135,9 @@ function itemTip(key, spec, level) {
     live ? `With that, ${live}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  return tipShell(ICONS[key], spec.name, spec.desc, null,
+  // items follow the shop's tag shape now (round 21.5): `long` is the mechanism
+  // sentence when the spec carries one, exactly like spells and elements
+  return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
     `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
 }
 

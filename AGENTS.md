@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.4). Read this first, then
+*Last updated 2026-08-10 (round 21.5). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -124,6 +124,19 @@ Agent context usage on this project is **CRITICAL**. The rules:
   spawn points). ⚠ 🗿 moved from the Stone Pillar (now 🏛️); statue is on the
   physical key left of S (qwerty `a` / azerty `q`). NOT power-tier: bots pilot it
   with shield's heuristic mirrored (hurt + imminent ball + not near the rim).
+- **ROUND 21.5 SHIPPED** — **new item: Coal Brazier 🪔**, the first PASSIVE
+  DAMAGE in the game: 7 g/level, enemies inside `auraR [3, 3.8, 4.6]`
+  (centre-to-centre) burn for a FLAT 1 dmg/s — only the radius levels. One
+  discrete bite per `ITEMS.brazier.tickEvery` on the OWNER's clock (malady's
+  machinery), so owners stack independently; `allied()` spares teammates and
+  the owner, co-op is skipped like malady's contagion. Credit = the DoT rule
+  (`stamp: false`, lethal tick still takes the kill) and sword lifesteal pays on
+  ticks exactly as it does on malady's. ⚠ RULINGS: passive damage does NOT break
+  vanish (it keeps burning invisible, and nothing it emits is anchored on the
+  owner) and a statue'd OWNER keeps burning. Audited alongside it: a vanished
+  malady CARRIER leaks nothing either (x/y is stripped, so the client cannot
+  draw the contagion ring; every event rides the victim) — no fix needed,
+  test-locked both ways.
 - **Waiting on Remi**: whether an N-vs-1 team's target should be capped by the
   number of enemies alive (3v1 always hits the 25-round cap today); mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
@@ -175,7 +188,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 351 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 363 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -232,8 +245,9 @@ build step, Node ESM, only dep is `ws`.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
 - **Items: 3 levels**, cumulative `ITEM_FX` totals, **flat price per level
-  since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1) —
-  so the WHOLE shelf is 108 g, and the cuts did NOT move items off the bottom of the
+  since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1)
+  and 7 g brazier (21.5, the passive burn aura) — so the WHOLE shelf is 129 g,
+  and the cuts did NOT move items off the bottom of the
   strategy table. Sword is mandatory by structure (question L). Cape is
   pilot-sign-flipping — never buff it off Hard-bot tables. Echo Stone is
   DELETED (merged into mosquito, round 20.1).
@@ -290,7 +304,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 351 green
+npx vitest run                                   # 363 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

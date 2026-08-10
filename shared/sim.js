@@ -7,7 +7,7 @@ import {
   DRAFT, TEAMS, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
-import { itemBonuses, itemFxDelta } from './items.js';
+import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
 import {
   TEAM, ENEMY_COLOR, CAMPAIGN, MAX_LEVEL, levelFor, waveUnits, levelRoster,
 } from './campaign.js';
@@ -1235,6 +1235,9 @@ function startRound(state) {
     pl.stacks = {};   // frost/gale/midas stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.malady = null; // infections die with the round (instances go with them)
+    // the brazier's cadence restarts with the round: a full tickEvery before
+    // the first burn, so nobody is bitten on the spawn frame
+    pl._brazierNext = ITEMS.brazier.tickEvery;
     pl.mosqN = 0; pl.mosqDue = false;
     // vampire's charge counter resets with the round, exactly like mosquito's
     // (the other "every Nth cast" mechanic). Deliberate: the rhythm you
@@ -1670,6 +1673,43 @@ function stepBattle(state, dt) {
         // of the creator's teammates — the carrier can be anybody
         if (alliedIds(state, inst.creator, q.id)) continue;
         if (Math.hypot(q.x - pl.x, q.y - pl.y) <= r) infectMalady(state, q, inst, pl.id);
+      }
+    }
+  }
+
+  // Coal Brazier aura (ITEMS.brazier, round 21.5 — the first passive-damage
+  // item): the owner burns every hostile body inside auraR for auraDps, in
+  // discrete bites on the OWNER's clock (malady's tick machinery, never
+  // per-frame). Two owners therefore stack independently, and the ring is
+  // measured centre-to-centre so the drawn circle IS the damage circle.
+  // Credit follows the DoT rule exactly: `stamp: false` never claims the
+  // last-hitter slot (no stolen lava kills), while a lethal tick still credits
+  // the owner through kill(). Ticks go through applyDamage, so a statue inside
+  // the ring takes zero; a statue'd OWNER keeps burning (⚠ RULING, round 21.5 —
+  // the aura is passive, and being an unmissable rooted target is already the
+  // price). Damage is exactly 1, so it clears the client's >= 1 floater filter
+  // without needing poison's exemption.
+  // ⚠ VANISH RULING (Remi, round 21.5): passive damage does NOT break stealth.
+  // The aura keeps burning while invisible, nothing here is anchored on the
+  // OWNER (the hit event rides the victim) and the ring is not drawn, because a
+  // vanished player has no position on the wire at all.
+  // ⚠ CO-OP is skipped, matching malady's contagion (elemental-only): co-op
+  // friendly fire is ON and allied() is exempt there, so an aura would roast
+  // the party. The campaign is not priced with passive damage.
+  if (state.mode !== 'coop') {
+    const tickEvery = ITEMS.brazier.tickEvery;
+    for (const pl of players) {
+      const lv = pl.items && pl.items.brazier;
+      if (!pl.alive || !(lv > 0)) continue;
+      pl._brazierNext = (pl._brazierNext ?? tickEvery) - dt;
+      if (pl._brazierNext > 1e-6) continue;
+      pl._brazierNext += tickEvery;
+      const r = itemFxAt('brazier', 'auraR', lv);
+      const bite = itemFxAt('brazier', 'auraDps', lv) * tickEvery;
+      for (const q of players) {
+        if (q === pl || !q.alive || allied(state, pl, q)) continue;
+        if (Math.hypot(q.x - pl.x, q.y - pl.y) <= r)
+          applyDamage(state, q, bite, pl.id, { stamp: false });
       }
     }
   }

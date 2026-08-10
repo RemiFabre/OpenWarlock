@@ -2,6 +2,7 @@
 
 import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
+import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
 
 // Sky-bolt tint per spell level (round 17 §2: the color shift IS the level
@@ -608,6 +609,25 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.font = '700 11px ui-monospace, Menlo, monospace';
       ctx.fillStyle = ending ? 'rgba(255, 210, 120, 1)' : 'rgba(220, 210, 255, 1)';
       ctx.fillText(`👁️ ${(+pl.vanishT).toFixed(1)}s`, x, y - r - 26);
+    }
+
+    // Coal Brazier aura (ITEMS.brazier, round 21.5): a radius-TRUE ring at the
+    // exact distance that burns — read straight off the owner's item level, so
+    // the client needs no extra wire field. Deliberately faint (a warm fill +
+    // a slow breath on the edge): it is on screen for the whole round, so it
+    // must never clutter the fight. Drawn UNDER the body, and skipped while
+    // vanished — for other clients there is no position to draw at anyway
+    // (snapshot strips it), this is the "not even on your own screen" half of
+    // Remi's ruling that passive damage must not give stealth away.
+    const brazLv = pl.items && pl.items.brazier;
+    if (brazLv > 0 && !hidden) {
+      const br = itemFxAt('brazier', 'auraR', brazLv) * scale;
+      const breath = 0.85 + 0.15 * Math.sin(now / 600);
+      ctx.fillStyle = 'rgba(255, 130, 40, 0.055)';
+      ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(255, 160, 60, ${0.30 * breath})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.stroke();
     }
 
     // lava tint / shadow

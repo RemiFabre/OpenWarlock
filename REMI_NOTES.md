@@ -1,6 +1,6 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Rounds 21.0-21.4, 2026-08-10. Your overnight rulings, applied. Round 20's notes
+*Rounds 21.0-21.5, 2026-08-10. Your overnight rulings, applied. Round 20's notes
 (the mosquito rework + the ELO measurement pass) are archived at
 `docs/history/2026-08-09-remi-notes-round-20.md`.*
 
@@ -163,6 +163,39 @@ bolt on the spot you have to walk out of.
 - **Bots**: they can pilot it — hurt (under half HP), a ball about to land, and
   standing far enough inside the ring not to surface in the lava. 8 bot games:
   215 casts, games still finish in ~15 rounds.
+
+## Round 21.5 — a NEW item: Coal Brazier 🪔, the burning ring
+
+The first item that deals damage on its own. **7 g per level**, 3 levels.
+Enemies standing inside a small ring around you take **1 damage per second** —
+flat at every level; **only the ring grows**: **3 / 3.8 / 4.6** units (you are
+1.4 wide, and Malady's contagion aura is 5 / 7 / 9, so even maxed this is half
+a lv1 plague). Distance is centre-to-centre, and the circle you see on screen is
+exactly the circle that burns — verified headlessly at 4.55 and 2.92 units
+drawn for lv3 and lv1. It ticks once a second rather than every frame, two
+owners burn the same victim independently, and the Blood Sword heals off those
+ticks exactly like it heals off Malady's.
+
+- **Name and icon are mine to defend** (one-line revert): plain-things style,
+  like Lava Treads. 🔥 already belongs to Ember, so the brazier took the lamp.
+- **You and your teammates never feel it** — same rule as everything else since
+  teams. (Co-op is skipped entirely, like Malady's aura.)
+- **A statue takes zero from it**, as from everything. ⚠ **A statue'd OWNER keeps
+  burning** — my call, per your suggestion: it is passive, and standing rooted
+  and unmissable is already the price.
+- ⚠ **Your ruling on Vanish, applied**: passive damage does **not** break
+  stealth. Invisible, you keep burning people, the ring is not drawn at all, and
+  nothing the burn produces is anchored on you — the damage number pops over the
+  *victim*, which is what they already see when anything hits them.
+- **"Same for Malady" — audited, nothing to fix.** A vanished carrier's plague
+  keeps spreading, and it cannot give the carrier away: an invisible player has
+  no position on the wire at all, so no client has anywhere to draw the green
+  contagion circle, and every event the plague fires rides the *victim*. The
+  victim's own 🦠 burst and green tint stay visible, which is right. Both halves
+  are now test-locked so nobody can quietly undo them.
+- **Bots**: nothing special, it is passive — the greedy shopper buys it off the
+  tail. It joins the item shelf everywhere the labs enumerate one (the whole
+  shelf is 129 g now, still under the roster's 150 g band).
 
 ## Still waiting on you
 

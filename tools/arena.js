@@ -241,7 +241,7 @@ function makeElo(ids) {
 
 export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const TAIL = ['fireball', 'fireball', 'amulet', 'boots'];
-  const probes = ['treads', 'cape', 'sword', 'boots', 'amulet', 'none'];
+  const probes = ['treads', 'cape', 'sword', 'boots', 'amulet', 'brazier', 'none'];
   const priorities = (p) => (p === 'none' ? TAIL : [p, ...TAIL.filter(x => x !== p)]);
   const wins = Object.fromEntries(probes.map(p => [p, 0]));
   const played = Object.fromEntries(probes.map(p => [p, 0]));
@@ -352,7 +352,7 @@ function registerControls(itemCost, elementCosts = [10, 8, 8]) {
 // level. It also matches Remi's stated design principle for the shop ("let
 // players chase one dimension, but make breadth the better default").
 const TAIL_PASS = ['fireball', 'amulet', 'boots', 'sword', 'cape', 'treads',
-  'lightning', 'boomerang', 'rush', 'shield', 'teleport'];
+  'brazier', 'lightning', 'boomerang', 'rush', 'shield', 'teleport'];
 export const ISOLATION_TAIL = [...TAIL_PASS, ...TAIL_PASS, ...TAIL_PASS];
 
 // SELF-TEST for the instrument: give the PROBE seat the control too, so all four

@@ -1519,6 +1519,37 @@ describe('elemental mode', () => {
     expect(pa.maladyR).toBeUndefined();            // healthy body: no aura fields
   });
 
+  // Round 21.5 audit (Remi, alongside the Coal Brazier's vanish ruling): a
+  // VANISHED carrier still radiates the plague, and none of it may give the
+  // carrier away. The protection is structural — snapshot() strips x/y, so the
+  // client has nowhere to draw the maladyR ring, and viewEvents() drops every
+  // event anchored on the hidden body. A VICTIM's own 🦠 burst stays visible:
+  // being infected is your business, and hiding it would be the bug.
+  it('a VANISHED carrier keeps infecting and leaks nothing (round 21.5 audit)', () => {
+    const state = maladyBattle(2, 3);
+    const b = state.players.p1, c = state.players.p2;
+    landHit(state); landHit(state);
+    expect(b.poisonT).toBeGreaterThan(0);
+    b.spells.vanish = 3;
+    expect(castSpell(state, 'p1', 'vanish', b.x, b.y)).toBe(true);
+    // the carrier has an aura radius on the wire, but NO position to draw it at
+    const pb = snapshot(state, 'p0').players.p1;
+    expect(pb.maladyR).toBe(efx(MF().auraR, 2));
+    expect(pb.x).toBeUndefined();
+    expect(pb.y).toBeUndefined();
+    c.x = b.x; c.y = b.y; c.vx = c.vy = 0; c.moveTarget = null;
+    const seen = [];
+    for (let i = 0; i < Math.round(1.1 / DT); i++) {
+      step(state, DT);
+      seen.push(...viewEvents(state, state.events, 'p0'));
+    }
+    expect(c.poisonT).toBeGreaterThan(0);                   // the plague spread
+    expect(b.vanishT).toBeGreaterThan(0);                   // and did not reveal
+    expect(snapshot(state, 'p0').players.p1.x).toBeUndefined();
+    expect(seen.some(e => e.id === 'p1')).toBe(false);      // no carrier-anchored FX
+    expect(seen.some(e => e.t === 'infected' && e.id === 'p2')).toBe(true);
+  });
+
   it('a lethal DoT tick gives the credited player the kill — without stamping lastHitBy', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -6145,5 +6176,200 @@ describe('statue 🗿 (the golden pillar)', () => {
     b.hp = 0; b.alive = false;
     run(state, 2 * DT);
     expect(state.phase).toBe('roundEnd');
+  });
+});
+
+describe('Coal Brazier 🪔 (the passive damage aura, round 21.5)', () => {
+  const spec = ITEMS.brazier;
+  const fx = () => ITEM_FX.brazier;
+  const at = (field, lv) => {
+    const v = fx()[field];
+    return Array.isArray(v) ? v[lv - 1] : v;
+  };
+
+  // Two parked players `gap` apart on a clean floor; p0 owns the brazier at
+  // `lv`. Classic on purpose: the item is not an element, it must work in
+  // every ruleset that has a shop.
+  function brazierBattle(lv = 1, gap = 1, n = 2) {
+    const state = freshBattle(n);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = gap; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.cooldowns = {};
+    for (let i = 2; i < n; i++) {
+      const p = state.players[`p${i}`];
+      p.x = 0; p.y = -45; p.vx = p.vy = 0; p.moveTarget = null;
+    }
+    a.items.brazier = lv;
+    return state;
+  }
+
+  it('spec shape: 3 levels at a flat premium price, FLAT damage, growing radius', () => {
+    expect(spec.maxLevel).toBe(3);
+    for (let lv = 0; lv < spec.maxLevel; lv++) expect(itemCost('brazier', lv)).toBe(spec.cost);
+    // Remi's ruling: the burn never levels, only the reach does
+    expect(Array.isArray(fx().auraDps)).toBe(false);
+    expect(fx().auraR.length).toBe(spec.maxLevel);
+    for (let lv = 2; lv <= spec.maxLevel; lv++)
+      expect(at('auraR', lv)).toBeGreaterThan(at('auraR', lv - 1));
+    // "modest": every radius stays well inside malady's contagion aura
+    expect(Math.max(...fx().auraR)).toBeLessThan(Math.min(...ELEMENTS.malady.fx.auraR));
+    expect(Math.min(...fx().auraR)).toBeGreaterThan(PLAYER.RADIUS);
+    // it is not a passive stat: playerStats must be untouched by owning one
+    const state = brazierBattle(3);
+    const bare = { ...state.players.p1, items: {} };
+    expect(playerStats(state.players.p0)).toEqual(playerStats(bare));
+  });
+
+  it('an enemy inside the ring burns for auraDps per second, one bite per tick', () => {
+    const state = brazierBattle(1, at('auraR', 1) - 0.5);
+    const b = state.players.p1;
+    const hp0 = b.hp;
+    run(state, 3);   // freshBattle already spent one battle step, so 3 ticks
+    const lost = hp0 - b.hp;
+    expect(lost).toBeCloseTo(3 * at('auraDps', 1) * spec.tickEvery, 5);
+    // discrete, never per-frame: a single frame inside the ring costs nothing
+    const hp1 = b.hp;
+    step(state, DT);
+    expect(b.hp).toBe(hp1);
+  });
+
+  it('the radius comes from the SPEC, per level: just inside burns, just outside is safe', () => {
+    for (let lv = 1; lv <= spec.maxLevel; lv++) {
+      const r = at('auraR', lv);
+      const inside = brazierBattle(lv, r - 0.1);
+      const hpIn = inside.players.p1.hp;
+      run(inside, 1.1);
+      expect(inside.players.p1.hp).toBeLessThan(hpIn);
+
+      const outside = brazierBattle(lv, r + 0.1);
+      const hpOut = outside.players.p1.hp;
+      run(outside, 3.1);
+      expect(outside.players.p1.hp).toBe(hpOut);
+    }
+  });
+
+  it('never burns the owner, and never a teammate (allied(), round 21.3)', () => {
+    // three seats: p2 sits far away on its own team, so pairing p0 with p1
+    // does not end the round for "the survivors are all one team"
+    const state = brazierBattle(3, 1, 3);
+    const a = state.players.p0, b = state.players.p1;
+    a.team = b.team = TEAMS.MAX;       // same team: the damage-path predicate
+    const hpA = a.hp, hpB = b.hp;
+    run(state, 3.1);
+    expect(a.hp).toBe(hpA);            // the owner stands in his own fire
+    expect(b.hp).toBe(hpB);
+    b.team = TEAMS.MAX - 1;            // enemy again
+    run(state, 1.1);
+    expect(b.hp).toBeLessThan(hpB);
+  });
+
+  it('two owners stack independently — each keeps its own clock', () => {
+    const state = brazierBattle(3, 1, 3);
+    const c = state.players.p2;
+    c.x = 0; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;  // on top of p0
+    c.items.brazier = 3;
+    const b = state.players.p1;
+    const hp0 = b.hp;
+    run(state, 3);
+    expect(hp0 - b.hp).toBeCloseTo(2 * 3 * at('auraDps', 3) * spec.tickEvery, 5);
+  });
+
+  it('credit follows the DoT rule: no lastHitBy stamp, but a lethal tick takes the kill', () => {
+    const state = brazierBattle(1, at('auraR', 1) - 0.5);
+    const a = state.players.p0, b = state.players.p1;
+    b.lastHitBy = null;
+    run(state, 1.1);
+    expect(b.hp).toBeLessThan(b.maxHp);
+    expect(b.lastHitBy).toBe(null);          // a burn never steals a lava kill
+    b.hp = at('auraDps', 1) * spec.tickEvery;
+    const kills = a.kills;
+    run(state, 1.1);
+    expect(b.alive).toBe(false);
+    expect(a.kills).toBe(kills + 1);         // …but the last one is yours
+  });
+
+  it('lifesteal pays on burn ticks, exactly like a malady tick does', () => {
+    const state = brazierBattle(1, at('auraR', 1) - 0.5);
+    const a = state.players.p0;
+    a.items.sword = 3;
+    a.hp = 10;
+    run(state, 1.1);
+    const bite = at('auraDps', 1) * spec.tickEvery;
+    expect(a.healLifesteal).toBeCloseTo(bite * ITEM_FX.sword.lifesteal[2], 5);
+  });
+
+  it('a statue takes nothing — and a statue\'d OWNER keeps burning (ruling)', () => {
+    const state = brazierBattle(1, at('auraR', 1) - 0.5);
+    const a = state.players.p0, b = state.players.p1;
+    b.spells.statue = 1;
+    expect(castSpell(state, 'p1', 'statue', b.x, b.y)).toBe(true);
+    const hpB = b.hp;
+    run(state, 1.1);
+    expect(b.hp).toBe(hpB);                  // applyDamage zeroes it at the choke point
+    run(state, SPELLS.statue.duration);      // the gold runs out
+    expect(b.statueT).toBe(0);
+    const hpB2 = b.hp;
+    run(state, 1.1);
+    expect(b.hp).toBeLessThan(hpB2);
+    // the owner freezes: passive damage is not an action, so the ring stays on
+    a.spells.statue = 1; a.cooldowns = {};
+    expect(castSpell(state, 'p0', 'statue', a.x, a.y)).toBe(true);
+    const hpB3 = b.hp;
+    run(state, 1.1);
+    expect(a.statueT).toBeGreaterThan(0);
+    expect(b.hp).toBeLessThan(hpB3);
+  });
+
+  it('VANISH RULING: a vanished owner keeps burning and is NEVER revealed by it', () => {
+    const state = brazierBattle(1, at('auraR', 1) - 0.5);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.vanish = 3;
+    expect(castSpell(state, 'p0', 'vanish', a.x, a.y)).toBe(true);
+    const hp0 = b.hp;
+    const seen = [];
+    for (let i = 0; i < Math.round(1.1 / DT); i++) {
+      step(state, DT);
+      seen.push(...viewEvents(state, state.events, 'p1'));
+    }
+    expect(b.hp).toBeLessThan(hp0);                       // it kept burning
+    expect(a.vanishT).toBeGreaterThan(0);                 // …and stayed hidden
+    expect(snapshot(state, 'p1').players.p0.x).toBeUndefined();
+    // nothing the burn produced is anchored on the owner, so no client can
+    // reconstruct where he is standing (the hit floater rides the VICTIM)
+    expect(seen.some(e => e.id === 'p0')).toBe(false);
+    expect(seen.some(e => e.t === 'hit' && e.id === 'p1')).toBe(true);
+  });
+
+  it('co-op is exempt (friendly fire is ON there): no aura at all', () => {
+    const state = createGame({ seed: 42, mode: 'coop' });
+    addPlayer(state, 'p0', 'A');
+    addPlayer(state, 'p1', 'B');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const a = state.players.p0, b = state.players.p1;
+    a.items.brazier = 3;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    const hp0 = b.hp;
+    run(state, 3.1);
+    expect(b.hp).toBe(hp0);
+  });
+
+  it('the shop sells it like any other item, and it is on the wire', () => {
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    const a = state.players.p0;
+    a.gold = 999;
+    for (let lv = 1; lv <= spec.maxLevel; lv++) {
+      const g0 = a.gold;
+      expect(buy(state, 'p0', 'brazier').ok).toBe(true);
+      expect(a.items.brazier).toBe(lv);
+      expect(g0 - a.gold).toBe(spec.cost);
+    }
+    expect(buy(state, 'p0', 'brazier').ok).toBeFalsy();
+    expect(catalogue('classic').some(e => e.key === 'brazier')).toBe(true);
+    // the client sizes its ring off the owner's item level — no extra wire field
+    expect(snapshot(state, 'p1').players.p0.items.brazier).toBe(spec.maxLevel);
   });
 });

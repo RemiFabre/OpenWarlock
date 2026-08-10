@@ -98,6 +98,13 @@ Items dropped another 1 g/level: **5 g boots/treads/cape, 7 g
 sword/amulet/hourglass → the whole shelf is 108 g**. Unmeasured — the Elo table
 above predates it.
 
+**Round 21.5 (2026-08-10)**: NEW item **Coal Brazier 🪔**, 7 g/level, the first
+passive damage in the game — enemies within `auraR [3, 3.8, 4.6]` (centre-to-
+centre) burn for a FLAT 1 dmg/s, one bite per second on the owner's clock.
+Owner and teammates exempt, co-op exempt, statues immune, a statue'd owner keeps
+burning, and it does NOT break vanish (Remi's ruling). Item shelf 108 → **129 g**
+— still under roster.js's 150 g band. UNMEASURED: no Elo pass has run with it.
+
 **Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
 (the aura was blanketing the arena) and the **creator is now IMMUNE to their
 own instance** — they still catch other players' plagues, and a lethal tick is
@@ -160,7 +167,7 @@ express either mechanic; human games are the instrument.
 ### The item ladder (1500 games, seat capped at that level, at `62de05b`)
 
 ⚠ **Prices below are pre-round-20** (items are flat 5/7 g since 21.1, whole
-shelf 108 g). The effect columns still hold; the gold cost of each rung does not.
+shelf 129 g with the brazier). The effect columns still hold; the gold cost of each rung does not.
 And the cut did not help: see the ELO headlines above.
 
 | item | lv0 | lv1 | lv2 | lv3 | | item | lv0 | lv1 | lv2 | lv3 |
