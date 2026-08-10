@@ -1,6 +1,6 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Rounds 21.0-21.2, 2026-08-10. Your overnight rulings, applied. Round 20's notes
+*Rounds 21.0-21.3, 2026-08-10. Your overnight rulings, applied. Round 20's notes
 (the mosquito rework + the ELO measurement pass) are archived at
 `docs/history/2026-08-09-remi-notes-round-20.md`.*
 
@@ -100,6 +100,34 @@ Bomb) go straight through it**.
   game becomes a fortress — 25-round caps, ~4-5 kills, 400-750 stones standing.
   That is the ruling working as designed, not a crash; worth a human playtest
   before we teach bots to buy it.
+
+## Round 21.3 — TEAMS in normal games
+
+A lobby property, not a mode. **Every player has a team number, and the default
+is their own** — a lobby nobody touches is exactly today's free-for-all.
+
+- **Pick your own number** in the lobby (small `team [1]` selector on your row).
+  You can also set the **bots'**, so one person can arrange a 2v2 alone. Any
+  shape works: 2v2, 3v2, 2v1v1. Your team survives "play again" and a reconnect.
+- **Teammates' spells ignore each other completely** — your ball flies *through*
+  them (no damage, no push, no frost/gale/malady/midas/anger, no Switcheroo hook,
+  no shield reflect), your Bomb/Meteor/Lightning/Repulse/Rush skip them, and
+  their Mirror Wall lets your shots pass. **Pillars still block everyone** —
+  they're the map. There is no way to hurt a teammate, so there is no team-kill
+  rule at all.
+- **The round ends when the survivors are all one team**, and **every** survivor
+  banks the +2 round-win gold.
+- **The game ends when a team's summed kills reach 15 × its size** — the average
+  per player stays 15. At the 25-round cap the best kills-per-member wins (my
+  interpretation of "highest sum/size", commented in the code).
+- **On screen**: allies wear a ring in the team colour in the arena, the corner
+  board and the shop scoreboard are banded per team with `kills / target`, and
+  the banner says "Team 1 takes round 3". Solo lobbies look exactly as before.
+- ⚠ **N-vs-1 can't be won on kills**: 3v1 always runs to the 25-round cap,
+  because three players sharing one victim can never reach 45 kills — the cap's
+  kills-per-member tie-break decides it. 2v2 and 2v1v1 finish normally (20/20
+  bot games, ~18 rounds). Say the word if you'd rather a lopsided team's target
+  was capped by how many enemies exist.
 
 ## Still waiting on you
 

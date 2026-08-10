@@ -14,7 +14,7 @@
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
-  setSpectator, fighters, setMode, setDraft, setTesting, draftPick,
+  setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
 } from './sim.js';
 import { BOTS, BUILDS } from './constants.js';
 
@@ -89,7 +89,13 @@ export function createEngine({
     for (const [id, p] of Object.entries(old)) {
       if (p.wave) continue; // campaign monsters belong to the level, not the lobby
       if (p.bot || conns.has(id)) {
-        const np = addPlayer(game, id, p.name, { bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind, build: p.build });
+        const np = addPlayer(game, id, p.name, {
+          bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind, build: p.build,
+          // the versus team survives "play again" like the colour and avatar —
+          // a lobby arrangement, not a per-game one. A co-op team is a STRING
+          // set by the campaign each round, so it is deliberately not carried.
+          team: typeof p.team === 'number' ? p.team : undefined,
+        });
         np.ready = false;
         np.spectator = p.spectator;
       }
@@ -145,6 +151,9 @@ export function createEngine({
       if (ghost && Date.now() - ghost.at < GHOST_TTL_MS && game.phase !== 'lobby') {
         pl.color = ghost.color;
         if (pl.avatar === '🧙') pl.avatar = ghost.avatar;
+        // your side comes back with you: reconnecting onto the enemy team
+        // mid-game would hand the other side a free ally (round 21.3)
+        if (ghost.team != null) pl.team = ghost.team;
         pl.gold = ghost.gold; pl.goldEarned = ghost.goldEarned;
         pl.kills = ghost.kills; pl.deaths = ghost.deaths;
         pl.dmgDealt = ghost.dmgDealt;
@@ -190,6 +199,16 @@ export function createEngine({
           // testing sandbox: chosen starting gold, game opens in an untimed
           // shop. A flag like draft, lobby only; setTesting validates.
           setTesting(game, !!m.on, m.gold);
+          break;
+        case 'team':
+          // Versus teams (round 21.3): you set your OWN number. `m.id` is
+          // honoured only for a BOT, so whoever is arranging the lobby can put
+          // the bots on a side too; it can never move another human.
+          {
+            const target = typeof m.id === 'string' && game.players[m.id] &&
+              game.players[m.id].bot ? m.id : id;
+            setTeam(game, target, m.n);
+          }
           break;
         case 'draftPick': {
           const r = draftPick(game, id, String(m.id || ''));
@@ -284,7 +303,7 @@ export function createEngine({
       if (pl && !pl.bot && !pl.spectator &&
           game.phase !== 'lobby' && game.phase !== 'gameover') {
         ghosts.set(normName(pl.name), {
-          at: Date.now(), color: pl.color, avatar: pl.avatar,
+          at: Date.now(), color: pl.color, avatar: pl.avatar, team: pl.team,
           gold: pl.gold, goldEarned: pl.goldEarned, kills: pl.kills,
           deaths: pl.deaths, dmgDealt: pl.dmgDealt, maxHp: pl.maxHp,
           spells: { ...pl.spells }, items: { ...pl.items },

@@ -2,9 +2,10 @@
 
 import {
   SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS,
-  SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, itemCost,
+  SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, teamTint, itemCost,
 } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
+import { rankTeams } from '../shared/sim.js';
 import { VERSION } from '../shared/version.js';
 import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
@@ -361,7 +362,11 @@ function phaseSounds(s) {
     if (s.phase === 'battle' && sfxPhase === 'countdown') playSfx('go');
     if (s.phase === 'roundEnd' && s.roundSummary && myId) {
       const m = me(s);
-      if (!(m && m.spectator)) playSfx(s.roundSummary.winner === myId ? 'victory' : 'defeat');
+      // teams: every surviving member took the round, so `winners` (not the
+      // single-survivor `winner`) decides whose fanfare this is
+      const rs = s.roundSummary;
+      const won = Array.isArray(rs.winners) ? rs.winners.includes(myId) : rs.winner === myId;
+      if (!(m && m.spectator)) playSfx(won ? 'victory' : 'defeat');
     }
     if (s.phase === 'gameover' && sfxPhase !== null) playSfx('fanfare');
     sfxPhase = s.phase;
@@ -623,8 +628,12 @@ setInterval(async () => {
     }
   } catch { /* offline or file:// — the stamp just stays quiet */ }
 }, 60_000);
+// teams (round 21.3): one sentence, because the selector on your row is the
+// only place the feature is discoverable and "same number = allies" is the rule
 $('lobbyFormat').textContent =
-  `First to ${ROUND.KILLS_TO_WIN} kills wins. ${goldRules}`;
+  `First to ${ROUND.KILLS_TO_WIN} kills wins — pick the same team number as a ` +
+  'friend and you fight as one (your spells pass through each other, and a ' +
+  `team of N races to ${ROUND.KILLS_TO_WIN} × N). ${goldRules}`;
 $('shopIncome').textContent = goldRules;
 $('lobbyHint').textContent =
   `You start with ${GOLD.START} gold — the shop opens after round 1. ` +
@@ -1500,6 +1509,21 @@ function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
 const byRank = (a, b) =>
   (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0);
 
+// ---- versus teams (round 21.3) ---------------------------------------------
+// A team is just a number every player carries; the default is their own, so a
+// lobby nobody touched has N teams of one and every view below falls back to
+// the flat scoreboard it always was. One quiet hue per number — the number is
+// the truth, the colour is only there to find your side at a glance.
+const teamNum = (t) =>
+  `<span class="tnum" style="color:${teamTint(t)}">T${+t || 1}</span>`;
+
+// Fighters grouped by team, best first — the ENGINE's own ranking function
+// (shared/sim.js rankTeams), so the HUD can never disagree with the win rule.
+const teamStandings = (list) => rankTeams(list);
+// Teams only become a UI thing once somebody actually shares a number.
+const teamsInPlay = (list) => list.some((p, i) =>
+  list.some((q, j) => j !== i && q.team != null && q.team === p.team));
+
 // A player's full kit as icons: spells then items then elements, each ONE icon
 // carrying its level. Shown in the shop roster and standings.
 function kitIcons(p) {
@@ -1580,7 +1604,7 @@ function statsTable(fighters, specs, opts = {}) {
   const who = (p) =>
     `<td class="who"><span class="dot" style="display:inline-block;background:${p.color}"></span>
       ${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</td>`;
-  const rows = fighters.map((p, i) => {
+  const row = (p, i) => {
     const direct = fin(+p.dmgDealt) ? +p.dmgDealt : null;
     const lava = fin(+p.dmgLava) ? +p.dmgLava : null;
     const mk = +p.multiKillBest || 0;
@@ -1597,9 +1621,24 @@ function statsTable(fighters, specs, opts = {}) {
       ${showRound ? cell(p.roundGold, 'g-round') : ''}
       ${cell(p.gold, 'g-gold')}${cell(p.goldEarned ?? p.gold, 'g-gold')}
       <td class="kit c-kit">${kitIcons(p)}</td></tr>`;
-  }).concat(specs.map((p) =>
-    `<tr class="spec"><td class="rank">👁</td>${who(p)}
-      <td colspan="${9 + goldCols + roundCols}"></td><td class="c-kit"></td></tr>`)).join('');
+  };
+  // Teams (round 21.3): once ANY team has two members the table is banded by
+  // team, each band headed by its kill sum against its own target (15 x size).
+  // A lobby of solo teams keeps the flat table, unchanged.
+  const grouped = () => {
+    const span = 11 + roundCols + goldCols;
+    let i = 0;
+    return teamStandings(fighters).map(t => {
+      const hdr = `<tr class="teamhdr"><td colspan="${span}">${teamNum(t.team)}
+        · ${t.size === 1 ? 'solo' : `${t.size} warlocks`}
+        · <b>${t.kills}</b> / ${t.target} kills</td></tr>`;
+      return hdr + t.members.slice().sort(byRank).map(p => row(p, i++)).join('');
+    }).join('');
+  };
+  const rows = (teamsInPlay(fighters) ? grouped() : fighters.map(row).join('')) +
+    specs.map((p) =>
+      `<tr class="spec"><td class="rank">👁</td>${who(p)}
+      <td colspan="${9 + goldCols + roundCols}"></td><td class="c-kit"></td></tr>`).join('');
   return `${head}<tbody>${rows}</tbody>`;
 }
 
@@ -1652,6 +1691,33 @@ function updateUi(s) {
       div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
         <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
         <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
+      // Team number (round 21.3). You set your OWN — plus the bots', so one
+      // person can arrange a 2v2 without everybody clicking. Other humans show
+      // a read-only chip: their side is theirs to pick.
+      if (s.mode !== 'coop') {
+        if (p.id === myId || p.bot) {
+          const wrap = document.createElement('span');
+          wrap.className = 'teamsel';
+          wrap.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
+          const sel = document.createElement('select');
+          for (let n = 1; n <= TEAMS.MAX; n++) {
+            const o = document.createElement('option');
+            o.value = String(n); o.textContent = String(n);
+            sel.appendChild(o);
+          }
+          sel.value = String(p.team || 1);
+          sel.style.color = teamTint(p.team);
+          sel.addEventListener('change', () =>
+            send({ t: 'team', n: +sel.value, ...(p.bot ? { id: p.id } : {}) }));
+          wrap.append('team', sel);
+          div.appendChild(wrap);
+        } else {
+          const chip = document.createElement('span');
+          chip.className = 'teamchip';
+          chip.innerHTML = `team ${teamNum(p.team)}`;
+          div.appendChild(chip);
+        }
+      }
       // ban button on other humans: clears ghost seats AND keeps them out
       // (name+ip blocked until the server restarts or someone unbans)
       if (!p.bot && p.id !== myId) {
@@ -1749,9 +1815,12 @@ function updateUi(s) {
   }
 
   if (s.phase === 'battle') {
+    // teams race the same 15 kills PER MEMBER, so the line says whose race it is
     $('phasebar').textContent = s.coop
       ? `round ${s.round} · co-op campaign` // the kill race does not apply
-      : `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
+      : teamsInPlay(playerList.filter(p => !p.spectator))
+        ? `round ${s.round} · first team to ${ROUND.KILLS_TO_WIN} kills per warlock`
+        : `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
   } else if (s.phase === 'roundEnd') {
     $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {
@@ -1781,7 +1850,13 @@ function updateUi(s) {
   if (s.phase === 'gameover') {
     const fightersL = playerList.filter(p => !p.spectator).sort(byRank);
     const w = fightersL.find(p => p.id === s.winner) || fightersL[0];
-    $('goWinner').textContent = w ? `${w.name} rules the ashes with ${w.kills || 0} kills.` : '';
+    // teams: the TEAM rules the ashes, with its summed kills against its target
+    const wt = s.winTeam != null && teamsInPlay(fightersL)
+      ? teamStandings(fightersL).find(t => t.team === s.winTeam) : null;
+    $('goWinner').textContent = wt
+      ? `Team ${wt.team} rules the ashes with ${wt.kills} kills — ` +
+        `${wt.members.map(p => p.name).join(', ')}.`
+      : w ? `${w.name} rules the ashes with ${w.kills || 0} kills.` : '';
     $('standings').innerHTML = statsTable(fightersL, playerList.filter(p => p.spectator),
       { winnerId: w ? w.id : null });
   }
@@ -1795,11 +1870,24 @@ function updateUi(s) {
     const hdr = `<div class="hdr"><span class="dot" style="visibility:hidden"></span>
       <span class="who">warlock</span><span class="score">kills</span>
       <span class="gold">purse</span><span class="rgold">round</span></div>`;
-    $('topbar').innerHTML = hdr + fightersL.map(p => {
+    // teams: band the corner board the same way the big table is banded, with
+    // the team's kill sum against its own target. Solo lobbies: unchanged.
+    const teamHdr = (p, prev) => {
+      if (!teamsInPlay(fightersL) || p.team === prev) return '';
+      const t = teamStandings(fightersL).find(x => x.team === p.team);
+      return t ? `<div class="thdr">${teamNum(t.team)}
+        <span class="tgoal">${t.kills}/${t.target}</span></div>` : '';
+    };
+    let prevTeam = null;
+    const ordered = teamsInPlay(fightersL)
+      ? teamStandings(fightersL).flatMap(t => t.members.slice().sort(byRank))
+      : fightersL;
+    $('topbar').innerHTML = hdr + ordered.map(p => {
+      const band = teamHdr(p, prevTeam); prevTeam = p.team;
       // "purse" is what's left to spend, "round" is what this round has paid
       // so far — the second is the one that tells you who is pulling ahead
       const rg = fin(+p.roundGold) ? +p.roundGold : null;
-      return `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
+      return band + `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
         <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">${p.kills || 0}</span>

@@ -124,4 +124,34 @@ describe('engine: headless room (no sockets)', () => {
     expect(engine.join('h3', { name: 'Pest' }).ok).toBe(true);
     engine.destroy();
   });
+
+  // Versus teams (round 21.3): the lobby wire — you move yourself, the host may
+  // move a BOT, nobody may move another human, and a drop keeps your side.
+  it('team numbers: own row + bots, never another human, and they survive a reconnect', () => {
+    const engine = createEngine({ seed: 4 });
+    engine.join('h1', { name: 'Host' });
+    engine.join('h2', { name: 'Friend' });
+    engine.message('h1', { t: 'addBot', kind: 'grunt' });
+    const bot = Object.values(engine.game.players).find(p => p.bot);
+
+    engine.message('h1', { t: 'team', n: 2 });
+    engine.message('h2', { t: 'team', n: 2 });
+    engine.message('h1', { t: 'team', id: bot.id, n: 3 });
+    expect(engine.game.players.h1.team).toBe(2);
+    expect(engine.game.players.h2.team).toBe(2);
+    expect(bot.team).toBe(3);
+    // h1 cannot drag another human onto a team (the id is honoured for bots only)
+    engine.message('h1', { t: 'team', id: 'h2', n: 9 });
+    expect(engine.game.players.h2.team).toBe(2);
+    expect(engine.game.players.h1.team).toBe(9);   // it moved the SENDER instead
+
+    engine.message('h1', { t: 'team', n: 2 });
+    engine.message('h1', { t: 'ready', ready: true });
+    engine.message('h2', { t: 'ready', ready: true });
+    expect(engine.game.phase).not.toBe('lobby');
+    engine.leave('h2');
+    expect(engine.join('h2', { name: 'Friend' }).ok).toBe(true);
+    expect(engine.game.players.h2.team).toBe(2);   // back on the same side
+    engine.destroy();
+  });
 });

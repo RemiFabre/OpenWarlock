@@ -110,8 +110,11 @@ export const ROUND = {
   COUNTDOWN: 3,
   SUMMARY_TIME: 3.5,      // victory/defeat banner between battle and shop
   SHOP_TIME: 25,
-  KILLS_TO_WIN: 15,       // first to this many kills wins (checked at round end)
-  MAX_ROUNDS: 25,         // safety cap: most kills wins if nobody gets there
+  // First to this many kills wins. Round 21.3: a TEAM wins at KILLS_TO_WIN x
+  // its size, so the per-player average is always this number and a lobby of
+  // solo teams is exactly the old rule.
+  KILLS_TO_WIN: 15,
+  MAX_ROUNDS: 25,         // safety cap: best kills-per-member wins if nobody gets there
   // Co-op campaign retry budget: 10 levels in this many rounds (3 spares).
   // Measured 2026-08-06 (tools/coop.js): 14 is a formality, 12 locks solo out.
   // history: docs/history/2026-08-08-constants-sweeps.md#round-coop_max_rounds
@@ -120,6 +123,19 @@ export const ROUND = {
   // kill this fast after your last one and it's a DOUBLE KILL (then triple…)
   MULTIKILL_WINDOW: 6,
 };
+
+// Versus TEAMS (round 21.3, Remi): a LOBBY PROPERTY, never a mode. Every player
+// owns a team number and the default is their own unique one — a lobby where
+// nobody touches the selector is bit-for-bit the old free-for-all. Any shape
+// works (2v1v1, 3v2). MAX is only the number selector's ceiling; you can never
+// need more numbers than seats.
+// TINTS is UI only (the number is the truth; the hue just finds your side fast).
+export const TEAMS = {
+  MAX: 10,
+  TINTS: ['#e8b23a', '#5fa8e8', '#7ad07a', '#e0787a', '#b98be0',
+    '#e0a86a', '#6fd3c9', '#d47ab8', '#9aa4b0', '#c8d06a'],
+};
+export const teamTint = (t) => TEAMS.TINTS[(Math.max(1, +t || 1) - 1) % TEAMS.TINTS.length];
 
 // Multi-kill names, indexed by streak-2 (streak 2 = 'Double Kill').
 export const MULTIKILL_NAMES = [

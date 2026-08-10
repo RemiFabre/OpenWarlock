@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, itemCost,
+  DRAFT, TEAMS, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxDelta } from './items.js';
@@ -73,6 +73,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     coopAttempt: 0,        // co-op: tries spent on the current level
     coop: null,            // co-op: {level, name, brief, roster, pending, ...}
     winner: null,
+    winTeam: null,         // versus: the team number that won the game (round 21.3)
     seed,
   };
 }
@@ -109,16 +110,40 @@ function rng(state) {
 
 // ---- players ------------------------------------------------------------
 
+// The smallest unused team NUMBER — a joining player's default team, so
+// "everyone solo" needs no UI at all and numbers stay small and readable
+// (1, 2, 3…). A leaver frees their number for the next joiner: teams are a
+// lobby arrangement, not an identity.
+export function freeTeam(state) {
+  const used = new Set(Object.values(state.players).map(p => p.team));
+  let t = 1;
+  while (used.has(t)) t++;
+  return t;
+}
+
+// Set your own team (lobby only; the engine also lets the host set a bot's).
+// Co-op is excluded: there the team field is the campaign's party/AI switch.
+export function setTeam(state, id, n) {
+  const pl = state.players[id];
+  if (!pl || state.phase !== 'lobby' || state.mode === 'coop') return false;
+  const t = Math.round(+n);
+  if (!Number.isFinite(t) || t < 1 || t > TEAMS.MAX) return false;
+  pl.team = t;
+  return true;
+}
+
 export function addPlayer(state, id, name, { bot = false, color, avatar, kind, build, team = null } = {}) {
   const n = Object.keys(state.players).length;
   state.players[id] = {
     id, name: String(name).slice(0, 16) || 'warlock', bot,
     color: color || COLORS[n % COLORS.length],
     avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 8) : '🧙',
-    // team: null = free-for-all (classic/elemental — everyone is everyone's
-    // enemy, which is what keeps those rulesets byte-identical). In co-op the
-    // party shares TEAM.PARTY and the campaign waves share TEAM.AI.
-    team: team || null,
+    // team: in versus a NUMBER, defaulting to your own unique one — everyone
+    // solo is exactly the old free-for-all (round 21.3). Same number = allies:
+    // their spells ignore each other and they win the round together. In co-op
+    // it is the campaign's switch instead: the party shares TEAM.PARTY (a
+    // string) and the waves share TEAM.AI, set at round start.
+    team: team != null ? team : freeTeam(state),
     sizeMult: 1,           // co-op: bosses are visibly bigger (see updateRadii)
     wave: false,           // co-op: true for a spawned campaign enemy
     kind: bot ? (kind || 'grunt') : null,
@@ -210,6 +235,58 @@ function hostile(a, b) {
   if (!a || !b) return true;   // unknown owner (left the game): hostile to all
   if (a === b) return false;
   return a.team == null || b.team == null || a.team !== b.team;
+}
+
+// ---- versus teams: the DAMAGE/EFFECT-path predicate ------------------------
+// Round 21.3 ruling (Remi, exact words): "we just ignore each other's spells
+// from the same team — no damage, no pushback, no on-hit effects — except
+// pillars, which are part of the map". So unlike hostile() above, THIS one sits
+// on the damage path: a teammate's ball passes clean through you, their repulse
+// does not shove you, their frost/gale/malady/midas/anger never touch you, and
+// a Switcheroo cannot hook you (nothing to collide with). Pillars and mirror
+// terrain are the map, not a spell against you... except that a Mirror Wall IS
+// a spell, so an ally's wall lets your shots through too.
+//
+// ⚠ CO-OP IS EXEMPT — its friendly fire is ON by design (AGENTS.md) and its
+// team field is a string, not a number. The mode guard is the whole protection;
+// do not remove it.
+function allied(state, a, b) {
+  if (state.mode === 'coop') return false;
+  if (!a || !b || a === b) return false;
+  return a.team != null && b.team != null && a.team === b.team;
+}
+// id-flavoured twin, for the paths that only know an owner id
+function alliedIds(state, aId, bId) {
+  if (aId == null || bId == null) return false;
+  return allied(state, state.players[aId], state.players[bId]);
+}
+
+// Versus standings by team: [{team, members, ids, size, kills, target, avg}],
+// best first. `target` is the team's win line — KILLS_TO_WIN x size, so the
+// per-player average is always KILLS_TO_WIN and a lobby of solo teams is the
+// old first-to-15 exactly. PURE: it takes a list, so the client HUD ranks with
+// this same function instead of a second copy of the rule (client/main.js).
+export function rankTeams(list) {
+  const by = new Map();
+  for (const p of list) {
+    const t = p.team != null ? p.team : p.id;
+    if (!by.has(t)) by.set(t, { team: t, members: [], ids: [], size: 0, kills: 0 });
+    const e = by.get(t);
+    e.members.push(p); e.ids.push(p.id); e.size++; e.kills += p.kills || 0;
+  }
+  const out = [...by.values()].map(e => ({
+    ...e, target: ROUND.KILLS_TO_WIN * e.size, avg: e.kills / Math.max(1, e.size),
+  }));
+  // won-first, then by kills per member. The second key is also the 25-round
+  // cap rule (interpretation, round 21.3: "highest sum/size wins") — a 3-stack
+  // that farmed 30 kills has not beaten a solo on 12 unless it beat 45.
+  out.sort((a, b) => (b.kills >= b.target) - (a.kills >= a.target) ||
+    b.avg - a.avg || b.kills - a.kills);
+  return out;
+}
+// Spectators and campaign monsters are never in the race.
+export function teamTally(state) {
+  return rankTeams(fighters(state).filter(p => !p.wave));
 }
 
 
@@ -1239,9 +1316,13 @@ function endRound(state) {
   // co-op has no single survivor: the whole surviving party "wins" the round
   // (and a 3-survivor clear must not render as "nobody survives round n")
   const winner = coop ? null : (alive.length === 1 ? alive[0] : null);
+  // Round 21.3: the round is called when one TEAM is all that is left, and
+  // EVERY surviving member is paid the round-win gold. Solo teams make this
+  // the single survivor again, so the old payout is unchanged.
+  const winTeam = coop || !alive.length ? null : alive[0].team;
   const won = coop
     ? new Set(state.coop.cleared ? partyOf(state).map(p => p.id) : [])
-    : new Set(winner ? [winner.id] : []);
+    : new Set(alive.map(p => p.id));
   const income = {};
   const detail = {};
   for (const pl of coop ? partyOf(state) : fighters(state)) {
@@ -1263,16 +1344,22 @@ function endRound(state) {
     pl.shopReady = false;
   }
   state.projectiles = [];
-  const topKills = Math.max(0, ...fighters(state).map(p => p.kills));
+  // the game's win line is per TEAM now: KILLS_TO_WIN x size (solo teams =
+  // first to KILLS_TO_WIN, unchanged). teamTally() owns the rule.
+  const tally = coop ? [] : teamTally(state);
   state.roundSummary = {
     n: state.round, winner: winner ? winner.id : null, income, detail,
+    // who took the round: the team number and every surviving member. The
+    // client's banner and its victory/defeat verdict read these, so a winning
+    // teammate is never told "defeat" (render.js).
+    ...(coop ? {} : { winTeam, winners: [...won] }),
     // a campaign run ends when the last level falls or the retry budget does —
     // never on the classic kill race (one player farming 15 wave kills would
     // otherwise silently end the run mid-campaign)
     final: coop
       ? ((state.coop.cleared && state.coop.level >= MAX_LEVEL) ||
          state.round >= ROUND.COOP_MAX_ROUNDS)
-      : (topKills >= ROUND.KILLS_TO_WIN || state.round >= ROUND.MAX_ROUNDS),
+      : (tally.some(t => t.kills >= t.target) || state.round >= ROUND.MAX_ROUNDS),
     ...(coop ? {
       coop: {
         level: state.coop.level, name: state.coop.name,
@@ -1305,9 +1392,19 @@ function afterSummary(state) {
     // party, never the monsters
     const ranked = (state.mode === 'coop' ? partyOf(state) : fighters(state))
       .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || b.gold - a.gold);
-    state.winner = ranked[0] ? ranked[0].id : null;
+    // Versus: the WINNING TEAM is teamTally()'s first row (its target met, else
+    // best kills-per-member at the 25-round cap) and `winner` is that team's
+    // top scorer — with solo teams both reduce to "most kills wins".
+    if (state.mode !== 'coop') {
+      const top = teamTally(state)[0];
+      state.winTeam = top ? top.team : null;
+      const champ = top ? ranked.find(p => p.team === top.team) : null;
+      state.winner = champ ? champ.id : (ranked[0] ? ranked[0].id : null);
+    } else {
+      state.winner = ranked[0] ? ranked[0].id : null;
+    }
     state.phase = 'gameover';
-    state.events.push({ t: 'gameover', winner: state.winner });
+    state.events.push({ t: 'gameover', winner: state.winner, ...(state.winTeam != null ? { team: state.winTeam } : {}) });
   } else {
     state.phase = 'shop';
     state.phaseT = ROUND.SHOP_TIME;
@@ -1423,8 +1520,9 @@ function stepBattle(state, dt) {
       const spec = SPELLS.meteor;
       state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius });
       for (const pl of Object.values(state.players)) {
-        // everyone under the rock eats it, the caster included
-        if (!pl.alive) continue;
+        // everyone under the rock eats it, the caster included — but never a
+        // teammate (round 21.3: same team = spells ignore each other)
+        if (!pl.alive || alliedIds(state, m.owner, pl.id)) continue;
         const ddx = pl.x - m.x, ddy = pl.y - m.y;
         const dd = Math.hypot(ddx, ddy);
         if (dd > spec.radius + pl.radius) continue;
@@ -1459,8 +1557,9 @@ function stepBattle(state, dt) {
       const r = lvl(spec, 'radius', n.level);
       state.events.push({ t: 'novaHit', x: n.x, y: n.y, r });
       for (const pl of Object.values(state.players)) {
-        // everyone in the blast eats it, the caster included (meteor's rule)
-        if (!pl.alive) continue;
+        // everyone in the blast eats it, the caster included (meteor's rule) —
+        // teammates excepted (round 21.3)
+        if (!pl.alive || alliedIds(state, n.owner, pl.id)) continue;
         if (Math.hypot(pl.x - n.x, pl.y - n.y) > r + pl.radius) continue;
         applyDamage(state, pl, lvl(spec, 'damage', n.level),
           pl.id === n.owner ? null : n.owner);
@@ -1482,7 +1581,7 @@ function stepBattle(state, dt) {
       if (m.t > 0) { rest.push(m); continue; }
       state.events.push({ t: 'boltHit', x: m.x, y: m.y, r: spec.radius, level: m.level });
       for (const pl of Object.values(state.players)) {
-        if (!pl.alive) continue;
+        if (!pl.alive || alliedIds(state, m.owner, pl.id)) continue; // teammates: no bolt
         const ddx = pl.x - m.x, ddy = pl.y - m.y;
         const dd = Math.hypot(ddx, ddy);
         const reach = spec.radius + pl.radius;
@@ -1510,6 +1609,7 @@ function stepBattle(state, dt) {
       if (!pl.alive) continue;
       for (const h of state.hazards) {
         if (h.owner === pl.id) continue; // your own puddle spares only you
+        if (alliedIds(state, h.owner, pl.id)) continue; // …and your team's, since 21.3
         if (Math.hypot(pl.x - h.x, pl.y - h.y) <= h.r + pl.radius * 0.5) {
           applyDamage(state, pl, h.dps * dt, h.owner, { silent: true, stamp: false });
           if (pl.alive) pl.poisonT = Math.max(pl.poisonT, 0.3); // green tint
@@ -1523,8 +1623,8 @@ function stepBattle(state, dt) {
   // instance's aura — any OTHER living player inside catches the SAME instance
   // (fresh clock) unless it already infected them once: immunity is forever,
   // so a plague can never ping-pong, and since round 20.3 the creator is
-  // seeded immune to their own. Spreads to allies too (friendly-fire
-  // precedent — hostile() is for targeting decisions, never damage paths).
+  // seeded immune to their own. Since 21.3 it also skips the creator's VERSUS
+  // teammates (allied() is the damage-path predicate; hostile() stays targeting).
   if (state.mode === 'elemental') {
     for (const pl of players) {
       if (!pl.alive || !pl.malady || !(pl.poisonT > 0)) continue;
@@ -1532,6 +1632,9 @@ function stepBattle(state, dt) {
       const r = efxV(ELEMENTS.malady.fx.auraR, inst.level);
       for (const q of players) {
         if (q === pl || !q.alive || inst.immune[q.id]) continue;
+        // round 21.3: the plague is its CREATOR's spell, so it never takes one
+        // of the creator's teammates — the carrier can be anybody
+        if (alliedIds(state, inst.creator, q.id)) continue;
         if (Math.hypot(q.x - pl.x, q.y - pl.y) <= r) infectMalady(state, q, inst, pl.id);
       }
     }
@@ -1615,7 +1718,8 @@ function stepBattle(state, dt) {
         // size, so the blast you see is the blast that hit (client/render.js).
         state.events.push({ t: 'repulse', id: pl.id, x: pl.x, y: pl.y, r: lvl(spec, 'radius', level) });
         for (const other of players) {
-          if (other === pl || !other.alive) continue; // friendly fire: allies too
+          // co-op friendly fire hits allies too; a VERSUS teammate is skipped
+          if (other === pl || !other.alive || allied(state, pl, other)) continue;
           const ddx = other.x - pl.x, ddy = other.y - pl.y;
           const dd = Math.hypot(ddx, ddy);
           if (dd > lvl(spec, 'radius', level) + other.radius) continue;
@@ -1640,6 +1744,7 @@ function stepBattle(state, dt) {
       const spec = SPELLS.rush;
       for (const other of players) {
         if (other === pl || !other.alive || pl.dash.hit[other.id]) continue;
+        if (allied(state, pl, other)) continue; // rush runs straight through a teammate
         if (Math.hypot(other.x - pl.x, other.y - pl.y) <= spec.hitRadius + other.radius) {
           pl.dash.hit[other.id] = true;
           // push outward: perpendicular to dash direction, away from the path
@@ -1756,12 +1861,15 @@ function stepBattle(state, dt) {
     return;
   }
 
-  // round end: needs ≥2 fighters to ever start ending (solo practice runs forever)
+  // Round end: over when every survivor belongs to ONE team (round 21.3).
+  // With the default solo teams that is "one player left standing", exactly the
+  // old rule. Needs ≥2 fighters to ever start ending (solo practice runs on).
   const fs = fighters(state);
   const total = fs.length;
-  const alive = fs.filter(p => p.alive).length;
-  if (total >= 2 && alive <= 1) endRound(state);
-  else if (total === 1 && alive === 0) endRound(state); // solo died: still cycle
+  const alive = fs.filter(p => p.alive);
+  const teamsLeft = new Set(alive.map(p => p.team)).size;
+  if (total >= 2 && teamsLeft <= 1) endRound(state);
+  else if (total === 1 && alive.length === 0) endRound(state); // solo died: still cycle
 }
 
 // ---- pillar geometry ------------------------------------------------------
@@ -1869,6 +1977,8 @@ function stepProjectiles(state, dt) {
     let mirrored = false;
     for (const w of state.walls) {
       if (w.owner === pr.owner) continue;
+      // a teammate's wall is a teammate's spell: your shots pass through it too
+      if (alliedIds(state, w.owner, pr.owner)) continue;
       const side = (px0 - w.x1) * w.nx + (py0 - w.y1) * w.ny;
       const vn = pr.vx * w.nx + pr.vy * w.ny;
       if (side * vn >= 0) continue; // moving away from the plane: no hit
@@ -1895,8 +2005,12 @@ function stepProjectiles(state, dt) {
     // collide with players (swept: closest approach on this tick's segment)
     let dead = false;
     for (const other of players) {
-      // friendly fire is on: the only body a projectile ignores is its owner's
+      // co-op friendly fire is on: the only body a projectile ignores there is
+      // its owner's. In VERSUS a teammate is skipped BEFORE the collision test
+      // (round 21.3) — the ball flies through them, so no damage, no push, no
+      // riders, no shield reflect and no Switcheroo hook on a teammate.
       if (!other.alive || other.id === pr.owner || pr.hit[other.id]) continue;
+      if (allied(state, state.players[pr.owner], other)) continue;
       const dist = segmentPointDist(px0, py0, pr.x, pr.y, other.x, other.y);
       if (dist > prRadius + other.radius) continue;
 
@@ -2316,8 +2430,11 @@ export function snapshot(state, viewerId = null) {
     players[id] = {
       id: p.id, name: p.name, color: p.color, bot: p.bot, avatar: p.avatar,
       kind: p.kind, build: p.build || null, shopReady: p.shopReady,
-      // co-op-only wire fields — classic snapshots stay byte-identical
-      ...(coop ? { team: p.team || null, wave: !!p.wave } : {}),
+      // team: a NUMBER in versus (round 21.3 — the lobby selector, the ally
+      // rules and the scoreboard grouping all read it), the campaign's
+      // party/AI string in co-op. Survives reconnect (engine.js ghosts).
+      team: p.team != null ? p.team : null,
+      ...(coop ? { wave: !!p.wave } : {}),
       ...(hidden ? {} : { x: round2(p.x), y: round2(p.y) }),
       hp: Math.ceil(p.hp), maxHp: p.maxHp,
       alive: p.alive, ready: p.ready,
@@ -2404,6 +2521,7 @@ export function snapshot(state, viewerId = null) {
       x: round2(p.x), y: round2(p.y), r: round2(p.r), sunk: !!p.sunk,
     })),
     winner: state.winner,
+    ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),
     roundSummary: state.roundSummary || null,
     meteors: (state.meteors || []).map(m => ({ x: round2(m.x), y: round2(m.y), t: round2(m.t) })),
     // nova orbs are public like meteors: the flight + fuse ARE the dodge
@@ -2868,10 +2986,13 @@ function enemiesSeen(state, pl) {
 //
 // Free-for-all ONLY. In co-op the whole party is one team and the wave has its
 // own targeting; a monster's kill tally is not a scoreboard anyone is racing, so
-// `pl.team != null` (any co-op fighter, party or wave) switches this off.
+// a CO-OP team (the string TEAM.PARTY / TEAM.AI) switches this off.
+// ⚠ Round 21.3: versus teams are NUMBERS and every versus player now has one,
+// so the old `pl.team != null` guard would have silently disabled the leader
+// bias for the whole game. The test is the co-op team values, not "has a team".
 export function killLead(pl, e) {
   if (!pl || !e) return 0;
-  if (pl.team != null || pl.wave) return 0;   // co-op: no leader race
+  if (pl.wave || pl.team === TEAM.PARTY || pl.team === TEAM.AI) return 0;
   return Math.max(0, (e.kills || 0) - (pl.kills || 0));
 }
 

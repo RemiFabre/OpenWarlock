@@ -115,6 +115,28 @@
   .pl .who { flex: 1; }
   .pl .state { color: var(--ash); }
   .pl .state.ready { color: var(--ok); }
+  /* teams (round 21.3): your own row carries the selector, everyone else a
+     read-only chip — same width either way so the list never jitters */
+  .pl .teamsel, .pl .teamchip {
+    font-size: 12px; color: var(--ash); display: inline-flex;
+    align-items: center; gap: 4px; flex: none;
+  }
+  .pl .teamsel select {
+    background: var(--obsidian); color: inherit; border: 1px solid #3a2c22;
+    border-radius: 3px; padding: 1px 3px; font: inherit; font-size: 12px;
+  }
+  .tnum { font-weight: 700; }
+  /* scoreboard team banding: one quiet header row per team, its own hue */
+  tr.teamhdr td {
+    padding: 7px 6px 3px; font-size: 12px; letter-spacing: .04em;
+    color: var(--ash); border-bottom: 1px solid var(--line);
+  }
+  tr.teamhdr .tnum { font-size: 13px; }
+  #topbar .thdr {
+    display: flex; gap: 6px; padding: 3px 6px 1px; font-size: 11px;
+    color: var(--ash); letter-spacing: .04em;
+  }
+  #topbar .thdr .tgoal { margin-left: auto; }
   .hint { color: var(--ash); font-size: 13px; margin-top: 14px; }
   .hint kbd {
     font-family: ui-monospace, Menlo, monospace; font-size: 12px;

@@ -275,6 +275,7 @@ setInterval(() => {
           x: +p.x.toFixed(2), y: +p.y.toFixed(2), hp: +p.hp.toFixed(1),
           gold: p.gold, score: p.score, alive: p.alive, bot: p.bot,
           spells: p.spells, items: p.items,
+          team: p.team,   // versus teams: the round-end invariant is per TEAM (round 21.3)
           // co-op: campaign monsters are not seats — the invariant checker
           // must not count them as fighters (see test/harness/check.js)
           ...(p.wave ? { wave: true } : {}),

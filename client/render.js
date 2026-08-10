@@ -1,6 +1,7 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint } from '../shared/constants.js';
+import { rankTeams } from '../shared/sim.js';
 import { currentLevel } from './music.js';
 
 // Sky-bolt tint per spell level (round 17 §2: the color shift IS the level
@@ -270,6 +271,8 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   const R0 = fin(vs.startRadius) ? vs.startRadius : ARENA.START_RADIUS; // un-shrunk
   const players = Array.isArray(vs.players) ? vs.players : [];
   const projectiles = Array.isArray(vs.projectiles) ? vs.projectiles : [];
+  // my team number, for the ally ring on the bodies below (round 21.3)
+  const myTeam = vs.me && vs.me.team != null ? vs.me.team : null;
 
   // --- platform ---
   // ghost of the original arena size
@@ -617,6 +620,14 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.strokeStyle = 'rgba(255, 59, 48, 0.9)';
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
+    } else if (myTeam != null && pl.team === myTeam) {
+      // …and an ALLY wears the same ring in the team's colour (round 21.3).
+      // Your spells pass straight through them, so "don't shoot that one" has
+      // to be readable in the arena, not only on the scoreboard. Never drawn in
+      // a solo lobby: your own number is unique, so nothing else matches it.
+      ctx.strokeStyle = teamTint(myTeam);
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
     }
     // hood highlight
     ctx.fillStyle = 'rgba(255,255,255,0.22)';
@@ -858,12 +869,24 @@ function drawRoundEndBanner(view, vs, players, myId) {
   const winner = rs.winner != null ? players.find(p => p && p.id === rs.winner) : null;
   let title;
   if (rs.final) {
-    // the game is decided on kills, not on who took the last round
-    const champ = players.filter(p => p && !p.spectator).sort((a, b) =>
-      (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0))[0];
-    title = champ ? `${champ.name} wins the game` : 'The game is over';
+    // The game is decided on kills, not on who took the last round — and since
+    // round 21.3 on TEAM kills against 15 x size, which is rankTeams()' order
+    // (a lobby of solo teams ranks identically to the old per-player sort).
+    const fs = players.filter(p => p && !p.spectator);
+    const top = rankTeams(fs)[0];
+    const champ = fs.slice().sort((a, b) =>
+      (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0))
+      .find(p => !top || p.team === top.team);
+    title = !top ? 'The game is over'
+      : top.size > 1 ? `Team ${top.team} wins the game`
+      : champ ? `${champ.name} wins the game` : 'The game is over';
   } else {
-    title = winner ? `${winner.name} takes round ${rs.n}` : `Nobody survives round ${rs.n}`;
+    // teams (round 21.3): several survivors mean a TEAM took the round, so the
+    // banner names the team rather than reading "nobody survives"
+    const team = Array.isArray(rs.winners) ? rs.winners : [];
+    title = winner ? `${winner.name} takes round ${rs.n}`
+      : team.length > 1 ? `Team ${rs.winTeam} takes round ${rs.n}`
+      : `Nobody survives round ${rs.n}`;
   }
 
   ctx.save();
@@ -897,7 +920,9 @@ function drawRoundEndBanner(view, vs, players, myId) {
       ctx.fillText('Game over', view.cx, view.cy + 24);
     }
   } else if (myId && income && fin(+income[myId])) {
-    const won = rs.winner === myId;
+    // a surviving TEAMMATE won it too — `winners` is every survivor paid the
+    // round-win gold, so the verdict never says "defeat" to a winner
+    const won = Array.isArray(rs.winners) ? rs.winners.includes(myId) : rs.winner === myId;
     ctx.font = 'small-caps 700 30px Georgia, serif';
     ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';
     if (won) { ctx.shadowColor = 'rgba(240, 182, 74, 0.5)'; ctx.shadowBlur = 18; }

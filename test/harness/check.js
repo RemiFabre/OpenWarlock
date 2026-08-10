@@ -22,6 +22,7 @@ export function checkJournal(lines) {
   let alive = new Set();
   let playersSeen = new Set();
   let spectators = new Set();
+  let teamOf = new Map();   // id -> versus team number (from the digests)
   let totalAtRoundStart = 0;
   const lastCast = {}; // "playerId/spell" -> ms
   let lastDigest = null;
@@ -56,8 +57,12 @@ export function checkJournal(lines) {
           // In the co-op campaign a round ends when the WAVE is dead, so the
           // whole party can (and should) be standing. The free-for-all law
           // "one survivor" simply does not apply there.
-          if (mode !== 'coop' && totalAtRoundStart >= 2 && alive.size > 1)
-            v(`round ended with ${alive.size} players still alive`, e);
+          // Round 21.3: the versus law is now "the survivors are ONE TEAM" —
+          // identical to "one survivor" in a lobby of solo teams (the default),
+          // and the only correct statement of it in a 2v2.
+          const teamsLeft = new Set([...alive].map(id => teamOf.get(id) ?? id));
+          if (mode !== 'coop' && totalAtRoundStart >= 2 && teamsLeft.size > 1)
+            v(`round ended with ${alive.size} players on ${teamsLeft.size} teams still alive`, e);
         }
         phase = e.to;
         break;
@@ -68,6 +73,7 @@ export function checkJournal(lines) {
         mode = 'classic';
         playersSeen = new Set();
         alive = new Set();
+        teamOf = new Map();
         spectators = new Set();
         break;
 
@@ -130,6 +136,7 @@ export function checkJournal(lines) {
             if (p.gold < lastDigest.players[id].gold)
               v(`gold decreased during battle for ${id}: ${lastDigest.players[id].gold} -> ${p.gold}`, e);
           }
+          if (p.team != null) teamOf.set(id, p.team);
           if (p.alive) alive.add(id); else alive.delete(id);
         }
         if (e.round > ROUND.MAX_ROUNDS) v(`round ${e.round} exceeds MAX_ROUNDS`, e);

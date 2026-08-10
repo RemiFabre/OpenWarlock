@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.2). Read this first, then
+*Last updated 2026-08-10 (round 21.3). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -103,7 +103,17 @@ Agent context usage on this project is **CRITICAL**. The rules:
   client camera. ⚠ Bots don't buy pillars, so the labs see none of the
   fortress effect — handing every bot a lv2 pillar caps games at 25 rounds with
   ~750 stones (not a crash; the ruling's stated cost, awaiting a human playtest).
-- **Waiting on Remi**: mosquito pair feel (20.1 — never yet in human hands),
+- **ROUND 21.3 SHIPPED** — **TEAMS in versus**, a lobby property (not a mode):
+  every player owns a team NUMBER (`pl.team`, default = their own unique one, so
+  the old free-for-all is bit-identical). `allied(state, a, b)` in sim.js is the
+  DAMAGE/EFFECT-path predicate ("teammates ignore each other's spells"; pillars
+  stay terrain) and is **co-op-guarded** — `hostile()` remains targeting-only and
+  co-op friendly fire is untouched. Round ends when the survivors are one team
+  (all of them paid); the game ends at `KILLS_TO_WIN × team size` (`teamTally` /
+  `rankTeams`, also the client's HUD ranking). ⚠ `killLead`'s co-op guard had to
+  become value-based — "has a team" is now true for everyone.
+- **Waiting on Remi**: whether an N-vs-1 team's target should be capped by the
+  number of enemies alive (3v1 always hits the 25-round cap today); mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
   E2-chronomancer's 7th-of-30 is where he wants CDR (M), cape (B),
   Bomb + Switcheroo names.
@@ -153,7 +163,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 319 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 337 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -171,7 +181,8 @@ build step, Node ESM, only dep is `ws`.
 
 ## Game rules snapshot (post-round-20, one line each — details in constants.js and BALANCE.md)
 
-- First to **15 kills**, 25-round cap; countdown → battle → roundEnd → shop.
+- First to **15 kills** (per TEAM: `15 × size`, and solo teams are the default —
+  round 21.3), 25-round cap; countdown → battle → roundEnd → shop.
   Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
   The 🧪 **testing sandbox** (lobby flag like draft): chosen gold, game opens
   in an UNTIMED shop, ready-up starts round 1.
@@ -265,7 +276,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 319 green
+npx vitest run                                   # 337 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

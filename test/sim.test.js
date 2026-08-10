@@ -4,12 +4,12 @@ import {
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
-  arenaStartRadius,
+  arenaStartRadius, setTeam, teamTally,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
@@ -4564,7 +4564,9 @@ describe('co-op: teams', () => {
   it('classic mode is untouched: no teams, everyone still hits everyone', () => {
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
-    expect(a.team).toBe(null);
+    // round 21.3: versus players carry their OWN unique team number, which is
+    // free-for-all spelled differently — different numbers, so still enemies
+    expect(a.team).not.toBe(b.team);
     a.x = 0; a.y = 0; a.moveTarget = null;
     b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     castSpell(state, 'p0', 'fireball', 40, 0);
@@ -4639,7 +4641,10 @@ describe('co-op: teams', () => {
     expect(Object.values(coop.players).some(p => p.team === 'ai')).toBe(true);
     const classic = snapshot(freshBattle(2));
     expect(classic.coop).toBeUndefined();
-    expect(Object.values(classic.players)[0].team).toBeUndefined();
+    expect(Object.values(classic.players)[0].wave).toBeUndefined();
+    // `team` IS on the versus wire since round 21.3 (the lobby selector and the
+    // scoreboard grouping read it) — as a number, never the campaign's string
+    expect(Object.values(classic.players)[0].team).toEqual(expect.any(Number));
   });
 });
 
@@ -5664,3 +5669,245 @@ describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
     expect(s2.novas[0].t).toBeLessThanOrEqual(spec.fuse);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Versus TEAMS (round 21.3, Remi's design). One ruling drives all of it: "we
+// just ignore each other's spells from the same team — no damage, no pushback,
+// no on-hit effects — except pillars, which are part of the map". The default
+// (everyone on their own number) must be today's free-for-all exactly, which
+// the other 300-odd tests in this file are the real proof of.
+describe('versus teams', () => {
+  // seat n players in `mode`, then put them on the given team numbers
+  const teamBattle = (teams, mode = 'classic') => {
+    const state = createGame({ seed: 42, mode });
+    teams.forEach((t, i) => addPlayer(state, `p${i}`, `P${i}`));
+    teams.forEach((t, i) => setTeam(state, `p${i}`, t));
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];   // pillars are terrain and would eat the test balls
+    return state;
+  };
+  // face `shooter` at `target` point-blank and fire one fireball
+  const shootAt = (state, shooter, target) => {
+    const a = state.players[shooter], b = state.players[target];
+    a.x = 0; a.y = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    const hp0 = b.hp;
+    castSpell(state, shooter, 'fireball', 40, 0);
+    run(state, 0.5);
+    return { hp0, b };
+  };
+
+  it('every seat defaults to its own team number: free-for-all, spelled out', () => {
+    const state = createGame({ seed: 1, mode: 'classic' });
+    for (let i = 0; i < 5; i++) addPlayer(state, `p${i}`, `P${i}`);
+    const nums = Object.values(state.players).map(p => p.team);
+    expect(nums).toEqual([1, 2, 3, 4, 5]);          // small and readable
+    expect(teamTally(state).every(t => t.size === 1 && t.target === ROUND.KILLS_TO_WIN))
+      .toBe(true);
+    // a leaver's number is free for the next joiner
+    removePlayer(state, 'p2');
+    addPlayer(state, 'p9', 'P9');
+    expect(state.players.p9.team).toBe(3);
+  });
+
+  it('a teammate ball passes clean through — no damage, no push', () => {
+    const state = teamBattle([7, 7]);
+    const { hp0, b } = shootAt(state, 'p0', 'p1');
+    expect(b.hp).toBe(hp0);
+    expect(b.vx).toBe(0);
+    expect(b.vy).toBe(0);
+  });
+
+  it('…and an enemy ball still hits exactly as before', () => {
+    const state = teamBattle([7, 8]);
+    const { hp0, b } = shootAt(state, 'p0', 'p1');
+    expect(b.hp).toBeLessThan(hp0);
+    expect(Math.abs(b.vx)).toBeGreaterThan(0);
+  });
+
+  it('you cannot kill a teammate: no damage path exists, so no credit rule is needed', () => {
+    const state = teamBattle([7, 7]);
+    const a = state.players.p0, b = state.players.p1;
+    b.hp = 1;
+    for (let i = 0; i < 8; i++) { a.cooldowns = {}; shootAt(state, 'p0', 'p1'); }
+    expect(b.alive).toBe(true);
+    expect(b.hp).toBe(1);
+    expect(a.kills).toBe(0);
+    expect(b.deaths).toBe(0);
+    expect(state.events.some(e => e.t === 'teamkill')).toBe(false);
+  });
+
+  it('a repulse blast skips teammates and still shoves enemies', () => {
+    const state = teamBattle([7, 7, 8]);
+    const [a, mate, foe] = ['p0', 'p1', 'p2'].map(id => state.players[id]);
+    a.spells.repulse = 1;
+    a.x = 0; a.y = 0;
+    mate.x = 3; mate.y = 0; mate.vx = 0; mate.vy = 0;
+    foe.x = -3; foe.y = 0; foe.vx = 0; foe.vy = 0;
+    const mateHp = mate.hp, foeHp = foe.hp;
+    castSpell(state, 'p0', 'repulse', 0, 0);
+    run(state, SPELLS.repulse.charge + 0.3);
+    expect(mate.hp).toBe(mateHp);
+    expect(mate.vx).toBe(0);
+    expect(foe.hp).toBeLessThan(foeHp);
+    expect(Math.abs(foe.vx)).toBeGreaterThan(0);
+  });
+
+  it('meteor, nova and lightning all spare teammates', () => {
+    for (const spell of ['meteor', 'nova', 'lightning']) {
+      const state = teamBattle([7, 7, 8]);
+      const [a, mate, foe] = ['p0', 'p1', 'p2'].map(id => state.players[id]);
+      a.spells[spell] = 1;
+      a.x = 20; a.y = 20;             // out of its own blast, inside nova's range
+      mate.x = 0; mate.y = 0; foe.x = 1; foe.y = 0;
+      const mateHp = mate.hp, foeHp = foe.hp;
+      castSpell(state, 'p0', spell, 0, 0);
+      run(state, 4);
+      expect([spell, mate.hp]).toEqual([spell, mateHp]);
+      expect(foe.hp).toBeLessThan(foeHp);
+    }
+  });
+
+  it('Switcheroo cannot hook a teammate (the bolt flies through), but takes an enemy', () => {
+    const mate = teamBattle([7, 7]);
+    mate.players.p0.spells.swap = 1;
+    shootAtSwap(mate, 'p0', 'p1');
+    expect(mate.players.p1.x).toBe(8);      // never moved: no swap, no stun
+    expect(mate.players.p0.x).toBe(0);
+    expect(mate.players.p1.stunT || 0).toBe(0);
+    const foe = teamBattle([7, 8]);
+    foe.players.p0.spells.swap = 1;
+    shootAtSwap(foe, 'p0', 'p1');
+    expect(foe.players.p0.x).toBe(8);       // traded places
+    expect(foe.players.p1.stunT).toBeGreaterThan(0);
+  });
+
+  it("a teammate's mirror wall lets your shots through", () => {
+    const state = teamBattle([7, 7]);
+    const a = state.players.p0, mate = state.players.p1;
+    mate.spells.wall = 1;
+    mate.x = 30; mate.y = 30;               // out of the line of fire
+    castSpell(state, 'p1', 'wall', 8, 0);
+    expect(state.walls.length).toBe(1);
+    a.x = 0; a.y = 0; a.moveTarget = null;
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.4);
+    // reflected balls turn around and change owner; passing through does not
+    expect(state.events.some(e => e.t === 'reflect')).toBe(false);
+  });
+
+  it('anger never marks a teammate', () => {
+    const state = teamBattle([7, 7, 7, 8], 'elemental');
+    const a = state.players.p0;
+    a.elements = { anger: 3 };
+    a._angerNext = 0;
+    run(state, 1);
+    expect(a._angerTarget).toBe('p3');      // the only enemy in the lobby
+  });
+
+  it('malady never spreads onto the creator’s teammates', () => {
+    const state = teamBattle([7, 8, 7], 'elemental');
+    const [a, foe, mate] = ['p0', 'p1', 'p2'].map(id => state.players[id]);
+    a.elements = { malady: 3 };
+    a.x = 0; a.y = 0; a.moveTarget = null;
+    foe.x = 8; foe.y = 0; foe.moveTarget = null;
+    for (let i = 0; i < 2; i++) {           // two hits = infection
+      a.cooldowns = {}; foe.x = 8; foe.y = 0; foe.vx = 0; foe.vy = 0;
+      castSpell(state, 'p0', 'fireball', 40, 0);
+      run(state, 0.5);
+    }
+    expect(foe.poisonT).toBeGreaterThan(0);
+    mate.x = foe.x; mate.y = foe.y; mate.moveTarget = null;  // standing in the aura
+    run(state, 0.5);
+    expect(mate.poisonT).toBe(0);
+  });
+
+  it('the round ends when one TEAM is all that is left, and pays every survivor', () => {
+    const state = teamBattle([1, 1, 2, 2]);
+    const gold0 = state.players.p0.gold;
+    for (const id of ['p2', 'p3']) { state.players[id].hp = 0; state.players[id].alive = false; }
+    run(state, 2 * DT);
+    expect(state.phase).toBe('roundEnd');
+    expect(state.roundSummary.winTeam).toBe(1);
+    expect(state.roundSummary.winners.sort()).toEqual(['p0', 'p1']);
+    // both survivors banked the round-win gold, not just one of them
+    expect(state.players.p0.gold - gold0).toBe(GOLD.ROUND_BASE + GOLD.ROUND_WIN);
+    expect(state.players.p1.gold - gold0).toBe(GOLD.ROUND_BASE + GOLD.ROUND_WIN);
+  });
+
+  it('a 2v2 round does NOT end while one of each team stands', () => {
+    const state = teamBattle([1, 1, 2, 2]);
+    for (const id of ['p1', 'p3']) { state.players[id].hp = 0; state.players[id].alive = false; }
+    run(state, 2 * DT);
+    expect(state.phase).toBe('battle');
+  });
+
+  it('a team wins the game at KILLS_TO_WIN x its size (the average stays 15)', () => {
+    const state = teamBattle([1, 1, 2, 2]);
+    const t = ROUND.KILLS_TO_WIN;
+    state.players.p0.kills = t + 1;        // a solo-sized tally is NOT enough
+    state.players.p1.kills = t - 2;
+    for (const id of ['p2', 'p3']) { state.players[id].hp = 0; state.players[id].alive = false; }
+    run(state, 2 * DT);
+    expect(state.roundSummary.final).toBe(false);
+    expect(state.players.p0.kills + state.players.p1.kills).toBeLessThan(2 * t);
+    // …but the pair's SUM crossing 2x15 ends it
+    const state2 = teamBattle([1, 1, 2, 2]);
+    state2.players.p0.kills = t + 3;
+    state2.players.p1.kills = t - 3;
+    for (const id of ['p2', 'p3']) { state2.players[id].hp = 0; state2.players[id].alive = false; }
+    run(state2, 2 * DT);
+    expect(state2.roundSummary.final).toBe(true);
+    run(state2, ROUND.SUMMARY_TIME + DT);
+    expect(state2.phase).toBe('gameover');
+    expect(state2.winTeam).toBe(1);
+    expect(['p0', 'p1']).toContain(state2.winner);
+  });
+
+  it('solo teams reproduce first-to-15 exactly', () => {
+    const state = teamBattle([1, 2]);
+    state.players.p0.kills = ROUND.KILLS_TO_WIN;
+    state.players.p1.hp = 0; state.players.p1.alive = false;
+    run(state, 2 * DT);
+    expect(state.roundSummary.final).toBe(true);
+    expect(state.roundSummary.winner).toBe('p0');
+  });
+
+  it('teams travel on the wire and the selector is lobby-only, 1..MAX', () => {
+    const state = createGame({ seed: 3, mode: 'elemental' });
+    addPlayer(state, 'a', 'A'); addPlayer(state, 'b', 'B');
+    expect(setTeam(state, 'a', 2)).toBe(true);
+    expect(state.players.a.team).toBe(2);
+    expect(setTeam(state, 'a', 0)).toBe(false);
+    expect(setTeam(state, 'a', TEAMS.MAX + 1)).toBe(false);
+    expect(setTeam(state, 'a', 'x')).toBe(false);
+    expect(state.players.a.team).toBe(2);
+    expect(snapshot(state).players.a.team).toBe(2);
+    startGame(state);
+    expect(setTeam(state, 'a', 5)).toBe(false);   // never mid-game
+  });
+
+  it('bots never hunt a teammate', () => {
+    const state = teamBattle([1, 1, 2], 'elemental');
+    for (let i = 0; i < 30; i++) {
+      const prey = pickPrey(state, state.players.p0);
+      expect(prey && prey.id).toBe('p2');
+    }
+  });
+
+  it('the leader bias survives numeric teams (co-op is still exempt)', () => {
+    const state = teamBattle([1, 2]);
+    state.players.p1.kills = 6;
+    expect(killLead(state.players.p0, state.players.p1)).toBe(6);
+  });
+});
+
+// fire a Switcheroo bolt point-blank; shares the shootAt geometry
+function shootAtSwap(state, shooter, target) {
+  const a = state.players[shooter], b = state.players[target];
+  a.x = 0; a.y = 0; a.moveTarget = null; a.cooldowns = {};
+  b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+  castSpell(state, shooter, 'swap', 40, 0);
+  run(state, 0.5);
+}
