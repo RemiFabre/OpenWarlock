@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.6). Read this first, then
+*Last updated 2026-08-10 (round 21.7). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -138,7 +138,7 @@ build step, Node ESM, only dep is `ws`.
   lethal tick credits creator/spreader), frost=stacks-to-CC,
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
   **[20,15,10] s** — round 20 nerf, claim = +0.5 fireball dmg forever),
-  mosquito (DISPLAYS as **Echo 👯** since 21.1, key unchanged)=every [6,5,4]th
+  mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
   cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
   vampire=every-5th engorged heal, midas.
   Classic keeps the 3-level fireball.
@@ -146,10 +146,11 @@ build step, Node ESM, only dep is `ws`.
   mechanism sentence on hover. Keep new things in that shape.
 - **Items: 3 levels**, cumulative `ITEM_FX` totals, **flat price per level
   since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1)
-  and 7 g brazier (21.5, the passive burn aura) — so the WHOLE shelf is 129 g,
-  and the cuts did NOT move items off the bottom of the
-  strategy table. Sword is mandatory by structure (question L). Cape is
-  pilot-sign-flipping — never buff it off Hard-bot tables. Echo Stone is
+  and 6 g `brazier` (21.7; DISPLAYS as **Hat of Aura 🎩**, the passive burn
+  aura, `auraR [5,6,7]`) — so the WHOLE shelf is 126 g, and the cuts did NOT
+  move items off the bottom of the strategy table. Sword is mandatory by
+  structure (question L). Cape is pilot-sign-flipping — never buff it off
+  Hard-bot tables; Remi hand-set it to −25/−40/−50% in 21.7. Echo Stone is
   DELETED (merged into mosquito, round 20.1).
 - **Spells** (round 19): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
   ignores pillars/walls; delay+radius NEVER level); **Swap** 3 levels 10 g,
@@ -160,7 +161,8 @@ build step, Node ESM, only dep is `ws`.
   **Blink**
   [10,5] g flat range 22 (lv2 = cd); **Bomb** 💣 (key `nova`, name still Remi's)
   = fused artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
-  pillars unlimited; **Statue** 🗿 = 2 s of golden-pillar total invulnerability,
+  pillars unlimited; `statue` (DISPLAYS as **NOPE** since 21.7, gold-tinted 🗿 —
+  the Stone Pillar has the plain 🗿 back) = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
   duration FLAT); **Decoy** 👥 = 5 s mirages that ape your casts and have zero
   gameplay effect ([10,5], lv2 = a second clone, cd flat, power tier);
@@ -168,7 +170,9 @@ build step, Node ESM, only dep is `ws`.
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
   mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost — Remi reverted it); infinite ground-target
   range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
-  REBINDABLE from the shop chips (owKeys localStorage).
+  REBINDABLE from the shop chips and the Keys panel (owKeys localStorage);
+  since 21.7 `loadKeys()` DE-CONFLICTS on load (saved wins, a defaulted spell
+  takes qwerty → azerty → first free key) and rebinding always swaps + toasts.
 - **Vanish**: position stripped in `snapshot()` AND masked from bot perception
   (`BOT_MEMORY`) — both load-bearing, test-locked.
 - **Credit rules**: DoT never stamps last-hitter; a lethal poison tick DOES
@@ -223,6 +227,9 @@ first that Remi isn't hosting a live game.**
 - Bot reaction time is a perception delay — extrapolate stale observations,
   don't under-lead.
 - Balance tests read numbers from the spec, never pinned constants.
+- A new spell's DEFAULT key landing on a returning player's SAVED binding is a
+  silently dead spell (round 21.7: Statue and Decoy, both invisible to Remi).
+  Never assume the presets describe what a real player's client is bound to.
 - Stale server/browser after pulling ships mixed-version games; tunnel sockets
   die silently (hence the heartbeat); audio must start from a user gesture;
   emoji icons are load-bearing UI; voice transcriptions garble numbers —

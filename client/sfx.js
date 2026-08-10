@@ -169,6 +169,38 @@ const FX = {
     tone({ type: 'sine', f0: 240, f1: 70, dur: 0.22, vol: 0.26 });
   },
 
+  // anger: YOU just claimed a red mark, +0.5 fireball damage forever. Remi's
+  // brief: short, low, satisfying — a Heartsteel-style "OUU". A sine bending UP
+  // an octave-ish under a quiet fifth above it reads as a vowel opening, and the
+  // sub under it is the weight. Two alternates are kept below because he asked
+  // for options: `anger` is the shipped one, swap the name to try another
+  // (window.__sfx('angerBell') plays one live in the console).
+  anger() {
+    tone({ type: 'sine', f0: 96, f1: 168, dur: 0.30, vol: 0.62 });        // the "ouu"
+    tone({ type: 'sine', f0: 144, f1: 252, dur: 0.26, vol: 0.16, t0: 0.01 }); // fifth: body
+    tone({ type: 'sine', f0: 62, f1: 62, dur: 0.34, vol: 0.30 });         // sub: weight
+  },
+  // alt 1: bell over a thump — brighter, more "trophy", less vowel
+  angerBell() {
+    tone({ type: 'sine', f0: 110, f1: 82, dur: 0.30, vol: 0.5 });
+    tone({ type: 'triangle', f0: 784, dur: 0.22, vol: 0.20, t0: 0.02 });
+    tone({ type: 'triangle', f0: 1174.7, dur: 0.16, vol: 0.10, t0: 0.02 });
+  },
+  // alt 2: deeper and slower — a growl that lands rather than pops
+  angerDeep() {
+    tone({ type: 'triangle', f0: 70, f1: 120, dur: 0.38, vol: 0.55 });
+    tone({ type: 'sine', f0: 210, f1: 300, dur: 0.2, vol: 0.12, t0: 0.03 });
+    noise({ dur: 0.16, vol: 0.08, filter: 'lowpass', f0: 400, t0: 0.02 });
+  },
+
+  // NOPE (SPELLS.statue): the golden pillar snaps up. A clean two-partial ding
+  // — high, short, unmistakable, and nothing else in the mix is a pure bell.
+  ding() {
+    tone({ type: 'sine', f0: 2093, dur: 0.26, vol: 0.26 });
+    tone({ type: 'sine', f0: 3136, dur: 0.14, vol: 0.11 });
+    tone({ type: 'triangle', f0: 1046.5, dur: 0.3, vol: 0.12, t0: 0.005 });
+  },
+
   // frost detonation: glassy shatter over a dropping chime
   freeze() {
     tone({ type: 'triangle', f0: 2300, f1: 640, dur: 0.24, vol: 0.22 });

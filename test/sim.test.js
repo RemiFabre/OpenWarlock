@@ -6179,7 +6179,7 @@ describe('statue 🗿 (the golden pillar)', () => {
   });
 });
 
-describe('Coal Brazier 🪔 (the passive damage aura, round 21.5)', () => {
+describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 21.5)', () => {
   const spec = ITEMS.brazier;
   const fx = () => ITEM_FX.brazier;
   const at = (field, lv) => {
@@ -6212,8 +6212,9 @@ describe('Coal Brazier 🪔 (the passive damage aura, round 21.5)', () => {
     expect(fx().auraR.length).toBe(spec.maxLevel);
     for (let lv = 2; lv <= spec.maxLevel; lv++)
       expect(at('auraR', lv)).toBeGreaterThan(at('auraR', lv - 1));
-    // "modest": every radius stays well inside malady's contagion aura
-    expect(Math.max(...fx().auraR)).toBeLessThan(Math.min(...ELEMENTS.malady.fx.auraR));
+    // Round 21.7 (Remi widened it to [5,6,7]): the ring is a real threat now,
+    // but a maxed hat still reaches less far than a maxed plague.
+    expect(Math.max(...fx().auraR)).toBeLessThan(Math.max(...ELEMENTS.malady.fx.auraR));
     expect(Math.min(...fx().auraR)).toBeGreaterThan(PLAYER.RADIUS);
     // it is not a passive stat: playerStats must be untouched by owning one
     const state = brazierBattle(3);

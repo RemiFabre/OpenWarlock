@@ -281,6 +281,10 @@
   }
   .keychip:hover { border-color: var(--ember); color: var(--ember); }
   #rebind { z-index: 80; }
+  /* the ONE tinted icon (round 21.7): NOPE wears the Stone Pillar's 🗿 in gold,
+     so the two read as "stone / gold stone" everywhere an icon appears.
+     Emoji are colour glyphs, so this is a filter, not a colour. */
+  .goldicon { filter: sepia(1) saturate(5.5) hue-rotate(-12deg) brightness(1.12); }
   .shoplabel { grid-column: 1 / -1; color: var(--ash); font-size: 12px;
     text-transform: uppercase; letter-spacing: .12em; margin-top: 10px;
     border-bottom: 1px solid var(--line); padding-bottom: 4px; }
@@ -697,7 +701,8 @@
 <div id="rebind" class="overlay hidden">
   <div class="slab" style="--w:420px">
     <p id="rebindMsg" style="font-size:16px; margin:4px 0 10px"></p>
-    <p class="hint" style="margin-top:0"><kbd>Esc</kbd> to cancel</p>
+    <p class="hint" style="margin-top:0">Any key works — if it is taken, the two spells swap.
+      <kbd>Esc</kbd> or a click outside cancels.</p>
   </div>
 </div>
 

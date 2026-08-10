@@ -252,9 +252,11 @@ export const SPELLS = {
     // positional: you are rooted and telegraphed, so the enemy pre-places
     // artillery and zones on your exit.
     // ⚠ The duration NEVER levels (Remi): lv2 buys cooldown only, like Blink.
-    // Name: Remi said "Stasis"; shipped as Statue in the game's plain-words
-    // style (alternates in REMI_NOTES, his to veto — rename is this one line).
-    name: 'Statue', hotkey: 'A', maxLevel: 2, costs: [10, 5],
+    // Name (round 21.7, Remi's pick): DISPLAY is 'NOPE' — the internal key stays
+    // `statue` everywhere (code, tests, logs), exactly like mosquito/Echo.
+    // Its icon is the pillar's 🗿 tinted GOLD in the client (client/main.js
+    // ICONS + .goldicon), so the shop reads "grey pillar / gold pillar".
+    name: 'NOPE', hotkey: 'A', maxLevel: 2, costs: [10, 5],
     cooldown: [16, 12], duration: 2,
     desc: 'Become an invincible statue.',
     long: 'For 2 seconds you turn to solid gold: nothing damages you and nothing can push you, and your body blocks balls like a pillar — but you cannot move or cast.',
@@ -373,8 +375,9 @@ export const ITEMS = {
   // (Ring of Regeneration removed with passive regen, round 17 — see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
-  // ⚠ Cape deliberately NOT changed: its value flips SIGN by pilot — the weak
-  // Hard-tier number is a bot artifact. Needs Remi's feel read (BALANCE 15D).
+  // ⚠ The cape is set on FEEL, never on a lab table: its value flips SIGN by
+  // pilot, so the weak Hard-tier number is a bot artifact (BALANCE 15D). Round
+  // 21.7 is Remi's hand spec — see ITEM_FX.cape.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-treads-and-cape-round-15
   cape:   { name: 'Cape of the Magi',     cost: 5, maxLevel: 3, desc: 'Knockback resistance.' },
   // Studied 2026-08-07 after Remi's "really really weak" report: lava is only
@@ -397,9 +400,12 @@ export const ITEMS = {
   // `tickEvery` is the cadence of that damage (malady's machinery: discrete
   // bites, never per-frame); the per-tick bite is auraDps × tickEvery, so the
   // spec's "1 per second" stays the single truth. Owner + teammates never burn.
-  brazier: { name: 'Coal Brazier', cost: 7, maxLevel: 3, tickEvery: 1,
+  // Round 21.7 (Remi): renamed Hat of Aura 🎩, 6 g, and the ring is a real
+  // threat radius now ([5, 6, 7] — lv1 = malady's lv1 aura). Revert: name
+  // 'Coal Brazier' 🪔, cost 7, auraR [3, 3.8, 4.6].
+  brazier: { name: 'Hat of Aura', cost: 6, maxLevel: 3, tickEvery: 1,
             desc: 'Burns nearby foes.',
-            long: 'Enemies standing inside a small ring around you burn for 1 damage per second; the ring grows with the level. Teammates and you never feel it.' },
+            long: 'Enemies standing inside a ring around you burn for 1 damage per second; the ring grows with the level. Teammates and you never feel it.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -424,9 +430,9 @@ export const ITEM_FX = {
   // — was [0.50, 0.36, 0.28].
   treads: { lavaMult: [0.75, 0.50, 0.35] },
   amulet: { maxHp: [18, 32, 42] },   // round 17 §9 trim (was [25, 43, 56])
-  // Round 19.6 (Remi): another notch — lv1 −15%, same ladder shape (gaps 11,
-  // 9). History: [0.92, 0.85, 0.80] → 19.2 [0.88, 0.78, 0.70] → now.
-  cape: { kbMult: [0.85, 0.74, 0.65] },
+  // Round 21.7 (Remi's hand spec): −25/−40/−50% knockback. History:
+  // [0.92,0.85,0.80] → 19.2 [0.88,0.78,0.70] → 19.6 [0.85,0.74,0.65] → now.
+  cape: { kbMult: [0.75, 0.60, 0.50] },
   sword: { lifesteal: [0.18, 0.30, 0.38] },
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
   // haste SUMS across sources — so stacking it with arcane's fireball haste
@@ -436,13 +442,13 @@ export const ITEM_FX = {
   // lv0 12.9% on the ladder; this is the same ballpark.
   // history: docs/history/2026-08-08-round17-battery.md
   hourglass: { haste: [10, 18, 26] },
-  // Round 21.5, Coal Brazier: damage is FLAT (Remi — every level burns for the
-  // same 1/s), the RADIUS is the whole upgrade. Sized "modest" against
-  // PLAYER.RADIUS 1.4 and malady's auraR [5,7,9]: lv1 is ~2 body-widths of
-  // reach, lv3 is still half a malady lv1 aura. Measured centre-to-centre, and
-  // the client ring is drawn at exactly these numbers.
+  // Hat of Aura (ex-Coal Brazier): damage is FLAT (Remi — every level burns for
+  // the same 1/s), the RADIUS is the whole upgrade. Round 21.7 (his call):
+  // [3, 3.8, 4.6] → [5, 6, 7], so lv1 equals malady's lv1 aura and lv3 still
+  // sits under its lv3. Measured centre-to-centre, and the client ring is drawn
+  // at exactly these numbers.
   // ⚠ Neither field is a passive stat, so items.js ignores both by design.
-  brazier: { auraDps: 1, auraR: [3, 3.8, 4.6] },
+  brazier: { auraDps: 1, auraR: [5, 6, 7] },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------
@@ -454,7 +460,9 @@ export const ELEMENTS = {
   // Round 17 §8: [2,4,6] → [1,2,4] — ember was the best 6 g in the game
   // (+39.8 isolated). Linear cost↔gain with the premium last step (the
   // general tuning principle: going all-in deserves the reward).
-  ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [6, 5, 5],
+  // Round 21.7 (Remi's price pass over the whole roster — his hand spec):
+  // ember [5,5,7], terra [6,6,7], gale [6,6,6], arcane [6,6,10], ghost [6,6,10].
+  ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [5, 5, 7],
            desc: 'More damage.',
            long: 'Every fireball hits harder.',
            fx: { dmgAdd: [1, 2, 4] } },
@@ -491,11 +499,13 @@ export const ELEMENTS = {
   // a flat ADD (a multiplier scaled weirdly with other push riders). Sized off
   // the old lv3 gust (79×2.4≈190) at ~70%: 65+21+45=131. Revert: kbAdd
   // [7,14,14], burstKbMult 2.4, burstAtLevel 3, costs [6,5,12].
-  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [10, 8, 8],
+  // Round 21.7 (Remi): gale is a 6/6/6 element now, and the gust is nerfed with
+  // the discount — burstKbAdd [30,60,90] → [25,50,75].
+  gale:  { name: 'Gale', icon: '🌪️', maxLevel: 3, costs: [6, 6, 6],
            desc: 'More push.',
            long: 'Your fireball pushes harder, and every 3rd hit on the same target is one big gust.',
            fx: { kbAdd: [10, 20, 30], stacksToTrigger: 3,
-                 burstKbAdd: [30, 60, 90] } },
+                 burstKbAdd: [25, 50, 75] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now — the first hit on a target
   // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
   // target cashes +1 g and clears it. Halves the income RATE, which was the
@@ -514,7 +524,7 @@ export const ELEMENTS = {
   // fireballs SMASH Stone Pillars: the pillar is destroyed and the ball is
   // consumed with it (pass-through was ruled too strong). Pillars only —
   // Mirror Walls are untouched. Read off the fx flags, never the element name.
-  terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 5, 5],
+  terra: { name: 'Terra', icon: '🪨', maxLevel: 3, costs: [6, 6, 7],
            desc: 'Bigger fireball.',
            long: 'A bigger ball is easier to land. At lv3 your fireballs smash Stone Pillars apart — the ball breaks on impact too.',
            fx: { projRadiusMult: [1.25, 1.45, 1.65],
@@ -546,7 +556,9 @@ export const ELEMENTS = {
   // ⚠ Round 21.1 (Remi): DISPLAY RENAME ONLY — Mosquito 🦟 is now Echo 👯. The
   // internal key stays `mosquito` EVERYWHERE (code, tests, roster, archetypes);
   // never rename it.
-  mosquito: { name: 'Echo', icon: '👯', maxLevel: 3, costs: [10, 8, 8],
+  // Round 21.7 (Remi wanted "the ripple a drop makes on water"): icon 👯 → 🫧.
+  // Alternates, one line each: 💧 🌊 (🌀 is Blink's, ◎ is not an emoji).
+  mosquito: { name: 'Echo', icon: '🫧', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Doubled casts.',
            long: 'Every 6/5/4th fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
            fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
@@ -556,9 +568,9 @@ export const ELEMENTS = {
   // Lv3 = ex-chronos refund on fireball hits, never the fireball's own CD
   // (self-refund = 74% feedback loop; revert on arcaneRefund in sim.js).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-arcane
-  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 5, 12],
+  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 6, 10],
            desc: 'Faster casting.',
-           long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns.',
+           long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns — never the fireball\'s own.',
            fx: { haste: [18, 32, 32], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
   // Every 5th fireball engorged: heals >100% of damage dealt — an EVENT, not a
@@ -578,7 +590,7 @@ export const ELEMENTS = {
   // on-hit effect pays per enemy. Old pierce spec + sweeps: git c38730f.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-ghost
   // Round 20 (Remi): lv3 price cut 12 -> 10.
-  ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 5, 10],
+  ghost: { name: 'Ghost', icon: '👻', maxLevel: 3, costs: [6, 6, 10],
            desc: 'Faster projectile.',
            long: 'Your fireball flies faster. Lv3: it passes through people, hitting everyone on the line.',
            fx: { projSpeedMult: [1.15, 1.3, 1.3], pierce: true,

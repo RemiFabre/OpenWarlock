@@ -111,12 +111,12 @@ the old free-for-all); a team's kill target is `15 × size`, so ⚠ 3v1 can neve
 be won on kills and always runs to the 25-round cap. **Statue 🗿** is new — see
 question N, it is unmeasured by design.
 
-**Round 21.5 (2026-08-10)**: NEW item **Coal Brazier 🪔**, 7 g/level, the first
-passive damage in the game — enemies within `auraR [3, 3.8, 4.6]` (centre-to-
-centre) burn for a FLAT 1 dmg/s, one bite per second on the owner's clock.
-Owner and teammates exempt, co-op exempt, statues immune, a statue'd owner keeps
-burning, and it does NOT break vanish (Remi's ruling). Item shelf 108 → **129 g**
-— still under roster.js's 150 g band. UNMEASURED: no Elo pass has run with it.
+**Round 21.5 (2026-08-10)**: NEW item `brazier` (displays as **Hat of Aura 🎩**
+since 21.7), the first passive damage in the game — enemies within `auraR`
+(centre-to-centre) burn for a FLAT 1 dmg/s, one bite per second on the owner's
+clock. Owner and teammates exempt, co-op exempt, statues immune, a statue'd
+owner keeps burning, and it does NOT break vanish (Remi's ruling). Price and
+radius were re-set in 21.7 below. UNMEASURED: no Elo pass has run with it.
 
 **Round 21.6 (2026-08-10)**: NEW spell **Decoy 👥**, [10, 5] g, `tier: 'power'`.
 lv1 = one clone, lv2 = two; they live 5 s, wander at your move speed, mime every
@@ -128,6 +128,22 @@ never holds a clone, and bot threat-dodging reads `state.projectiles`, which
 never holds a phantom). `tier: 'power'` keeps bots from buying a spell they
 cannot use. Every lab that enumerates spells will price it at ~0 — that is the
 instrument being honest, not the spell being weak. Human playtest only.
+
+**Round 21.7 (2026-08-10, Remi's hand spec after a playtest — UNMEASURED, all
+one-line reverts)**: a price + feel pass, no new mechanics.
+- **Elements repriced** (his numbers, the cheap axes get cheaper and the third
+  step carries the premium): ember `[5,5,7]`, terra `[6,6,7]`, gale `[6,6,6]`,
+  arcane `[6,6,10]`, ghost `[6,6,10]`. ⚠ Gale went from 26 g to 18 g total, so
+  its gust was cut with the discount: `burstKbAdd [30,60,90] → [25,50,75]`.
+- **Cape −25/−40/−50%** (`kbMult [0.75, 0.60, 0.50]`, was [0.85, 0.74, 0.65]).
+  ⚠ Deliberately set on FEEL: the cape's lab value flips sign by pilot, so the
+  Hard-bot number was never the ruler (BALANCE 15D stands).
+- **Hat of Aura** (`brazier` renamed) 7 → **6 g/level**, `auraR [3,3.8,4.6] →
+  [5,6,7]` — lv1 now equals malady's lv1 aura, lv3 still under its lv3. Shelf
+  129 → **126 g**. The old "half a lv1 plague" sizing is gone by his ruling.
+- Display only: `statue` → **NOPE** (gold-tinted 🗿, pillar takes the plain one
+  back), Echo's icon → 🫧. Internal keys unchanged, as with mosquito/Echo.
+- ⚠ The whole entry is UNMEASURED — the ELO baseline below predates it.
 
 ### The strategy ELO table — THE current ranking (r219, 30 strategies, 8000 games × 2 seeds)
 
@@ -144,7 +160,8 @@ Headlines:
 - **Anger still #1 (B3-mutation-depth 2064) and #3 (D2-executioner 1880)**,
   unmoved by all of round 21. No absolute scale → question K stays Remi's call.
 - **Items are effect-limited, not price-limited**: a third price cut (now flat
-  5/7 g, whole shelf 129 g *including* the new brazier) left the five item-only
+  5/7 g, whole shelf 129 g at the time *including* the new brazier; 126 g since
+  21.7) left the five item-only
   cores at ranks 22/23/25/26/29 of 30. B6-item-breadth buys the brazier at all
   three levels and *lost* 30 Elo. Meanwhile elements-only scores 1557 on 102 g
   and spells-only 1585 on 88 g.
@@ -190,8 +207,9 @@ express either mechanic; human games are the instrument.
 
 ### The item ladder (1500 games, seat capped at that level, at `62de05b`)
 
-⚠ **Prices below are pre-round-20** (items are flat 5/7 g since 21.1, whole
-shelf 129 g with the brazier). The effect columns still hold; the gold cost of each rung does not.
+⚠ **Prices below are pre-round-20** (items are flat 5/6/7 g since 21.7, whole
+shelf 126 g with the Hat of Aura), and the **cape's rungs changed in 21.7**
+(−25/−40/−50%), so its column measures the old, weaker cape. The effect columns still hold; the gold cost of each rung does not.
 And the cut did not help: see the ELO headlines above.
 
 | item | lv0 | lv1 | lv2 | lv3 | | item | lv0 | lv1 | lv2 | lv3 |

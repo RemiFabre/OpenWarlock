@@ -22,20 +22,23 @@ const view = makeView(canvas);
 view.resize();
 window.addEventListener('resize', () => view.resize());
 
+// ⚠ Every value here is injected as HTML (shop cards, spell bar, tooltips,
+// draft banner, kit strip) — never as textContent — which is what lets an icon
+// carry a wrapper span. Keep it that way if you add a call site.
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
-  // ⚠ Round 21.4: 🗿 moved from the Stone Pillar to the new Statue (Remi picked
-  // the moai for it — "the golden pillar"), so the pillar took the columns 🏛️.
-  // Revert = swap the two back.
-  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🏛️', vanish: '👁️',
-  statue: '🗿',
+  // Round 21.7 (Remi): the Stone Pillar has its 🗿 back, and NOPE (SPELLS.statue)
+  // wears the SAME moai tinted gold (.goldicon in index.html) — "a normal pillar
+  // icon and a gold one". Revert = drop the span / restore 🏛️.
+  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
+  statue: '<span class="goldicon">🗿</span>',
   // Decoy (round 21.6): the two silhouettes — "there are more of me than there
-  // should be". 👯 is Echo's, 👤/👥 were both free.
+  // should be". 👤/👥 were both free.
   decoy: '👥',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
-  // 🔥 belongs to the ember element, so the brazier carries the lamp
-  hourglass: '⏳', brazier: '🪔',
+  // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember
+  hourglass: '⏳', brazier: '🎩',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -59,14 +62,33 @@ const KEY_PRESETS = {
             statue: 'q', decoy: 'w' },
 };
 
+// ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
+// spell. He plays AZERTY, so his saved bindings had fireball on `a` and
+// lightning on `z`; Statue and Decoy shipped later with the QWERTY defaults
+// `a`/`z`, and spellForKey() returns the FIRST match — so Statue never fired
+// (fireball ate the key) and Decoy did literally nothing. Load now resolves
+// every collision: your SAVED keys win, then a defaulted spell takes the first
+// free key from [its qwerty default, its azerty default, a-z, 0-9].
+const FALLBACK_KEYS = 'abcdefghijklmnopqrstuvwxyz0123456789'.split('');
 function loadKeys() {
   const b = { ...KEY_PRESETS.qwerty };
-  try {
-    const saved = JSON.parse(localStorage.getItem('owKeys') || '{}');
-    for (const spell of Object.keys(b))
-      if (typeof saved[spell] === 'string' && saved[spell]) b[spell] = saved[spell].toLowerCase();
-  } catch { /* corrupt storage — fall back to defaults */ }
-  return b;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('owKeys') || '{}') || {}; }
+  catch { /* corrupt storage — fall back to defaults */ }
+  const spells = Object.keys(b);
+  const savedKey = (s) => (typeof saved[s] === 'string' && saved[s]) ? saved[s].toLowerCase() : null;
+  const out = {};
+  const taken = new Set();
+  for (const spell of spells) {           // your own bindings first, in order
+    const k = savedKey(spell);
+    if (k && !taken.has(k)) { out[spell] = k; taken.add(k); }
+  }
+  for (const spell of spells) {           // the rest: default, else first free
+    if (out[spell]) continue;
+    for (const k of [KEY_PRESETS.qwerty[spell], KEY_PRESETS.azerty[spell], ...FALLBACK_KEYS])
+      if (k && !taken.has(k)) { out[spell] = k; taken.add(k); break; }
+  }
+  return out;
 }
 let keyBindings = loadKeys();
 function saveKeys() { try { localStorage.setItem('owKeys', JSON.stringify(keyBindings)); } catch { } }
@@ -74,7 +96,13 @@ function spellForKey(k) {
   for (const [spell, key] of Object.entries(keyBindings)) if (key === k) return spell;
   return null;
 }
-function keyLabel(k) { return k.length === 1 ? k.toUpperCase() : k; }
+// Any key can be bound (round 21.7), so the label has to survive the odd ones.
+const KEY_LABELS = { ' ': 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←',
+  arrowright: '→', enter: '⏎', tab: '⇥', backspace: '⌫' };
+function keyLabel(k) {
+  if (!k) return '—';
+  return KEY_LABELS[k] || (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1));
+}
 
 // ---- avatar -----------------------------------------------------------------
 
@@ -88,6 +116,8 @@ let myId = null;
 const snaps = [];          // {at, s} ring buffer
 const fx = [];             // visual effects
 window.__fx = fx;          // test/debug hook: lets a test inject one to look at
+window.__sfx = playSfx;    // console hook: audition a sound, e.g. __sfx('angerBell')
+window.__keys = () => keyBindings;   // test/debug hook: the resolved bindings
 let moveMark = null;
 const mouse = { x: 0, y: 0 };
 let lastUiUpdate = 0;
@@ -307,8 +337,9 @@ function onEvent(e) {
     case 'decoyGone': fx.push({ ...e, type: 'teleport', at: now, dur: 0.3 }); break;
     // Statue (round 21.4): a short transform pop at each end of the freeze —
     // the body itself is drawn as a gold column for the whole duration
-    // (render.js), these two just punctuate it. Glassy up, softer down.
-    case 'statueUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('freeze'); break;
+    // (render.js), these two just punctuate it: a bell going up (round 21.7,
+    // Remi asked for a "ding"), a softer snap coming down.
+    case 'statueUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('ding'); break;
     case 'statueDown': fx.push({ ...e, type: 'grow', at: now, dur: 0.4 }); playSfx('catch'); break;
     // terra lv3 Demolisher: the pillar shatters — rubble that settles and fades
     case 'pillarBroken': fx.push({ ...e, type: 'rubble', at: now, dur: 1.6 }); playSfx('boom'); break;
@@ -328,10 +359,11 @@ function onEvent(e) {
     // a sound on each one would drown the burst it is counting down to.
     case 'gale': pushFloater(e, 'gale', 0.7, now); break;
     // anger: a red mark just got claimed — small red burst on the victim, and
-    // the claimant hears the kill jingle (the trophy sound; no new audio assets)
+    // the claimant hears anger's OWN sound (round 21.7: it used to borrow the
+    // kill jingle, which is why banking a stack never felt like an event)
     case 'angerClaim':
       fx.push({ ...e, type: 'angerClaim', at: now, dur: 0.6 });
-      if (e.by === myId) playSfx('kill');
+      if (e.by === myId) playSfx('anger'); // round 21.7: its own low "ouu" (sfx.js)
       break;
     // malady: somebody just caught the plague — one-shot burst + a sound cue
     // (the drain slurp reused: sick and wet, and no new audio assets)
@@ -521,7 +553,15 @@ function toWorld(px, py) {
   return { x: (px - view.cx) / view.scale, y: (py - view.cy) / view.scale };
 }
 
-canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+// Round 21.7 (Remi): right-click is a GAME button, so the browser menu is off
+// on the whole page — it used to pop over every overlay and background (lobby,
+// the dead-and-waiting screen), and a misclick on "Reload" ended his game.
+// Text inputs keep their menu (copy/paste on the name and room-code fields).
+document.addEventListener('contextmenu', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+  e.preventDefault();
+});
 canvas.addEventListener('mousedown', (e) => {
   if (e.button === 2) {
     const w = toWorld(e.clientX, e.clientY);
@@ -717,23 +757,25 @@ function startCapture(spell) {
   keyRows[spell].classList.add('capturing');
   keyRows[spell].textContent = 'press any key…';
   window.addEventListener('keydown', onCaptureKey, true);
+  window.addEventListener('mousedown', onCaptureClick, true);
 }
 function cancelCapture() {
   if (!capturing) return;
   capturing = null;
   window.removeEventListener('keydown', onCaptureKey, true);
+  window.removeEventListener('mousedown', onCaptureClick, true);
   refreshKeyUi();
+}
+// click anywhere but another key button = cancel (same rule as the popup)
+function onCaptureClick(e) {
+  if (!(e.target instanceof Element) || !e.target.classList.contains('keybtn')) cancelCapture();
 }
 function onCaptureKey(e) {
   e.preventDefault();
   e.stopImmediatePropagation();
   if (e.key === 'Escape') { cancelCapture(); return; }
-  if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key)) return; // wait for a real key
-  const k = e.key.toLowerCase();
-  const other = spellForKey(k);
-  if (other && other !== capturing) keyBindings[other] = keyBindings[capturing]; // swap
-  keyBindings[capturing] = k;
-  saveKeys();
+  if (MODIFIER_KEYS.includes(e.key)) return; // wait for a real key
+  bindKey(capturing, e.key.toLowerCase());
   cancelCapture(); // refreshes all labels
 }
 function applyPreset(preset) {
@@ -749,11 +791,28 @@ $('keysCloseBtn').addEventListener('click', closeKeysPanel);
 $('joinKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 $('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 
-// ---- in-shop rebind popup ---------------------------------------------------
-// Click a spell's key chip in the shop, press the new key. Conflict rule
-// (round 20, Remi): a key is only DEFENDED when its spell is OWNED this game
-// (mid-game muscle memory); an unowned spell just swaps keys with you, like
-// the keys panel. The capture-phase listener eats every keydown while open.
+// ---- rebinding: ONE rule, both entry points ---------------------------------
+// Round 21.7 (Remi): "any key just works". Esc or a click outside cancels;
+// ANY other key takes the binding, and if that key was another spell's, the two
+// SWAP and a toast says so. No key is ever defended (the round-20 owned-spell
+// veto is gone — it made the popup refuse and say nothing useful).
+const MODIFIER_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
+function bindKey(spell, k) {
+  if (!spell || !k || keyBindings[spell] === k) return;
+  const other = spellForKey(k);
+  const old = keyBindings[spell];
+  keyBindings[spell] = k;
+  if (other && other !== spell) {
+    keyBindings[other] = old;
+    toast(`Swapped: ${SPELLS[spell].name} is now ${keyLabel(k)}, ` +
+      `${SPELLS[other].name} is now ${keyLabel(old)}`);
+  }
+  saveKeys();
+  refreshKeyUi();
+}
+
+// The in-shop popup: click a spell's key chip, press the new key. The
+// capture-phase listener eats every keydown while it is open.
 let rebindSpell = null;
 function openRebind(spell) {
   cancelCapture();
@@ -767,33 +826,14 @@ function closeRebind() {
   $('rebind').classList.add('hidden');
   window.removeEventListener('keydown', onRebindKey, true);
 }
+$('rebind').addEventListener('click', closeRebind); // click away = cancel
 function onRebindKey(e) {
   e.preventDefault();
   e.stopImmediatePropagation();
   if (e.key === 'Escape') { closeRebind(); return; }
-  const k = e.key.toLowerCase();
-  if (k.length !== 1) return; // only single printable chars bind — keep waiting
-  const spell = rebindSpell;
-  if (keyBindings[spell] === k) { closeRebind(); return; } // same key: quiet close
-  const other = spellForKey(k);
-  const m = me(latest());
-  if (other && m && m.spells && (m.spells[other] || 0) >= 1) {
-    // the other spell is owned this game: its key is muscle memory, deny
-    closeRebind();
-    toast(`${keyLabel(k)} is already ${SPELLS[other].name}, which you own: ` +
-      `${SPELLS[spell].name} stays on ${keyLabel(keyBindings[spell])}`);
-    return;
-  }
-  const old = keyBindings[spell];
-  keyBindings[spell] = k;
-  if (other) { // unowned spell: it takes our old key, quietly
-    keyBindings[other] = old;
-    toast(`Swapped: ${SPELLS[spell].name} is now ${keyLabel(k)}, ` +
-      `${SPELLS[other].name} is now ${keyLabel(old)}`);
-  }
-  saveKeys();
+  if (MODIFIER_KEYS.includes(e.key)) return; // wait for a real key
+  bindKey(rebindSpell, e.key.toLowerCase());
   closeRebind();
-  refreshKeyUi();
 }
 
 // Every key label in the UI (panel, spell bar, shop chips, join hint) reflects
@@ -1254,10 +1294,12 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 
 // Round 20 (Remi): the spells sit in three quiet groups, labelled on the edge
 // of each row — PRESENTATIONAL only, nothing about a spell changes.
+// Round 21.7 (Remi): the Stone Pillar moved to Special — it is terrain you
+// leave behind, not a save.
 const SPELL_ROWS = [
   ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'nova', 'repulse']],
-  ['Defense', ['teleport', 'shield', 'statue', 'rush', 'pillar', 'wall']],
-  ['Special', ['swap', 'vanish', 'decoy']],
+  ['Defense', ['teleport', 'shield', 'statue', 'rush', 'wall']],
+  ['Special', ['swap', 'vanish', 'decoy', 'pillar']],
 ];
 const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 
