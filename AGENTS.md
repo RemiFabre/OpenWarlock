@@ -112,6 +112,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
 | `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-11-round21.8-elo.md` (33 strategies) |
+| `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%) — the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
 | `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots — prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
@@ -261,6 +262,9 @@ first that Remi isn't hosting a live game.**
   unknown name must THROW — a silent empty build measures seats buying nothing.
 - A lab must play the ruleset the GAME defaults to (elemental), and print which
   one it played; arena.js quietly measured classic for months.
+- A one-variable A/B needs `caps: {rival: 0}` on BOTH cores: the shared
+  `EXHAUST_PASS` tail holds every item, so otherwise each seat buys the thing it
+  was supposed to do without and the run prices buy ORDER (round 21.8).
 - A new spell's DEFAULT key landing on a returning player's SAVED binding is a
   silently dead spell (round 21.7: Statue and Decoy, both invisible to Remi).
   Never assume the presets describe what a real player's client is bound to.

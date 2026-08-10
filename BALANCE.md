@@ -213,6 +213,18 @@ item raised A1 +58 and B6 +118 — human read needed); the **meteor lv2 buff
 (24→30) is invisible** (C5 still last, Δ −1) — its cast rules, not its damage,
 are the lever.
 
+**Slow Spoon vs Blood Sword, settled** (r236 addendum in the same file): in one
+identical high-volume kit with each side BANNED from the other item, the sword
+is **+54/+77 Elo** and heals 115 vs 75 hp per game. The spoon only wins a hit
+below **~5 damage** at every level (`flat heal ÷ lifesteal %`), and the game's
+smallest hit is a 7-damage lv1 fireball — so it currently loses on every hit
+that exists, and its own exclusions (Malady, the Hat) are the sub-5 sources that
+would have favoured it. Both cost 21 g, so this is not a price question. Lever:
+`healOnHit [2, 3, 4]` puts the break-even at ~10 damage.
+⚠ **Instrument scar**: `EXHAUST_PASS` holds every item, so a one-variable item
+A/B MUST use `caps: {other: 0}` — without it the pair prices buy ORDER and
+produces a plausible, wrong table.
+
 ⚠ The paragraphs below this line describe the SUPERSEDED r219 table and are kept
 for the round-21 diffs they explain. Instrument: `node tools/elo.js --games=8000 --seed=1` — random
 4-of-roster Hard lobbies in elemental, Bradley-Terry over all pairwise

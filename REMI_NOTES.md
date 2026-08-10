@@ -140,6 +140,38 @@ and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
   moved −1 and is still last). If the meteor should be a real pick, the lever is
   its cast rules, not its damage.
 
+## You asked me to test the spoon against the blade. The blade wins.
+
+Same kit, one item swapped: maxed cadence (arcane 3 + hourglass 3), Echo pairs
+and three buttons — a build that lands as many hits as possible. Both items cost
+21 g, and each seat was **banned from buying the other one**.
+
+| | hp healed / game | kills | won% | ELO |
+|---|---|---|---|---|
+| Slow Spoon lv3 | 74.8 | 11.7 | 17.7% | 1223 / 1226 |
+| Blood Sword lv3 | 115.3 | 12.7 | 32.3% | **1277 / 1303** |
+
+**+54 and +77 Elo to the sword on the two seeds**, and it heals half again as
+much — in the build designed to favour the spoon. Three separate seeds of the
+head-to-head agree.
+
+**The reason is one number.** The spoon beats the sword only on hits smaller
+than `flat heal ÷ lifesteal %` — **about 5 damage, at every level**. The
+smallest hit in the game is a bare level-1 fireball at **7**. So the sword wins
+on essentially every hit that exists, and the spoon's own exclusions (Malady's
+ticks, the Hat's burn) are exactly the sub-5-damage sources that would have
+favoured it.
+
+If you want it to be the low-damage-build item you described, **1 / 1.5 / 2 →
+2 / 3 / 4** puts the break-even at ~10 damage: better than the sword for pokes
+and combos, worse for real hits. One line, say the word.
+
+⚠ And a lab scar worth knowing: the shared "buy everything" tail that every
+strategy falls into contains BOTH healing items, so my first attempt had each
+seat quietly buying its rival's item — it measured buy order, not the item. The
+roster can ban a thing outright now, and there is a new `tools/pair.js` that
+answers "what did each side actually DO", not just who won.
+
 ## What I verified
 
 389 unit tests (13 new ones for the mine, the spoon and the linger), both
