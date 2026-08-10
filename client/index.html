@@ -257,11 +257,11 @@
   #statsBtn:hover { opacity: 1; }
   #ideaBtn {
     position: fixed; right: 8px; bottom: 72px; z-index: 205;
-    width: 30px; height: 30px; padding: 0; border-radius: 50%;
-    color: var(--ember); border-color: var(--ember-dim);
-    background: rgba(20, 16, 14, .88); font-size: 18px; font-weight: 700;
+    width: 34px; height: 30px; padding: 0; border-radius: 50%;
+    color: #b7e59f; border-color: var(--ok);
+    background: rgba(31, 57, 31, .92); font-size: 15px; font-weight: 700;
   }
-  #ideaBtn:hover { background: var(--rock); }
+  #ideaBtn:hover { background: #294b29; color: #e0ffd1; }
   #ideaOverlay { z-index: 220; }
   .ping.warn { color: #ffc95e; }
   .ping.bad { color: #ff7a6b; }
@@ -655,7 +655,7 @@
     <div class="ideaPitch">
       <span class="experimental">experimental</span>
       <span>Have an idea to improve the game? An AI agent will create a version in your name using your ideas.</span>
-      <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new" target="_blank" rel="noopener">Write it here ↗</a>
+      <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write it here ↗</a>
     </div>
     <details id="manifesto">
       <summary>what is this?</summary>
@@ -792,15 +792,14 @@
      (Chrome), which trapped the toast underneath the shop/lobby overlays -->
 <div id="toast"></div>
 <div id="ver" title="build version: bumps on every commit"></div>
-<button id="ideaBtn" type="button" title="Propose your own game version">!</button>
+<button id="ideaBtn" type="button" title="Propose your own game version">?!</button>
 <button id="statsBtn" type="button" title="usage stats (public, anonymous)">📊</button>
 <div id="ideaOverlay" class="overlay hidden">
   <div class="slab" style="--w:460px">
     <p style="font-size:16px; margin:4px 0 10px"><span class="experimental">experimental</span></p>
     <p>Have an idea to improve the game? Write it on GitHub. An AI agent will create a version in your name using your ideas.</p>
-    <p class="hint">Your idea will be public so other players can discuss it.</p>
     <div class="row" style="margin-top:16px">
-      <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new" target="_blank" rel="noopener">Write your idea ↗</a>
+      <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write your idea ↗</a>
       <button id="ideaCloseBtn" class="mini" type="button">Close</button>
     </div>
   </div>

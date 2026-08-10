@@ -422,10 +422,10 @@ export function itemCost(key, owned = 0) {
 // Per-level effect totals, indexed by level-1. Scalars apply at every level.
 // Round 15: vs price-matched controls every item's value RISES with level, but
 // levels lose to BREADTH (amulet/sword outliers — BALANCE 15C); flat cost kept.
-// ⚠ Boots lv3 re-cut over Remi's hand spec — one-line revert [1.15, 1.27, 1.35].
+// Round 21.8 (Remi): each level adds 20% move speed.
 // history: docs/history/2026-08-08-constants-sweeps.md#item_fx-level-curve-round-15
 export const ITEM_FX = {
-  boots: { speedMult: [1.15, 1.29, 1.42] },
+  boots: { speedMult: [1.20, 1.40, 1.60] },
   // Round 19.6 (Remi): a 10 g full-counter to lava playstyles was too extreme
   // — was [0.50, 0.36, 0.28].
   treads: { lavaMult: [0.75, 0.50, 0.35] },
