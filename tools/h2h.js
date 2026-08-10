@@ -6,7 +6,7 @@
 // above ★" has a straight answer: each side's expected win share is 50%.
 //
 //   node tools/h2h.js berserker grunt
-//   node tools/h2h.js --games=800 --build=bruiser stalker berserker
+//   node tools/h2h.js --games=800 --build=warlord stalker berserker
 //
 // Used to calibrate the round-10 bot reaction-time pass: before it the ★★ beat
 // the ★ 99.6% of the time (an execution machine), which is what made close-up
@@ -20,7 +20,8 @@ const argOf = (name, dflt) =>
 const positional = process.argv.slice(2).filter(a => !a.startsWith('--'));
 const [kindA, kindB] = [positional[0] || 'berserker', positional[1] || 'grunt'];
 const games = Number(argOf('games', 800));
-const build = argOf('build', 'bruiser');
+// round 21.8: `bruiser` was retired in 20.2 and this default made h2h throw
+const build = argOf('build', 'warlord');
 const seed = Number(argOf('seed', 500000));
 
 for (const k of [kindA, kindB]) {

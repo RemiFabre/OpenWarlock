@@ -57,7 +57,7 @@ try {
   await a.open;
   a.send({ t: 'join', name: 'remi' });
   await until(a, c => c.id, 5, 'welcome');
-  a.send({ t: 'addBot', kind: 'grunt', build: 'bruiser' });
+  a.send({ t: 'addBot', kind: 'grunt', build: 'warlord' });
   a.send({ t: 'ready', ready: true });
   await until(a, c => c.snap.phase === 'battle', 15, 'battle start');
   console.log('battle started');

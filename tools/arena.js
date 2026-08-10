@@ -92,11 +92,19 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   // of naming one of BUILDS, and an optional `caps` map {key: maxLevel} that
   // stops the greedy shopper at a level below the thing's own maxLevel (the
   // isolation lab measures "this item AT level 2", so it must not drift to 3).
-  // ⚠ BUILDS entries became {name, desc, order} objects in round 20; this read
-  // the object itself and threw "not iterable" for every --mode=elemental run
-  // (found round 21.8 — the elemental study had been dead since).
-  const buildList = (strat) => strat.priorities
-    || (BUILDS[strat.build] && BUILDS[strat.build].order) || [];
+  // ⚠ SCAR (round 21.8): round 20.2 retired the legacy six builds, and three
+  // labs still named `bruiser` in their DEFAULTS — the elemental study threw
+  // "not iterable" and had been dead ever since. Failing LOUD here is the
+  // point: an unknown build must never quietly become "this seat buys nothing",
+  // which is a table full of numbers that measure the wrong thing.
+  const buildList = (strat) => {
+    if (strat.priorities) return strat.priorities;
+    const list = BUILDS[strat.build];
+    if (!list) {
+      throw new Error(`unknown build: ${strat.build} (have: ${Object.keys(BUILDS).join(', ')})`);
+    }
+    return list;
+  };
 
   let ticks = 0;
   let lastPhase = state.phase;
@@ -167,6 +175,10 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
 // degenerate element (e.g. a midas gold snowball) shows up as a win-rate or
 // gold outlier. Not a tuning tool — a smoke alarm.
 
+// the shared build every elemental-study seat runs, so the element is the only
+// difference between seats (round 21.8: `bruiser` retired, `warlord` replaces it)
+export const ELEMENTAL_STUDY_BUILD = 'warlord';
+
 export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const elements = Object.keys(ELEMENTS);
   const wins = Object.fromEntries(elements.map(e => [e, 0]));
@@ -183,7 +195,10 @@ export function runElementalStudy({ kind = 'berserker', games = 100, playersPerG
     const lineup = [];
     for (let i = 0; i < playersPerGame; i++) {
       const el = pool.splice(Math.floor(rand() * pool.length), 1)[0];
-      lineup.push({ id: `${kind}+${el}`, kind, build: 'bruiser', element: el });
+      // ⚠ was `bruiser` (retired round 20.2, which is what broke this study).
+      // warlord is its successor: the plain damage-and-sustain yardstick, so
+      // the seats still differ ONLY by their element.
+      lineup.push({ id: `${kind}+${el}`, kind, build: ELEMENTAL_STUDY_BUILD, element: el });
     }
     const res = playGame(lineup, seed * 100000 + g, { mode: 'elemental' });
     if (!res.finished) { unfinished++; continue; }
@@ -373,13 +388,13 @@ export function runIsolation({
   thing, level = 3, games = 600, seed = 1, kind = 'berserker',
   control = 'matched', mode = 'classic', tail: tailName = 'long', log = () => {},
 } = {}) {
-  // `tail: 'bruiser'` swaps the long shared order for the SHORT shipped bruiser
+  // `tail: <a BUILDS name>` swaps the long shared order for that build's SHORT
   // build. It exists for one measurement and it is not a footnote: midas pays in
   // GOLD, so its whole value is "is there anything left to buy?". On the long
   // tail it is the strongest element in the game; on the bruiser tail the seat
   // finishes its build and sits on the change, and midas measures nothing.
   // Any thing whose payload is economic must be quoted with its tail.
-  const baseTail = tailName === 'bruiser' ? SHARED_BUILDS.bruiser.order : ISOLATION_TAIL;
+  const baseTail = (SHARED_BUILDS[tailName] && SHARED_BUILDS[tailName].order) || ISOLATION_TAIL;
   const isElement = Object.hasOwn(ELEMENTS, thing);
   const isSpell = Object.hasOwn(SPELLS, thing);
   const spec = isElement ? ELEMENTS[thing] : isSpell ? SPELLS[thing] : ITEMS[thing];
@@ -514,7 +529,7 @@ export function runLevelLadder({
 
 // ---- study ----------------------------------------------------------------------
 
-export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = progress } = {}) {
+export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, mode = 'elemental', log = progress } = {}) {
   const strats = strategies();
   const elo = makeElo(strats.map(s => s.id));
   const wins = Object.fromEntries(strats.map(s => [s.id, 0]));
@@ -532,7 +547,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = pro
     for (let i = 0; i < playersPerGame; i++) {
       lineup.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
     }
-    const res = playGame(lineup, seed * 100000 + g);
+    const res = playGame(lineup, seed * 100000 + g, { mode });
     if (!res.finished) { unfinished++; continue; }
     finished++;
     lavaDeaths += res.lavaDeaths;
@@ -575,7 +590,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = pro
   })).sort((a, b) => b.winRate - a.winRate);
 
   return {
-    games, playersPerGame, unfinished, expectedWinRate,
+    games, mode, playersPerGame, unfinished, expectedWinRate,
     lavaShare: lavaDeaths / Math.max(1, lavaDeaths + directDeaths),
     comebackRate: comebacks / Math.max(1, finished),
     focusShare: focusHits / Math.max(1, focusSamples),
@@ -589,7 +604,7 @@ export function runStudy({ games = 1000, playersPerGame = 4, seed = 1, log = pro
 // profile confound (skill dwarfs shopping) and answers the real balance
 // question: within one skill tier, is any build a trap or an auto-win?
 
-export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, log = progress } = {}) {
+export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, seed = 1, mode = 'elemental', log = progress } = {}) {
   const builds = Object.keys(BUILDS);
   const wins = Object.fromEntries(builds.map(b => [b, 0]));
   const played = Object.fromEntries(builds.map(b => [b, 0]));
@@ -607,7 +622,7 @@ export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, 
       const build = pool.splice(Math.floor(rand() * pool.length), 1)[0];
       lineup.push({ id: `${kind}/${build}`, kind, build });
     }
-    const res = playGame(lineup, seed * 100000 + g);
+    const res = playGame(lineup, seed * 100000 + g, { mode });
     if (!res.finished) { unfinished++; continue; }
     finished++;
     lavaDeaths += res.lavaDeaths;
@@ -633,7 +648,7 @@ export function runMirror({ kind = 'stalker', games = 1500, playersPerGame = 4, 
   })).sort((a, b) => b.winRate - a.winRate);
 
   return {
-    kind, games, playersPerGame, unfinished, expectedWinRate,
+    kind, mode, games, playersPerGame, unfinished, expectedWinRate,
     lavaShare: lavaDeaths / Math.max(1, lavaDeaths + directDeaths),
     comebackRate: comebacks / Math.max(1, finished),
     focusShare: focusHits / Math.max(1, focusSamples),
@@ -672,13 +687,23 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   const games = argNum('games', 1000);
   const playersPerGame = argNum('players', 4);
   const seed = argNum('seed', 1);
+  // ⚠ Round 21.8: the GAME's default ruleset is elemental (shared/sim.js
+  // createGame), and so is this lab's — every arena table printed before that
+  // was CLASSIC, which is not the game most people play. `--ruleset=classic`
+  // reproduces the old numbers; the ruleset is printed on every table so an
+  // old and a new report can never be confused.
+  const ruleset = (process.argv.find(a => a.startsWith('--ruleset=')) || '').split('=')[1] || 'elemental';
+  if (!['classic', 'elemental'].includes(ruleset)) {
+    console.error(`--ruleset: expected classic|elemental, got ${ruleset}`);
+    process.exit(1);
+  }
 
   const mode = (process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1];
   if (mode === 'elemental') {
     const kind = (process.argv.find(a => a.startsWith('--kind=')) || '').split('=')[1] || 'berserker';
     console.error(`elemental study: ${games} games of ${playersPerGame} × ${kind}, elements only differ, seed ${seed}`);
     const res = runElementalStudy({ kind, games, playersPerGame, seed });
-    console.log(`\n=== elemental: all ${kind}/bruiser, element pick differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
+    console.log(`\n=== elemental: all ${kind}/${ELEMENTAL_STUDY_BUILD}, element pick differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
     console.log('win%   avg-place  avg-gold  avg-kills  games  element');
     for (const r of res.table)
       console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${r.avgGold.toFixed(1).padStart(8)}  ${r.avgKills.toFixed(1).padStart(9)}  ${String(r.games).padEnd(6)} ${r.element}`);
@@ -692,9 +717,9 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   const mirror = (process.argv.find(a => a.startsWith('--mirror=')) || '').split('=')[1];
   if (mirror) {
     if (!BOTS[mirror]) { console.error(`unknown profile: ${mirror}`); process.exit(1); }
-    console.error(`mirror arena: ${games} games of ${playersPerGame} × ${mirror}, seed ${seed}`);
-    const res = runMirror({ kind: mirror, games, playersPerGame, seed });
-    console.log(`\n=== mirror: all ${mirror}, builds only (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
+    console.error(`mirror arena: ${games} games of ${playersPerGame} × ${mirror}, ${ruleset}, seed ${seed}`);
+    const res = runMirror({ kind: mirror, games, playersPerGame, seed, mode: ruleset });
+    console.log(`\n=== mirror: all ${mirror} in ${ruleset}, builds only (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
     console.log('win%   avg-place  games  build');
     for (const r of res.table)
       console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${String(r.games).padEnd(6)} ${r.build}`);
@@ -811,10 +836,10 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     process.exit(0);
   }
 
-  console.error(`arena: ${games} games of ${playersPerGame}, seed ${seed}, ${strategies().length} strategies`);
-  const res = runStudy({ games, playersPerGame, seed });
+  console.error(`arena: ${games} games of ${playersPerGame}, ${ruleset}, seed ${seed}, ${strategies().length} strategies`);
+  const res = runStudy({ games, playersPerGame, seed, mode: ruleset });
 
-  console.log(`\n=== Elo table (${games} games, expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
+  console.log(`\n=== Elo table (${games} games, ${ruleset}, expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
   console.log('elo    games  win%   strategy');
   for (const r of res.table)
     console.log(`${String(r.elo).padEnd(6)} ${String(r.games).padEnd(6)} ${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.strategy}`);

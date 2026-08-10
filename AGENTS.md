@@ -87,7 +87,7 @@ build step, Node ESM, only dep is `ws`.
 | `test/sim.test.js` | 389 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
-| `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
+| `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 — every arena table printed before that date was classic |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
 | `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-10-round21-elo.md` |
@@ -235,6 +235,11 @@ first that Remi isn't hosting a live game.**
 - Bot reaction time is a perception delay — extrapolate stale observations,
   don't under-lead.
 - Balance tests read numbers from the spec, never pinned constants.
+- A lab that names a BUILD by string rots when builds are retired: `bruiser`
+  killed the elemental study, h2h and coop for two rounds (round 21.8). An
+  unknown name must THROW — a silent empty build measures seats buying nothing.
+- A lab must play the ruleset the GAME defaults to (elemental), and print which
+  one it played; arena.js quietly measured classic for months.
 - A new spell's DEFAULT key landing on a returning player's SAVED binding is a
   silently dead spell (round 21.7: Statue and Decoy, both invisible to Remi).
   Never assume the presets describe what a real player's client is bound to.

@@ -158,10 +158,19 @@ stated, every number a one-line revert)**:
   understand a trap. Human read only.
 - **Malady inverted**: `dotTime` FLAT 4 s, `tickDmg [1, 1.5, 2]` (was 1 flat with
   [4,5,6] s). Remi's target: a plague that catches TWO people should out-damage a
-  pure damage element. Measured in the elemental study (120 games × 2 seeds, one
-  element per seat, Hard bots, win% vs a 25% baseline): malady **48.6 / 37.8%**,
-  2nd of 11 both seeds, behind anger's saturated 88-91%. ⚠ Bots never cluster,
-  so contagion is under-measured, and this instrument was BROKEN before today.
+  pure damage element. **Measured, old spec vs new, same seeds** (elemental
+  study: 400 games, 4 Hard seats running the warlord build, one element each,
+  win% against a 25% baseline; `--fx=malady.tickDmg=1 --fx=malady.dotTime=4,5,6`
+  restores the old element in-place):
+
+  | seed | malady OLD | malady NEW | rank NEW (of 11) |
+  |---|---|---|---|
+  | 1 | 40.3% | **62.7%** | 2nd (anger 95.6%) |
+  | 7 | 31.1% | **49.0%** | 3rd, tied with vampire 50.0% (anger 97.6%) |
+
+  **+18-22 points on both seeds** — the biggest single-element move since the
+  round-20.3 creator-immunity change. ⚠ And it is a FLOOR: bots never bunch up,
+  so the contagion half of the element is not in these numbers at all.
 - **Hat of Aura**: the burn now LINGERS `[3, 4, 5]` s after you leave the ring
   (`ITEM_FX.brazier.linger`); the ring itself is unchanged. Revert = linger 0.
 - **NEW item — Slow Spoon 🥄** (`spoon`, 7 g/level): a FLAT `healOnHit
@@ -170,11 +179,22 @@ stated, every number a one-line revert)**:
   (`procs: false` in applyDamage) — the sustain answer for low-damage utility
   builds that lifesteal ignores. Item shelf 126 → **147 g**.
 - **Meteor lv2 damage 24 → 30.** Gale's gust and the cape kept their 21.7 values.
-- 🔧 **The elemental study was dead and is fixed**: `tools/arena.js
-  --mode=elemental` threw "buildList is not a function" (BUILDS became objects in
-  round 20). Every elemental-study number older than today came from before that
-  break — the mixed table below is round-19 vintage and stands, but re-run rather
-  than trust any elemental figure quoted between round 20 and now.
+- 🔧 **Three labs were dead since round 20.2 and are fixed.** Retiring the legacy
+  six builds left `bruiser` named in the DEFAULTS of `arena.js --mode=elemental`,
+  `h2h.js` and `coop.js`; `BUILDS.bruiser` is undefined, so those runs threw
+  "not iterable" and nobody could have used them since. The elemental study now
+  rides `warlord` (`ELEMENTAL_STUDY_BUILD`), h2h defaults to it too, and an
+  unknown build name now THROWS BY NAME instead of resolving to an empty list —
+  a silent empty build is a table of numbers measuring seats that buy nothing.
+- 🔧 **The arena lab now defaults to the ruleset the game defaults to.**
+  `createGame` has defaulted to **elemental** for a long time; `arena.js` still
+  played **classic**, so every Elo/mirror/item-pick table it has ever printed
+  measured the mode almost nobody plays. Both study paths take `--ruleset=` now
+  (default elemental, `--ruleset=classic` reproduces the old runs) and **print
+  the ruleset in the header**. ⚠ Every arena table quoted in this file or in
+  `docs/history/` from before 2026-08-11 is a CLASSIC table.
+  `tools/elo.js` — the 30-strategy roster ranking, the one that matters — has
+  always run elemental off explicit roster cores and was never affected.
 
 ### The strategy ELO table — THE current ranking (r219, 30 strategies, 8000 games × 2 seeds)
 

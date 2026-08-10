@@ -208,7 +208,7 @@ if (process.argv[1] && process.argv[1].endsWith('coop.js')) {
 
   const runs = Number(argOf('runs', 200));
   const kind = String(argOf('kind', 'berserker'));
-  const build = String(argOf('build', 'bruiser'));
+  const build = String(argOf('build', 'warlord'));  // bruiser retired, round 20.2
   const seed = Number(argOf('seed', 7));
   const partyArg = argOf('party', null);
   const parties = partyArg ? [Number(partyArg)] : [1, 2, 3];

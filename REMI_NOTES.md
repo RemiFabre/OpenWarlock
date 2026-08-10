@@ -53,10 +53,19 @@ the sickness always lasts **4 seconds**, and the levels buy the **bite**:
 **1 / 1.5 / 2 damage per tick**. The hover row is renamed "damage per tick", as
 you asked, and shows those numbers.
 
-Measured, for once: in the elemental study (120 games × 2 seeds, one element per
-seat, Hard bots, 25% = par) malady goes to **2nd of 11 on both seeds** (48.6% and
-37.8%), behind only anger's saturated 88-91%. ⚠ Bots never bunch up, so the
-contagion half is still under-measured — in your hands it should be stronger.
+Measured properly (400 games, 4 Hard seats all running the same build, one
+element each, 25% = par — and the OLD element restored in-place for the
+comparison, so nothing else differs):
+
+| seed | malady before | malady after | where it lands |
+|---|---|---|---|
+| 1 | 40.3% | **62.7%** | 2nd of 11 (anger 95.6%) |
+| 7 | 31.1% | **49.0%** | 3rd, level with vampire (anger 97.6%) |
+
+**+18 to +22 points on both seeds.** That is a big buff — bigger than I expected
+from "+0.5 and +1 damage per tick" — and it is a FLOOR, because bots never bunch
+up so the contagion half does not show up in these numbers at all. If it feels
+oppressive tonight, `tickDmg` is the one lever.
 
 ## The Slow Spoon 🥄
 
@@ -80,12 +89,27 @@ who is still cooking.
 
 Level 2 damage **24 → 30**.
 
-## Something I found while measuring
+## You were right to push on the lab. Two real problems.
 
-`node tools/arena.js --mode=elemental` has been **crashing since round 20** —
-BUILDS became objects and the study still read them as lists. So every elemental
-element-vs-element number quoted since then came from before the break. Fixed in
-one line; the malady figures above are from the repaired instrument.
+**1. Three labs had been dead since round 20.2.** When the legacy builds were
+retired, `bruiser` was still named in the DEFAULTS of the element study, `h2h`
+and the co-op lab — so they threw "not iterable" and nobody could have run them
+since. My first fix made them return an empty list, which is worse: the study ran
+and printed a full table of seats that bought **nothing**. That is the number I
+sent you an hour ago, and it was wrong. Now they ride `warlord`, and an unknown
+build name **throws by name** instead of quietly measuring nothing.
+
+**2. The arena lab was playing classic while the game plays elemental.** You are
+right that elemental is the default — `createGame` has defaulted to it for a long
+time — but `tools/arena.js` still opened its games in classic. So every Elo
+table, mirror and item-pick number that lab has printed measured the mode almost
+nobody plays. It now defaults to elemental, takes `--ruleset=classic` if you ever
+want the old comparison, and **prints which ruleset it played on every table**.
+
+⚠ Neither problem touched **`tools/elo.js`** — the 30-strategy roster ranking,
+the one the balance decisions actually rest on. It has always run elemental off
+explicit buy lists and never went near a build name. The standing table in
+`docs/history/2026-08-10-round21-elo.md` is intact.
 
 ## What I verified
 
