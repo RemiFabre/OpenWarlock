@@ -82,13 +82,15 @@ build step, Node ESM, only dep is `ws`.
   version name and technical branch name before coding. Reject malicious, unsafe,
   or impractically large requests with a reason and close the issue.
 - Accept with `gh issue edit N --remove-label ai:queued --add-label ai:working`,
-  then create `issue-N-short-name` from current `main` in a SEPARATE worktree
-  (`git worktree add -b issue-N-short-name /private/tmp/openwarlock-issue-N main`).
+  then create `issue-N-short-name` from current `origin/main` in a SEPARATE worktree.
   Never edit/stash the main checkout; one issue = one branch; NEVER merge it to
   `main` by default.
-- Implement the smallest faithful version, test it, push, then `@mention` the author
-  with version name, branch/commit, verification and honest play instructions.
-  Close only when playable. If blocked, explain why and restore `ai:queued`.
+- Implement the smallest faithful version, test it, and push the issue branch. Then,
+  from another clean worktree based on the latest `origin/main`, add its immutable
+  commit and player-facing metadata to `versions.json`; push that manifest to `main`.
+  Verify `/v/COMMIT/client/`, then `@mention` the author with the version name,
+  permanent link, branch/commit, and verification. Close only when that link is
+  playable. If blocked, explain why and restore `ai:queued`.
 
 ## Map
 
@@ -105,6 +107,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
+| `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
 | `test/sim.test.js` | 389 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |

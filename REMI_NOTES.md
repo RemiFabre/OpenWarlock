@@ -4,6 +4,14 @@
 collision, the rebind menu, the price pass) is archived at
 `docs/history/2026-08-10-remi-notes-round-21.7.md`.*
 
+## Player versions now open inside the game
+
+The green **🧬 version selector** on the first screen and in the bottom-right
+menu switches between the default game and published player ideas. Each idea
+runs its exact branch commit at a permanent, shareable link; no experimental
+code is merged into the default game. **Remi’s Blood Debt** is the first live
+test version.
+
 ## The Bomb is gone. It is a Mine now.
 
 Press it and a trap drops **where you stand** — instantly, no aiming. ⚠ That is

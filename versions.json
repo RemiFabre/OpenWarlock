@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "default": {
+    "slug": "default",
+    "name": "Default",
+    "author": "OpenWarlock",
+    "summary": "The official version of the game."
+  },
+  "versions": [
+    {
+      "slug": "remis-blood-debt",
+      "name": "Remi’s Blood Debt",
+      "author": "@RemiFabre",
+      "summary": "Adds Blood Debt, a high-risk delayed-damage spell, and changes Boots to 20% / 40% / 60% movement speed.",
+      "issue": 1,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/1",
+      "branch": "issue-1-blood-debt",
+      "commit": "74523c1078d7e948e4237c67e52bbb2992add792"
+    }
+  ]
+}

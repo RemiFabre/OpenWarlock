@@ -93,11 +93,13 @@ const httpServer = http.createServer((req, res) => {
     res.end();
     return;
   }
+  if (/^\/v\/[0-9a-f]{40}\//i.test(urlPath)) urlPath = '/404.html';
   if (urlPath === '/client' || urlPath === '/client/') urlPath = '/client/index.html';
   const file = path.normalize(path.join(ROOT, urlPath));
   const ok = file.startsWith(path.join(ROOT, 'client')) ||
              file.startsWith(path.join(ROOT, 'shared')) ||
-             file.startsWith(path.join(ROOT, 'assets'));
+             file.startsWith(path.join(ROOT, 'assets')) ||
+             ['/404.html', '/version-menu.js', '/version-sw.js', '/versions.json'].includes(urlPath);
   if (!ok) { res.writeHead(404); res.end('not found'); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
