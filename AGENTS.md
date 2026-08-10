@@ -17,7 +17,7 @@ Agent context usage on this project is **CRITICAL**. The rules:
   BALANCE.md = current truths only, REMI_NOTES.md = latest round only (archive
   the previous round when you write a new one). Long reports are NEW dated
   files in `docs/history/` that the living docs point to.
-- **Code comments**: what the value means + current intent + active ⚠
+- **Code comments**: keep then short. At maximum: what the value means + current intent + active ⚠
   warnings, ≤ ~5 lines, then a pointer like
   `// history: docs/history/2026-08-08-constants-sweeps.md#momentum`.
   **Never paste a sweep table into code.**
@@ -38,62 +38,6 @@ Agent context usage on this project is **CRITICAL**. The rules:
   to the private HF dataset openwarlock-stats. A pre-commit hook stamps
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   — NEVER bypass it; Pages lags pushes by up to ~10 min (CDN).
-- **ROUNDS 19-20 (2026-08-09, Remi playtesting live)** — the element-rework era:
-  Malady 🦠 and Anger 🔴 replaced venom and momentum, the mosquito was reworked
-  into the every-[6,5,4]th-cast PAIR, shop 2.x, Bomb + Switcheroo. All of it is
-  reflected in the rules snapshot below; the stories are
-  `docs/history/2026-08-09-remi-notes-round-19.md` and `…-round-20.md`. Two code
-  invariants to know before touching fireballs: a mosquito TRAILING ball advances
-  both every-N counters (vampire's and its own) but can NEVER itself double (hard
-  chain guard, test-locked), and the Echo Stone ITEM is DELETED — merged into the
-  mosquito element, whose key stays `mosquito` and whose display name is Echo 👯.
-  `BUILDS` = the ten tournament archetypes, Elo-ordered.
-- **MEASURED at r219 — THE standing strategy baseline**:
-  `docs/history/2026-08-10-round21-elo.md` (ELO #3, 30 strategies × 8000 games
-  × 2 seeds, at round-21 prices; it supersedes the r207 round-20 table, whose
-  §6 CDR math is still the live reference). Anger still #1/#3 *in rank*
-  (B3 2064 / D2 1880) — Elo is zero-sum here, so it can never say anger got
-  absolutely stronger or weaker (question K is Remi's feel). The Echo
-  (ex-mosquito) demotion HELD at the new prices ("midas × mosquito" stays
-  VOID). A third item price cut plus the new brazier left items at ranks
-  22/23/25/26/29 of 30 — **items are effect-limited, not price-limited**; stop
-  cutting prices. Half-price spell upgrades paid the KIT, not the maxer:
-  E2-chronomancer 7th → **4th of 30** (question M), while max-one-spell builds
-  stay 24th/27th/28th. Biggest movers in the table are the three MALADY builds
-  (+202/+124/+109) from 20.3's creator-immunity ruling. ⚠ Side effect of the
-  price cuts: **the whole item shelf is 129 g**, under roster.js's 150-185 g
-  band, so items-only cores under-spend and spill into the exhaust tail.
-- **ROUND 21 SHIPPED — 21.0 through 21.6, r208-r219, all of it overnight.** The
-  story Remi reads is `REMI_NOTES.md`; the resulting RULES are in the snapshot
-  below (prices, permanent pillars, arena scaling, teams, Statue, Brazier,
-  Decoy). What a next agent needs on top of those: the two round-20.4 sim
-  "fixes" are REVERTED and now carry ⚠ RULING comments + tests (a reflected ball
-  keeps its per-ball flags, so a mosquito lead returns push-less; the trailing
-  twin leaves from the owner's CURRENT position on the cast aim), and the repulse
-  charge is UNCANCELLABLE — frost/swap/portal no longer null it, the tick is
-  deliberately not gated on `stunT`, only `kill()` clears it. One pointer per new
-  mechanism: teams = `pl.team` + **`allied(state,a,b)`** in sim.js, the
-  DAMAGE/EFFECT-path predicate, co-op-guarded (`hostile()` stays targeting-only;
-  `killLead`'s co-op guard had to become value-based); arena size =
-  `state.startRadius`, frozen at `startGame`, on the wire for the camera; Statue =
-  `statueT`, guarded at `applyDamage` / `applyKnockback` / `castSpell` / `stats()`
-  / `stepProjectiles` (the body EATS the ball, ahead of the shield branch);
-  Brazier = malady's tick machinery on the OWNER's clock with `stamp: false`
-  credit; Decoy = `state.clones` + `state.phantoms`, **never** `players` /
-  `projectiles` — that separation is the whole safety argument — and
-  `mimicCast()` tags its cast events `phantom: true` so the harness cooldown
-  invariant skips them. ⚠ Live caveats: bots never BUY pillars, so no lab sees
-  the permanence fortress (hand every bot a lv2 pillar and games cap at 25 rounds
-  with ~750 stones — the ruling's stated cost, awaiting a human playtest); 3v1
-  always runs to the 25-round cap because a team's target is `15 × size`; bots
-  ignore clones and always will (BALANCE.md ⚠ O); Statue is unmeasured (⚠ N).
-- **Waiting on Remi**: Statue's NAME (alternates Stasis / Monolith / Gold Rush)
-  and Decoy + Statue in human hands; whether an N-vs-1 team's target should be
-  capped by the number of enemies alive (3v1 always hits the round cap today);
-  Echo/mosquito pair feel (20.1 — never yet in human hands), anger strength
-  (question K), sword-by-structure (L), whether E2-chronomancer's top-quartile
-  finish is where he wants CDR (M), cape (B), and names for Bomb 💣 (key `nova`)
-  and Switcheroo 🎭.
 - ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-21 — quote
   `docs/history/2026-08-10-round21-elo.md` instead.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
@@ -241,13 +185,7 @@ build step, Node ESM, only dep is `ws`.
 
 - **Under construction (ROUND17 §1): do not tune it, do not balance around
   it.** The mode is off the lobby button (`MODES` in `client/coop.js`) and
-  waits for Remi's redesign; the code, the campaign data and the tests stay
-  live. Keep them green — that is the whole obligation.
-- One team vs data-defined waves; **friendly fire is ON** (team kills pay
-  nothing); `hostile()` is a targeting helper only — never put it on a damage
-  path. Level ≠ round: wipes cost a round, `COOP_MAX_ROUNDS` 13 is the budget.
-- Old tuning levers and measured lessons, for whoever picks the redesign up:
-  `docs/history/2026-08-08-agents-full-pre-diet.md` §co-op.
+  waits for Remi's redesign;
 
 ## Hosting & ops
 
@@ -273,42 +211,14 @@ node tools/arena.js --games=60 --players=8       # ditto at the scaled arena (21
 Kill stray servers when done (`pgrep -fl "server/index.js"`) — **but check
 first that Remi isn't hosting a live game.**
 
-## Known debt (rough priority)
-
-0. **Remi's rulings first**: midas-cdr (J), venom (G), offense-first meta (H),
-   plus the standing feel items (gale burst, Blood Sword feel, mosquito in
-   human hands, constant knockback, draft fun, lava share).
-1. **Teach bots the power tier and the Stone Pillar** — all five measure at
-   exactly the do-nothing control; highest-value lab work left. (Draft can
-   hand a bot a Pillar today; only power spells are filtered from offers.)
-2. Hosting/versioning work in `docs/` is decided but unbuilt.
-3. Bot hotspots (accepted): boomer over-rated everywhere (nothing dodges or
-   catches one); escape/rusher are bot-traps — fix with piloting, not numbers.
-4. Co-op polish (enemy HP bars render green; L8-3p pacing; no per-wave `hp`) —
-   parked with the mode until Remi's redesign, do not pick it up.
-
 ## Scars (one line each — full stories: `docs/history/2026-08-08-agents-full-pre-diet.md`)
-
-- A refund that pays the spell that triggers it is a feedback loop; fix the
-  topology, not the number (arcane, 74%).
-- Any global arena/item/gold/knockback change re-prices everything priced
-  against it — re-sweep ramps/percentages (the fireball lock silently tripled
-  momentum and crowned venom). It re-prices the mothballed co-op campaign too:
-  `coop --levels` only if its tests break (NEVER_STOPS broke L8 to 6%).
 - Swept-collision side checks must use the PRE-move position (fast balls
   tunneled through Mirror Walls).
 - A feature that is never rendered — or renders under the HP bar, or moves by
   imperceptible steps — reads as broken; screenshot the client, don't just
   read the code.
-- A study cannot see a variable its design cannot express; build the lab that
-  can, a "no change" from the wrong lab is not evidence.
-- The do-nothing floor is ~3%, not 25%: mixed tables are rankings. Before
-  believing "bot artifact", try to DELETE the artifact (midas).
 - A single 400-game run is not a measurement: 2+ seeds, check monotonicity;
   the isolation self-test itself needs ≥1600 games.
-- Ask what a thing is FOR before nerfing its visible knob (mosquito's shove).
-- Constant knockback throws the victim out of a follow-up ball's path: a
-  multi-ball effect wants one of its balls to NOT push (mosquito's pair lead).
 - h2h for tier questions (Elo hides gaps); h2h vs Easy is no signal.
 - Bot reaction time is a perception delay — extrapolate stale observations,
   don't under-lead.
