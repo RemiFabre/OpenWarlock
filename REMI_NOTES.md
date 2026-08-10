@@ -71,7 +71,8 @@ Bomb) go straight through it**.
   (locked at lv1 in elemental), so the tiers don't apply — say the word if you
   want its classic-mode 8+8 moved.
 - **Every item is 1 g cheaper per level**: boots / treads / cape 6 → 5, amulet /
-  sword / hourglass 8 → 7. The whole item shelf is now 108 g (was 126).
+  sword / hourglass 8 → 7. The six-item shelf is now 108 g (was 126) — the
+  Coal Brazier in 21.5 below takes the full shelf to 129 g.
 - **Mosquito is now Echo 👯** — display only: name, icon, "Doubled casts." and
   the hover line "Every 6/5/4th fireball you throw is doubled: the lead ball
   hits without pushback so its twin can land too." Nothing about how it plays
@@ -234,8 +235,31 @@ targeted or killed; they just run out.
 - ⚠ One honest limit: a player with the browser console open can tell a copy
   from a body. Decoy is a bluff against eyes, not a cheat-proof disguise.
 
+## And I re-ran the strategy tournament at the new prices
+
+30 strategies, 8000 bot games × 2 seeds, full table in
+`docs/history/2026-08-10-round21-elo.md`. Four things worth your time:
+
+- **Anger is still #1 and #3.** Nothing in round 21 moved it. ⚠ This ranking
+  is zero-sum, so it can't tell you if anger is *too strong* — only you can.
+- **Items are not too expensive, they are too weak.** Third price cut in a row,
+  plus the brand-new brazier, and the item builds sit 22nd-29th of 30. I would
+  stop cutting prices and change what an item DOES instead.
+- **Halving spell upgrades helped wide kits, not maxing.** The five-button
+  cooldown build jumped 7th → 4th; the "max one spell" builds are still near
+  the bottom. Your "don't max spells" instinct survived its own discount.
+- **Malady got much stronger** than I expected, from your 20.3 call (you no
+  longer poison yourself): the three plague builds are the three biggest gains
+  in the whole table. Bots never bunch up, so in your hands it is stronger
+  still — worth a look next playtest.
+
+Statue, Decoy, permanent pillars and teams are all **invisible** to this test by
+design (bots can't pilot them, and never buy pillars). It measures prices only.
+
 ## Still waiting on you
 
-Decoy in human hands, Echo (ex-Mosquito) pair feel, anger's strength, sword-by-structure,
-whether the chronomancer CDR family's 7th-of-30 is where you want it, the cape,
-and names for Bomb 💣 and Nova 🧨.
+Statue's **name** (Stasis / Monolith / Gold Rush are the alternates) and Statue +
+Decoy in human hands; whether a 3v1 team's kill target should be capped by how
+many enemies exist; Echo (ex-Mosquito) pair feel; anger's strength;
+sword-by-structure; whether the chronomancer CDR family is where you want it;
+the cape; and names for Bomb 💣 and Switcheroo 🎭 (both still placeholders).

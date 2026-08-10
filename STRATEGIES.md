@@ -4,8 +4,8 @@
 predates round 17's haste rework and everything since, so the CDR rows measure
 the old *compounding* multipliers (haste sums now) and the mosquito rows
 measure the deleted arm/cash trap. **The current strategy ranking is the ELO
-tournament: `docs/history/2026-08-09-round20-elo.md`** (30 strategies × 8000
-games × 2 seeds at r207, with the CDR family and the round-20 mosquito).
+tournament: `docs/history/2026-08-10-round21-elo.md`** (30 strategies × 8000
+games × 2 seeds at r219 — the standing baseline, at round-21 prices).
 The difficulty-tier descriptions below are still accurate — that half of the
 file is what to read.*
 

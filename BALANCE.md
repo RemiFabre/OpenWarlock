@@ -23,7 +23,7 @@ duel matrix — the intuition layer behind questions K, L and M).*
   mechanics bots cannot express (malady's contagion, gale's gust positioning)
   read at a FALSE floor. Extreme columns show which way skill bends it.
 
-## Current state (round 17, 2026-08-08)
+## Current state (rounds 17 → 21, newest entries at the end of this section)
 
 Everything in docs/ROUND17.md shipped in one day: haste (§4), Swap (§3), the
 telegraphed sky-bolt (§2), midas mark (§5), momentum tiers (§6), venom
@@ -91,12 +91,25 @@ dmg/kb tax, no arm/cash trap, every [6,5,4]th cast fires a PAIR (no-push lead
 balls advance the every-N counters but can never chain), and the **Echo Stone
 item is DELETED**, merged in; terra lv3 smashes pillars.
 
-**Round 21.1 (2026-08-10)**: spell prices now obey one rule — base 8 / 10 / 12,
-every upgrade half its base (pillar → [8,4], meteor and wall 14 → [12,6],
-repulse [12,6], every 10-base spell upgrades at 5; fireball exempt, base 0).
-Items dropped another 1 g/level: **5 g boots/treads/cape, 7 g
-sword/amulet/hourglass → the whole shelf is 108 g**. Unmeasured — the Elo table
-above predates it.
+**Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
+(the aura was blanketing the arena) and the **creator is now IMMUNE to their
+own instance** — they still catch other players' plagues, and a lethal tick is
+always the creator's kill (the spreader-credit case is gone).
+
+**Round 21.0-21.4 (2026-08-10, Remi's overnight rulings)** — the balance-bearing
+half; the full story is REMI_NOTES.md. **Spell prices obey one rule**: base
+8 / 10 / 12, every upgrade half its base (pillar → [8,4], meteor and wall
+14 → [12,6], repulse [12,6], every 10-base spell upgrades at 5; fireball exempt,
+base 0). **Items dropped another 1 g/level** — 5 g boots/treads/cape, 7 g
+sword/amulet/hourglass. **Pillars are PERMANENT** (lava-proof, they accumulate
+all game, no cap; only terra lv3 removes one) — ⚠ untestable in the labs, bots
+never buy pillars. **Arena AREA per player is constant above 5 seats**
+(`state.startRadius = 56 × √(n/5)`), so an 8-seat game plays on radius 70.8;
+60-game arena smokes at 4 and 8 players both finish with sane kills.
+**Teams** landed as a lobby property (default = everyone solo, bit-identical to
+the old free-for-all); a team's kill target is `15 × size`, so ⚠ 3v1 can never
+be won on kills and always runs to the 25-round cap. **Statue 🗿** is new — see
+question N, it is unmeasured by design.
 
 **Round 21.5 (2026-08-10)**: NEW item **Coal Brazier 🪔**, 7 g/level, the first
 passive damage in the game — enemies within `auraR [3, 3.8, 4.6]` (centre-to-
@@ -116,45 +129,45 @@ never holds a phantom). `tier: 'power'` keeps bots from buying a spell they
 cannot use. Every lab that enumerates spells will price it at ~0 — that is the
 instrument being honest, not the spell being weak. Human playtest only.
 
-**Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
-(the aura was blanketing the arena) and the **creator is now IMMUNE to their
-own instance** — they still catch other players' plagues, and a lethal tick is
-always the creator's kill (the spreader-credit case is gone). ⚠ The ELO table
-below predates this: it was measured at r207 with the wide aura and catch-back.
+### The strategy ELO table — THE current ranking (r219, 30 strategies, 8000 games × 2 seeds)
 
-### The strategy ELO table — THE current ranking (r207, 30 strategies, 8000 games × 2 seeds)
+Full table, diffs and blind spots: **`docs/history/2026-08-10-round21-elo.md`**
+(the STANDING baseline; it replaces the r207 round-20 table, which replaced
+r200). Instrument: `node tools/elo.js --games=8000 --seed=1` — random
+4-of-roster Hard lobbies in elemental, Bradley-Terry over all pairwise
+placements, **1500 = roster average, +173 ≈ a 73% pairwise favourite**.
+⚠ **It is a RANKING, not a strength meter** — the fit pins the average at 1500,
+so a strategy can gain 200 Elo purely because its rivals got worse. Zero
+unfinished games; cross-seed drift mean 13.5 Elo, max 71 (the top row).
+Headlines:
 
-Full table, diffs and blind spots: **`docs/history/2026-08-09-round20-elo.md`**
-(it replaces the r200 baseline). Instrument: `node tools/elo.js --games=8000
---seed=1` — random 4-of-roster Hard lobbies in elemental, Bradley-Terry over
-all pairwise placements, **1500 = roster average, +173 ≈ a 73% pairwise
-favourite**. ⚠ **It is a RANKING, not a strength meter** — the fit pins the
-average at 1500, so a strategy can gain 200 Elo purely because its rivals got
-worse. Zero unfinished games; cross-seed drift 26 Elo. Headlines:
-
-- **The mosquito rework demoted everything that paired with it** — tycoon
-  (midas×mosquito) 1909 → 1571 and off the top spot, leech (vampire×mosquito)
-  1701 → 1455, the Chainer 1504 → 1251. The old trap gave **4 rider procs per
-  pair**; the new pair is only ×1.20-1.33 balls. The round-19 finding "midas ×
-  mosquito is the champion economy engine" is **VOID**.
-- **Anger is #1 (2037) and #3 (1878) in rank despite its own nerf** — that is
-  the zero-sum effect of the four mosquito builds falling. This instrument has
-  no absolute scale and cannot say whether anger got weaker (question K).
-- **The item price cut did NOT move items**: band was 982-1387, now 1099-1341,
-  still the bottom of the table, A2-items-mobility last of 30. Meanwhile
-  elements-only reaches 1673 on 102 g total.
-- **Don't max spells** reconfirmed and stronger: lightning lv1 + ember
-  (C2 1714) beats lightning maxed (C1 1338) by ~380 Elo.
-- **CDR answered (question M)**: the new family E lands E2-chronomancer
-  (arcane3 + hourglass3 + five pilotable buttons) **7th of 30 at 1697**,
-  D7-stormcaller (same haste, one spell maxed) 14th, E1-hastemaker (CDR ×
-  mosquito) 18th. Viable and honest, not OP. The gold-for-gold math is in §6
-  of the report: haste **sums** and `cd = base/(1+h/100)` is concave, so the
-  full 47 g CDR core buys 0.041 dps/gold vs ember's 0.119 — **5 g of ember lv3
-  (×1.222 damage) beats a maxed 24 g Hourglass (×1.197 rate)** on the same
-  fireball. Measured alongside: bots do cast on cooldown (realized ×1.575 of a
-  nominal ×1.58), but **every extra ball converts 5-7% worse** than the ones
-  before it, because knockback shoves the target out of the next ball's path.
+- **Anger still #1 (B3-mutation-depth 2064) and #3 (D2-executioner 1880)**,
+  unmoved by all of round 21. No absolute scale → question K stays Remi's call.
+- **Items are effect-limited, not price-limited**: a third price cut (now flat
+  5/7 g, whole shelf 129 g *including* the new brazier) left the five item-only
+  cores at ranks 22/23/25/26/29 of 30. B6-item-breadth buys the brazier at all
+  three levels and *lost* 30 Elo. Meanwhile elements-only scores 1557 on 102 g
+  and spells-only 1585 on 88 g.
+- **Half-price spell upgrades paid the KIT, not the maxer**: E2-chronomancer
+  +80 → **4th of 30** (question M: CDR is top-quartile and honest, not OP);
+  the three max-one-spell builds are still 24th/27th/28th. "Don't max spells"
+  survived its own price cut (C2 lightning-lv1+ember 1683 vs C1 maxed 1311).
+- **Malady's 20.3 ruling was a big buff in the lab**: the creator-immunity
+  change (aura halved, but you no longer infect yourself) moved
+  D5-plaguebearer **+202**, A4-mutations-only +124, B4-mutation-breadth +109 —
+  the three biggest gains in the table, and all three are cluster-blind, so the
+  true gain is larger. Watch malady in the next playtest.
+- **The Echo (ex-mosquito) demotion held** at the new prices (tycoon 12th,
+  leech 19th, Chainer 27th) — structural, not a seed artifact. "Midas ×
+  mosquito is the champion economy engine" stays **VOID**.
+- **Round 21's mechanisms are invisible to this table** — permanent pillars
+  (bots never buy pillars), Statue, Decoy, teams, arena scaling (inert at 4
+  seats). It measures round 21's PRICES only.
+- CDR gold-for-gold math (still current, from the round-20 report §6): haste
+  **sums** and `cd = base/(1+h/100)` is concave, so the full CDR core buys
+  0.041 dps/gold vs ember's 0.119 — **5 g of ember lv3 beats a maxed Hourglass**
+  on the same fireball. Bots do cast on cooldown, but **every extra ball
+  converts 5-7% worse**: knockback shoves the target out of the next ball's path.
 
 ### The mixed table (one element per seat, Hard, 800 games × seeds 1/7, round-19 HEAD 2026-08-09)
 
@@ -284,7 +297,7 @@ node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme colu
 node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
 node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
-npx vitest run                                                # 304 green
+npx vitest run                                                # 376 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 ```

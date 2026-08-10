@@ -38,129 +38,64 @@ Agent context usage on this project is **CRITICAL**. The rules:
   to the private HF dataset openwarlock-stats. A pre-commit hook stamps
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   — NEVER bypass it; Pages lags pushes by up to ~10 min (CDN).
-- **ROUNDS 19.x shipped through the day** (Remi playtesting live): Malady 🦠
-  (contagion) and Anger 🔴 (mark hunt) replaced venom and momentum, gale
-  uniform buffed (kbAdd [10,20,30], gust ADD [30,60,90]), Bomb 💣 (name still
-  PLACEHOLDER), Switcheroo 🎭 (1 s victim stun; name candidates in notes),
-  cape [0.88,0.78,0.70], shop 2.x (uniform tiles, tags, hover-everything,
-  key rebinding with owned-key guard), two-button join + manifesto, bots
-  never stop shopping. ⚠ Round 19's element NUMBERS are superseded by round 20
-  below — current values live in the rules snapshot and BALANCE.md. Story:
-  `docs/history/2026-08-09-remi-notes-round-19.md`.
-- **ROUND 20 SHIPPED** (r207): anger `markEvery [10,7,5] → [20,15,10]`
-  (nerf); ghost lv3 12 → 10 g; malady `auraR [10,14,18]` / `dotTime [4,5,6]`
-  (buff); **every item flat 6 g (boots/treads/cape) or 8 g
-  (sword/amulet/hourglass) per level**; **MOSQUITO REWORK** (Remi, final) —
-  the dmg/kb tax and the arm/cash trap are GONE and the Echo Stone item is
-  MERGED IN and deleted: every `doubleEvery`th cast fireball ([6,5,4]) fires
-  as a PAIR, a LEAD ball with ZERO knockback (full damage, every rider) plus a
-  fully normal TRAILING ball 0.15 s behind on the same aim; a trailing ball
-  advances both every-N counters (vampire's and mosquito's own) but can NEVER
-  double (hard chain guard, test-locked); terra lv3 smashes pillars; BUILDS =
-  the ten tournament archetypes, Elo-ordered. Story:
-  `docs/history/2026-08-09-remi-notes-round-20.md`.
-- **MEASURED at r207 — the NEW strategy baseline**:
-  `docs/history/2026-08-09-round20-elo.md` (ELO #2, 30 strategies × 8000
-  games × 2 seeds). The mosquito rework demoted everything paired with it
-  (tycoon 1909 → 1571, leech 1701 → 1455, Chainer 1504 → 1251 — "midas ×
-  mosquito" is VOID); anger is #1/#3 *in rank* despite its nerf (Elo is
-  zero-sum here — it cannot say anger got absolutely weaker); the item price
-  cut did NOT move items off the bottom; question M answered — the new CDR
-  family lands E2-chronomancer (arcane3+hourglass3 + five pilotable buttons)
-  **7th of 30**, E1 (CDR × mosquito) 18th. §6 is the DPS math for why stacked
-  CDR isn't OP (haste SUMS, `cd = base/(1+h/100)` is concave: 5 g of ember lv3
-  beats a maxed 24 g Hourglass). ⚠ Side effect: echo gone + flat items = **the
-  whole item shelf is 126 g**, under roster.js's 150-185 g band, so items-only
-  cores under-spend and spill into the exhaust tail.
-- **ROUND 21.0 SHIPPED** (Remi's rulings, overnight): the two round-20.4 sim
-  "fixes" are REVERTED and now carry ⚠ RULING comments + tests — a reflected
-  ball keeps its per-ball flags (a mosquito lead returns push-less) and the
-  trailing twin leaves from the owner's CURRENT position on the cast aim.
-  **The repulse charge is UNCANCELLABLE**: frost, swap and portal no longer
-  null it (a swapped charger detonates at the new spot), the tick is
-  deliberately not gated on `stunT`, and only `kill()` clears it. The
-  detonation now draws a radius-true 0.4 s ring (`e.r` off the event;
-  screenshot-verified at 9.0 units). Shield gained a `long` tag sentence
-  (energy yes, Meteor/Bomb no) and spell tooltips prefer `long` over `desc`.
-  Swap stun retuned (see the snapshot line below).
-- **ROUND 21.1 SHIPPED** (prices only): Remi's spell-price rule — bases are
-  exactly 8 / 10 / 12 and every upgrade is HALF the base (4/5/6); pillar is the
-  8, meteor and wall came down from 14 to 12, fireball is exempt (base 0,
-  flagged to him). Items lost another 1 g/level (5 g boots/treads/cape, 7 g
-  sword/amulet/hourglass → 108 g shelf). Mosquito DISPLAYS as **Echo 👯** — the
-  key `mosquito` is unchanged everywhere. ⚠ The round-20 Elo table's gold
-  assumptions are now stale (everything is cheaper; more roster cores fall
-  under the 150 g band) — re-run before quoting its numbers as prices.
-- **ROUND 21.2 SHIPPED** (Remi's rulings): **pillars are PERMANENT** — lava
-  never destroys one (`sunk` is inert machinery now), a placed pillar survives
-  every later round for the whole game (round reset = default ring + everything
-  placed earlier), no cap, `SPELLS.pillar.duration` inert; only terra-lv3 smash
-  removes one. **Arena AREA per player is constant above 5 seats**:
-  `state.startRadius = START_RADIUS * sqrt(max(n, ANCHOR)/ANCHOR)`
-  (`ARENA.SCALE_ANCHOR_PLAYERS 5`), frozen at `startGame` from the seats then;
-  everything arena-sized reads `state.startRadius` (spawn ring, shrink rate,
-  portals, default pillar ring, world cull) and it is on the wire for the
-  client camera. ⚠ Bots don't buy pillars, so the labs see none of the
-  fortress effect — handing every bot a lv2 pillar caps games at 25 rounds with
-  ~750 stones (not a crash; the ruling's stated cost, awaiting a human playtest).
-- **ROUND 21.3 SHIPPED** — **TEAMS in versus**, a lobby property (not a mode):
-  every player owns a team NUMBER (`pl.team`, default = their own unique one, so
-  the old free-for-all is bit-identical). `allied(state, a, b)` in sim.js is the
-  DAMAGE/EFFECT-path predicate ("teammates ignore each other's spells"; pillars
-  stay terrain) and is **co-op-guarded** — `hostile()` remains targeting-only and
-  co-op friendly fire is untouched. Round ends when the survivors are one team
-  (all of them paid); the game ends at `KILLS_TO_WIN × team size` (`teamTally` /
-  `rankTeams`, also the client's HUD ranking). ⚠ `killLead`'s co-op guard had to
-  become value-based — "has a team" is now true for everyone.
-- **ROUND 21.4 SHIPPED** — **new spell: Statue 🗿** (Remi's "Stasis", renamed to
-  the plain-words style; alternates in REMI_NOTES, his to veto). Cast on self,
-  instant: for a FLAT 2 s (`duration` never levels — lv2 buys cd only, 16 → 12,
-  10/5 g) you are a golden pillar — `statueT` on the player is the whole
-  mechanism, and its guards sit at the choke points: `applyDamage` (zero damage
-  from ANYTHING incl. lava/DoT), `applyKnockback` (unpushable), `castSpell` (no
-  acting), `stats()` (rooted), and `stepProjectiles`, where the body EATS the
-  ball — ahead of the shield branch, piercing shots included, so a Switcheroo
-  fizzles with no trade. Nothing applies (malady/anger guarded at their own
-  spawn points). ⚠ 🗿 moved from the Stone Pillar (now 🏛️); statue is on the
-  physical key left of S (qwerty `a` / azerty `q`). NOT power-tier: bots pilot it
-  with shield's heuristic mirrored (hurt + imminent ball + not near the rim).
-- **ROUND 21.5 SHIPPED** — **new item: Coal Brazier 🪔**, the first PASSIVE
-  DAMAGE in the game: 7 g/level, enemies inside `auraR [3, 3.8, 4.6]`
-  (centre-to-centre) burn for a FLAT 1 dmg/s — only the radius levels. One
-  discrete bite per `ITEMS.brazier.tickEvery` on the OWNER's clock (malady's
-  machinery), so owners stack independently; `allied()` spares teammates and
-  the owner, co-op is skipped like malady's contagion. Credit = the DoT rule
-  (`stamp: false`, lethal tick still takes the kill) and sword lifesteal pays on
-  ticks exactly as it does on malady's. ⚠ RULINGS: passive damage does NOT break
-  vanish (it keeps burning invisible, and nothing it emits is anchored on the
-  owner) and a statue'd OWNER keeps burning. Audited alongside it: a vanished
-  malady CARRIER leaks nothing either (x/y is stripped, so the client cannot
-  draw the contagion ring; every event rides the victim) — no fix needed,
-  test-locked both ways.
-- **ROUND 21.6 SHIPPED** — **new spell: Decoy 👥** ([10,5], `tier: 'power'`,
-  hotkey qwerty `z` / azerty `w`): lv1 one clone, lv2 two, alive 5 s. A clone is
-  a PURE MIRAGE — it lives in `state.clones` (never `state.players`) and its
-  mimed balls in `state.phantoms` (never `state.projectiles`), which is the whole
-  safety argument: nothing that resolves damage, targeting, scoring or bot
-  perception can reach one. `mimicCast()` copies whatever projectiles a real cast
-  produced (fireball + its mosquito lead/twin, boomerang, swap) onto each clone
-  and pushes a `cast` event tagged **`phantom: true`** — the harness cooldown
-  invariant skips it exactly like mosquito's `trail: true`. On the wire: a
-  `clones` list (id/owner/x/y/hp/maxHp/r, absent when empty) that the CLIENT
-  turns into a player-shaped copy of the caster at draw time (identical by
-  construction: name, colour, avatar, team ring, shield bubble, item auras),
-  plus phantoms merged untagged into `projectiles`. ⚠ RULINGS: clone hp is the
-  caster's hp AT SPAWN and never moves (the honest tell); the wander target is
-  clamped inside the safe ring so a clone never surfaces in lava; expiry =
-  timer / caster's death / round boundary, whichever first. Bots ignore them
-  entirely and always will (BALANCE.md ⚠ O).
-- **Waiting on Remi**: whether an N-vs-1 team's target should be capped by the
-  number of enemies alive (3v1 always hits the 25-round cap today); mosquito pair feel (20.1 — never yet in human hands),
-  anger strength (question K), sword-by-structure (L), whether
-  E2-chronomancer's 7th-of-30 is where he wants CDR (M), cape (B),
-  Bomb + Switcheroo names.
-- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-20 — quote
-  `docs/history/2026-08-09-round20-elo.md` instead.
+- **ROUNDS 19-20 (2026-08-09, Remi playtesting live)** — the element-rework era:
+  Malady 🦠 and Anger 🔴 replaced venom and momentum, the mosquito was reworked
+  into the every-[6,5,4]th-cast PAIR, shop 2.x, Bomb + Switcheroo. All of it is
+  reflected in the rules snapshot below; the stories are
+  `docs/history/2026-08-09-remi-notes-round-19.md` and `…-round-20.md`. Two code
+  invariants to know before touching fireballs: a mosquito TRAILING ball advances
+  both every-N counters (vampire's and its own) but can NEVER itself double (hard
+  chain guard, test-locked), and the Echo Stone ITEM is DELETED — merged into the
+  mosquito element, whose key stays `mosquito` and whose display name is Echo 👯.
+  `BUILDS` = the ten tournament archetypes, Elo-ordered.
+- **MEASURED at r219 — THE standing strategy baseline**:
+  `docs/history/2026-08-10-round21-elo.md` (ELO #3, 30 strategies × 8000 games
+  × 2 seeds, at round-21 prices; it supersedes the r207 round-20 table, whose
+  §6 CDR math is still the live reference). Anger still #1/#3 *in rank*
+  (B3 2064 / D2 1880) — Elo is zero-sum here, so it can never say anger got
+  absolutely stronger or weaker (question K is Remi's feel). The Echo
+  (ex-mosquito) demotion HELD at the new prices ("midas × mosquito" stays
+  VOID). A third item price cut plus the new brazier left items at ranks
+  22/23/25/26/29 of 30 — **items are effect-limited, not price-limited**; stop
+  cutting prices. Half-price spell upgrades paid the KIT, not the maxer:
+  E2-chronomancer 7th → **4th of 30** (question M), while max-one-spell builds
+  stay 24th/27th/28th. Biggest movers in the table are the three MALADY builds
+  (+202/+124/+109) from 20.3's creator-immunity ruling. ⚠ Side effect of the
+  price cuts: **the whole item shelf is 129 g**, under roster.js's 150-185 g
+  band, so items-only cores under-spend and spill into the exhaust tail.
+- **ROUND 21 SHIPPED — 21.0 through 21.6, r208-r219, all of it overnight.** The
+  story Remi reads is `REMI_NOTES.md`; the resulting RULES are in the snapshot
+  below (prices, permanent pillars, arena scaling, teams, Statue, Brazier,
+  Decoy). What a next agent needs on top of those: the two round-20.4 sim
+  "fixes" are REVERTED and now carry ⚠ RULING comments + tests (a reflected ball
+  keeps its per-ball flags, so a mosquito lead returns push-less; the trailing
+  twin leaves from the owner's CURRENT position on the cast aim), and the repulse
+  charge is UNCANCELLABLE — frost/swap/portal no longer null it, the tick is
+  deliberately not gated on `stunT`, only `kill()` clears it. One pointer per new
+  mechanism: teams = `pl.team` + **`allied(state,a,b)`** in sim.js, the
+  DAMAGE/EFFECT-path predicate, co-op-guarded (`hostile()` stays targeting-only;
+  `killLead`'s co-op guard had to become value-based); arena size =
+  `state.startRadius`, frozen at `startGame`, on the wire for the camera; Statue =
+  `statueT`, guarded at `applyDamage` / `applyKnockback` / `castSpell` / `stats()`
+  / `stepProjectiles` (the body EATS the ball, ahead of the shield branch);
+  Brazier = malady's tick machinery on the OWNER's clock with `stamp: false`
+  credit; Decoy = `state.clones` + `state.phantoms`, **never** `players` /
+  `projectiles` — that separation is the whole safety argument — and
+  `mimicCast()` tags its cast events `phantom: true` so the harness cooldown
+  invariant skips them. ⚠ Live caveats: bots never BUY pillars, so no lab sees
+  the permanence fortress (hand every bot a lv2 pillar and games cap at 25 rounds
+  with ~750 stones — the ruling's stated cost, awaiting a human playtest); 3v1
+  always runs to the 25-round cap because a team's target is `15 × size`; bots
+  ignore clones and always will (BALANCE.md ⚠ O); Statue is unmeasured (⚠ N).
+- **Waiting on Remi**: Statue's NAME (alternates Stasis / Monolith / Gold Rush)
+  and Decoy + Statue in human hands; whether an N-vs-1 team's target should be
+  capped by the number of enemies alive (3v1 always hits the round cap today);
+  Echo/mosquito pair feel (20.1 — never yet in human hands), anger strength
+  (question K), sword-by-structure (L), whether E2-chronomancer's top-quartile
+  finish is where he wants CDR (M), cape (B), and names for Bomb 💣 (key `nova`)
+  and Switcheroo 🎭.
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-21 — quote
+  `docs/history/2026-08-10-round21-elo.md` instead.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -211,7 +146,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
-| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-09-round20-elo.md` |
+| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-10-round21-elo.md` |
 | `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots — prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
@@ -221,13 +156,17 @@ build step, Node ESM, only dep is `ws`.
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
 | `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive — read on demand only)** |
 
-## Game rules snapshot (post-round-20, one line each — details in constants.js and BALANCE.md)
+## Game rules snapshot (post-round-21, one line each — details in constants.js and BALANCE.md)
 
 - First to **15 kills** (per TEAM: `15 × size`, and solo teams are the default —
   round 21.3), 25-round cap; countdown → battle → roundEnd → shop.
   Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
   The 🧪 **testing sandbox** (lobby flag like draft): chosen gold, game opens
   in an UNTIMED shop, ready-up starts round 1.
+- **Teams are a lobby property, not a mode** (21.3): everyone has a team number,
+  default = their own, so an untouched lobby is bit-identical to free-for-all.
+  Teammates' spells pass THROUGH each other (`allied()` on every damage/effect
+  path); pillars still block everyone. Any shape works (2v2, 3v2, 2v1v1).
 - **Arena size is per-game** (21.2): `state.startRadius`, never `ARENA.START_RADIUS`,
   is the un-shrunk arena — constant play area per player above 5 seats.
 - **Pillars are permanent** (21.2): lava-proof, they persist across rounds and
@@ -275,8 +214,8 @@ build step, Node ESM, only dep is `ws`.
   positions at the switch (round 21.0: `stun {pad .55, min 1, max 3}`
   + d / fireball speed → 1.00/1.53/2.26/3.00 s at d = 10/40/70/120);
   **Blink**
-  [10,5] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
-  artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
+  [10,5] g flat range 22 (lv2 = cd); **Bomb** 💣 (key `nova`, name still Remi's)
+  = fused artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
   pillars unlimited; **Statue** 🗿 = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
   duration FLAT); **Decoy** 👥 = 5 s mirages that ape your casts and have zero
@@ -329,6 +268,7 @@ node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/reconnect-test.js                     # progress survives a drop
 node tools/arena.js --games=60 --players=4       # games finish, sane kills
+node tools/arena.js --games=60 --players=8       # ditto at the scaled arena (21.2)
 ```
 Kill stray servers when done (`pgrep -fl "server/index.js"`) — **but check
 first that Remi isn't hosting a live game.**
