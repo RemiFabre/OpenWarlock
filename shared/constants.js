@@ -270,22 +270,38 @@ export const SPELLS = {
     // Round 21.1: 14 was off the tier ladder — expensive tier is 12.
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
-    damage: [16, 24], knockback: [110, 130],
+    // Round 21.8 (Remi): lv2 24 → 30 — the upgrade was not worth its 6 g.
+    damage: [16, 30], knockback: [110, 130],
     desc: 'Mark a spot, a rock falls on it: heavy damage and a radial blast.',
   },
   nova: {
-    // Round 19 (Remi, voice — his name for it was garbled; round 19.1 second
-    // try: 'Bomb' 💣, still his to rename): pure artillery. The orb flies
-    // straight OVER bodies, pillars and mirror walls (no en-route collisions
-    // by design — the visible fuse is the whole counterplay), parks at the
-    // click (clamped to range), sits `fuse` s, then a FLAT radial blast like
-    // meteor's: damage only, no push, no riders.
-    name: 'Bomb', hotkey: 'B', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
-    cooldown: [9, 8, 7], speed: 26, range: 45, fuse: 0.5,
-    // knockback 0 is DELIBERATE data, not an omission: Remi wants "push: 0"
-    // printed in the hover stats so the no-push identity is stated.
-    damage: [10, 14, 18], radius: [4.5, 5.5, 6.5], knockback: 0,
-    desc: 'Flies over everything, explodes after a moment. Damage only, no push.',
+    // Round 21.8 REWORK (Remi, voice — the Bomb was "unsatisfying: not much
+    // damage, not easy to hit, no push"): the artillery orb is gone, this is a
+    // MINE. Internal key stays `nova` (logs, tests, roster), display is Mine.
+    //  - Cast plants it AT YOUR FEET, instantly (⚠ interpretation of "you press
+    //    the button, it just creates a trap where you are" — the aim is
+    //    ignored. Revert to a placed trap = clamp to a `range` like meteor).
+    //  - `radius` is the trigger ring: 1.65 × the fireball's own radius, his
+    //    number. Enemies only; a teammate, the owner and a statue never set it
+    //    off. It waits out the round, is visible to everyone, single use.
+    //  - CHARGING is the whole spell: your OWN fireballs are swallowed by your
+    //    own mine (up to `stores` of them, level-many) and wait inside it. So
+    //    shooting past your own trap costs you the shot — that is the setup.
+    //  - On trigger: mine damage, then every stored ball fires at the victim
+    //    `ballDelay` apart (ONE tick: "as fast as possible without being the
+    //    same tick" — you must SEE two balls). Echo's rule handles the push:
+    //    every ball but the last carries no knockback, so nobody is shoved out
+    //    of their twin's path, and the LAST one pushes at
+    //    max(its own push, the mine's) — never the sum (Remi: sums get silly).
+    //    A loaded mine's own push is therefore folded into that ball.
+    // ⚠ The victim can answer with a Shield: the stored balls are REAL
+    //    projectiles, so they reflect — but the mine's own damage still lands
+    //    (it is the ground, not a projectile). Remi's ruling, test-locked.
+    name: 'Mine', hotkey: 'B', tier: 'power', maxLevel: 2, costs: [10, 5],
+    cooldown: [9, 8], radius: 1.32, damage: [10, 15], knockback: 100,
+    stores: [1, 2], ballDelay: 1 / TICK_RATE,
+    desc: 'Plant a trap. Feed it your own fireballs.',
+    long: 'Drops an armed trap where you stand. Your own fireballs are swallowed by it and stored; when an enemy steps on the mine it hits them, and every stored fireball fires into them point blank.',
   },
   swap: {
     // Round 17 (docs/ROUND17.md §3 + Remi live): full position+velocity
@@ -386,6 +402,15 @@ export const ITEMS = {
   // "+N hp" popup. ⚠ Bot-measured floor: bots never choose fights lifesteal rewards.
   // history: docs/history/2026-08-08-constants-sweeps.md#items-sword
   sword:  { name: 'Blood Sword',          cost: 7, maxLevel: 3, desc: 'Lifesteal: your damage heals you.' },
+  // Round 21.8 (Remi): the sustain item for LOW-damage, wide, utility builds —
+  // lifesteal pays a % of damage, so a gale/frost combo pilot heals nothing off
+  // it. This pays a FLAT amount per damaging hit instead, once per victim per
+  // hit, so hitting three people pays three times. ⚠ Auras and DoTs are
+  // excluded BY DESIGN (malady's ticks, the Hat's burn — they would pay every
+  // second for free); that exclusion is in the shop text, not just here.
+  // Name: his joke — the slowest murder in history is committed with a spoon.
+  spoon:  { name: 'Slow Spoon',           cost: 7, maxLevel: 3, desc: 'Heal on every hit.',
+            long: 'Every time you damage an enemy you heal a flat amount — once per victim per hit, so hitting three at once heals three times. Burns and sicknesses (Malady, the Hat of Aura) never pay.' },
   // (Echo Stone deleted in round 20.1 — merged into ELEMENTS.mosquito. Its old
   // spec: `git show 58ba4e7:shared/constants.js`.)
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
@@ -448,7 +473,14 @@ export const ITEM_FX = {
   // sits under its lv3. Measured centre-to-centre, and the client ring is drawn
   // at exactly these numbers.
   // ⚠ Neither field is a passive stat, so items.js ignores both by design.
-  brazier: { auraDps: 1, auraR: [5, 6, 7] },
+  // `linger` (round 21.8, Remi's buff — "the burn should last"): seconds the
+  // burn keeps ticking AFTER you leave the ring. Standing inside just refreshes
+  // it, so the ring is the same 1 dmg/s and walking out is no longer a full
+  // escape. Revert = linger 0 (the engine then behaves exactly as in 21.5).
+  brazier: { auraDps: 1, auraR: [5, 6, 7], linger: [3, 4, 5] },
+  // Slow Spoon: FLAT hp per damaging hit, no damage scaling anywhere in it.
+  // ⚠ `healOnHit` must stay in items.js's ADD_FIELDS to reach stats().
+  spoon: { healOnHit: [1, 1.5, 2] },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------
@@ -489,7 +521,11 @@ export const ELEMENTS = {
   malady: { name: 'Malady', icon: '🦠', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Spread diseases.',
            long: 'Two hits infect: 1 damage per tick, plus a contagious aura that infects anyone who comes close, once each.',
-           fx: { tickDmg: 1, dotTime: [4, 5, 6], tickEvery: 1, auraR: [5, 7, 9] } },
+           // Round 21.8 (Remi): malady is a DAMAGE element that must pay off the
+           // moment it hits two people — so the clock is FLAT 4 s at every level
+           // and the levels buy the bite instead. Revert: tickDmg 1,
+           // dotTime [4, 5, 6].
+           fx: { tickDmg: [1, 1.5, 2], dotTime: 4, tickEvery: 1, auraR: [5, 7, 9] } },
   // Round 16: gale is the fireball's PUSH axis — cheap flat kbAdd at lv1/2;
   // lv3 unlocks the stack-and-burst gust (3rd private stack = one enormous shove).
   // ⚠ The burst lever is VIOLENTLY STEEP (+20% ≈ +14 points); old sweep at git c38730f.

@@ -38,7 +38,7 @@ const progress = process.stderr.isTTY ? console.error : () => {};
 // reachable (a list entry buys at most one level per shop pass).
 export const EXHAUST_PASS = [
   'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
-  'hourglass', 'brazier', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
+  'hourglass', 'brazier', 'spoon', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
   'vampire', 'anger', 'boomerang', 'rush', 'shield', 'teleport',
   'frost', 'mosquito', 'midas',
 ];

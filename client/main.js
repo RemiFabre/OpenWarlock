@@ -37,8 +37,9 @@ const ICONS = {
   decoy: '👥',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
-  // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember
-  hourglass: '⏳', brazier: '🎩',
+  // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember.
+  // Slow Spoon (21.8): Remi's joke — the slowest murder in history.
+  hourglass: '⏳', brazier: '🎩', spoon: '🥄',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -311,7 +312,13 @@ function onEvent(e) {
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
-    case 'novaHit': fx.push({ ...e, type: 'novaHit', at: now, dur: 0.6 }); playSfx('boom'); break;
+    // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
+    // charge is a soft click, the spring is a boom — and every stored ball
+    // erupting is its own whoosh, so a loaded trap SOUNDS like the payoff.
+    case 'mineUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.35 }); if (e.id === myId) playSfx('buy'); break;
+    case 'mineCharge': fx.push({ ...e, type: 'grow', at: now, dur: 0.3 }); if (e.id === myId) playSfx('catch'); break;
+    case 'mineHit': fx.push({ ...e, type: 'mineHit', at: now, dur: 0.5 }); playSfx('boom'); break;
+    case 'mineShot': playSfx('whoosh'); break;
     // swap: one flash at EACH end of the trade, plus its own crossing sound —
     // "we traded places" must read instantly on both screens
     case 'swapped':
@@ -513,19 +520,6 @@ function interpolated(now) {
       ? { ...pb, x: lerp(pa.x, pb.x, k), y: lerp(pa.y, pb.y, k) }
       : pb);
   }
-  // nova orbs move between snapshots (unlike meteors, which sit still), so
-  // they get the projectile treatment: pair by id, lerp the position
-  const novas = [];
-  const aNova = Array.isArray(a.s && a.s.novas) ? a.s.novas : [];
-  const bNova = Array.isArray(s.novas) ? s.novas : [];
-  const prevNova = new Map(aNova.map(n => [n && n.id, n]));
-  for (const nb of bNova) {
-    if (!nb || typeof nb !== 'object') continue;
-    const na = prevNova.get(nb.id);
-    novas.push(na
-      ? { ...nb, x: lerp(na.x, nb.x, k), y: lerp(na.y, nb.y, k) }
-      : nb);
-  }
   const arenaRadius = lerp(a.s && a.s.arenaRadius, s.arenaRadius, k);
   const phaseT = fin(+s.phaseT) ? Math.max(0, +s.phaseT - (now - b.at) / 1000) : 0;
   return {
@@ -539,7 +533,8 @@ function interpolated(now) {
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
-    novas,
+    // mines never move: no interpolation, straight off the snapshot
+    mines: Array.isArray(s.mines) ? s.mines : [],
     bolts: Array.isArray(s.bolts) ? s.bolts : [],
     walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
@@ -1023,6 +1018,8 @@ const SPELL_FIELDS = {
   delay: ['impact delay', fmtSec],
   length: ['wall length', fmtNum],
   clones: ['copies of you', fmtNum],
+  stores: ['fireballs it stores', fmtNum],
+  ballDelay: ['stored balls fire', (v) => `${fmtSec(v)} apart`],
 };
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
 // sim evaluates at resolution ({pad, min}) — spellTip prints the two readings a
@@ -1051,7 +1048,7 @@ const FX_FIELDS = {
   slowMult: ['victim speed', fmtMult],
   slowT: ['slow lasts', fmtSec],
   stunT: ['stun lasts', fmtSec],
-  tickDmg: ['sickness per tick', fmtNum],
+  tickDmg: ['damage per tick', fmtNum],
   dotTime: ['sickness lasts', fmtSec],
   tickEvery: ['ticks every', fmtSec],
   auraR: ['contagion radius', fmtNum],
@@ -1078,6 +1075,8 @@ const ITEM_FIELDS = {
   haste: ['ability haste', (v) => `+${fmtNum(v)}`],
   auraDps: ['burn damage', (v) => `${fmtNum(v)}/s`],
   auraR: ['burn radius', fmtNum],
+  linger: ['keeps burning for', fmtSec],
+  healOnHit: ['heal per hit', (v) => `+${fmtNum(v)} hp`],
 };
 
 // What the level you own actually bought, as a plain sentence. The maths lives
@@ -1093,7 +1092,8 @@ const ITEM_LIVE = {
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
-  brazier: (lv) => `enemies within ${fmtNum(itemFxAt('brazier', 'auraR', lv))} units of you burn for ${fmtNum(itemFxAt('brazier', 'auraDps', lv))} hp/s`,
+  brazier: (lv) => `enemies within ${fmtNum(itemFxAt('brazier', 'auraR', lv))} units of you burn for ${fmtNum(itemFxAt('brazier', 'auraDps', lv))} hp/s, and keep burning ${fmtNum(itemFxAt('brazier', 'linger', lv))} s after they leave`,
+  spoon: (lv) => `every enemy you damage heals you ${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp`,
 };
 
 // The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
@@ -1106,7 +1106,8 @@ const ITEM_TAG = {
   cape: (lv) => `−${fmtNum(Math.round((1 - itemFxAt('cape', 'kbMult', lv)) * 100))}% knockback`,
   sword: (lv) => `${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 100))}% lifesteal`,
   hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} haste`,
-  brazier: (lv) => `${fmtNum(itemFxAt('brazier', 'auraDps', lv))} dmg/s, r ${fmtNum(itemFxAt('brazier', 'auraR', lv))}`,
+  brazier: (lv) => `${fmtNum(itemFxAt('brazier', 'auraDps', lv))} dmg/s, r ${fmtNum(itemFxAt('brazier', 'auraR', lv))}, +${fmtNum(itemFxAt('brazier', 'linger', lv))} s`,
+  spoon: (lv) => `+${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp per hit`,
 };
 
 // One row of the per-level table. A scalar REPEATS in every level column

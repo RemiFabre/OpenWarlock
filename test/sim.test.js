@@ -9,7 +9,7 @@ import {
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
@@ -1343,15 +1343,18 @@ describe('elemental mode', () => {
       .toBe(true);                                 // the client FX/sound hook
   });
 
-  it('malady: 1 damage per tick at EVERY level; levels buy duration, then CURED', () => {
+  // Round 21.8 (Remi) inverted this: the clock is FLAT and the levels buy the
+  // BITE, so a plague that catches two people pays like a damage element.
+  it('malady: flat duration at every level; levels buy the tick damage, then CURED', () => {
     for (let lv = 1; lv <= ELEMENTS.malady.maxLevel; lv++) {
       const state = maladyBattle(lv);
       const b = state.players.p1;
       landHit(state); landHit(state);
       expect(b.poisonTick).toBe(efx(MF().tickDmg, lv));
-      expect(efx(MF().tickDmg, lv)).toBe(efx(MF().tickDmg, 1)); // flat: never scales
+      if (lv > 1) // the bite is what levels now
+        expect(efx(MF().tickDmg, lv)).toBeGreaterThan(efx(MF().tickDmg, lv - 1));
       const dot = efx(MF().dotTime, lv);
-      if (lv > 1) expect(dot).toBeGreaterThan(efx(MF().dotTime, lv - 1));
+      expect(dot).toBe(efx(MF().dotTime, 1));      // flat: the clock never scales
       state.events = [];
       const ticks = () => state.events.filter(e => e.t === 'hit' && e.poison && e.id === 'p1');
       run(state, dot + 0.6);                       // every tick in, clock out
@@ -5504,25 +5507,49 @@ describe('spawn shuffle (round 18)', () => {
   });
 });
 
-describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
+// Mine 💣 (round 21.8, SPELLS.nova — internal key unchanged). A planted trap
+// that eats YOUR OWN fireballs and spits them back into whoever steps on it.
+// The three rulings under test: the aim is ignored (it lands at your feet), a
+// loaded mine's push is max(ball, mine) on the LAST ball only, and a Shield
+// answers the balls but never the ground.
+describe('mine 💣 (the trap, round 21.8)', () => {
   const spec = SPELLS.nova;
 
-  // freshBattle + the meteor test's furniture: clean floor, parked bystander
-  function novaBattle() {
-    const state = freshBattle(3);
-    const a = state.players.p0, b = state.players.p1;
+  // clean floor, owner at the origin, one enemy parked well away
+  function mineBattle(n = 3, mode = 'classic') {
+    const state = mode === 'classic' ? freshBattle(n) : (() => {
+      const s2 = createGame({ seed: 42, mode });
+      for (let i = 0; i < n; i++) addPlayer(s2, `p${i}`, `P${i}`);
+      startGame(s2);
+      run(s2, ROUND.COUNTDOWN + DT);
+      return s2;
+    })();
     state.pillars = [];
-    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
-    b.x = 10; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
-    state.players.p2.x = 0; state.players.p2.y = -40;
-    state.players.p2.moveTarget = null;
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 30; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null; b.cooldowns = {};
+    for (let i = 2; i < n; i++) {
+      const p = state.players[`p${i}`];
+      p.x = 0; p.y = -45; p.vx = p.vy = 0; p.moveTarget = null;
+    }
     return state;
   }
+  // plant a mine at (x, y) without moving anybody: cast from there, walk back
+  const plant = (state, id, x, y) => {
+    const pl = state.players[id];
+    const [ox, oy] = [pl.x, pl.y];
+    pl.x = x; pl.y = y;
+    pl.cooldowns = {};
+    castSpell(state, id, 'nova', x + 10, y);   // the aim is ignored on purpose
+    pl.x = ox; pl.y = oy;
+    return state.mines[state.mines.length - 1];
+  };
 
-  it('is power-tier (the bot guard + draft filter), no minRound, costs from spec', () => {
+  it('is power-tier (the bot guard + draft filter), 2 levels, costs from spec', () => {
     expect(spec.tier).toBe('power');
+    expect(spec.maxLevel).toBe(2);
     expect(spec.minRound).toBeUndefined();
-    const state = freshBattle(2);
+    const state = mineBattle(2);
     state.phase = 'shop';
     const a = state.players.p0;
     a.gold = 999;
@@ -5536,7 +5563,7 @@ describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
   });
 
   it('cast starts the spec cooldown for the owned level', () => {
-    const state = novaBattle();
+    const state = mineBattle();
     const a = state.players.p0;
     for (let level = 1; level <= spec.maxLevel; level++) {
       a.spells.nova = level;
@@ -5546,122 +5573,235 @@ describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
     }
   });
 
-  it('orb travels straight at spec speed and parks at the clicked point', () => {
-    const state = novaBattle();
-    state.players.p0.spells.nova = 1;
-    state.players.p1.y = -30; // off the flight path for this one
-    castSpell(state, 'p0', 'nova', 20, 0);
-    expect(state.novas.length).toBe(1);
-    const n = state.novas[0];
-    run(state, 0.3);
-    expect(n.x).toBeCloseTo(spec.speed * 0.3, 0); // en route, on the line
-    expect(n.y).toBeCloseTo(0, 5);
-    run(state, 0.6); // 20 u at speed 26 ≈ 0.77 s: parked now, fuse burning
-    expect(n.x).toBeCloseTo(20, 5);
-    expect(n.y).toBeCloseTo(0, 5);
-    expect(n.t).toBeGreaterThan(0);
+  it('plants AT THE CASTER, ignoring the aim, and just sits there', () => {
+    const state = mineBattle();
+    const a = state.players.p0;
+    a.spells.nova = 1;
+    a.x = 7; a.y = -3;
+    castSpell(state, 'p0', 'nova', 40, 40);   // aimed far away
+    expect(state.mines.length).toBe(1);
+    const m = state.mines[0];
+    expect([m.x, m.y]).toEqual([7, -3]);
+    expect(m.r).toBe(spec.radius);
+    expect(m.charges.length).toBe(0);
+    run(state, 5);                            // no fuse: it waits
+    expect(state.mines.length).toBe(1);
   });
 
-  it('a click beyond max range clamps the stop point to spec.range', () => {
-    const state = novaBattle();
-    state.players.p0.spells.nova = 1;
-    castSpell(state, 'p0', 'nova', 100, 0);
-    expect(state.novas[0].tx).toBeCloseTo(spec.range, 5);
-    expect(state.novas[0].ty).toBeCloseTo(0, 5);
-  });
-
-  it('flies OVER a body, a pillar and an enemy mirror wall without popping', () => {
-    const state = novaBattle();
+  it('the trigger ring is 1.65x the fireball, and only ENEMIES set it off', () => {
+    expect(spec.radius).toBeCloseTo(SPELLS.fireball.radius * 1.65, 5);
+    const state = mineBattle();
     const a = state.players.p0, b = state.players.p1;
     a.spells.nova = 1;
-    // all three obstacles sit ON the flight path to (20, 0)
-    state.pillars.push({ x: 14, y: 0, r: 2.2, sunk: false });
-    state.walls.push({ x1: 16, y1: -4, x2: 16, y2: 4, nx: -1, ny: 0,
-      owner: 'p1', until: state.time + 60 });
-    castSpell(state, 'p0', 'nova', 20, 0);
-    run(state, 0.6); // orb has crossed body (10), pillar (14) and wall (16)
-    expect(state.novas.length).toBe(1);
-    expect(state.novas[0].x).toBeGreaterThan(14);
-    expect(b.hp).toBe(b.maxHp); // brushed past, no en-route hit
-    run(state, 1);  // blast at (20,0): b at 10 is outside radius + his body
-    expect(state.novas.length).toBe(0);
+    const m = plant(state, 'p0', 10, 0);
+    // the owner stands on their own trap: nothing happens
+    a.x = 10; a.y = 0;
+    run(state, 0.2);
+    expect(state.mines.length).toBe(1);
+    expect(a.hp).toBe(a.maxHp);
+    a.x = 0;
+    // a hair outside the ring: still nothing
+    b.x = 10 + m.r + b.radius + 0.3; b.y = 0;
+    run(state, 0.2);
+    expect(state.mines.length).toBe(1);
     expect(b.hp).toBe(b.maxHp);
-  });
-
-  it('explodes after the fuse, not before', () => {
-    const state = novaBattle();
-    const a = state.players.p0, b = state.players.p1;
-    a.spells.nova = 1;
-    b.x = 12; // inside the lv1 blast around (10, 0)
-    castSpell(state, 'p0', 'nova', 10, 0);
-    const travel = 10 / spec.speed;
-    run(state, travel + spec.fuse * 0.5); // parked, fuse only half burnt
-    expect(state.novas.length).toBe(1);
-    expect(b.hp).toBe(b.maxHp);
-    run(state, spec.fuse); // fuse done somewhere in here
-    expect(state.novas.length).toBe(0);
-    expect(b.hp).toBeLessThan(b.maxHp);
-  });
-
-  it('flat spec damage in radius (caster included), NO knockback, none outside', () => {
-    const state = novaBattle();
-    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
-    a.spells.nova = 1;
-    b.x = 12; b.y = 0;                              // 2 u from the blast center
-    c.x = 10 + spec.radius[0] + c.radius + 0.5;     // a hair outside the reach
-    c.y = 0;
-    castSpell(state, 'p0', 'nova', 10, 0);
-    run(state, 10 / spec.speed + spec.fuse + 0.2);
-    // meteor's convention is FLAT damage across the blast (no edge falloff) —
-    // nova matches it, so b eats the full spec number 2 u off center
+    // step in
+    b.x = 10 + m.r + b.radius - 0.3;
+    run(state, 0.2);
+    expect(state.mines.length).toBe(0);
     expect(b.maxHp - b.hp).toBeCloseTo(spec.damage[0], 3);
-    expect(Math.abs(b.vx) + Math.abs(b.vy)).toBeLessThan(1); // damage only, no push
-    expect(c.hp).toBe(c.maxHp);                              // outside: untouched
-    expect(a.hp).toBe(a.maxHp);                              // caster far away here
-    // caster inside their own blast eats it too (meteor's rule)
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'nova', 2, 0);
-    run(state, 2 / spec.speed + spec.fuse + 0.2);
-    expect(a.maxHp - a.hp).toBeCloseTo(spec.damage[0], 3);
   });
 
-  it('is not a fireball: no element riders — a midas owner plants no mark, full damage', () => {
-    const state = createGame({ seed: 42, mode: 'elemental' });
-    for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
-    startGame(state);
-    run(state, ROUND.COUNTDOWN + DT);
-    expect(state.phase).toBe('battle');
+  it('a BARE mine deals its own damage and its own shove, radially out', () => {
+    const state = mineBattle();
     const a = state.players.p0, b = state.players.p1;
-    state.pillars = [];
-    a.x = 0; a.y = 0; a.moveTarget = null;
-    b.x = 10; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
-    state.players.p2.x = 0; state.players.p2.y = -40;
-    state.players.p2.moveTarget = null;
+    a.spells.nova = 2;
+    plant(state, 'p0', 10, 0);
+    b.x = 10.5; b.y = 0; b.vx = 0; b.vy = 0;
+    run(state, 0.1);
+    expect(b.maxHp - b.hp).toBeCloseTo(spec.damage[1], 3);
+    expect(b.vx).toBeGreaterThan(0);          // pushed away from the mine center
+    expect(Math.abs(b.vy)).toBeLessThan(1e-6);
+    // dead centre (a blink or a swap can land you exactly on it) still shoves
+    const s2 = mineBattle();
+    s2.players.p0.spells.nova = 1;
+    const m2 = plant(s2, 'p0', 10, 0);
+    const c = s2.players.p1;
+    c.x = m2.x; c.y = m2.y; c.vx = 0; c.vy = 0;
+    run(s2, 0.1);
+    expect(Math.hypot(c.vx, c.vy)).toBeGreaterThan(0);
+  });
+
+  it('swallows the OWNER\'s fireballs up to `stores`, and lets the rest fly on', () => {
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const state = mineBattle();
+      const a = state.players.p0, b = state.players.p1;
+      a.spells.nova = level;
+      const m = plant(state, 'p0', 10, 0);
+      const cap = spec.stores[level - 1];
+      for (let i = 0; i < cap + 1; i++) {
+        a.cooldowns = {};
+        castSpell(state, 'p0', 'fireball', 40, 0);
+        run(state, 0.5);                       // 10 u at speed 41: through it
+      }
+      expect(m.charges.length).toBe(cap);      // full, and it stayed full
+      // the extra ball flew past the full mine and hit the enemy at 30
+      run(state, 0.6);
+      expect(b.hp).toBeLessThan(b.maxHp);
+    }
+  });
+
+  it('an ENEMY fireball flies straight over the mine (only yours arm it)', () => {
+    const state = mineBattle();
+    const a = state.players.p0, b = state.players.p1;
     a.spells.nova = 1;
-    a.elements.midas = 1; // lv1 midas halves FIREBALL damage and plants marks
-    castSpell(state, 'p0', 'nova', 10, 0);
+    const m = plant(state, 'p0', 10, 0);
+    b.x = 30; b.y = 0;
+    castSpell(state, 'p1', 'fireball', -40, 0); // shoots back down the line
+    run(state, 0.4);
+    expect(m.charges.length).toBe(0);
+  });
+
+  it('a loaded mine fires its balls one TICK apart, and only the last pushes', () => {
+    const state = mineBattle();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 2;                         // stores 2
+    const m = plant(state, 'p0', 10, 0);
+    for (let i = 0; i < 2; i++) {
+      a.cooldowns = {};
+      castSpell(state, 'p0', 'fireball', 40, 0);
+      run(state, 0.5);
+    }
+    expect(m.charges.length).toBe(2);
+    expect(spec.ballDelay).toBeCloseTo(1 / TICK_RATE, 6);
+    b.x = 10.4; b.y = 0; b.vx = 0; b.vy = 0;
+    const hp0 = b.hp;
     const seen = [];
-    const ticks = Math.round((10 / spec.speed + spec.fuse + 0.2) / DT);
-    for (let i = 0; i < ticks; i++) {
+    for (let i = 0; i < 12; i++) {             // ~0.4 s, one tick at a time
       state.events = [];
       step(state, DT);
       seen.push(...state.events);
     }
-    expect(seen.some(e => e.t === 'midasMark')).toBe(false);
-    expect(b.stacks && b.stacks.midas ? b.stacks.midas.p0 || 0 : 0).toBe(0);
-    // and midas' fireball damage penalty does not touch the blast either
-    expect(b.maxHp - b.hp).toBeCloseTo(spec.damage[0], 3);
+    // mine damage + two full fireball hits
+    const fb = SPELLS.fireball.damage[0];
+    expect(hp0 - b.hp).toBeCloseTo(spec.damage[1] + fb * 2, 3);
+    // two separate shots left the mine, on different ticks
+    expect(seen.filter(e => e.t === 'mineShot').length).toBe(2);
+    expect(seen.filter(e => e.t === 'mineHit').length).toBe(1);
+    // and the victim IS pushed (the last ball carries the shove)
+    expect(Math.hypot(b.vx, b.vy)).toBeGreaterThan(0);
   });
 
-  it('a nova kill credits the caster (lastHitBy path, like meteor)', () => {
-    const state = novaBattle();
+  it('the push is max(ball, mine) on ONE ball — never the sum, never twice', () => {
+    // same setup, three ways: bare mine, loaded mine, plain fireball. The
+    // loaded mine's launch speed must equal the bigger of the other two, not
+    // their sum (Remi's ruling).
+    // PEAK speed, not the speed at a fixed time: friction eats a decayed
+    // reading, and the loaded mine lands its push a tick later than the bare one
+    const peak = (state, b, secs) => {
+      let top = 0;
+      for (let i = 0; i < Math.round(secs / DT); i++) {
+        step(state, DT);
+        top = Math.max(top, Math.hypot(b.vx, b.vy));
+      }
+      return top;
+    };
+    const launch = (charge) => {
+      const state = mineBattle();
+      const a = state.players.p0, b = state.players.p1;
+      a.spells.nova = 1;
+      const m = plant(state, 'p0', 10, 0);
+      if (charge) {
+        castSpell(state, 'p0', 'fireball', 40, 0);
+        run(state, 0.5);
+        expect(m.charges.length).toBe(1);
+      }
+      b.x = 10.4; b.y = 0; b.vx = 0; b.vy = 0;
+      b.hp = b.maxHp;                          // isolate the push from hp scaling
+      return peak(state, b, 0.3);
+    };
+    const bare = launch(false);
+    const loaded = launch(true);
+    // a plain fireball hit on the same body, for the comparison
+    const state = mineBattle();
+    const b2 = state.players.p1;
+    b2.x = 10.4; b2.y = 0; b2.vx = 0; b2.vy = 0;
+    state.players.p0.x = 0;
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    const ball = peak(state, b2, 0.4);
+    // ⚠ the two impulses land one tick apart in the frame (the trap pushes from
+    // stepBattle, the ball from stepProjectiles), so they are one friction step
+    // apart — hence a band, not an equality. A SUM would be ~1.7x bare.
+    expect(spec.knockback).toBeGreaterThan(SPELLS.fireball.knockback[0]);
+    expect(loaded).toBeGreaterThan(ball);           // the mine's shove wins
+    expect(loaded).toBeLessThan(bare * 1.25);       // ...and it is the ONLY one
+    expect(loaded).toBeLessThan(bare + ball - 10);  // emphatically not a sum
+  });
+
+  it('stored balls keep their riders: an ember/malady ball still infects', () => {
+    const state = mineBattle(3, 'elemental');
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0;
+    a.spells.nova = 1;
+    a.elements = { ember: 1, malady: 1 };
+    const m = plant(state, 'p0', 10, 0);
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(m.charges.length).toBe(1);
+    b.x = 10.4; b.y = 0;
+    const hp0 = b.hp;
+    run(state, 0.3);
+    // ember's +1 rode along with the stored ball
+    const fb = SPELLS.fireball.damage[0] + ELEMENTS.ember.fx.dmgAdd[0];
+    expect(hp0 - b.hp).toBeCloseTo(spec.damage[0] + fb, 3);
+    // and malady's first sting planted its stack (two hits infect)
+    expect(b.stacks && b.stacks.malady && b.stacks.malady.p0).toBe(1);
+  });
+
+  it('a Shield reflects the stored balls but NEVER the mine\'s own damage', () => {
+    const state = mineBattle();
     const a = state.players.p0, b = state.players.p1;
     a.spells.nova = 1;
-    b.hp = 5;
-    castSpell(state, 'p0', 'nova', 10, 0);
+    b.spells.shield = 1;
+    const m = plant(state, 'p0', 10, 0);
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(m.charges.length).toBe(1);
+    b.x = 10.4; b.y = 0; b.vx = 0; b.vy = 0;
+    castSpell(state, 'p1', 'shield', 0, 0);
+    const hp0 = b.hp, aHp0 = a.hp;
+    run(state, 0.15);
+    // the ground still hit them, the ball did not
+    expect(hp0 - b.hp).toBeCloseTo(spec.damage[0], 3);
+    // and the ball is now THEIRS, flying back down the line
+    const back = state.projectiles.find(pr => pr.owner === 'p1');
+    expect(back && back.type).toBe('fireball');
+    run(state, 0.3);                            // 10 u at speed 41
+    expect(aHp0 - a.hp).toBeCloseTo(SPELLS.fireball.damage[0], 3);
+  });
+
+  it('a statue never trips a mine (and the mine is not spent)', () => {
+    const state = mineBattle();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    b.spells.statue = 1;
+    plant(state, 'p0', 10, 0);
+    b.x = 10; b.y = 0;
+    castSpell(state, 'p1', 'statue', 0, 0);
+    run(state, 0.3);
+    expect(b.hp).toBe(b.maxHp);
+    expect(state.mines.length).toBe(1);
+  });
+
+  it('a mine kill credits the planter', () => {
+    const state = mineBattle();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    plant(state, 'p0', 10, 0);
+    b.hp = 4;
+    b.x = 10.2; b.y = 0;
     const seen = [];
-    const ticks = Math.round((10 / spec.speed + spec.fuse + 0.2) / DT);
-    for (let i = 0; i < ticks; i++) {
+    for (let i = 0; i < 10; i++) {
       state.events = [];
       step(state, DT);
       seen.push(...state.events);
@@ -5672,8 +5812,8 @@ describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
     expect(death && death.killer).toBe('p0');
   });
 
-  it('casting nova reveals a vanished caster (the generic reveal)', () => {
-    const state = novaBattle();
+  it('mines die with the round, and casting one reveals a vanished planter', () => {
+    const state = mineBattle();
     const a = state.players.p0;
     a.spells.nova = 1;
     a.spells.vanish = 1;
@@ -5682,22 +5822,33 @@ describe('bomb 💣 (fused artillery — name still awaiting Remi)', () => {
     a.cooldowns = {};
     castSpell(state, 'p0', 'nova', 10, 0);
     expect(a.vanishT).toBe(0);
+    expect(state.mines.length).toBe(1);
+    // drive a real round boundary: kill everyone but the planter
+    for (const pl of Object.values(state.players)) {
+      if (pl.id === 'p0') continue;
+      pl.hp = 0.01; pl.x = state.startRadius + 5; pl.y = 0;
+    }
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
+    run(state, ROUND.SHOP_TIME + 0.5);
+    expect(state.mines.length).toBe(0);
   });
 
-  it('serializes for the client: orb in flight, then the burning fuse', () => {
-    const state = novaBattle();
-    state.players.p0.spells.nova = 2;
-    castSpell(state, 'p0', 'nova', 20, 0);
-    const s1 = snapshot(state);
-    expect(s1.novas.length).toBe(1);
-    expect(Number.isFinite(s1.novas[0].x)).toBe(true);
-    expect(Number.isFinite(s1.novas[0].y)).toBe(true);
-    expect(s1.novas[0].level).toBe(2);
-    expect(s1.novas[0].t).toBeUndefined(); // in flight: no fuse yet
-    run(state, 20 / spec.speed + 0.1);
-    const s2 = snapshot(state);
-    expect(s2.novas[0].t).toBeGreaterThan(0);
-    expect(s2.novas[0].t).toBeLessThanOrEqual(spec.fuse);
+  it('serializes for the client: position, ring and how many balls are loaded', () => {
+    const state = mineBattle();
+    const a = state.players.p0;
+    a.spells.nova = 2;
+    const m = plant(state, 'p0', 10, 0);
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(m.charges.length).toBe(1);
+    const s1 = snapshot(state, 'p1');
+    expect(s1.mines.length).toBe(1);
+    expect(s1.mines[0].x).toBeCloseTo(10, 5);
+    expect(s1.mines[0].r).toBeCloseTo(spec.radius, 2);
+    expect(s1.mines[0].owner).toBe('p0');
+    expect(s1.mines[0].n).toBe(1);
+    // the stored BALL itself never reaches the wire
+    expect(s1.mines[0].charges).toBeUndefined();
   });
 });
 
@@ -5785,8 +5936,27 @@ describe('versus teams', () => {
     expect(Math.abs(foe.vx)).toBeGreaterThan(0);
   });
 
-  it('meteor, nova and lightning all spare teammates', () => {
-    for (const spell of ['meteor', 'nova', 'lightning']) {
+  it('a mine ignores its planter and their teammates, and takes an enemy', () => {
+    const state = teamBattle([7, 7, 8]);
+    const [a, mate, foe] = ['p0', 'p1', 'p2'].map(id => state.players[id]);
+    a.spells.nova = 1;
+    a.x = 0; a.y = 0;
+    mate.x = 30; mate.y = 0; foe.x = 30; foe.y = 10;
+    castSpell(state, 'p0', 'nova', 5, 0);        // plants at the planter's feet
+    expect(state.mines.length).toBe(1);
+    mate.x = 0; mate.y = 0;                      // teammate stands right on it
+    run(state, 0.3);
+    expect(mate.hp).toBe(mate.maxHp);
+    expect(state.mines.length).toBe(1);          // ...and it is not spent
+    mate.x = 30;
+    foe.x = 0; foe.y = 0;
+    run(state, 0.3);
+    expect(foe.hp).toBeLessThan(foe.maxHp);
+    expect(state.mines.length).toBe(0);
+  });
+
+  it('meteor and lightning spare teammates', () => {
+    for (const spell of ['meteor', 'lightning']) {
       const state = teamBattle([7, 7, 8]);
       const [a, mate, foe] = ['p0', 'p1', 'p2'].map(id => state.players[id]);
       a.spells[spell] = 1;
@@ -6179,6 +6349,122 @@ describe('statue 🗿 (the golden pillar)', () => {
   });
 });
 
+// Slow Spoon 🥄 (round 21.8, Remi): a FLAT heal per damaging hit — the sustain
+// item for wide, low-damage, utility builds that lifesteal ignores. The whole
+// balance of it is the exclusion: auras and sicknesses never pay.
+describe('Slow Spoon 🥄 (flat heal per hit)', () => {
+  const spec = ITEMS.spoon;
+  const at = (lv) => ITEM_FX.spoon.healOnHit[lv - 1];
+
+  // p0 hurt and holding the spoon, p1 parked in fireball range
+  function spoonBattle(lv = 1, n = 2, mode = 'classic') {
+    const state = mode === 'classic' ? freshBattle(n) : (() => {
+      const s2 = createGame({ seed: 42, mode });
+      for (let i = 0; i < n; i++) addPlayer(s2, `p${i}`, `P${i}`);
+      startGame(s2);
+      run(s2, ROUND.COUNTDOWN + DT);
+      return s2;
+    })();
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.cooldowns = {};
+    for (let i = 2; i < n; i++) {   // in a LINE behind p1, for the pierce test
+      const p = state.players[`p${i}`];
+      p.x = 8 + (i - 1) * 6; p.y = 0; p.vx = p.vy = 0; p.moveTarget = null;
+    }
+    a.items.spoon = lv;
+    a.hp = 40;                       // room to heal into
+    return state;
+  }
+
+  it('spec shape: 3 levels, flat price, a growing FLAT heal (no damage scaling)', () => {
+    expect(spec.maxLevel).toBe(3);
+    for (let lv = 0; lv < spec.maxLevel; lv++) expect(itemCost('spoon', lv)).toBe(spec.cost);
+    expect(ITEM_FX.spoon.healOnHit.length).toBe(spec.maxLevel);
+    for (let lv = 2; lv <= spec.maxLevel; lv++) expect(at(lv)).toBeGreaterThan(at(lv - 1));
+    expect(catalogue('classic').some(e => e.key === 'spoon')).toBe(true);
+    // it IS a passive stat, unlike the Hat: stats() must carry it
+    const state = spoonBattle(2);
+    expect(playerStats(state.players.p0).healOnHit).toBe(at(2));
+    expect(playerStats(state.players.p1).healOnHit).toBe(0);
+  });
+
+  it('heals a flat amount per landed hit, whatever the damage was', () => {
+    for (let lv = 1; lv <= spec.maxLevel; lv++) {
+      const state = spoonBattle(lv);
+      const a = state.players.p0;
+      const hp0 = a.hp;
+      castSpell(state, 'p0', 'fireball', 40, 0);
+      run(state, 0.4);
+      expect(state.players.p1.hp).toBeLessThan(state.players.p1.maxHp); // it landed
+      expect(a.hp - hp0).toBeCloseTo(at(lv), 5);
+    }
+  });
+
+  it('pays once PER VICTIM: a piercing ball through three bodies heals three times', () => {
+    const state = spoonBattle(2, 4, 'elemental');
+    const a = state.players.p0;
+    a.elements = { ghost: 3 };       // lv3 ghost: the ball passes through
+    const hp0 = a.hp;
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.6);
+    const hit = ['p1', 'p2', 'p3'].filter(id => state.players[id].hp < state.players[id].maxHp);
+    expect(hit.length).toBeGreaterThan(1);
+    expect(a.hp - hp0).toBeCloseTo(hit.length * at(2), 5);
+  });
+
+  it('a sickness tick NEVER pays it (malady is excluded by design)', () => {
+    const state = spoonBattle(3, 2, 'elemental');
+    const a = state.players.p0;
+    a.elements = { malady: 1 };
+    // two hits infect; each of those hits DOES pay (they are hits)
+    let hp0 = a.hp;
+    for (let i = 0; i < 2; i++) {
+      a.cooldowns = {};
+      // re-park the victim: the first hit shoves them out of the second ball's path
+      state.players.p1.x = 8; state.players.p1.y = 0;
+      state.players.p1.vx = 0; state.players.p1.vy = 0;
+      castSpell(state, 'p0', 'fireball', 40, 0);
+      run(state, 0.4);
+    }
+    expect(state.players.p1.poisonT).toBeGreaterThan(0);
+    expect(a.hp - hp0).toBeCloseTo(2 * at(3), 5);
+    // ...and then the plague ticks away for seconds, paying nothing
+    hp0 = a.hp;
+    const bHp = state.players.p1.hp;
+    run(state, 3);
+    expect(state.players.p1.hp).toBeLessThan(bHp);   // the ticks landed
+    expect(a.hp).toBe(hp0);                          // and healed nobody
+  });
+
+  it("the Hat of Aura's burn never pays it either", () => {
+    const state = spoonBattle(3);
+    const a = state.players.p0;
+    a.items.brazier = 3;
+    state.players.p1.x = 2;          // parked well inside the ring
+    const hp0 = a.hp, bHp = state.players.p1.hp;
+    run(state, 3);
+    expect(state.players.p1.hp).toBeLessThan(bHp);   // burning
+    expect(a.hp).toBe(hp0);                          // healing nobody
+  });
+
+  it('never overheals, and lava damage pays nobody', () => {
+    const state = spoonBattle(3);
+    const a = state.players.p0;
+    a.hp = a.maxHp - 0.5;            // less room than one proc
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.4);
+    expect(a.hp).toBe(a.maxHp);
+    // a victim burning in the lava heals nobody, even their last hitter
+    const hp0 = a.hp = 30;
+    state.players.p1.x = state.startRadius + 6;
+    run(state, 2);
+    expect(state.players.p1.inLava).toBe(true);
+    expect(a.hp).toBe(hp0);
+  });
+});
+
 describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 21.5)', () => {
   const spec = ITEMS.brazier;
   const fx = () => ITEM_FX.brazier;
@@ -6233,6 +6519,35 @@ describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 2
     const hp1 = b.hp;
     step(state, DT);
     expect(b.hp).toBe(hp1);
+  });
+
+  it('the burn LINGERS after you step out, for the spec seconds (round 21.8)', () => {
+    const state = brazierBattle(1, at('auraR', 1) - 0.5);
+    const b = state.players.p1;
+    run(state, 2);                       // two bites while standing in it
+    const inRing = b.maxHp - b.hp;
+    expect(inRing).toBeCloseTo(2 * at('auraDps', 1) * spec.tickEvery, 5);
+    b.x = 20;                            // walk right out of the ring (still on solid ground)
+    const linger = at('linger', 1);
+    run(state, linger + 0.5);
+    const after = b.maxHp - b.hp - inRing;
+    // it kept ticking on the way out, then stopped for good
+    expect(after).toBeCloseTo(linger * at('auraDps', 1), 5);
+    const hp1 = b.hp;
+    run(state, 4);
+    expect(b.hp).toBe(hp1);
+    expect(snapshot(state, 'p1').players.p1.burning).toBeUndefined();
+  });
+
+  it('the linger grows with the level, and the wire says you are on fire', () => {
+    for (let lv = 2; lv <= spec.maxLevel; lv++)
+      expect(at('linger', lv)).toBeGreaterThan(at('linger', lv - 1));
+    const state = brazierBattle(3, at('auraR', 3) - 0.5);
+    run(state, 1.2);
+    expect(snapshot(state, 'p1').players.p1.burning).toBe(true);
+    state.players.p1.x = 20;             // out of the ring, still inside the arena
+    run(state, 1);
+    expect(snapshot(state, 'p1').players.p1.burning).toBe(true); // still lit
   });
 
   it('the radius comes from the SPEC, per level: just inside burns, just outside is safe', () => {

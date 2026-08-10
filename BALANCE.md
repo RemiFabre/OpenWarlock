@@ -145,6 +145,37 @@ one-line reverts)**: a price + feel pass, no new mechanics.
   back), Echo's icon → 🫧. Internal keys unchanged, as with mosquito/Echo.
 - ⚠ The whole entry is UNMEASURED — the ELO baseline below predates it.
 
+**Round 21.8 (2026-08-11, Remi's post-playtest brief — UNMEASURED except where
+stated, every number a one-line revert)**:
+- **The Bomb is now the Mine** (`SPELLS.nova`, key unchanged): his verdict on the
+  artillery was "unsatisfying — not much damage, hard to hit, no push". It plants
+  at your feet (trigger ring 1.32 = 1.65 × the fireball's radius), 2 levels
+  [10, 5] g, damage [10, 15], push 100, and it SWALLOWS the planter's own
+  fireballs ([1, 2] of them). Stepping on it = the mine's damage, then every
+  stored ball point blank, one TICK apart, all push-less but the last (Echo's
+  rule), which pushes at max(ball, mine). Shield answers the balls, not the
+  ground. ⚠ It is INVISIBLE to every lab: bots neither buy it (power tier) nor
+  understand a trap. Human read only.
+- **Malady inverted**: `dotTime` FLAT 4 s, `tickDmg [1, 1.5, 2]` (was 1 flat with
+  [4,5,6] s). Remi's target: a plague that catches TWO people should out-damage a
+  pure damage element. Measured in the elemental study (120 games × 2 seeds, one
+  element per seat, Hard bots, win% vs a 25% baseline): malady **48.6 / 37.8%**,
+  2nd of 11 both seeds, behind anger's saturated 88-91%. ⚠ Bots never cluster,
+  so contagion is under-measured, and this instrument was BROKEN before today.
+- **Hat of Aura**: the burn now LINGERS `[3, 4, 5]` s after you leave the ring
+  (`ITEM_FX.brazier.linger`); the ring itself is unchanged. Revert = linger 0.
+- **NEW item — Slow Spoon 🥄** (`spoon`, 7 g/level): a FLAT `healOnHit
+  [1, 1.5, 2]` per damaging hit, once per victim per hit (a pierced ball through
+  three bodies pays three times). ⚠ Auras and DoT ticks are EXCLUDED by design
+  (`procs: false` in applyDamage) — the sustain answer for low-damage utility
+  builds that lifesteal ignores. Item shelf 126 → **147 g**.
+- **Meteor lv2 damage 24 → 30.** Gale's gust and the cape kept their 21.7 values.
+- 🔧 **The elemental study was dead and is fixed**: `tools/arena.js
+  --mode=elemental` threw "buildList is not a function" (BUILDS became objects in
+  round 20). Every elemental-study number older than today came from before that
+  break — the mixed table below is round-19 vintage and stands, but re-run rather
+  than trust any elemental figure quoted between round 20 and now.
+
 ### The strategy ELO table — THE current ranking (r219, 30 strategies, 8000 games × 2 seeds)
 
 Full table, diffs and blind spots: **`docs/history/2026-08-10-round21-elo.md`**

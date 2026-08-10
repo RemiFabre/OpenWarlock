@@ -418,40 +418,43 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.stroke();
   }
 
-  // --- nova bombs: a dark orb with a sparking fuse while it flies; once
-  // parked, a pulsing amber ring shows the EXACT blast area for the fuse's
-  // half second — the dodge window is the whole spell, so it must be loud ---
-  const novas = Array.isArray(vs.novas) ? vs.novas : [];
-  for (const n of novas) {
-    if (!n || !fin(n.x) || !fin(n.y)) continue;
-    const x = view.sx(n.x), y = view.sy(n.y);
-    const lvN = Math.min(Math.max((+n.level || 1) - 1, 0), 2);
-    if (fin(+n.t)) { // parked: fuse burning, blast ring on the ground
-      const Rn = SPELLS.nova.radius[lvN] * scale;
-      const blink = 0.5 + 0.5 * Math.abs(Math.sin(now / 45));
-      ctx.strokeStyle = `rgba(255, 190, 60, ${blink})`;
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.arc(x, y, Rn, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = `rgba(255, 170, 40, ${0.10 + 0.14 * blink})`;
-      ctx.beginPath(); ctx.arc(x, y, Rn, 0, Math.PI * 2); ctx.fill();
-    }
-    // the bomb itself: near-black core with an amber rim — nothing like a
-    // fireball on purpose (the mosquito scar: invisible mechanics are bugs)
-    const rb = 0.9 * scale;
+  // --- Mines (round 21.8, SPELLS.nova): a trap on the ground, deliberately
+  // READABLE BUT QUIET (Remi: "a bit of a circle — not a red glowing thing").
+  // A thin dashed ring at the TRUE trigger radius, a dark stud in the middle,
+  // and one ember pip per stored fireball, so "that one is loaded" is visible
+  // from across the arena. Tinted with the planter's colour: whose trap it is
+  // is public information, exactly like the ring itself.
+  const mines = Array.isArray(vs.mines) ? vs.mines : [];
+  for (const m of mines) {
+    if (!m || !fin(m.x) || !fin(m.y)) continue;
+    const x = view.sx(m.x), y = view.sy(m.y);
+    const Rm = (fin(+m.r) ? +m.r : 1.32) * scale;
+    const n = Math.max(0, Math.round(+m.n) || 0);
+    const owner = (Array.isArray(vs.players) ? vs.players : []).find(q => q && q.id === m.owner);
+    const tint = (owner && owner.color) || '#c9782f';
+    const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / (n ? 320 : 700)));
+    ctx.save();
+    ctx.globalAlpha = 0.55 + 0.3 * pulse;
+    ctx.strokeStyle = tint;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(x, y, Rm, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = '#1a1114';
-    ctx.beginPath(); ctx.arc(x, y, rb, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 170, 60, 0.9)';
-    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, Rm * 0.32, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = tint;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    // the spark: a flickering ember dancing above the orb
-    const flick = Math.abs(Math.sin(now / 55));
-    ctx.fillStyle = `rgba(255, 220, 110, ${0.6 + 0.4 * flick})`;
-    ctx.beginPath();
-    ctx.arc(x + Math.sin(now / 70) * rb * 0.4, y - rb - 3 - flick * 3,
-      1.5 + flick * 1.8, 0, Math.PI * 2);
-    ctx.fill();
+    // loaded: one ember pip per stored ball, orbiting the stud
+    for (let i = 0; i < n; i++) {
+      const ang = -Math.PI / 2 + (i / Math.max(1, n)) * Math.PI * 2 + now / 900;
+      const px = x + Math.cos(ang) * Rm * 0.62, py = y + Math.sin(ang) * Rm * 0.62;
+      ctx.fillStyle = `rgba(255, 170, 60, ${0.55 + 0.45 * pulse})`;
+      ctx.beginPath(); ctx.arc(px, py, Math.max(1.5, Rm * 0.16), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
@@ -700,6 +703,15 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.strokeStyle = `rgba(255, 100, 20, ${0.5 + 0.4 * fl})`;
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Hat of Aura burn (round 21.8): the victim smoulders — a thin ember ring
+    // that survives leaving the owner's circle, which is the whole point of the
+    // linger. Never drawn on the owner: `burning` only ever marks a victim.
+    if (pl.burning && !statue) {
+      const fl = 0.5 + 0.5 * Math.sin(t * 9 + x);
+      ctx.strokeStyle = `rgba(255, 140, 40, ${0.35 + 0.35 * fl})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
     }
     if (pl.slow && !statue) {
       // frost chill: icy blue ring (elemental mode)
@@ -1376,10 +1388,10 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.beginPath(); ctx.arc(x, y, R3, 0, Math.PI * 2); ctx.fill();
         break;
       }
-      case 'novaHit': {
-        // detonation: amber shockwave sized to the real blast, hot core flash
+      case 'mineHit': {
+        // the trap springs: amber shockwave at the true trigger ring
         const x = view.sx(f.x), y = view.sy(f.y);
-        const Rn = (fin(+f.r) ? +f.r : 4.5) * scale;
+        const Rn = (fin(+f.r) ? +f.r : 1.32) * scale;
         ctx.strokeStyle = `rgba(255, 190, 60, ${a})`;
         ctx.lineWidth = 4 * a + 1;
         ctx.beginPath(); ctx.arc(x, y, Rn * (0.3 + 0.9 * k), 0, Math.PI * 2); ctx.stroke();

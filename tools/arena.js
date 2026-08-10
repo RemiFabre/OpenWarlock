@@ -92,7 +92,11 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   // of naming one of BUILDS, and an optional `caps` map {key: maxLevel} that
   // stops the greedy shopper at a level below the thing's own maxLevel (the
   // isolation lab measures "this item AT level 2", so it must not drift to 3).
-  const buildList = (strat) => strat.priorities || BUILDS[strat.build];
+  // ⚠ BUILDS entries became {name, desc, order} objects in round 20; this read
+  // the object itself and threw "not iterable" for every --mode=elemental run
+  // (found round 21.8 — the elemental study had been dead since).
+  const buildList = (strat) => strat.priorities
+    || (BUILDS[strat.build] && BUILDS[strat.build].order) || [];
 
   let ticks = 0;
   let lastPhase = state.phase;
@@ -241,7 +245,7 @@ function makeElo(ids) {
 
 export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame = 4, seed = 1, log = progress } = {}) {
   const TAIL = ['fireball', 'fireball', 'amulet', 'boots'];
-  const probes = ['treads', 'cape', 'sword', 'boots', 'amulet', 'brazier', 'none'];
+  const probes = ['treads', 'cape', 'sword', 'boots', 'amulet', 'brazier', 'spoon', 'none'];
   const priorities = (p) => (p === 'none' ? TAIL : [p, ...TAIL.filter(x => x !== p)]);
   const wins = Object.fromEntries(probes.map(p => [p, 0]));
   const played = Object.fromEntries(probes.map(p => [p, 0]));
@@ -352,7 +356,7 @@ function registerControls(itemCost, elementCosts = [10, 8, 8]) {
 // level. It also matches Remi's stated design principle for the shop ("let
 // players chase one dimension, but make breadth the better default").
 const TAIL_PASS = ['fireball', 'amulet', 'boots', 'sword', 'cape', 'treads',
-  'brazier', 'lightning', 'boomerang', 'rush', 'shield', 'teleport'];
+  'brazier', 'spoon', 'lightning', 'boomerang', 'rush', 'shield', 'teleport'];
 export const ISOLATION_TAIL = [...TAIL_PASS, ...TAIL_PASS, ...TAIL_PASS];
 
 // SELF-TEST for the instrument: give the PROBE seat the control too, so all four

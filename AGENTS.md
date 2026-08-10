@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.7). Read this first, then
+*Last updated 2026-08-11 (round 21.8). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -84,7 +84,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 376 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 389 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -132,7 +132,7 @@ build step, Node ESM, only dep is `ws`.
   gale=push + flat gust every 3rd stack from LV1 (round 19), arcane=haste
   [18,32,32] + lv3 kit refund 1 s/hit (NEVER its own fireball — 66-74%
   feedback loop, twice measured), ghost=speed (lv3 pierce, 10 g),
-  malady=ex-venom two-hit CONTAGION (1 dmg/tick, `dotTime [4,5,6]`,
+  malady=ex-venom two-hit CONTAGION (21.8: `tickDmg [1,1.5,2]`, `dotTime` FLAT 4,
   aura r [5,7,9] — round 20.3, once-per-instance immunity, creator IMMUNE to
   their own instance (still catches other players');
   lethal tick credits creator/spreader), frost=stacks-to-CC,
@@ -146,9 +146,13 @@ build step, Node ESM, only dep is `ws`.
   mechanism sentence on hover. Keep new things in that shape.
 - **Items: 3 levels**, cumulative `ITEM_FX` totals, **flat price per level
   since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1)
-  and 6 g `brazier` (21.7; DISPLAYS as **Hat of Aura 🎩**, the passive burn
-  aura, `auraR [5,6,7]`) — so the WHOLE shelf is 126 g, and the cuts did NOT
-  move items off the bottom of the strategy table. Sword is mandatory by
+  6 g `brazier` (DISPLAYS as **Hat of Aura 🎩**: burn aura `auraR [5,6,7]`,
+  and since 21.8 the burn LINGERS `[3,4,5]` s after you leave the ring) and
+  7 g `spoon` (**Slow Spoon 🥄**, 21.8: a FLAT `healOnHit [1,1.5,2]` per
+  damaging hit, once per victim — ⚠ auras and DoT ticks are excluded via
+  `applyDamage`'s `procs` flag, which is the item's whole balance) — so the
+  WHOLE shelf is 147 g, and the cuts did NOT move items off the bottom of the
+  strategy table. Sword is mandatory by
   structure (question L). Cape is pilot-sign-flipping — never buff it off
   Hard-bot tables; Remi hand-set it to −25/−40/−50% in 21.7. Echo Stone is
   DELETED (merged into mosquito, round 20.1).
@@ -159,8 +163,12 @@ build step, Node ESM, only dep is `ws`.
   positions at the switch (round 21.0: `stun {pad .55, min 1, max 3}`
   + d / fireball speed → 1.00/1.53/2.26/3.00 s at d = 10/40/70/120);
   **Blink**
-  [10,5] g flat range 22 (lv2 = cd); **Bomb** 💣 (key `nova`, name still Remi's)
-  = fused artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
+  [10,5] g flat range 22 (lv2 = cd); **Mine** 💣 (key `nova` — the round-19 Bomb was reworked away in 21.8)
+  = a trap planted AT YOUR FEET, trigger ring 1.32 (= 1.65 × the fireball),
+  [10,5] g, 2 levels. It SWALLOWS the owner's own fireballs (`stores` [1,2]);
+  stepping on it costs the mine's damage [10,15] plus every stored ball fired
+  point blank one TICK apart, all push-less but the last, which pushes at
+  max(ball, mine) (`kbMin`). A Shield answers the balls, never the ground;
   pillars unlimited; `statue` (DISPLAYS as **NOPE** since 21.7, gold-tinted 🗿 —
   the Stone Pillar has the plain 🗿 back) = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
@@ -204,7 +212,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 376 green
+npx vitest run                                   # 389 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

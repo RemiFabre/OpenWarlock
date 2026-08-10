@@ -9,11 +9,11 @@
 
 ## Family A — system purity (price each shelf as a class)
 
-- **A1-items-sustain** (126 g, ⚠ item shelf EXHAUSTED below the band (round 21.7: the whole item shelf is 126 g)): The item shelf's best self: HP and lifesteal only.
-  - order: amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → cape2 → hourglass2 → boots3 → cape3 → treads1 → treads2 → treads3 → hourglass3 → brazier1 → brazier2 → brazier3
+- **A1-items-sustain** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's best self: HP and lifesteal only.
+  - order: amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → cape2 → hourglass2 → boots3 → cape3 → treads1 → treads2 → treads3 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
   - tests: items as a class (sustain half) vs the element families
-- **A2-items-mobility** (126 g, ⚠ item shelf EXHAUSTED below the band (round 21.7: the whole item shelf is 126 g)): The item shelf's utility half: speed, lava, armor.
-  - order: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3 → cape3 → hourglass1 → hourglass2 → hourglass3 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → brazier1 → brazier2 → brazier3
+- **A2-items-mobility** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's utility half: speed, lava, armor.
+  - order: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3 → cape3 → hourglass1 → hourglass2 → hourglass3 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
   - tests: items as a class (mobility half)
 - **A3-elements-only** (98 g, shelf exhausts here BY DESIGN): Pure fireball stat scaling, zero items.
   - order: ember2 → arcane1 → gale1 → terra1 → ghost1 → ember3 → arcane2 → gale2 → terra2 → ghost2 → arcane3 → terra3 → ghost3 → gale3
@@ -42,17 +42,17 @@
 - **B4-mutation-breadth** (152 g): One level of five mutations: does cross-synergy beat depth?
   - order: anger1 → frost1 → midas1 → malady1 → mosquito1 → anger2 → frost2 → midas2 → malady2 → anger3 → sword2 → amulet1 → sword3 → amulet2 → amulet3 → boots1 → boots2 → boots3 → cape1
   - tests: breadth (vs B3) for mutations + cross-mutation synergy
-- **B5-item-depth** (126 g, ⚠ item shelf EXHAUSTED below the band (round 21.7: the whole item shelf is 126 g)): Max the two best items before touching the rest.
-  - order: sword3 → amulet3 → boots1 → boots2 → cape1 → treads1 → boots3 → cape2 → hourglass1 → cape3 → treads2 → treads3 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
+- **B5-item-depth** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): Max the two best items before touching the rest.
+  - order: sword3 → amulet3 → boots1 → boots2 → cape1 → treads1 → boots3 → cape2 → hourglass1 → cape3 → treads2 → treads3 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
   - tests: depth (vs B6) for items
-- **B6-item-breadth** (126 g, shelf exhausts here BY DESIGN): One of everything before any second level (the round-15 champion).
-  - order: sword1 → amulet1 → boots1 → cape1 → treads1 → hourglass1 → brazier1 → sword2 → amulet2 → boots2 → cape2 → treads2 → hourglass2 → brazier2 → sword3 → amulet3 → boots3 → cape3 → treads3 → hourglass3 → brazier3
+- **B6-item-breadth** (147 g, shelf exhausts here BY DESIGN): One of everything before any second level (the round-15 champion).
+  - order: sword1 → amulet1 → boots1 → cape1 → treads1 → hourglass1 → brazier1 → spoon1 → sword2 → amulet2 → boots2 → cape2 → treads2 → hourglass2 → brazier2 → spoon2 → sword3 → amulet3 → boots3 → cape3 → treads3 → hourglass3 → brazier3 → spoon3
   - tests: breadth (vs B5) for items, post-reworks
 
 ## Family C — spell-scaling probes
 
-- **C1-bolt-rush** (146 g, ⚠ item shelf EXHAUSTED below the band (round 21.7: the whole item shelf is 126 g)): Max one spell immediately: is spell depth worth 22 g?
-  - order: lightning3 → hourglass2 → amulet1 → sword1 → amulet2 → sword2 → hourglass3 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → brazier1 → brazier2 → brazier3
+- **C1-bolt-rush** (153 g): Max one spell immediately: is spell depth worth 22 g?
+  - order: lightning3 → hourglass2 → amulet1 → sword1 → amulet2 → sword2 → hourglass3 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → brazier1 → brazier2 → brazier3 → spoon1
   - tests: spell depth (vs C2, its control)
 - **C2-bolt-splash** (153 g): Spell lv1 as a tool, stats do the killing.
   - order: lightning1 → ember2 → amulet1 → sword1 → ember3 → amulet2 → sword2 → arcane2 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1
@@ -87,14 +87,14 @@
 - **D5-plaguebearer** (153 g): Wade into the pack; everyone leaves sick.
   - order: malady2 → terra1 → treads1 → malady3 → terra2 → amulet1 → treads2 → terra3 → amulet2 → sword2 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads3 → hourglass1 → hourglass2 → hourglass3
   - tests: contagion value (the lab is blind to it — this is the human entry)
-- **D6-sumo** (144 g, ⚠ item shelf EXHAUSTED below the band (round 21.7: the whole item shelf is 126 g)): Never mind damage: you fly, I don't.
-  - order: gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3 → boots2 → treads2 → amulet2 → boots3 → sword1 → sword2 → sword3 → amulet3 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
+- **D6-sumo** (151 g): Never mind damage: you fly, I don't.
+  - order: gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3 → boots2 → treads2 → amulet2 → boots3 → sword1 → sword2 → sword3 → amulet3 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1
   - tests: today's gale buff vs cape buff, head-on; lava economics
 - **D7-stormcaller** (150 g): The kit never stops: bolt on cooldown, refund on every hit.
   - order: arcane2 → lightning1 → arcane3 → hourglass1 → lightning2 → hourglass2 → lightning3 → hourglass3 → boomerang1 → amulet2 → sword1 → sword2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1
   - tests: question M: is a dedicated cadence build viable-but-honest?
-- **D8-juggernaut** (126 g, ⚠ item shelf EXHAUSTED below the band (round 21.7: the whole item shelf is 126 g)): Outlive everyone; the ring does the killing.
-  - order: amulet1 → cape1 → treads1 → amulet2 → sword1 → cape2 → amulet3 → sword2 → treads2 → cape3 → sword3 → treads3 → boots1 → boots2 → boots3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
+- **D8-juggernaut** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): Outlive everyone; the ring does the killing.
+  - order: amulet1 → cape1 → treads1 → amulet2 → sword1 → cape2 → amulet3 → sword2 → treads2 → cape3 → sword3 → treads3 → boots1 → boots2 → boots3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
   - tests: question H: the offense-first meta, probed by its opposite
 - **D9-phantom** (153 g): One line, three victims.
   - order: ghost2 → ember2 → ghost3 → ember3 → sword1 → amulet1 → sword2 → amulet2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1

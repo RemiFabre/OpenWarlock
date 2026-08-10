@@ -17,7 +17,7 @@ import { ITEM_FX } from './constants.js';
 // (by convention, so a new multiplier needs no edit here). Anything else an
 // item spec carries is a one-off consumed by the feature that owns it, not a
 // passive stat, so it is deliberately ignored.
-const ADD_FIELDS = new Set(['maxHp', 'regen', 'lifesteal', 'haste']);
+const ADD_FIELDS = new Set(['maxHp', 'regen', 'lifesteal', 'haste', 'healOnHit']);
 
 // The absolute value of ITEM_FX[key][field] at `level`. Level 0 (or an unknown
 // key/field) means "you own none of it" and returns null, which is

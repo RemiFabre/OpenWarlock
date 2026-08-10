@@ -68,7 +68,9 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     phantoms: [],          // the balls those mirages "throw": motion + culling only
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
-    novas: [],             // nova bombs: {id,x,y,tx,ty,t,owner,level} — t null while flying
+    // Mine (round 21.8, SPELLS.nova — key unchanged, the artillery bomb is gone)
+    mines: [],             // planted traps: {id,x,y,r,owner,level,charges:[ball payloads]}
+    mineShots: [],         // stored balls waiting their tick: {t,owner,x,y,target,ball,...}
     bolts: [],             // lightning sky-bolts (round 17): {x,y,t,owner,level}
     walls: [],             // mirror walls: {x1,y1,x2,y2,nx,ny,owner,until}
     events: [],            // transient, drained by the server each snapshot
@@ -344,6 +346,7 @@ export function removePlayer(state, id) {
 function stats(pl) {
   // everyone regenerates a little: spells only tickle — the lava is the killer
   let speed = PLAYER.SPEED, lavaMult = 1, kbMult = 1, regen = PLAYER.REGEN, lifesteal = 0;
+  let healOnHit = 0;   // Slow Spoon: flat hp per damaging hit (round 21.8)
   let maxHp = PLAYER.MAX_HP;
   // items are levelled: itemBonuses() reads each owned level's ABSOLUTE total
   // out of ITEM_FX (see shared/items.js) — no compounding happens here.
@@ -353,6 +356,7 @@ function stats(pl) {
   if (mult.kbMult != null) kbMult *= mult.kbMult;
   regen += add.regen || 0;
   lifesteal += add.lifesteal || 0;
+  healOnHit += add.healOnHit || 0;
   maxHp += add.maxHp || 0;
   if (pl.inLava) speed *= LAVA.SPEED_MULT; // lava is fast — and it burns
   if (pl.slowT > 0) speed *= (pl.slowMultHit || 0.6); // frost chill (elemental)
@@ -361,7 +365,7 @@ function stats(pl) {
   // recently hurt? regen is throttled. Without this a lv1 fireball (2.38 dps
   // if EVERY shot lands) loses to the 1.2 hp/s baseline and nobody can die.
   if (pl.regenLockT > 0) regen *= PLAYER.REGEN_LOCK_MULT;
-  return { speed, lavaMult, kbMult, regen, lifesteal, maxHp };
+  return { speed, lavaMult, kbMult, regen, lifesteal, healOnHit, maxHp };
 }
 
 // Effective stats after items/elements, for the shop panel, the stats table
@@ -674,14 +678,14 @@ export function castSpell(state, id, key, tx, ty) {
       break;
     }
     case 'nova': {
-      // the orb spawns on the caster and flies to the (clamped) click in
-      // stepBattle — never through stepProjectiles, so nothing can pop it
-      const dist = Math.min(d, spec.range);
-      state.novas.push({
-        id: state.nextId++, x: pl.x, y: pl.y,
-        tx: pl.x + dx * dist, ty: pl.y + dy * dist,
-        t: null, owner: id, level,
+      // Mine (round 21.8): planted AT YOUR FEET — the aim is ignored on
+      // purpose (⚠ interpretation, SPELLS.nova). It then just waits: the
+      // trigger, the charging and the discharge all live in stepBattle.
+      state.mines.push({
+        id: state.nextId++, x: pl.x, y: pl.y, r: spec.radius,
+        owner: id, level, charges: [],
       });
+      state.events.push({ t: 'mineUp', id, x: pl.x, y: pl.y, r: spec.radius });
       break;
     }
     case 'swap': {
@@ -889,6 +893,28 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
+}
+
+// A ball a mine swallowed, erupting back out point blank (round 21.8). It IS
+// the ball you shot — same level, elements, size, ghost passthrough, even a
+// vampire charge it was carrying — only its position, its aim and its push are
+// new. Reusing the projectile object is what makes every on-hit rider (ember,
+// malady, frost, gale, anger, midas) pay exactly as if you had landed the shot.
+function spawnStoredBall(state, sh, dx, dy) {
+  const b = sh.ball;
+  const speed = SPELLS.fireball.speed * (b.elements && b.elements.ghost
+    ? efxV(ELEMENTS.ghost.fx.projSpeedMult, b.elements.ghost) : 1);
+  state.projectiles.push({
+    ...b,
+    id: state.nextId++, owner: sh.owner,
+    x: sh.x, y: sh.y, vx: dx * speed, vy: dy * speed,
+    traveled: 0, hit: {}, pierced: 0,
+    // the queue decides the push: 0 for every ball but the last, and a FLOOR of
+    // the mine's own knockback on the last one (never a sum)
+    kbScale: sh.kbScale != null ? sh.kbScale : (b.kbScale != null ? b.kbScale : null),
+    ...(sh.kbMin != null ? { kbMin: sh.kbMin } : {}),
+  });
+  state.events.push({ t: 'mineShot', id: sh.owner, x: sh.x, y: sh.y, dx, dy });
 }
 
 export function buy(state, id, thing) {
@@ -1133,8 +1159,14 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 // source's items pay (ELEMENTS.vampire's engorged ball). It obeys the same rule
 // as the Blood Sword and deliberately reuses its code path: paid on damage
 // actually dealt, so overkill is excluded, and lava (sourceId null) never pays.
+// `procs: false` = this damage is a TICK (a DoT bite, an aura burn), not a hit.
+// Round 21.8: the Slow Spoon's flat per-hit heal is the only thing that reads
+// it, and the exclusion is the item's whole balance (an aura would pay it every
+// second, for free, forever). Lifesteal deliberately still pays on ticks — that
+// is the Blood Sword's long-standing behaviour.
 function applyDamage(state, target, amount, sourceId,
-  { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0 } = {}) {
+  { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0,
+    procs = true } = {}) {
   if (!target.alive) return;
   // Statue (round 21.4): ZERO damage from everything while the gold holds —
   // spells, zones, hazards, lava, poison ticks. Every damage source in the game
@@ -1181,11 +1213,16 @@ function applyDamage(state, target, amount, sourceId,
     if (src && src.alive) {
       // heal on EFFECTIVE damage (overkill doesn't feed the sword); works on
       // everything with a source — spells, DoT ticks, trails — never lava
-      const { lifesteal } = stats(src);
+      const { lifesteal, healOnHit } = stats(src);
       const total = lifesteal + bonusLifesteal;
-      if (total > 0) {
+      // Slow Spoon (round 21.8): a FLAT heal per damaging hit, no damage
+      // scaling — the sustain item for wide, low-damage, utility builds. One
+      // proc per victim per hit, so a piercing ball through three bodies pays
+      // three times; ticks and auras never pay (see `procs`).
+      const flat = (procs && healOnHit > 0 && effective > 0) ? healOnHit : 0;
+      if (total > 0 || flat > 0) {
         const before = src.hp;
-        src.hp = Math.min(src.maxHp, src.hp + effective * total);
+        src.hp = Math.min(src.maxHp, src.hp + effective * total + flat);
         const healed = src.hp - before;
         src.healLifesteal += healed;   // scoreboard column
         // 2026-08-08 (Remi, round 16): EVERY meaningful lifesteal heal gets a
@@ -1339,7 +1376,8 @@ function startRound(state) {
   state.phantoms = [];
   state.hazards = [];
   state.meteors = [];
-  state.novas = [];
+  state.mines = [];        // a trap never outlives the round it was planted in
+  state.mineShots = [];
   state.bolts = [];
   state.walls = [];
   const coop = state.mode === 'coop';
@@ -1380,9 +1418,9 @@ function startRound(state) {
     pl.stacks = {};   // frost/gale/midas stacks are round-long, like the hp bar
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.malady = null; // infections die with the round (instances go with them)
-    // the brazier's cadence restarts with the round: a full tickEvery before
-    // the first burn, so nobody is bitten on the spawn frame
-    pl._brazierNext = ITEMS.brazier.tickEvery;
+    // the Hat of Aura's burns die with the round (they are victim-side since
+    // 21.8: {ownerId: {left, next}} — see the aura engine in stepBattle)
+    pl._burns = {};
     pl.mosqN = 0; pl.mosqDue = false;
     // vampire's charge counter resets with the round, exactly like mosquito's
     // (the other "every Nth cast" mechanic). Deliberate: the rhythm you
@@ -1721,37 +1759,72 @@ function stepBattle(state, dt) {
     state.meteors = rest;
   }
 
-  // nova bombs: the orb flies straight over bodies, pillars and walls (pure
-  // artillery — the fuse is the counterplay), parks at its target, burns the
-  // fuse, then meteor's FLAT blast minus the push: damage only, no knockback,
-  // no on-hit riders (it never touches the projectile/rider pipeline).
-  if (state.novas && state.novas.length) {
+  // ---- Mines (round 21.8, SPELLS.nova) -------------------------------------
+  // Trigger: an ENEMY body overlapping the ring sets it off. The owner and their
+  // teammates walk over their own traps freely, and a statue never trips one
+  // (nothing applies to gold — the mine simply waits, it is not consumed).
+  // Discharge order matters: the mine's own damage lands FIRST and always (a
+  // Shield answers the balls, never the ground), then the stored balls queue
+  // one tick apart. Only the LAST ball pushes — Echo's rule, so the victim is
+  // not shoved out of their twin's path — and it pushes at
+  // max(ball, mine) via `kbMin`. A mine with nothing stored keeps its own push.
+  if (state.mines && state.mines.length) {
     const spec = SPELLS.nova;
     const rest = [];
-    for (const n of state.novas) {
-      if (n.t == null) { // travel phase
-        const ddx = n.tx - n.x, ddy = n.ty - n.y;
-        const dd = Math.hypot(ddx, ddy);
-        const move = spec.speed * dt;
-        if (dd <= move) { n.x = n.tx; n.y = n.ty; n.t = spec.fuse; }
-        else { n.x += (ddx / dd) * move; n.y += (ddy / dd) * move; }
-        rest.push(n);
-        continue;
-      }
-      n.t -= dt;
-      if (n.t > 0) { rest.push(n); continue; }
-      const r = lvl(spec, 'radius', n.level);
-      state.events.push({ t: 'novaHit', x: n.x, y: n.y, r });
+    for (const m of state.mines) {
+      let victim = null;
       for (const pl of Object.values(state.players)) {
-        // everyone in the blast eats it, the caster included (meteor's rule) —
-        // teammates excepted (round 21.3)
-        if (!pl.alive || alliedIds(state, n.owner, pl.id)) continue;
-        if (Math.hypot(pl.x - n.x, pl.y - n.y) > r + pl.radius) continue;
-        applyDamage(state, pl, lvl(spec, 'damage', n.level),
-          pl.id === n.owner ? null : n.owner);
+        if (!pl.alive || pl.id === m.owner || pl.statueT > 0) continue;
+        if (alliedIds(state, m.owner, pl.id)) continue;
+        if (Math.hypot(pl.x - m.x, pl.y - m.y) > m.r + pl.radius) continue;
+        victim = pl;
+        break;
       }
+      if (!victim) { rest.push(m); continue; }
+      const n = m.charges.length;
+      state.events.push({ t: 'mineHit', id: m.owner, x: m.x, y: m.y, r: m.r, n });
+      if (!n) {
+        // bare trap: its own shove, radially out of the ring. ⚠ dead centre is
+        // a real case (a blink or a swap can land you exactly on it) and a zero
+        // vector would silently push nobody — fall back to the way they were
+        // already moving, then to a fixed direction.
+        let ddx = victim.x - m.x, ddy = victim.y - m.y;
+        let dd = Math.hypot(ddx, ddy);
+        if (dd < 1e-6) { ddx = victim.vx; ddy = victim.vy; dd = Math.hypot(ddx, ddy); }
+        if (dd < 1e-6) { ddx = 1; ddy = 0; dd = 1; }
+        applyKnockback(state, victim, ddx / dd, ddy / dd, spec.knockback);
+      }
+      applyDamage(state, victim, lvl(spec, 'damage', m.level), m.owner);
+      m.charges.forEach((ball, i) => {
+        state.mineShots.push({
+          t: i * spec.ballDelay, owner: m.owner, x: m.x, y: m.y,
+          target: victim.id, ball,
+          // every ball but the last is push-less; the last one carries the
+          // mine's shove as a FLOOR on its own (never a sum — Remi)
+          ...(i === n - 1 ? { kbMin: spec.knockback } : { kbScale: 0 }),
+        });
+      });
     }
-    state.novas = rest;
+    state.mines = rest;
+  }
+
+  // stored balls erupting out of a sprung mine, one tick apart
+  if (state.mineShots && state.mineShots.length) {
+    const rest = [];
+    for (const sh of state.mineShots) {
+      sh.t -= dt;
+      if (sh.t > 1e-6) { rest.push(sh); continue; }
+      const owner = state.players[sh.owner];
+      const target = state.players[sh.target];
+      if (!owner) continue;               // owner left the game: the shot dies
+      // aim at where the victim is NOW (they are standing on it, so this is
+      // point blank); a corpse still gets its ball thrown at its last spot
+      const ax = (target ? target.x : sh.x) - sh.x;
+      const ay = (target ? target.y : sh.y) - sh.y;
+      const d = Math.hypot(ax, ay) || 1;
+      spawnStoredBall(state, sh, ax / d, ay / d);
+    }
+    state.mineShots = rest;
   }
 
   // lightning sky-bolts (round 17): the meteor's telegraph→impact shape, but
@@ -1826,18 +1899,20 @@ function stepBattle(state, dt) {
     }
   }
 
-  // Coal Brazier aura (ITEMS.brazier, round 21.5 — the first passive-damage
-  // item): the owner burns every hostile body inside auraR for auraDps, in
-  // discrete bites on the OWNER's clock (malady's tick machinery, never
-  // per-frame). Two owners therefore stack independently, and the ring is
-  // measured centre-to-centre so the drawn circle IS the damage circle.
+  // Hat of Aura (ITEMS.brazier — the key is unchanged, the display name is not:
+  // round 21.7 renamed the Coal Brazier). The owner burns every hostile body
+  // inside auraR for auraDps, in discrete bites, and since round 21.8 the burn
+  // LINGERS: standing in the ring only refreshes a timer, so walking out costs
+  // you `linger` more seconds of it. The bookkeeping is VICTIM-side and keyed by
+  // owner ({ownerId: {left, next}}), which is what keeps two owners burning the
+  // same body independently — and what lets the burn outlive the ring.
   // Credit follows the DoT rule exactly: `stamp: false` never claims the
   // last-hitter slot (no stolen lava kills), while a lethal tick still credits
-  // the owner through kill(). Ticks go through applyDamage, so a statue inside
-  // the ring takes zero; a statue'd OWNER keeps burning (⚠ RULING, round 21.5 —
-  // the aura is passive, and being an unmissable rooted target is already the
-  // price). Damage is exactly 1, so it clears the client's >= 1 floater filter
-  // without needing poison's exemption.
+  // the owner through kill(). `procs: false` keeps it out of the Slow Spoon
+  // (round 21.8: a ticking aura must never pay a per-hit heal). Ticks go through
+  // applyDamage, so a statue takes zero; a statue'd OWNER keeps burning
+  // (⚠ RULING, round 21.5 — the aura is passive, and being an unmissable rooted
+  // target is already the price).
   // ⚠ VANISH RULING (Remi, round 21.5): passive damage does NOT break stealth.
   // The aura keeps burning while invisible, nothing here is anchored on the
   // OWNER (the hit event rides the victim) and the ring is not drawn, because a
@@ -1850,15 +1925,33 @@ function stepBattle(state, dt) {
     for (const pl of players) {
       const lv = pl.items && pl.items.brazier;
       if (!pl.alive || !(lv > 0)) continue;
-      pl._brazierNext = (pl._brazierNext ?? tickEvery) - dt;
-      if (pl._brazierNext > 1e-6) continue;
-      pl._brazierNext += tickEvery;
       const r = itemFxAt('brazier', 'auraR', lv);
-      const bite = itemFxAt('brazier', 'auraDps', lv) * tickEvery;
+      const linger = itemFxAt('brazier', 'linger', lv) || 0;
       for (const q of players) {
         if (q === pl || !q.alive || allied(state, pl, q)) continue;
-        if (Math.hypot(q.x - pl.x, q.y - pl.y) <= r)
-          applyDamage(state, q, bite, pl.id, { stamp: false });
+        if (Math.hypot(q.x - pl.x, q.y - pl.y) > r) continue;
+        const burns = (q._burns = q._burns || {});
+        const b = burns[pl.id] || (burns[pl.id] = { left: linger, next: tickEvery, dps: 0 });
+        // inside the ring: the linger clock is HELD (`in`), the bite cadence runs
+        b.left = linger;
+        b.in = true;
+        b.dps = itemFxAt('brazier', 'auraDps', lv);
+      }
+    }
+    // the burn itself, wherever the victim now is
+    for (const q of players) {
+      if (!q._burns) continue;
+      for (const [ownerId, b] of Object.entries(q._burns)) {
+        if (!q.alive) { delete q._burns[ownerId]; continue; }
+        b.next -= dt;
+        if (b.next <= 1e-6) {
+          b.next += tickEvery;
+          applyDamage(state, q, b.dps * tickEvery, ownerId,
+            { stamp: false, procs: false });
+        }
+        if (b.in) { b.in = false; continue; }   // still standing in the ring
+        b.left -= dt;
+        if (b.left <= 1e-6) delete q._burns[ownerId];
       }
     }
   }
@@ -1930,7 +2023,9 @@ function stepBattle(state, dt) {
         // once instead of twice is half the element gone
         if (pl._poisonNext <= 1e-6) {
           pl._poisonNext += ELEMENTS.malady.fx.tickEvery;
-          applyDamage(state, pl, pl.poisonTick, pl.poisonBy, { silent: true, stamp: false });
+          // `procs: false`: a sickness tick is not a hit — no Slow Spoon heal
+          applyDamage(state, pl, pl.poisonTick, pl.poisonBy,
+            { silent: true, stamp: false, procs: false });
           state.events.push({ t: 'hit', id: pl.id, amount: pl.poisonTick, x: pl.x, y: pl.y, poison: true });
         }
       }
@@ -2217,6 +2312,25 @@ function stepProjectiles(state, dt) {
     }
     if (blocked) continue;
 
+    // Your own MINE swallows your own fireball (round 21.8): the trap stores the
+    // ball and the shot is spent. That is the whole cost of arming one — a
+    // target standing behind your own trap is safe from you until it is full.
+    // Enemy balls fly straight over; a full mine lets your own pass too.
+    if (pr.type === 'fireball' && state.mines && state.mines.length) {
+      let stored = false;
+      for (const m of state.mines) {
+        if (m.owner !== pr.owner) continue;
+        if (m.charges.length >= lvl(SPELLS.nova, 'stores', m.level)) continue;
+        if (segmentPointDist(px0, py0, pr.x, pr.y, m.x, m.y) > prRadius + m.r) continue;
+        m.charges.push(pr);
+        state.events.push({ t: 'mineCharge', id: m.owner, x: m.x, y: m.y,
+          n: m.charges.length });
+        stored = true;
+        break;
+      }
+      if (stored) continue;
+    }
+
     // mirror walls: ENEMY projectiles bounce (mirrored across the wall's
     // normal, ownership flips to the wall's owner); your own shots pass.
     // The side check stops a just-reflected shot from re-triggering. It reads
@@ -2343,6 +2457,9 @@ function stepProjectiles(state, dt) {
       // stings for full damage with every rider, and pushes nobody out of the
       // trailing ball's path.
       if (pr.kbScale != null) kb *= pr.kbScale;
+      // a mine's last stored ball carries the trap's own shove as a FLOOR
+      // (round 21.8, Remi: max of the two, never their sum — SPELLS.nova)
+      if (pr.kbMin != null) kb = Math.max(kb, pr.kbMin);
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
@@ -2734,6 +2851,11 @@ export function snapshot(state, viewerId = null) {
       // gold column). Absent when 0, so nothing changes for anyone not casting it.
       ...(p.statueT > 0 ? { statueT: round2(p.statueT) } : {}),
       inLava: !!p.inLava,
+      // Hat of Aura (round 21.8): on fire — inside someone's ring, or still
+      // burning after leaving it. A bare flag: whose burn it is stays private.
+      // ⚠ Outside the elemental block on purpose — it is an ITEM, it burns in
+      // classic too.
+      ...(p._burns && Object.keys(p._burns).length ? { burning: true } : {}),
       dashing: !!p.dash,
       charging: !!p.charging,
       // your OWN invisibility, so the client can show you that it is running and
@@ -2795,11 +2917,13 @@ export function snapshot(state, viewerId = null) {
     ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),
     roundSummary: state.roundSummary || null,
     meteors: (state.meteors || []).map(m => ({ x: round2(m.x), y: round2(m.y), t: round2(m.t) })),
-    // nova orbs are public like meteors: the flight + fuse ARE the dodge
-    // window. `t` present = parked and burning; absent = still flying.
-    novas: (state.novas || []).map(n => ({
-      id: n.id, x: round2(n.x), y: round2(n.y), level: n.level,
-      ...(n.t != null ? { t: round2(n.t) } : {}),
+    // Mines are PUBLIC (round 21.8, Remi: "visible — a circle on the ground,
+    // not a red glowing thing"): everyone sees the ring and how many balls are
+    // loaded, including whose it is, so stepping on one is a read, not a coin
+    // flip. A vanished owner's mine stays visible — it is not anchored on them.
+    mines: (state.mines || []).map(m => ({
+      id: m.id, x: round2(m.x), y: round2(m.y), r: round2(m.r),
+      owner: m.owner, level: m.level, n: m.charges.length,
     })),
     // sky-bolt telegraphs are public by design: the dodge window IS the spell
     bolts: (state.bolts || []).map(m => ({

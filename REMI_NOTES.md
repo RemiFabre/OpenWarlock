@@ -1,117 +1,103 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Round 21.7, 2026-08-10. Your post-playtest list, applied. Rounds 21.0-21.6 (the
-overnight rulings, Statue, the brazier, Decoy, the ELO re-run) are archived at
-`docs/history/2026-08-10-remi-notes-round-21.md`.*
+*Round 21.8, 2026-08-11. Your post-playtest brief, applied. Round 21.7 (the key
+collision, the rebind menu, the price pass) is archived at
+`docs/history/2026-08-10-remi-notes-round-21.7.md`.*
 
-## Decoy wasn't broken — its key was stolen. So were NOPE's.
+## The Bomb is gone. It is a Mine now.
 
-This is the whole bug, and it explains both of your reports at once.
+Press it and a trap drops **where you stand** — instantly, no aiming. ⚠ That is
+my reading of "you press the button, it just creates a trap where you are": the
+click is ignored entirely. If you meant "throw it a short way", that is one line.
 
-Your saved keys are AZERTY, so your client has **fireball on A** and
-**lightning on Z**. Statue and Decoy shipped later with the QWERTY defaults
-**A** and **Z**, and the key→spell lookup returns the *first* match, so:
+The ring is **1.32 units** — your 65% over the fireball's own 0.8. Bodies are
+1.4 wide, so in practice someone trips it from about 2.7 units centre to centre:
+close enough to walk onto by accident, far from a zone.
 
-- pressing **A** cast your fireball, never Statue;
-- pressing **Z** tried to cast Lightning — which you don't own — so **nothing
-  happened at all**. That is the "decoy doesn't work".
+**Feeding it is the whole spell.** Your own fireballs are swallowed by your own
+trap: one at level 1, two at level 2. An enemy standing behind your mine is safe
+from you until it is full — that is the price you pay for the setup, exactly as
+you described it. Enemy balls fly straight over; a full mine lets your own
+through again.
 
-Decoy itself is fine: I bought it in a real browser, pressed its key, and the
-clone stepped out (screenshotted, cooldown ticking).
+**When someone steps on it**: the mine's damage lands first, then every stored
+ball erupts into them point blank, **one tick apart** (0.033 s — your "as fast
+as possible without being the same tick"; you see two balls, you cannot dodge
+between them). Echo's rule handles the push: every ball but the last carries
+**zero** knockback, so nobody is shoved out of their twin's path, and the last
+one pushes at **max(the ball's push, the mine's)** — never the sum, as you said.
 
-**The fix is at load time, so it can never happen again.** Your own saved
-bindings always win; any spell whose default collides takes the first free key
-from *its QWERTY default → its AZERTY default → the rest of the alphabet*. On
-your machine that lands **NOPE on Q and Decoy on W** — exactly the AZERTY
-positions they were meant to have. Nothing you bound by hand moved.
+- **10 g, upgrade 5 g. Two levels.** Damage **10 / 15**, push **100**,
+  cooldown 9 / 8 s. The level buys the second slot.
+- **A Shield on top of it works exactly as you hoped**: the stored balls are
+  real fireballs, so they reflect and fly off at whoever is behind — but the
+  **ground still hits them** for the mine's own damage. Test-locked.
+- **A statue never trips one**, and the mine is not spent — it waits.
+- Teammates and you walk over your own traps freely. Mines die with the round.
+- The stored ball is *your* ball: ember's damage, malady's sting, frost stacks,
+  anger's claim, ghost's passthrough all ride along, because it literally is the
+  projectile you fired, kept in a box.
+- **On screen**: a thin dashed ring in your colour, a dark stud, and **one ember
+  pip per stored ball** orbiting it — "that one is loaded" reads from across the
+  arena. Quiet, not a red flare, per your brief.
+- ⚠ One consequence worth knowing: standing on your own fresh trap, your **next
+  fireball is eaten immediately**. Step off it first, or that is exactly how you
+  load it in two seconds. I verified the whole loop in a real browser (plant →
+  two balls swallowed → third flies past the full mine → bot steps on it and
+  eats 15 + 7 + 7 with one shove).
 
-## The key menu does what you asked
+## Malady is a damage element now
 
-One rule now, in both the shop chip popup and the Keys panel: **Esc or a click
-outside cancels; any other key just works.** If that key belonged to another
-spell, the two **swap** and a toast says which is where now. The old "you own
-that spell, so I refuse" rule is gone — it refused silently and taught you
-nothing.
+You wanted it to pay off the moment it catches two people, so I inverted it:
+the sickness always lasts **4 seconds**, and the levels buy the **bite**:
+**1 / 1.5 / 2 damage per tick**. The hover row is renamed "damage per tick", as
+you asked, and shows those numbers.
 
-## Right-click never opens the browser menu again
+Measured, for once: in the elemental study (120 games × 2 seeds, one element per
+seat, Hard bots, 25% = par) malady goes to **2nd of 11 on both seeds** (48.6% and
+37.8%), behind only anger's saturated 88-91%. ⚠ Bots never bunch up, so the
+contagion half is still under-measured — in your hands it should be stronger.
 
-It was only suppressed on the game canvas, which is why it popped over the
-lobby, the shop and the dead-and-waiting screen — where a misclick on Reload
-costs you the game. It is off for the whole page now. Text fields (your name,
-the room code) keep their menu so copy/paste still works.
+## The Slow Spoon 🥄
 
-## Icons, names, rows
+Your friend's idea, your joke, 7 g per level, three levels: **+1 / +1.5 / +2 HP
+every time you damage an enemy**, flat, whatever the damage was. One proc **per
+victim**, so a ghost-3 ball through three bodies heals you three times, and a
+gale/frost utility build finally has sustain that does not scale off damage.
 
-- **Stone Pillar has its 🗿 back**, and **NOPE** (ex-Statue) wears **the same
-  moai in gold**. Grey stone / gold stone, everywhere an icon appears —
-  one CSS filter, one line to revert.
-- **Stone Pillar moved to the Special row** (it is terrain you leave behind,
-  not a save).
-- **Coal Brazier → Hat of Aura 🎩.** 🔥 belongs to Ember, so the hat is the icon.
-- **Echo is 🫧** — the closest thing to a drop's ripple that exists as an emoji.
-  Alternates if you want them: 💧, 🌊 (🌀 is already Blink's).
+⚠ **Auras and sicknesses pay nothing** — not Malady's ticks, not the Hat of
+Aura's burn. That exclusion is the item's whole balance (a burn would pay every
+second for free), it is written into the shop text, and it is test-locked.
 
-## Two new sounds
+## Hat of Aura: the burn follows you out
 
-- **Anger: your own low "ouu"** — fires the moment YOU bank a stack (your
-  fireball hits the red mark and +0.5 damage becomes permanent; my reading of
-  "when the user gains a stack" — not when the mark appears). A sine bending up an octave with a
-  quiet fifth over it and a sub under it, ~0.3 s. It used to reuse the kill
-  jingle, which is why it never felt like *yours*. I wrote two alternates and
-  shipped the one I like best; to hear the others, open the console and run
-  `__sfx('angerBell')` (brighter, trophy-ish) or `__sfx('angerDeep')` (slower,
-  a growl that lands). Say which and it's a one-word change.
-- **NOPE: a clean two-partial ding** — high, short, and the only pure bell in
-  the mix, so "someone just went untouchable" reads without looking.
+The ring is unchanged; leaving it is no longer an escape. The burn keeps ticking
+for **3 / 4 / 5 seconds** after you step out (your second set of numbers, the one
+you called more balanced). A burning body wears a faint ember ring so you can see
+who is still cooking.
 
-⚠ I can't hear them; they are designed, not auditioned. If either is wrong,
-tell me what's wrong (too high / too long / too soft) and I'll move it.
+## Meteor
 
-## Numbers, exactly as you dictated
+Level 2 damage **24 → 30**.
 
-| thing | was | now |
-|---|---|---|
-| Hat of Aura (ex-brazier) | 7 g, ring 3 / 3.8 / 4.6 | **6 g**, ring **5 / 6 / 7** |
-| Cape of the Magi | −15 / −26 / −35% knockback | **−25 / −40 / −50%** |
-| Ember | 6 / 5 / 5 | **5 / 5 / 7** |
-| Terra | 6 / 5 / 5 | **6 / 6 / 7** |
-| Gale | 10 / 8 / 8 | **6 / 6 / 6** |
-| Arcane | 6 / 5 / 12 | **6 / 6 / 10** |
-| Ghost | 6 / 5 / 10 | **6 / 6 / 10** |
-| Gale's gust (every 3rd hit) | +30 / 60 / 90 push | **+25 / 50 / 75** |
+## Something I found while measuring
 
-Gale went from 26 g to 18 g for all three levels, so I cut the gust with the
-discount as you asked. Everything above is a one-line revert.
-
-**Arcane's hover text now says it**: "every fireball hit refunds 1 s of your
-other cooldowns — **never the fireball's own**." (That exclusion has always
-been in the code — a self-refund measured a 66-74% auto-win, twice.)
-
-The Hat's ring is a real threat radius now: **lv1 equals a lv1 Malady aura**,
-and even maxed it stays inside a maxed plague. The old "it must be half a
-plague" sizing was my rule, not yours, so it's gone — the test that enforced it
-now enforces the new relation instead.
-
-## The README
-
-Short now, and the **play link is the first thing on the page**, right under the
-title. Then what the game is, how to play, how to host, and where the code
-lives — everything else moved out.
+`node tools/arena.js --mode=elemental` has been **crashing since round 20** —
+BUILDS became objects and the study still read them as lists. So every elemental
+element-vs-element number quoted since then came from before the break. Fixed in
+one line; the malady figures above are from the repaired instrument.
 
 ## What I verified
 
-376 unit tests, both harness scenarios, the 2-engine browser test (chromium +
-webkit), the reconnect test, and 60-game bot smokes at 4 and 8 seats — all
-green, no page errors. Plus a real browser session with **your** saved AZERTY
-bindings: no duplicate keys, NOPE on Q, Decoy on W, and the clone rendering.
-
-⚠ **None of the new numbers are measured.** The ELO baseline predates them, and
-gale/cape are exactly the two things bots price worst (they never bait a gust,
-and the cape's value flips sign by pilot). Your read is the instrument here.
+389 unit tests (13 new ones for the mine, the spoon and the linger), both
+harness scenarios, the 2-engine browser test, the reconnect test, 60-game bot
+smokes at 4 and 8 seats, and a real browser session driving the mine end to end.
+⚠ Your server was running the whole time — nothing I ran touched it.
 
 ## Still waiting on you
 
-The two sounds; whether a 3v1 team's kill target should be capped by how many
-enemies exist; Echo pair feel; anger's strength; sword-by-structure; whether the
-chronomancer CDR family is where you want it; and names for Bomb 💣 and
-Switcheroo 🎭 (both still placeholders).
+The mine's name (**Mine** is mine to defend — "elemental mine" felt long; Trap
+and Snare are one line), whether the trap should be throwable rather than
+underfoot; the two 21.7 sounds; whether a 3v1 team's kill target should be
+capped by how many enemies exist; anger's strength (you said it is fine — I have
+left it alone); and names for Switcheroo 🎭.
