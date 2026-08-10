@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-10 (round 21.3). Read this first, then
+*Last updated 2026-08-10 (round 21.4). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -112,6 +112,18 @@ Agent context usage on this project is **CRITICAL**. The rules:
   (all of them paid); the game ends at `KILLS_TO_WIN × team size` (`teamTally` /
   `rankTeams`, also the client's HUD ranking). ⚠ `killLead`'s co-op guard had to
   become value-based — "has a team" is now true for everyone.
+- **ROUND 21.4 SHIPPED** — **new spell: Statue 🗿** (Remi's "Stasis", renamed to
+  the plain-words style; alternates in REMI_NOTES, his to veto). Cast on self,
+  instant: for a FLAT 2 s (`duration` never levels — lv2 buys cd only, 16 → 12,
+  10/5 g) you are a golden pillar — `statueT` on the player is the whole
+  mechanism, and its guards sit at the choke points: `applyDamage` (zero damage
+  from ANYTHING incl. lava/DoT), `applyKnockback` (unpushable), `castSpell` (no
+  acting), `stats()` (rooted), and `stepProjectiles`, where the body EATS the
+  ball — ahead of the shield branch, piercing shots included, so a Switcheroo
+  fizzles with no trade. Nothing applies (malady/anger guarded at their own
+  spawn points). ⚠ 🗿 moved from the Stone Pillar (now 🏛️); statue is on the
+  physical key left of S (qwerty `a` / azerty `q`). NOT power-tier: bots pilot it
+  with shield's heuristic mirrored (hurt + imminent ball + not near the rim).
 - **Waiting on Remi**: whether an N-vs-1 team's target should be capped by the
   number of enemies alive (3v1 always hits the 25-round cap today); mosquito pair feel (20.1 — never yet in human hands),
   anger strength (question K), sword-by-structure (L), whether
@@ -163,7 +175,7 @@ build step, Node ESM, only dep is `ws`.
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
-| `test/sim.test.js` | 337 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 351 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental`, self-test (trust it at ≥1600 games) |
@@ -234,7 +246,9 @@ build step, Node ESM, only dep is `ws`.
   **Blink**
   [10,5] g flat range 22 (lv2 = cd); **Nova** 🧨 (PLACEHOLDER NAME) = fused
   artillery, flies over everything, 0.5 s fuse, flat AoE dmg, no push/riders;
-  pillars unlimited; vanish 1/2/3 s at 10 g — ANY cast while invisible
+  pillars unlimited; **Statue** 🗿 = 2 s of golden-pillar total invulnerability,
+  rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
+  duration FLAT); vanish 1/2/3 s at 10 g — ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
   mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost — Remi reverted it); infinite ground-target
   range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
@@ -276,7 +290,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 337 green
+npx vitest run                                   # 351 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

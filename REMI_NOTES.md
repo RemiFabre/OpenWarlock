@@ -1,6 +1,6 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Rounds 21.0-21.3, 2026-08-10. Your overnight rulings, applied. Round 20's notes
+*Rounds 21.0-21.4, 2026-08-10. Your overnight rulings, applied. Round 20's notes
 (the mosquito rework + the ELO measurement pass) are archived at
 `docs/history/2026-08-09-remi-notes-round-20.md`.*
 
@@ -128,6 +128,41 @@ is their own** — a lobby nobody touches is exactly today's free-for-all.
   kills-per-member tie-break decides it. 2v2 and 2v1v1 finish normally (20/20
   bot games, ~18 rounds). Say the word if you'd rather a lopsided team's target
   was capped by how many enemies exist.
+
+## Round 21.4 — a NEW spell: Statue 🗿, the golden pillar
+
+Cast on yourself, instant. For **2 seconds** you become a golden stone pillar:
+you take **zero** damage from everything (balls, Lightning, Meteor, Bomb, lava,
+sickness ticks), **nothing can push you**, nothing applies to you (frost, gale,
+Malady, Anger), and **terra 3 does not smash you**. Your body **blocks balls
+like a real pillar** — they explode on you for nothing, so you are cover for
+whoever stands behind you. You cannot move and you cannot cast; the whole price
+is that you are rooted and unmissable, and the enemy can pre-place a Meteor or a
+bolt on the spot you have to walk out of.
+
+- **Cost 10 g, upgrade 5 g** (your 8/10/12 rule, medium tier). ⚠ Your voice note
+  said "a Tangle purchase" — I read that as **"a ten-gold purchase"**. Say the
+  word if it meant something else.
+- **The duration never levels** (your call): lv2 buys **cooldown only, 16 → 12 s**
+  — Blink's pair, and a hair longer than Shield's 15/12 since this is total
+  immunity rather than a reflect.
+- **A Switcheroo bolt fizzles on you.** It is a projectile, it hits the pillar
+  body, it pops — no trade, no stun, their cooldown spent. Same for a boomerang
+  or a pierced ghost ball: cover, not a window.
+- **Casting it reveals you** if you were invisible (the existing any-cast rule) —
+  and during it you are the most visible thing on the map, by design.
+- **Name**: you said "Stasis" and invited better, so it ships as **Statue** — our
+  spell names are plain things (Fireball, Blink, Mirror Wall) and "statue" is
+  literally what you become, without the League echo. Alternates if you prefer
+  one: **Stasis**, **Monolith**, **Gold Rush** (pun, probably too cute). Renaming
+  is one line.
+- ⚠ **The 🗿 moved**: it is Statue's now, and the Stone Pillar took 🏛️ (two
+  spells cannot share an icon). One-line revert if you hate it.
+- **Key**: `A` on QWERTY, `Q` on AZERTY — the same physical key, left of the
+  pillar's S. Rebindable like everything else.
+- **Bots**: they can pilot it — hurt (under half HP), a ball about to land, and
+  standing far enough inside the ring not to surface in the lava. 8 bot games:
+  215 casts, games still finish in ~15 rounds.
 
 ## Still waiting on you
 

@@ -241,6 +241,24 @@ export const SPELLS = {
     cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
     desc: 'Raise a permanent obsidian pillar: it blocks projectiles, bodies and knockback.',
   },
+  statue: {
+    // Round 21.4 (Remi, voice — final design): cast on yourself, instantly
+    // become a GOLDEN STONE PILLAR. For `duration` s you cannot move, cast or
+    // be moved (knockback immune, portals included), you take ZERO damage from
+    // EVERYTHING (spells, zones, lava, DoT) and nothing applies to you (frost,
+    // malady, anger, gale). Your body BLOCKS projectiles like a real pillar —
+    // they explode ON you for nothing, a Switcheroo bolt fizzles instead of
+    // trading, and terra lv3 does NOT smash you. The downside is entirely
+    // positional: you are rooted and telegraphed, so the enemy pre-places
+    // artillery and zones on your exit.
+    // ⚠ The duration NEVER levels (Remi): lv2 buys cooldown only, like Blink.
+    // Name: Remi said "Stasis"; shipped as Statue in the game's plain-words
+    // style (alternates in REMI_NOTES, his to veto — rename is this one line).
+    name: 'Statue', hotkey: 'A', maxLevel: 2, costs: [10, 5],
+    cooldown: [16, 12], duration: 2,
+    desc: 'Become an invincible statue.',
+    long: 'For 2 seconds you turn to solid gold: nothing damages you and nothing can push you, and your body blocks balls like a pillar — but you cannot move or cast.',
+  },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
   // BOT_CC_CAST + PILOTED_POWER in shared/sim.js). For the rest, omission from

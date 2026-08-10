@@ -236,6 +236,13 @@ still bottom-third.
 
 ~~**G. Venom**~~ — CLOSED: §7 shipped + the measured [0.5,1,1.5] retune.
 ~~**J. midas-cdr**~~ — CLOSED (see Current state).
+**N. Statue 🗿 (round 21.4) is UNMEASURED.** A brand-new spell — 2 s of total
+invulnerability for 10 g — and no lab prices it: no BUILDS order contains it,
+so bots only reach it through the shopping exhaust tail or draft, and its bot
+pilot (shield's heuristic mirrored) cannot value 2 s of "nothing can touch me,
+but I stand still". Whether the duration, the 16/12 s cooldown or the price are
+right is a FEEL call after a human playtest, not a sweep.
+
 **D. Bots and the power tier**: §11 shipped pillar-cover and the Swap
 lava-save, but no build list contains a power spell, so they fire only via
 draft; teaching bots to BUY them is still open.

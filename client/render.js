@@ -587,6 +587,11 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     // goes ghostly and wears a dashed ring plus a countdown; both flash once it
     // is nearly over, which is the "when is it ending" half of the feedback.
     const hidden = fin(pl.vanishT) && pl.vanishT > 0;
+    // Statue (SPELLS.statue, round 21.4): for these 2 s the player IS a golden
+    // pillar — same column shape as the obsidian ones above, gold palette and a
+    // shine, so "that one cannot be hurt and blocks balls" reads at a glance.
+    // Name and HP bar stay above it: the pillar is still a player.
+    const statue = fin(pl.statueT) && pl.statueT > 0;
     ctx.save();
     if (hidden) {
       const ending = pl.vanishT < 0.5;
@@ -609,12 +614,39 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(x, y + r * 0.6, r * 1.05, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
 
-    // body
-    ctx.fillStyle = pl.color;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = pl.id === myId ? '#fff' : 'rgba(0,0,0,0.45)';
-    ctx.stroke();
+    // body — or, mid-Statue, a gold column in its place
+    if (statue) {
+      const sr = r * 1.15;
+      // warm halo: gold catching the lava light, and the one cue that this
+      // column is a player and not scenery
+      const halo = ctx.createRadialGradient(x, y, sr * 0.6, x, y, sr * 1.8);
+      halo.addColorStop(0, 'rgba(255, 205, 80, 0.30)');
+      halo.addColorStop(1, 'rgba(255, 180, 40, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(x, y, sr * 1.8, 0, Math.PI * 2); ctx.fill();
+      // the column itself (the obsidian pillar's gradient, gold)
+      const g = ctx.createRadialGradient(x - sr * 0.35, y - sr * 0.4, sr * 0.15, x, y, sr);
+      g.addColorStop(0, '#fff0b8');
+      g.addColorStop(0.5, '#e0a92c');
+      g.addColorStop(1, '#7a4e0c');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, sr, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(60, 35, 0, 0.75)';
+      ctx.stroke();
+      // shine: a bright sweep on the upper-left, plus a small glint
+      ctx.strokeStyle = 'rgba(255, 248, 210, 0.85)';
+      ctx.lineWidth = Math.max(2, sr * 0.16);
+      ctx.beginPath(); ctx.arc(x, y, sr * 0.78, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 255, 235, 0.9)';
+      ctx.beginPath(); ctx.arc(x - sr * 0.34, y - sr * 0.42, sr * 0.14, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = pl.color;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = pl.id === myId ? '#fff' : 'rgba(0,0,0,0.45)';
+      ctx.stroke();
+    }
     // liseré rouge: a constant red ring so you can ALWAYS spot yourself
     if (pl.id === myId) {
       ctx.strokeStyle = 'rgba(255, 59, 48, 0.9)';
@@ -629,31 +661,33 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
     }
-    // hood highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    // hood highlight + avatar emoji — a statue has neither: it is stone now,
+    // and the status rings below are all things it is immune to anyway
+    if (!statue) {
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
 
-    // avatar emoji centered on the body
-    ctx.font = `${Math.round(r * 1.6)}px serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff';
-    ctx.fillText(String(pl.avatar || '🧙'), x, y);
-    ctx.textBaseline = 'alphabetic';
+      ctx.font = `${Math.round(r * 1.6)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(String(pl.avatar || '🧙'), x, y);
+      ctx.textBaseline = 'alphabetic';
+    }
 
-    if (pl.inLava) {
+    if (pl.inLava && !statue) {
       const fl = 0.5 + 0.5 * Math.sin(t * 20 + x);
       ctx.strokeStyle = `rgba(255, 100, 20, ${0.5 + 0.4 * fl})`;
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
     }
-    if (pl.slow) {
+    if (pl.slow && !statue) {
       // frost chill: icy blue ring (elemental mode)
       ctx.strokeStyle = 'rgba(140, 200, 255, 0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
     }
-    if (pl.stun) {
+    if (pl.stun && !statue) {
       // frozen solid: a thick ice shell, unmistakable — you cannot act
       ctx.strokeStyle = 'rgba(200, 240, 255, 0.95)';
       ctx.fillStyle = 'rgba(150, 215, 255, 0.22)';

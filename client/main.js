@@ -24,7 +24,11 @@ window.addEventListener('resize', () => view.resize());
 
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
-  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
+  // ⚠ Round 21.4: 🗿 moved from the Stone Pillar to the new Statue (Remi picked
+  // the moai for it — "the golden pillar"), so the pillar took the columns 🏛️.
+  // Revert = swap the two back.
+  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🏛️', vanish: '👁️',
+  statue: '🗿',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   hourglass: '⏳',
@@ -39,10 +43,14 @@ const ICONS = {
 // and calls keyLabel() on the binding, so a missing one throws on load and the
 // client comes up blank. Add the spell here in the same commit you add it there.
 const KEY_PRESETS = {
+  // statue sits on the PHYSICAL key left of pillar's S in both layouts
+  // (qwerty A = azerty Q), so "stone next to stone" holds either way.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b' },
+            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
+            statue: 'a' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
-            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b' },
+            pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
+            statue: 'q' },
 };
 
 function loadKeys() {
@@ -286,6 +294,11 @@ function onEvent(e) {
     // viewEvents drops it, and that stays the design.
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.4 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
+    // Statue (round 21.4): a short transform pop at each end of the freeze —
+    // the body itself is drawn as a gold column for the whole duration
+    // (render.js), these two just punctuate it. Glassy up, softer down.
+    case 'statueUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('freeze'); break;
+    case 'statueDown': fx.push({ ...e, type: 'grow', at: now, dur: 0.4 }); playSfx('catch'); break;
     // terra lv3 Demolisher: the pillar shatters — rubble that settles and fades
     case 'pillarBroken': fx.push({ ...e, type: 'rubble', at: now, dur: 1.6 }); playSfx('boom'); break;
     case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;
@@ -1197,7 +1210,7 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 // of each row — PRESENTATIONAL only, nothing about a spell changes.
 const SPELL_ROWS = [
   ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'nova', 'repulse']],
-  ['Defense', ['teleport', 'shield', 'rush', 'pillar', 'wall']],
+  ['Defense', ['teleport', 'shield', 'statue', 'rush', 'pillar', 'wall']],
   ['Special', ['swap', 'vanish']],
 ];
 const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
@@ -1966,6 +1979,10 @@ function updateUi(s) {
     // this chip is by construction self-only.
     if (fin(+m.vanishT) && +m.vanishT > 0)
       buffs.push(`<span class="buff vanish">${ICONS.vanish} invisible · ${(+m.vanishT).toFixed(1)}s</span>`);
+    // Statue: the freeze is short and total, so the countdown is the whole HUD
+    // story — how long until you can act again.
+    if (fin(+m.statueT) && +m.statueT > 0)
+      buffs.push(`<span class="buff vanish">${ICONS.statue} invincible · ${(+m.statueT).toFixed(1)}s</span>`);
     if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');
     else if (m.slow) buffs.push('<span class="buff frost">🐌 slowed</span>');
     if (m.poison) buffs.push(`<span class="buff malady">${ELEMENTS.malady.icon} infected</span>`);

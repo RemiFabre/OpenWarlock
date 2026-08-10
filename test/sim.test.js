@@ -5911,3 +5911,239 @@ function shootAtSwap(state, shooter, target) {
   castSpell(state, shooter, 'swap', 40, 0);
   run(state, 0.5);
 }
+
+// ---- Statue 🗿 (round 21.4) -------------------------------------------------
+// Cast on yourself: for SPELLS.statue.duration seconds you are a golden pillar
+// — invincible, rooted, unpushable, and a solid body that eats projectiles.
+// Every number here is read from the spec (AGENTS.md: balance tests never pin
+// constants), so a retune moves the tests with it.
+describe('statue 🗿 (the golden pillar)', () => {
+  const spec = SPELLS.statue;
+
+  // clean floor, two parked players 8 units apart, p0 already a statue-owner
+  function statueBattle(n = 2, mode = 'classic') {
+    const state = mode === 'elemental'
+      ? (() => {
+        const s = createGame({ seed: 42, mode: 'elemental' });
+        for (let i = 0; i < n; i++) addPlayer(s, `p${i}`, `Player${i}`);
+        startGame(s);
+        run(s, ROUND.COUNTDOWN + DT);
+        return s;
+      })()
+      : freshBattle(n);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null; b.cooldowns = {};
+    a.spells.statue = 1;
+    return state;
+  }
+
+  it('prices, levels and cooldown come from the spec; lv2 buys cooldown only', () => {
+    expect(spec.maxLevel).toBe(2);
+    // ⚠ Remi's ruling: the duration NEVER levels — lv2 is a cooldown purchase
+    expect(Array.isArray(spec.duration)).toBe(false);
+    expect(spec.cooldown[1]).toBeLessThan(spec.cooldown[0]);
+    const state = freshBattle(2);
+    state.phase = 'shop';
+    const a = state.players.p0;
+    a.gold = 999;
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const g0 = a.gold;
+      expect(buy(state, 'p0', 'statue').ok).toBe(true);
+      expect(a.spells.statue).toBe(level);
+      expect(g0 - a.gold).toBe(spec.costs[level - 1]);
+    }
+    expect(buy(state, 'p0', 'statue').ok).toBeFalsy(); // max level wall
+  });
+
+  it('cast is instant, starts the level cooldown and lasts exactly `duration`', () => {
+    const state = statueBattle();
+    const a = state.players.p0;
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      a.spells.statue = level;
+      a.cooldowns = {}; a.statueT = 0;
+      expect(castSpell(state, 'p0', 'statue', a.x, a.y)).toBe(true);
+      expect(a.statueT).toBeCloseTo(spec.duration, 5);
+      expect(a.cooldowns.statue).toBeCloseTo(spec.cooldown[level - 1], 5);
+      run(state, spec.duration - 0.1);
+      expect(a.statueT).toBeGreaterThan(0);
+      run(state, 0.2);
+      expect(a.statueT).toBe(0);
+    }
+  });
+
+  it('takes ZERO damage: fireball, sky-bolt and lava all do nothing', () => {
+    const state = statueBattle();
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    const hp0 = a.hp;
+    // a point-blank fireball
+    b.spells.fireball = 1;
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.4);
+    expect(a.hp).toBe(hp0);
+    // a bolt dropped on the statue's head (it ignores pillars and walls)
+    b.spells.lightning = 1;
+    castSpell(state, 'p1', 'lightning', a.x, a.y);
+    run(state, SPELLS.lightning.delay + 2 * DT);
+    expect(a.hp).toBe(hp0);
+    // and the lava: shrink the ring to nothing under it
+    state.arenaRadius = 0;
+    run(state, 0.5);
+    expect(a.hp).toBe(hp0);
+    expect(a.alive).toBe(true);
+  });
+
+  it('the body BLOCKS a ball: it explodes on the statue, it does not pass', () => {
+    const state = statueBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    // c stands directly behind the statue, on the same line
+    c.x = -8; c.y = 0; c.vx = 0; c.vy = 0; c.moveTarget = null;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    b.spells.fireball = 1;
+    castSpell(state, 'p1', 'fireball', -20, 0); // aimed through a at c
+    run(state, 0.6);
+    expect(state.projectiles.length).toBe(0);   // consumed on the gold
+    expect(a.hp).toBe(a.maxHp);
+    expect(c.hp).toBe(c.maxHp);                 // cover, not a window
+  });
+
+  it('a PIERCING shot stops on it too (a pillar is not a window)', () => {
+    const state = statueBattle();
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    b.spells.boomerang = 1;                     // pierce: true
+    castSpell(state, 'p1', 'boomerang', -20, 0);
+    run(state, 0.6);
+    expect(state.projectiles.length).toBe(0);
+    expect(a.hp).toBe(a.maxHp);
+  });
+
+  it('terra lv3 does NOT smash it (it smashes stone, not players)', () => {
+    const state = statueBattle(2, 'elemental');
+    const a = state.players.p0, b = state.players.p1;
+    b.elements.terra = 3;                       // the Demolisher ball
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.5);
+    expect(a.alive).toBe(true);
+    expect(a.hp).toBe(a.maxHp);
+    expect(state.projectiles.length).toBe(0);   // the ball still breaks on it
+  });
+
+  it('cannot be moved: no knockback from a ball or a repulse blast', () => {
+    const state = statueBattle();
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    const at = { x: a.x, y: a.y };
+    b.spells.fireball = 1;
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.4);
+    expect(a.vx).toBe(0); expect(a.vy).toBe(0);
+    // …and a repulse blast, timed to go off while the gold is up (the charge
+    // outlasts one statue, so the statue is re-cast into the blast)
+    run(state, spec.duration);                  // let this one lapse first
+    b.spells.repulse = 1;
+    b.x = a.x + 2; b.y = a.y;                   // well inside the blast radius
+    castSpell(state, 'p1', 'repulse', a.x, a.y);
+    run(state, SPELLS.repulse.charge - 0.5);
+    a.cooldowns.statue = 0; a.vx = 0; a.vy = 0;
+    expect(castSpell(state, 'p0', 'statue', a.x, a.y)).toBe(true);
+    run(state, 0.5 + 3 * DT);
+    expect(a.x).toBeCloseTo(at.x, 5);
+    expect(a.y).toBeCloseTo(at.y, 5);
+  });
+
+  it('cannot act: no cast of any kind while golden, and no walking', () => {
+    const state = statueBattle();
+    const a = state.players.p0;
+    a.spells.fireball = 1; a.spells.teleport = 1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(false);
+    expect(castSpell(state, 'p0', 'teleport', 20, 0)).toBe(false);
+    expect(castSpell(state, 'p0', 'statue', a.x, a.y)).toBe(false);
+    setMoveTarget(state, 'p0', 20, 0);
+    run(state, 1);
+    expect(a.x).toBeCloseTo(0, 5);
+    expect(a.y).toBeCloseTo(0, 5);
+    expect(state.projectiles.length).toBe(0);
+    // …and when it ends, the queued click carries you off again
+    run(state, spec.duration);
+    expect(a.x).toBeGreaterThan(1);
+  });
+
+  it('a Switcheroo bolt fizzles on it: no trade, no stun', () => {
+    const state = statueBattle();
+    const a = state.players.p0, b = state.players.p1;
+    b.spells.swap = 1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    const [ax, bx] = [a.x, b.x];
+    castSpell(state, 'p1', 'swap', a.x, a.y);
+    run(state, 0.5);
+    expect(a.x).toBeCloseTo(ax, 5);
+    expect(b.x).toBeCloseTo(bx, 5);
+    expect(a.stunT || 0).toBe(0);
+    expect(state.projectiles.length).toBe(0);
+  });
+
+  it('nothing APPLIES during it: no malady infection, no frost stack', () => {
+    const state = statueBattle(2, 'elemental');
+    const a = state.players.p0, b = state.players.p1;
+    b.elements.frost = 1; b.elements.malady = 3;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.5);
+    expect(a.poisonT).toBe(0);
+    expect(a.malady).toBe(null);
+    expect((a.stacks.frost && a.stacks.frost.p1) || 0).toBe(0);
+    // an infected body standing on top of it cannot pass the plague either
+    b.malady = { inst: { level: 3, creator: 'p1', immune: { p1: 1 } }, by: 'p1' };
+    b.poisonT = 5; b.poisonTick = 1; b.poisonBy = 'p1';
+    b.x = a.x; b.y = a.y;
+    run(state, 0.5);
+    expect(a.poisonT).toBe(0);
+  });
+
+  it('protection ends with the timer, and the end fires an event', () => {
+    const state = statueBattle();
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    state.events.length = 0;
+    run(state, spec.duration + DT);
+    expect(state.events.some(e => e.t === 'statueDown' && e.id === 'p0')).toBe(true);
+    expect(a.statueT).toBe(0);
+    b.spells.fireball = 1;
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.4);
+    expect(a.hp).toBeLessThan(a.maxHp);          // mortal again
+  });
+
+  it('casting it REVEALS an invisible caster (the round-18.1 rule)', () => {
+    const state = statueBattle();
+    const a = state.players.p0;
+    a.spells.vanish = 1;
+    castSpell(state, 'p0', 'vanish', 10, 0);
+    expect(a.vanishT).toBeGreaterThan(0);
+    a.cooldowns.statue = 0;
+    expect(castSpell(state, 'p0', 'statue', a.x, a.y)).toBe(true);
+    expect(a.vanishT).toBe(0);
+    expect(snapshot(state, 'p1').players.p0.x).toBeDefined(); // visible again
+  });
+
+  it('is PUBLIC on the wire, and absent when nobody is golden', () => {
+    const state = statueBattle();
+    expect(snapshot(state, 'p1').players.p0.statueT).toBeUndefined();
+    castSpell(state, 'p0', 'statue', 0, 0);
+    expect(snapshot(state, 'p1').players.p0.statueT).toBeCloseTo(spec.duration, 1);
+  });
+
+  it('does not stall the round: it still ends around a statue', () => {
+    const state = statueBattle();
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'statue', a.x, a.y);
+    b.hp = 0; b.alive = false;
+    run(state, 2 * DT);
+    expect(state.phase).toBe('roundEnd');
+  });
+});

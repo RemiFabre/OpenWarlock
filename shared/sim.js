@@ -185,6 +185,11 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // but you (snapshot() strips the whole position instead — see there), and it
     // is masked out of bot perception too (see seenBy/perceive).
     vanishT: 0,
+    // Statue (round 21.4, SPELLS.statue): seconds left as a golden pillar —
+    // invincible, rooted, unpushable, and a solid body that eats projectiles.
+    // ONE timer drives all of it; the guards live in applyDamage,
+    // applyKnockback, castSpell, stats() and stepProjectiles.
+    statueT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
     slowT: 0,              // frost: seconds of slow remaining
@@ -347,6 +352,7 @@ function stats(pl) {
   if (pl.inLava) speed *= LAVA.SPEED_MULT; // lava is fast — and it burns
   if (pl.slowT > 0) speed *= (pl.slowMultHit || 0.6); // frost chill (elemental)
   if (pl.stunT > 0) speed = 0;                        // frost stun (elemental)
+  if (pl.statueT > 0) speed = 0;                      // statue: rooted (any mode)
   // recently hurt? regen is throttled. Without this a lv1 fireball (2.38 dps
   // if EVERY shot lands) loses to the 1.2 hp/s baseline and nobody can die.
   if (pl.regenLockT > 0) regen *= PLAYER.REGEN_LOCK_MULT;
@@ -486,6 +492,9 @@ export function castSpell(state, id, key, tx, ty) {
   const spec = Object.hasOwn(SPELLS, key) ? SPELLS[key] : null;
   if (!pl || !spec || !pl.alive || state.phase !== 'battle') return false;
   if (pl.stunT > 0) return false; // frost lv3 stun: no casting either
+  // Statue (round 21.4): a pillar has no hands — no cast of any kind, not even
+  // a second statue to extend it. Being unable to act IS the price.
+  if (pl.statueT > 0) return false;
   const level = pl.spells[key] || 0;
   if (level < 1) return false;
   // boomerang recall: while yours is still flying OUT, the key turns it round
@@ -591,6 +600,17 @@ export function castSpell(state, id, key, tx, ty) {
     }
     case 'shield': {
       pl.shieldT = spec.duration;
+      break;
+    }
+    case 'statue': {
+      // Turn to gold where you stand. `duration` is a scalar on purpose (it
+      // never levels) and momentum dies at the cast — you cannot be moved, so
+      // there is no leftover knockback to carry when you turn back.
+      // moveTarget is deliberately LEFT alone: stats() zeroes your speed for
+      // the duration, so a click during the freeze is your queued escape.
+      pl.statueT = spec.duration;
+      pl.vx = 0; pl.vy = 0;
+      state.events.push({ t: 'statueUp', id, x: pl.x, y: pl.y, duration: spec.duration });
       break;
     }
     case 'vanish': {
@@ -944,6 +964,10 @@ function resolveDraftOffers(state) {
 // ---- combat helpers -----------------------------------------------------
 
 function applyKnockback(state, target, dx, dy, magnitude) {
+  // Statue (round 21.4): a pillar does not move. One guard at the single
+  // impulse choke point covers every source — balls, repulse, gale gust,
+  // rush, meteor, bolt.
+  if (target.statueT > 0) return;
   const { kbMult } = stats(target);
   // the lower your hp PERCENTAGE, the further you fly (full HP = baseline,
   // near-death ≈ 1+KB_HP_FACTOR). Cape still multiplies on top. Deliberately
@@ -976,6 +1000,12 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 function applyDamage(state, target, amount, sourceId,
   { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0 } = {}) {
   if (!target.alive) return;
+  // Statue (round 21.4): ZERO damage from everything while the gold holds —
+  // spells, zones, hazards, lava, poison ticks. Every damage source in the game
+  // funnels through here, so this one line IS the invincibility; it also means
+  // no hit floater, no regen lock and no lifesteal for the attacker, because
+  // nothing happened.
+  if (target.statueT > 0) return;
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
   // damage attribution: the direct source — or, for sourceless lava ticks,
@@ -1055,6 +1085,9 @@ function kill(state, target, directSourceId) {
   // dying reveals you: a corpse and its death burst must be visible to everyone,
   // and a hidden body would also silently vanish from the standings
   target.vanishT = 0;
+  // a statue cannot be killed (applyDamage returns early), so this only ever
+  // runs for a body that died some other way — keep the flag off a corpse
+  target.statueT = 0;
   // credit: direct source, else last hitter within the window
   let killerId = directSourceId != null && directSourceId !== target.id ? directSourceId : null;
   if (killerId == null && target.lastHitBy &&
@@ -1196,6 +1229,7 @@ function startRound(state) {
     // (a round boundary, not a cancel: nothing survives the respawn)
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.vanishT = 0;   // nobody starts a round already invisible
+    pl.statueT = 0;   // …nor already golden
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.stacks = {};   // frost/gale/midas stacks are round-long, like the hp bar
@@ -1658,7 +1692,10 @@ function stepBattle(state, dt) {
         continue;
       }
       if (state.time < (pl._angerNext ?? fA.markDelay)) continue;
-      const cands = players.filter(q => q !== pl && q.alive && hostile(pl, q));
+      // a statue takes no marks either (nothing applies during the freeze) —
+      // it just is not a candidate this tick; the roll retries next one
+      const cands = players.filter(
+        q => q !== pl && q.alive && q.statueT <= 0 && hostile(pl, q));
       if (!cands.length) continue;                   // nobody to hunt: retry next tick
       const victim = cands[Math.floor(rng(state) * cands.length)];
       addStack(victim, 'anger', pl.id);
@@ -1675,6 +1712,16 @@ function stepBattle(state, dt) {
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
     if (pl.vanishT > 0) pl.vanishT = Math.max(0, pl.vanishT - dt);
+    // Statue (round 21.4): rooted and unpushable. stats() already zeroed the
+    // walk speed for this tick; zeroing the velocity keeps any impulse that
+    // landed on the same frame as the cast from carrying over when it ends.
+    // The end event lets the client pop the transform back.
+    if (pl.statueT > 0) {
+      pl.vx = 0; pl.vy = 0;
+      pl.statueT = Math.max(0, pl.statueT - dt);
+      if (pl.statueT === 0)
+        state.events.push({ t: 'statueDown', id: pl.id, x: pl.x, y: pl.y });
+    }
 
     if (pl.regenLockT > 0) pl.regenLockT = Math.max(0, pl.regenLockT - dt);
 
@@ -1785,7 +1832,9 @@ function stepBattle(state, dt) {
     // (the standard vanish rule; unlike Swap, nobody else is touched, so
     // there is nothing that must be revealed). Checked BEFORE the lava so the
     // porting tick doesn't also burn you.
-    if (state.mode !== 'coop' && pl.alive) {
+    // (a statue cannot be moved, portals included — it also cannot walk onto
+    // one, so this guard is belt-and-braces for a portal placed under a cast)
+    if (state.mode !== 'coop' && pl.alive && pl.statueT <= 0) {
       const P = ARENA.PORTALS;
       const d = state.startRadius * P.DIST_FRAC;
       for (let i = 0; i < P.COUNT; i++) {
@@ -2014,6 +2063,20 @@ function stepProjectiles(state, dt) {
       const dist = segmentPointDist(px0, py0, pr.x, pr.y, other.x, other.y);
       if (dist > prRadius + other.radius) continue;
 
+      // Statue (round 21.4): the body IS a pillar, so the ball collides on it
+      // and explodes for NOTHING — cover, not a window. Deliberately ahead of
+      // the shield branch (a statue eats the ball, it does not reflect it) and
+      // it consumes PIERCING shots too, exactly like the stone pillars above.
+      // A Switcheroo bolt therefore fizzles: no trade, no stun, cooldown spent.
+      // A TEAMMATE's ball still passes through (allied() skipped it before the
+      // collision test): allies ignore each other's spells, and a statue is a
+      // spell — the stone pillars are the map, this is not.
+      if (other.statueT > 0) {
+        state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
+        dead = true;
+        break;
+      }
+
       if (other.shieldT > 0) {
         // reflect: reverse velocity, transfer ownership
         pr.vx = -pr.vx; pr.vy = -pr.vy;
@@ -2233,6 +2296,9 @@ function galeHit(state, pr, target, level) {
 // OTHER player's instance normally. Revert = drop them from the seed below.
 function infectMalady(state, target, inst, byId) {
   if (!target.alive) return;
+  // Statue (round 21.4): nothing APPLIES to a golden pillar — no infection, and
+  // the instance does not even burn its once-per-body immunity on the attempt.
+  if (target.statueT > 0) return;
   const f = ELEMENTS.malady.fx;
   inst.immune[target.id] = 1;
   target.malady = { inst, by: byId };
@@ -2462,6 +2528,10 @@ export function snapshot(state, viewerId = null) {
         };
       })(),
       shieldT: round2(p.shieldT),
+      // Statue (round 21.4): PUBLIC — being an unmissable golden pillar is the
+      // whole downside, so everyone sees it (the client draws the body as a
+      // gold column). Absent when 0, so nothing changes for anyone not casting it.
+      ...(p.statueT > 0 ? { statueT: round2(p.statueT) } : {}),
       inLava: !!p.inLava,
       dashing: !!p.dash,
       charging: !!p.charging,
@@ -2796,6 +2866,17 @@ function pilotOwnedSpells(state, pl, dt) {
   if (pl.kind !== 'stalker' && owns('shield')) {
     const threat = scanThreats(state, pl, 0.4, 2.0);
     if (threat && castSpell(state, pl.id, 'shield', threat.pr.x, threat.pr.y)) return;
+  }
+
+  // Statue (round 21.4): shield's heuristic, mirrored — the ONE reading a bot
+  // can make of a 2 s total-invulnerability root. Panic button only: hurt, a
+  // ball about to land, and standing somewhere the closing ring will not have
+  // eaten by the time we can move again (rooting at the rim would surface us in
+  // the lava). No native kind pilots it, so this block is the whole AI for it.
+  if (owns('statue') && pl.hp < pl.maxHp * 0.5 && !pl.inLava &&
+      Math.hypot(pl.x, pl.y) < arena - 6) {
+    const threat = scanThreats(state, pl, 0.4, 2.0);
+    if (threat && castSpell(state, pl.id, 'statue', pl.x, pl.y)) return;
   }
 
   // pressure blink: a wounded grunt with a teleport gets out of melee range
