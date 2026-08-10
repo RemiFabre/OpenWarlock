@@ -121,3 +121,12 @@
   - order: hourglass1 → arcane1 → hourglass2 → arcane2 → hourglass3 → arcane3 → lightning1 → boomerang1 → shield1 → rush1 → teleport1 → shield2 → rush2 → teleport2 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3
   - tests: question M: CDR x kit WIDTH — the same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)
 
+## Family F — sustain: flat heal-per-hit vs lifesteal (round 21.8)
+
+- **F1-spoon-volume** (156 g): Cast constantly, heal a flat crumb off every single connection.
+  - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → spoon3 → boots2 → amulet2
+  - tests: the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)
+- **F2-sword-volume** (156 g): The same barrage, paid for in lifesteal instead.
+  - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
+  - tests: the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned
+

@@ -48,7 +48,11 @@ for (let g = 0; g < GAMES; g++) {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   const picks = pool.slice(0, 4);
-  const lineup = picks.map(id => ({ id, kind: KIND, priorities: lists[id] }));
+  // ⚠ `caps` rides along: a roster entry may BAN a thing outright (caps {x: 0}),
+  // which is the only way to keep the shared exhaust tail from handing a seat
+  // the very item its core exists to do without (round 21.8, family F).
+  const lineup = picks.map(id => ({ id, kind: KIND, priorities: lists[id],
+    ...(ROSTER[id].caps ? { caps: ROSTER[id].caps } : {}) }));
   const res = playGame(lineup, SEED * 1_000_000 + g, { mode: 'elemental' });
   if (!res.finished) unfinished++;
   const order = res.ranking.map(r => picks[r.idx]); // best first

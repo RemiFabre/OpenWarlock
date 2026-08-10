@@ -342,6 +342,33 @@ export const ROSTER = {
       ['shield', 1], ['rush', 1], ['teleport', 1], ['shield', 2], ['rush', 2],
       ['teleport', 2]],
   },
+
+  // ---- Family F: the sustain question (Remi, round 21.8) --------------------
+  // ONE variable, 21 g either way (both items are 7 g × 3 levels), inside a kit
+  // built to LAND A LOT OF HITS: maxed fireball cadence (arcane 3 + hourglass 3),
+  // Echo pairs, ghost speed and three pilotable buttons. Everything else in the
+  // two cores is byte-identical and hand-sized into the band so the PADDER NEVER
+  // RUNS — its filler holds both items and would contaminate the comparison.
+  // F1 minus F2 is the whole measurement: does a FLAT heal per hit beat a
+  // PERCENTAGE of the damage dealt, for a build that hits often?
+  // ⚠ `caps` is what makes this a real A/B: the study's shared exhaust tail
+  // holds BOTH healing items, so without a ban each seat eventually buys the
+  // other one too and the pair measures buy ORDER, not the item (found the hard
+  // way, round 21.8). caps {x: 0} = never buy x, at any level.
+  'F1-spoon-volume': {
+    family: 'F', fantasy: 'Cast constantly, heal a flat crumb off every single connection.',
+    tests: 'the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)',
+    caps: { sword: 0 },
+    core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
+      ['boomerang', 1], ['rush', 1], ['ghost', 2], ['spoon', 3], ['boots', 2], ['amulet', 2]],
+  },
+  'F2-sword-volume': {
+    family: 'F', fantasy: 'The same barrage, paid for in lifesteal instead.',
+    tests: 'the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned',
+    caps: { spoon: 0 },
+    core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
+      ['boomerang', 1], ['rush', 1], ['ghost', 2], ['sword', 3], ['boots', 2], ['amulet', 2]],
+  },
 };
 
 // ---- cost check + doc generation -------------------------------------------
@@ -362,7 +389,8 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
           B: 'Family B — depth vs breadth, per system',
           C: 'Family C — spell-scaling probes',
           D: 'Family D — play-style archetypes',
-          E: 'Family E — cooldown reduction (question M)' };
+          E: 'Family E — cooldown reduction (question M)',
+          F: 'Family F — sustain: flat heal-per-hit vs lifesteal (round 21.8)' };
         out += `\n## ${titles[fam]}\n\n`;
       }
       const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
