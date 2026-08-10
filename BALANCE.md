@@ -196,11 +196,25 @@ stated, every number a one-line revert)**:
   `tools/elo.js` — the 30-strategy roster ranking, the one that matters — has
   always run elemental off explicit roster cores and was never affected.
 
-### The strategy ELO table — THE current ranking (r219, 30 strategies, 8000 games × 2 seeds)
+### The strategy ELO table — THE current ranking (r232, 33 strategies, 8000 games × 2 seeds)
 
-Full table, diffs and blind spots: **`docs/history/2026-08-10-round21-elo.md`**
-(the STANDING baseline; it replaces the r207 round-20 table, which replaced
-r200). Instrument: `node tools/elo.js --games=8000 --seed=1` — random
+Full table, diffs and blind spots: **`docs/history/2026-08-11-round21.8-elo.md`**
+(the STANDING baseline; it replaces the r219 round-21 table, which replaced r207).
+Cross-seed drift mean 8.8 / max 30 Elo — the tightest yet. Headlines: **anger
+unmoved at #1** (B3 2087); the NEW **D12-hatburner (Hat of Aura 3 + malady 3)
+enters 4th of 33** and D5-plaguebearer gains +129, so this round's aura+plague
+buffs are the biggest movers; **every item core gained 58-126** — three price
+cuts moved items nothing, two items that DO something moved them 60-130 in one
+round, though they are still the bottom third (items are effect-limited, not
+price-limited, sharpened); **C7-statue-guard lands at exactly 1500**, the honest
+answer for a panic button no bot can time; **D11-spoonbearer is 32nd**, which
+prices its deliberately low-damage frost+gale KIT, not the Slow Spoon (the same
+item raised A1 +58 and B6 +118 — human read needed); the **meteor lv2 buff
+(24→30) is invisible** (C5 still last, Δ −1) — its cast rules, not its damage,
+are the lever.
+
+⚠ The paragraphs below this line describe the SUPERSEDED r219 table and are kept
+for the round-21 diffs they explain. Instrument: `node tools/elo.js --games=8000 --seed=1` — random
 4-of-roster Hard lobbies in elemental, Bradley-Terry over all pairwise
 placements, **1500 = roster average, +173 ≈ a 73% pairwise favourite**.
 ⚠ **It is a RANKING, not a strength meter** — the fit pins the average at 1500,

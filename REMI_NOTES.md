@@ -111,6 +111,33 @@ the one the balance decisions actually rest on. It has always run elemental off
 explicit buy lists and never went near a build name. The standing table in
 `docs/history/2026-08-10-round21-elo.md` is intact.
 
+## And the ELO table, re-run on the new roster
+
+Full write-up (33 strategies, 8000 games × 2 seeds, what it can and cannot see):
+`docs/history/2026-08-11-round21.8-elo.md`. The roster now carries the three
+additions bots can genuinely use — the Hat of Aura, the Slow Spoon and NOPE —
+and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
+
+- **The Hat of Aura is the winner of the round**: the new aura+plague core enters
+  **4th of 33**, ahead of every damage and CDR build, and the plain plague build
+  gained +129. Your two buffs (the lingering burn, malady's bigger bite) landed
+  hard — and this is a floor, since bots never bunch up.
+- **Anger is unmoved at #1.** Nothing this round touched it.
+- **Items finally moved — because of content, not price.** Every item build
+  gained 58-126 points. Three rounds of price cuts had moved them zero; two items
+  that actually DO something moved them in one round. They are still the bottom
+  third, so: items were never too expensive, they were too boring.
+- **NOPE lands at exactly the roster average (1500).** That is the honest score
+  for a panic button no bot can time — the spell is yours to judge.
+- **The Slow Spoon's own build is 32nd of 33 — and that number prices the KIT,
+  not the spoon.** I deliberately gave it the worst host (frost+gale, low damage
+  by design) and bots cannot convert CC into damage; the neighbouring frost/gale
+  build has always sat there too. The same spoon inside the item builds raised
+  them. It needs your hands, not more bot games.
+- ⚠ **Your meteor buff is invisible** (24 → 30 at lv2, the maxed-meteor build
+  moved −1 and is still last). If the meteor should be a real pick, the lever is
+  its cast rules, not its damage.
+
 ## What I verified
 
 389 unit tests (13 new ones for the mine, the spoon and the linger), both
