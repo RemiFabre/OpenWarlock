@@ -227,6 +227,12 @@ export const SPELLS = {
     // a Repulse blast; the physical drops (Meteor, Bomb) land through it.
     long: 'Reflects energy projectiles — fireballs, boomerangs, Switcheroo — back at their owner, and holds a Lightning bolt or a Repulse blast; physical impacts (Meteor, Bomb) go straight through it.',
   },
+  debt: {
+    name: 'Blood Debt', hotkey: 'Y', maxLevel: 2, costs: [12, 6],
+    cooldown: [15, 12], duration: 1.25, repay: 5,
+    desc: 'Absorb, then transfer.',
+    long: 'For a moment, all damage and push become gray health. Hit an enemy with a fireball within 5 seconds to give them the stored damage; otherwise you take it yourself, without pushback.',
+  },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 5],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
@@ -447,10 +453,10 @@ export function itemCost(key, owned = 0) {
 // Per-level effect totals, indexed by level-1. Scalars apply at every level.
 // Round 15: vs price-matched controls every item's value RISES with level, but
 // levels lose to BREADTH (amulet/sword outliers — BALANCE 15C); flat cost kept.
-// ⚠ Boots lv3 re-cut over Remi's hand spec — one-line revert [1.15, 1.27, 1.35].
+// Issue #1 player version: each Boots level adds 20% movement speed.
 // history: docs/history/2026-08-08-constants-sweeps.md#item_fx-level-curve-round-15
 export const ITEM_FX = {
-  boots: { speedMult: [1.15, 1.29, 1.42] },
+  boots: { speedMult: [1.20, 1.40, 1.60] },
   // Round 19.6 (Remi): a 10 g full-counter to lava playstyles was too extreme
   // — was [0.50, 0.36, 0.28].
   treads: { lavaMult: [0.75, 0.50, 0.35] },

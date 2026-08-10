@@ -94,6 +94,44 @@ try {
   await page.click('#readyBtn');
   await page.waitForFunction(() => window.__phase === 'battle', { timeout: 20000 });
   console.log('battle running, no server anywhere');
+
+  // Issue #1 browser acceptance: the new spell is bound, absorbs a real
+  // projectile in the live in-tab engine, and exposes gray health to render.
+  const issueUi = await page.evaluate(async () => {
+    const keys = window.__keys();
+    const { ITEM_FX } = await import('../shared/constants.js');
+    return {
+      debtKey: keys.debt,
+      uniqueKeys: new Set(Object.values(keys)).size === Object.keys(keys).length,
+      debtCard: document.querySelector('.ware[data-key="debt"]')?.textContent || '',
+      boots: ITEM_FX.boots.speedMult,
+    };
+  });
+  if (!issueUi.debtKey || !issueUi.uniqueKeys || !/Blood Debt/.test(issueUi.debtCard))
+    fail(`Blood Debt shop/key UI is incomplete: ${JSON.stringify(issueUi)}`);
+  if (JSON.stringify(issueUi.boots) !== JSON.stringify([1.2, 1.4, 1.6]))
+    fail(`Boots are not 20/40/60%: ${JSON.stringify(issueUi.boots)}`);
+  await page.evaluate(async () => {
+    const { castSpell } = await import('../shared/sim.js');
+    const g = window.__engine.game;
+    const me = Object.values(g.players).find(p => !p.bot);
+    const bot = Object.values(g.players).find(p => p.bot);
+    me.spells.debt = 1; me.cooldowns.debt = 0;
+    me.x = 0; me.y = 0; me.vx = 0; me.vy = 0; me.moveTarget = null;
+    bot.x = -8; bot.y = 0; bot.vx = 0; bot.vy = 0; bot.moveTarget = null;
+    bot._botT = 99; bot.cooldowns.fireball = 0;
+    castSpell(g, me.id, 'debt', me.x, me.y);
+    castSpell(g, bot.id, 'fireball', me.x, me.y);
+  });
+  await sleep(350);
+  const debt = await page.evaluate(() => {
+    const me = Object.values(window.__engine.game.players).find(p => !p.bot);
+    return { hp: me.hp, maxHp: me.maxHp, stored: me.debtDamage, active: me.debtT };
+  });
+  if (!(debt.hp === debt.maxHp && debt.stored > 0 && debt.active > 0))
+    fail(`Blood Debt did not absorb in the live browser: ${JSON.stringify(debt)}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-blood-debt.png') });
+
   if (SHOTS) { await sleep(1500); await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-battle.png') }); }
 
   // actually PLAY: chase the cursor around and cast at it for a while

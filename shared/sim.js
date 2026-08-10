@@ -188,6 +188,9 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     draftOffer: null,
     cooldowns: {},
     shieldT: 0,
+    debtT: 0,
+    debtDamage: 0,
+    debtPayT: 0,
     // Vanish: seconds of invisibility left. NEVER goes on the wire for anyone
     // but you (snapshot() strips the whole position instead — see there), and it
     // is masked out of bot perception too (see seenBy/perceive).
@@ -620,6 +623,12 @@ export function castSpell(state, id, key, tx, ty) {
     }
     case 'shield': {
       pl.shieldT = spec.duration;
+      break;
+    }
+    case 'debt': {
+      pl.debtT = spec.duration;
+      pl.debtDamage = 0;
+      pl.debtPayT = 0;
       break;
     }
     case 'statue': {
@@ -1129,7 +1138,7 @@ function applyKnockback(state, target, dx, dy, magnitude) {
   // Statue (round 21.4): a pillar does not move. One guard at the single
   // impulse choke point covers every source — balls, repulse, gale gust,
   // rush, meteor, bolt.
-  if (target.statueT > 0) return;
+  if (target.statueT > 0 || target.debtT > 0) return;
   const { kbMult } = stats(target);
   // the lower your hp PERCENTAGE, the further you fly (full HP = baseline,
   // near-death ≈ 1+KB_HP_FACTOR). Cape still multiplies on top. Deliberately
@@ -1166,14 +1175,18 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 // is the Blood Sword's long-standing behaviour.
 function applyDamage(state, target, amount, sourceId,
   { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0,
-    procs = true } = {}) {
-  if (!target.alive) return;
+    procs = true, bypassDebt = false, noRewards = false, unstoppable = false } = {}) {
+  if (!target.alive) return false;
   // Statue (round 21.4): ZERO damage from everything while the gold holds —
   // spells, zones, hazards, lava, poison ticks. Every damage source in the game
   // funnels through here, so this one line IS the invincibility; it also means
   // no hit floater, no regen lock and no lifesteal for the attacker, because
   // nothing happened.
-  if (target.statueT > 0) return;
+  if (target.statueT > 0 && !unstoppable) return false;
+  if (target.debtT > 0 && !bypassDebt) {
+    target.debtDamage += Math.max(0, amount);
+    return false;
+  }
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
   // damage attribution: the direct source — or, for sourceless lava ticks,
@@ -1210,7 +1223,7 @@ function applyDamage(state, target, amount, sourceId,
   if (sourceId != null && sourceId !== target.id) {
     if (stamp) target.lastHitBy = { id: sourceId, t: state.time };
     const src = state.players[sourceId];
-    if (src && src.alive) {
+    if (src && src.alive && !noRewards) {
       // heal on EFFECTIVE damage (overkill doesn't feed the sword); works on
       // everything with a source — spells, DoT ticks, trails — never lava
       const { lifesteal, healOnHit } = stats(src);
@@ -1244,6 +1257,18 @@ function applyDamage(state, target, amount, sourceId,
       ...(bonus > 0 ? { bonus } : {}),  // anger: shown above the damage
     });
   if (target.hp <= 0) kill(state, target, sourceId);
+  return true;
+}
+
+function transferDebt(state, owner, target) {
+  const amount = owner && Math.max(0, owner.debtDamage || 0);
+  if (!amount || !target || !target.alive) return;
+  owner.debtDamage = 0;
+  owner.debtPayT = 0;
+  state.events.push({ t: 'debtTransfer', id: owner.id, target: target.id,
+    amount, x: target.x, y: target.y });
+  applyDamage(state, target, amount, owner.id,
+    { bypassDebt: true, noRewards: true, procs: false });
 }
 
 function kill(state, target, directSourceId) {
@@ -1255,6 +1280,7 @@ function kill(state, target, directSourceId) {
   // DEATH is the ONE thing that cancels a repulse charge (round 21.0 ruling,
   // interpretation: "you blow up eventually" assumes you are alive to do it).
   target.charging = null;
+  target.debtT = 0; target.debtDamage = 0; target.debtPayT = 0;
   // dying reveals you: a corpse and its death burst must be visible to everyone,
   // and a hidden body would also silently vanish from the standings
   target.vanishT = 0;
@@ -1411,6 +1437,7 @@ function startRound(state) {
     pl.cooldowns = {};
     // (a round boundary, not a cancel: nothing survives the respawn)
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
+    pl.debtT = 0; pl.debtDamage = 0; pl.debtPayT = 0;
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.statueT = 0;   // …nor already golden
     pl.slowT = 0; pl.slowMultHit = 1;
@@ -1993,6 +2020,20 @@ function stepBattle(state, dt) {
     for (const k of Object.keys(pl.cooldowns))
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
+    if (pl.debtT > 0) {
+      pl.debtT = Math.max(0, pl.debtT - dt);
+      if (pl.debtT === 0 && pl.debtDamage > 0)
+        pl.debtPayT = SPELLS.debt.repay;
+    } else if (pl.debtPayT > 0) {
+      pl.debtPayT = Math.max(0, pl.debtPayT - dt);
+      if (pl.debtPayT === 0 && pl.debtDamage > 0) {
+        const amount = pl.debtDamage;
+        pl.debtDamage = 0;
+        applyDamage(state, pl, amount, pl.id,
+          { bypassDebt: true, noRewards: true, procs: false, unstoppable: true });
+        if (!pl.alive) continue;
+      }
+    }
     if (pl.vanishT > 0) pl.vanishT = Math.max(0, pl.vanishT - dt);
     // Statue (round 21.4): rooted and unpushable. stats() already zeroed the
     // walk speed for this tick; zeroing the velocity keeps any impulse that
@@ -2446,7 +2487,7 @@ function stepProjectiles(state, dt) {
         // riders — Remi). Resolved here because knockback is applied below,
         // before the on-hit riders run. Added AFTER the multiplier loop so the
         // gust value is truly constant whatever else rides the ball.
-        if (pr.elements.gale)
+        if (pr.elements.gale && other.debtT <= 0)
           kb += galeHit(state, pr, other, pr.elements.gale);
       }
       // (Ghost's old behind-the-first-victim damage/push bonus was removed in
@@ -2461,9 +2502,13 @@ function stepProjectiles(state, dt) {
       // (round 21.8, Remi: max of the two, never their sum — SPELLS.nova)
       if (pr.kbMin != null) kb = Math.max(kb, pr.kbMin);
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
-      applyDamage(state, other, dmg + ramp, pr.owner,
+      const debtOwner = state.players[pr.owner];
+      if (pr.type === 'fireball' && debtOwner && debtOwner.debtDamage > 0)
+        transferDebt(state, debtOwner, other);
+      if (!other.alive) { dead = true; break; }
+      const landed = applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
-      if (pr.elements) applyElementsHit(state, pr, other);
+      if (landed && pr.elements) applyElementsHit(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // swap (round 17): full state exchange with the (surviving) victim —
@@ -2473,7 +2518,7 @@ function stepProjectiles(state, dt) {
       // up somewhere new with no stale intent. `charging` is NOT (round 21.0
       // ruling): a swapped charger keeps charging and detonates at the new
       // position — swapping a charger pulls the bomb onto yourself.
-      if (pr.type === 'swap' && other.alive) {
+      if (landed && pr.type === 'swap' && other.alive) {
         const owner = state.players[pr.owner];
         if (owner && owner.alive) {
           [owner.x, other.x] = [other.x, owner.x];
@@ -2846,6 +2891,8 @@ export function snapshot(state, viewerId = null) {
         };
       })(),
       shieldT: round2(p.shieldT),
+      debtT: round2(p.debtT), debtDamage: round2(p.debtDamage),
+      debtPayT: round2(p.debtPayT),
       // Statue (round 21.4): PUBLIC — being an unmissable golden pillar is the
       // whole downside, so everyone sees it (the client draws the body as a
       // gold column). Absent when 0, so nothing changes for anyone not casting it.
