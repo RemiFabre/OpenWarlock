@@ -3,3 +3,4 @@ test/harness/logs/
 test/harness/failures/
 crash-*.json
 .claude/
+tools/sfx-out/
