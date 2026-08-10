@@ -354,9 +354,10 @@ export const SPELLS = {
     // buying it (they would measure it at the do-nothing floor). Fooling bots
     // is explicitly out of scope (BALANCE.md).
     name: 'Decoy', hotkey: 'Z', tier: 'power', maxLevel: 2, costs: [10, 5],
-    cooldown: 16, duration: 5, clones: [1, 2],
+    // Round 21.8 (Remi): duration 5 → 4 s. Revert is this number.
+    cooldown: 16, duration: 4, clones: [1, 2],
     desc: 'A harmless double.',
-    long: 'Spawns 5-second mirages of you that wander and ape your casts; they deal nothing, and everything passes straight through them.',
+    long: 'Spawns 4-second mirages of you that wander and ape your casts; they deal nothing, and everything passes straight through them.',
   },
   // Invisibility (round 12): no restrictions on purpose — levels buy DURATION only.
   // ⚠ Non-negotiable: strip it in snapshot() AND mask bot perception, or devtools

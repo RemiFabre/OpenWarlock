@@ -193,7 +193,7 @@ build step, Node ESM, only dep is `ws`.
   pillars unlimited; `statue` (DISPLAYS as **NOPE** since 21.7, gold-tinted 🗿 —
   the Stone Pillar has the plain 🗿 back) = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
-  duration FLAT); **Decoy** 👥 = 5 s mirages that ape your casts and have zero
+  duration FLAT); **Decoy** 👥 = 4 s mirages (21.8) that ape your casts and have zero
   gameplay effect ([10,5], lv2 = a second clone, cd flat, power tier);
   vanish 1/2/3 s at 10 g — ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable

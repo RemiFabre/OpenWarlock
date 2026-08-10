@@ -1304,12 +1304,12 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 
 // Round 20 (Remi): the spells sit in three quiet groups, labelled on the edge
 // of each row — PRESENTATIONAL only, nothing about a spell changes.
-// Round 21.7 (Remi): the Stone Pillar moved to Special — it is terrain you
-// leave behind, not a save.
+// Round 21.7/21.8 (Remi): the Stone Pillar and the Mine both sit in Special —
+// they are things you LEAVE somewhere, not things you throw at a face.
 const SPELL_ROWS = [
-  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'nova', 'repulse']],
+  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'repulse']],
   ['Defense', ['teleport', 'shield', 'statue', 'rush', 'wall']],
-  ['Special', ['swap', 'vanish', 'decoy', 'pillar']],
+  ['Special', ['swap', 'vanish', 'decoy', 'pillar', 'nova']],
 ];
 const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 

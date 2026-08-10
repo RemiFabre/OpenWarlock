@@ -85,9 +85,11 @@ for **3 / 4 / 5 seconds** after you step out (your second set of numbers, the on
 you called more balanced). A burning body wears a faint ember ring so you can see
 who is still cooking.
 
-## Meteor
+## Meteor, and two trims
 
-Level 2 damage **24 → 30**.
+Meteor level 2 damage **24 → 30**. Decoy's mirages last **4 s** instead of 5.
+The **Mine moved to the Special row** in the shop, next to the Stone Pillar —
+both are things you leave somewhere rather than throw.
 
 ## You were right to push on the lab. Two real problems.
 
