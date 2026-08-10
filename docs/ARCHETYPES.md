@@ -4,13 +4,13 @@
 **Core cost target**: 150-185 g — a bit above the ~145 g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.
 **After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.
 **Fireball**: free at lv1 for everyone in elemental, never levels — not listed.
-**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow). Bomb, Switcheroo, vanish, pillar, wall, repulse are NOT pilotable and are excluded from the ELO pool.
+**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button — hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.
 
 
 ## Family A — system purity (price each shelf as a class)
 
-- **A1-items-sustain** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's best self: HP and lifesteal only.
-  - order: amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → cape2 → hourglass2 → boots3 → cape3 → treads1 → treads2 → treads3 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
+- **A1-items-sustain** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's best self: HP and both kinds of healing.
+  - order: amulet1 → sword1 → spoon1 → amulet2 → sword2 → spoon2 → amulet3 → sword3 → spoon3 → cape2 → hourglass2 → boots1 → boots2 → boots3 → cape3 → treads1 → treads2 → treads3 → hourglass3 → brazier1 → brazier2 → brazier3
   - tests: items as a class (sustain half) vs the element families
 - **A2-items-mobility** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's utility half: speed, lava, armor.
   - order: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3 → cape3 → hourglass1 → hourglass2 → hourglass3 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
@@ -69,6 +69,9 @@
 - **C6-bolt-combo** (152 g): The Chainer: freeze, bolt, shove, repeat (the live lobby build).
   - order: frost1 → lightning1 → gale1 → mosquito1 → frost2 → lightning2 → gale2 → mosquito2 → frost3 → lightning3 → gale3 → mosquito3 → sword1 → amulet1 → sword2 → sword3 → amulet2 → amulet3 → boots1 → boots2 → boots3 → cape1
   - tests: lightning in the same CC shell as C5
+- **C7-statue-guard** (152 g): A 2 s invulnerable statue as the panic button on a plain fighting kit.
+  - order: statue1 → ember2 → statue2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2
+  - tests: what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound) — a floor for a spell whose real value is human timing
 
 ## Family D — play-style archetypes
 
@@ -102,6 +105,12 @@
 - **D10-skirmisher** (155 g): Mobility wins fights: dash in, blink out.
   - order: boots1 → rush1 → ember1 → teleport1 → ember2 → boots2 → shield1 → ember3 → rush2 → sword2 → amulet2 → boots3 → sword3 → amulet3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2
   - tests: the mobility-spell package (rush+blink) as a fighting style
+- **D11-spoonbearer** (152 g): Low damage, endless uptime: hold them still and heal a flat amount off every tap.
+  - order: spoon1 → frost1 → gale1 → spoon2 → frost2 → gale2 → spoon3 → frost3 → gale3 → boots1 → treads1 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots2 → boots3 → cape1 → cape2 → cape3 → treads2 → treads3
+  - tests: the Slow Spoon's premise (round 21.8) — does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?
+- **D12-hatburner** (152 g): Stand in the pack and cook: a burning ring that follows them out of it.
+  - order: brazier1 → malady1 → brazier2 → malady2 → brazier3 → malady3 → treads1 → amulet1 → treads2 → amulet2 → sword1 → sword2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads3 → hourglass1 → hourglass2 → hourglass3
+  - tests: passive damage as a build — the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range
 
 ## Family E — cooldown reduction (question M)
 

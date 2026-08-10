@@ -3903,7 +3903,13 @@ export function botElementFor(pl, seat = 0) {
 // Round 20: the power spells that HAVE a bot pilot (the CC-gated cast in
 // pilotOwnedSpells). Only these may appear in a build/strategy order and be
 // bought — the structural no-power guard below covers everything else.
-const PILOTED_POWER = new Set(['meteor']);
+// Power spells a bot may BUY, because it has real logic to use them. Round 20
+// opened it for meteor (CC-gated cast); round 21.8 adds statue — stepBot has a
+// full panic-button heuristic for it (hurt + a ball inbound + not near the rim),
+// so it is no longer a spell they would own and never press. ⚠ Mine, Decoy,
+// Switcheroo, Repulse, Wall stay OUT: no bot can read a trap or a bluff.
+// Revert = drop the entry; the roster's C7 core then measures nothing.
+const PILOTED_POWER = new Set(['meteor', 'statue']);
 
 export function botShop(state, id) {
   // Testing sandbox (round 19.8, Remi): the ONE untimed shop stands in for

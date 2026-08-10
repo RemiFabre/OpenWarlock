@@ -97,10 +97,12 @@ export function shelfExhausted(entry) {
 export const ROSTER = {
   // ---- Family A: system purity — price each shelf as a class --------------
   'A1-items-sustain': {
-    family: 'A', fantasy: "The item shelf's best self: HP and lifesteal only.",
+    family: 'A', fantasy: "The item shelf's best self: HP and both kinds of healing.",
     tests: 'items as a class (sustain half) vs the element families',
-    core: [['amulet', 1], ['sword', 1], ['amulet', 2], ['sword', 2],
-      ['amulet', 3], ['sword', 3], ['cape', 2], ['hourglass', 2], ['boots', 3]],
+    // round 21.8: the Slow Spoon is the shelf's second healing source, so the
+    // sustain probe has to hold it or it stops being the sustain probe
+    core: [['amulet', 1], ['sword', 1], ['spoon', 1], ['amulet', 2], ['sword', 2],
+      ['spoon', 2], ['amulet', 3], ['sword', 3], ['spoon', 3], ['cape', 2], ['hourglass', 2]],
   },
   // Round 20: echo deleted, so the mobility half is now boots+treads+cape+
   // hourglass MAXED = 78 g and the padder tops it up with sword/amulet.
@@ -225,6 +227,16 @@ export const ROSTER = {
       ['frost', 3], ['lightning', 3], ['gale', 3], ['mosquito', 3], ['sword', 1], ['amulet', 1]],
   },
 
+  // Round 21.8: statue is the one NEW spell a bot can pilot (stepBot's panic
+  // button; SPELLS.statue is in sim.js's PILOTED_POWER). Mine and Decoy are
+  // deliberately absent from this whole roster — no bot reads a trap or a bluff.
+  'C7-statue-guard': {
+    family: 'C', fantasy: 'A 2 s invulnerable statue as the panic button on a plain fighting kit.',
+    tests: 'what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound) — a floor for a spell whose real value is human timing',
+    core: [['statue', 1], ['ember', 2], ['statue', 2], ['sword', 1], ['amulet', 1],
+      ['ember', 3], ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3]],
+  },
+
   // ---- Family D: play-style archetypes --------------------------------------
   'D1-warlord': {
     family: 'D', fantasy: 'No tricks, bigger numbers: win every straight trade.',
@@ -291,6 +303,21 @@ export const ROSTER = {
       ['boots', 2], ['shield', 1], ['ember', 3], ['rush', 2], ['sword', 2], ['amulet', 2], ['boots', 3]],
   },
 
+  // Round 21.8: the two passive items bots get full value from without piloting
+  // anything — the Slow Spoon's flat per-hit heal and the Hat of Aura's burn.
+  'D11-spoonbearer': {
+    family: 'D', fantasy: 'Low damage, endless uptime: hold them still and heal a flat amount off every tap.',
+    tests: "the Slow Spoon's premise (round 21.8) — does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?",
+    core: [['spoon', 1], ['frost', 1], ['gale', 1], ['spoon', 2], ['frost', 2],
+      ['gale', 2], ['spoon', 3], ['frost', 3], ['gale', 3], ['boots', 1], ['treads', 1]],
+  },
+  'D12-hatburner': {
+    family: 'D', fantasy: 'Stand in the pack and cook: a burning ring that follows them out of it.',
+    tests: "passive damage as a build — the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range",
+    core: [['brazier', 1], ['malady', 1], ['brazier', 2], ['malady', 2],
+      ['brazier', 3], ['malady', 3], ['treads', 1], ['amulet', 1], ['treads', 2], ['amulet', 2]],
+  },
+
   // ---- Family E: cooldown reduction (Remi's question M) ---------------------
   // Remi, round 20: "I suspect CDR stacking is secretly strong and untested."
   // The two CDR axes are arcane (haste [18,32,32] on the FIREBALL ONLY, plus a
@@ -326,7 +353,7 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
     out += `**Core cost target**: ${lo}-${hi} g — a bit above the ~${AVG_EARNED} g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.\n`;
     out += `**After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.\n`;
     out += `**Fireball**: free at lv1 for everyone in elemental, never levels — not listed.\n`;
-    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow). Bomb, Switcheroo, vanish, pillar, wall, repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
+    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button — hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
     let fam = '';
     for (const [id, s] of Object.entries(ROSTER)) {
       if (s.family !== fam) {
