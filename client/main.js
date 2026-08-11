@@ -1048,6 +1048,8 @@ const FX_FIELDS = {
   stacksToTrigger: ['stacks to detonate', fmtNum],
   burstKbMult: ['the gust pushes', fmtMult],   // dormant: pre-round-19 revert path
   burstKbAdd: ['the gust adds', (v) => `+${fmtNum(v)} push`],
+  // issue #5: frost banks this share of the push it cancels, for the next hit
+  storeFrac: ['push banked for the next hit', (v) => `${fmtNum(Math.round(v * 100))}%`],
   hitRefund: ['fireball hit refunds', (v) => (+v > 0 ? `−${fmtSec(v)} off every cooldown` : '—')],
   pierceAtLevel: ['passthrough unlocks at', (v) => `lv ${fmtNum(v)}`],
   slowMult: ['victim speed', fmtMult],
