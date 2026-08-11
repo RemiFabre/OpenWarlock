@@ -1096,9 +1096,14 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
         const amt = Math.round(+f.amount || 0);
-        // round 18.1 (Remi): the SIZE carries the magnitude — +1 hp whispers
-        // at 10px, +50 hp (and anything bigger) shouts at 26px
-        const px = Math.round(10 + 16 * Math.min(Math.max(amt, 0), 50) / 50);
+        // round 18.1 (Remi): the SIZE carries the magnitude. Round 21.8 (Remi:
+        // "everyone has some lifesteal, so 1s and 2s are all over the screen"):
+        // the FLOOR dropped 10px → 6px and the curve is now concave, so the
+        // crumbs whisper while everything that matters keeps its old presence —
+        // +1 6px, +2 9px, +5 12px, +10 15px (was 13), +20 18px, +50 and up 26px,
+        // the ceiling unchanged. Revert = the old linear `10 + 16 * amt/50`.
+        const px = Math.round(6 + 20 * Math.sqrt(
+          Math.min(Math.max(amt - 1, 0), 49) / 49));
         ctx.save();
         ctx.textAlign = 'center';
         ctx.font = `700 ${px}px ui-monospace, Menlo, monospace`;

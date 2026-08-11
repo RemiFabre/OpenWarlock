@@ -191,6 +191,24 @@ up, so **the plague side of this is a floor**: contagion spreads further in your
 hands than in any of these numbers. If plague+spoon feels oppressive, 0.08 is
 the same rule with a smaller tenth.
 
+## The green numbers whisper now
+
+You were right that they got noisy once everyone has some lifesteal. The size
+curve keeps its ceiling and drops its floor, and it is concave now so the middle
+does not get dragged down with the crumbs:
+
+| heal | before | now |
+|---|---|---|
+| +1 hp | 10 px | **6 px** (−40%, your number) |
+| +2 hp | 11 px | 9 px |
+| +5 hp | 12 px | 12 px |
+| +10 hp | 13 px | **15 px** (slightly louder — it is a real heal) |
+| +20 hp | 16 px | 18 px |
+| +50 hp and up | 26 px | **26 px** (unchanged) |
+
+Screenshotted all six side by side in a real game: +1 is a whisper you notice
+only if you look, +10 reads at a glance, +50 still shouts.
+
 ## The measurement that led here: spoon vs blade, before the change
 
 Same kit, one item swapped: maxed cadence (arcane 3 + hourglass 3), Echo pairs
