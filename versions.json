@@ -46,6 +46,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/5",
       "branch": "issue-5-sharpshooter",
       "commit": "e28ed40f30ae126e5318d2f7e507e224681ec7b3"
+    },
+    {
+      "slug": "hold-the-line",
+      "name": "Hold the Line",
+      "author": "@RemiFabre",
+      "summary": "Ember level 3 stops adding damage and lets you HOLD the fireball key to charge a bigger, heavier ball — five steps in 1.5 seconds, and holding too long loses the cast. Rush charges the same way, and a full-charge dash is invisible and unstoppable.",
+      "issue": 6,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/6",
+      "branch": "issue-6-charging",
+      "commit": "cd0f4f5b62623df4476aa9a0ca304963e784d501"
     }
   ]
 }
