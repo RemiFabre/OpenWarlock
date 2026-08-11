@@ -18,8 +18,9 @@ boundaries should not slow down normal game changes.
 
 ## Issue-agent runbook
 
-Process one issue at a time, then repeat from step 2; aim to ship several
-versions in one agent session without carrying unnecessary context forward.
+Process one issue at a time, then repeat from step 2 indefinitely; aim to ship
+several versions per session without carrying unnecessary context forward. When
+the queue is empty, wait 60 seconds and check again instead of stopping.
 
 ### 1. Start in the dedicated clone
 
@@ -48,7 +49,7 @@ gh issue list --repo RemiFabre/OpenWarlock --state open --limit 1000 \
 ```
 
 This deliberately includes manually created and unlabelled issues. `ai:queued`
-is helpful but not required. If nothing is available, exit successfully.
+is helpful but not required.
 
 ### 3. Comment the verdict before coding
 
