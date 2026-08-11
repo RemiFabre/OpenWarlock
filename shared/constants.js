@@ -214,6 +214,29 @@ export const SPELLS = {
     damage: [4, 6, 8], knockback: [50, 59, 68],
     desc: 'Tap again to recall it early; catch it to halve the cooldown.',
   },
+  ricochet: {
+    // Issue #3 (Biousere, "Version 1 de Ju"): a ball that BOUNCES. Its own
+    // spell, never a fireball — elements deliberately do not ride it (a rider
+    // surviving several bounces is a different, much bigger change).
+    //  - bounces off an invisible circle at the CURRENT lava edge (it follows
+    //    the shrink) and off pillars, at every level.
+    //  - `bounceAll` at lv3: also mirror walls (any owner's, its own included)
+    //    and NOPE statues — his "toutes les choses physiques".
+    //  - dies on the first enemy body it touches. It never bounces off a player.
+    //  - `life` starts at the FIRST bounce, not at the cast, so a ball that has
+    //    not hit anything yet is not on a clock.
+    // Damage is the number most likely to need a second pass: a fireball is
+    // 7 dmg on half this cooldown, so this is priced a little above per cast.
+    // ⚠ `tier: 'power'` is the BOT GUARD, nothing else (see the tier note
+    // below): no bot brain casts a bounce shot, and without the guard the
+    // round-19.1 leftover pass would happily buy one and never fire it.
+    name: 'Ricochet', hotkey: 'Y', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
+    cooldown: 2 * 2.1, speed: 41, radius: 0.8, range: Infinity,
+    damage: [10, 13, 16], knockback: [60, 65, 70],
+    life: [4, 8, 12], bounceAllAtLevel: 3,
+    desc: 'A ball that bounces off the world.',
+    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too.',
+  },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
     // Round 19.1: [8,6] was too cheap on his read — "let's try 10, 8".
@@ -443,6 +466,16 @@ export const ITEMS = {
   brazier: { name: 'Hat of Aura', cost: 6, maxLevel: 3, tickEvery: 1,
             desc: 'Burns nearby foes.',
             long: 'Enemies standing inside a ring around you burn for 1 damage per second; the ring grows with the level. Teammates and you never feel it.' },
+  // Issue #3 (Biousere): cheat death. The lethal hit is refused, you stand back
+  // up where you fell at half max HP and the attacker gets NOTHING (no kill, no
+  // bounty, no multikill) — the death never happened, so the first-death gold
+  // moves to your next real death. Level = saves PER ROUND (they refresh with
+  // your HP). `costs` is the +25%-per-purchase escalation, rounded.
+  // ⚠ SECRET: stripped from every other player's snapshot (see snapshot()) —
+  // nobody may see it in your kit.
+  angel: { name: 'Guardian Angel', costs: [12, 15, 19], maxLevel: 3,
+            desc: 'Cheat death, secretly.',
+            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. One save per level, per round. No other player can see that you own it.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -513,6 +546,9 @@ export const ITEM_FX = {
   // At 0.05 the ticks stop mattering; at 0.2 the aura build runs +56%.
   // history: docs/history/2026-08-11-round21.8-elo.md#addendum
   spoon: { healOnHit: [1, 2, 3], tickFrac: 0.1 },
+  // Guardian Angel (issue #3): saves per ROUND, and the fraction of max HP you
+  // stand back up with. Neither is a passive stat, so items.js ignores both.
+  angel: { saves: [1, 2, 3], reviveFrac: 0.5 },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------

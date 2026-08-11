@@ -183,6 +183,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     radius: PLAYER.RADIUS,
     spells: { fireball: 1 },
     items: {},           // owned item levels, e.g. {boots: 2, cape: 1}
+    angelUsed: 0,        // Guardian Angel saves spent this round (issue #3)
     // draft mode only: this shop's free offer, {round, options:[key], picked}.
     // Stays null for the whole game when the toggle is off.
     draftOffer: null,
@@ -596,6 +597,19 @@ export function castSpell(state, id, key, tx, ty) {
         hit: {},                    // players hit this leg
         pierce: true,               // never pops on a body: one hit each, flies on
         pierced: 0,
+      });
+      break;
+    }
+    case 'ricochet': {
+      // issue #3: an ordinary ball until it meets something solid. `life` is
+      // null until the first bounce arms it (SPELLS.ricochet).
+      state.projectiles.push({
+        id: state.nextId++, type: key, owner: id, level,
+        x: pl.x + dx * pl.radius * 0.5,
+        y: pl.y + dy * pl.radius * 0.5,
+        vx: dx * spec.speed, vy: dy * spec.speed,
+        traveled: 0, hit: {}, pierce: false, pierced: 0,
+        life: null,
       });
       break;
     }
@@ -1278,7 +1292,29 @@ function spoonTickDue(state, src, target) {
   return true;
 }
 
+// Spend a Guardian Angel save if this player has one left this round: they stand
+// back up WHERE THEY FELL on a fraction of their max HP. Returns true when the
+// death was refused. The lethal source keeps its `lastHitBy` stamp, so whoever
+// finishes the job after this still gets the credit.
+function angelSave(state, pl) {
+  const level = (pl.items && pl.items.angel) || 0;
+  const saves = itemFxAt('angel', 'saves', level);
+  if (!saves || (pl.angelUsed || 0) >= saves) return false;
+  pl.angelUsed = (pl.angelUsed || 0) + 1;
+  pl.hp = Math.max(1, Math.round(pl.maxHp * ITEM_FX.angel.reviveFrac));
+  // no `id` on the event on purpose: it is drawn at x/y for everyone, and the
+  // item is a secret — the wire must not say whose kit paid for it.
+  state.events.push({ t: 'angel', x: pl.x, y: pl.y });
+  return true;
+}
+
 function kill(state, target, directSourceId) {
+  // Guardian Angel (issue #3, ITEMS.angel): the blow is REFUSED. Deliberately
+  // the very first thing here, so every lethal source is covered at once —
+  // spell, lava, sickness, burn — and so nothing below runs: no death, no kill
+  // for the attacker, no bounty, no multikill, and `diedFirstRound` is not
+  // stamped, which is what moves the first-death gold to the next real death.
+  if (angelSave(state, target)) return;
   target.hp = 0;
   target.alive = false;
   target.deaths++;
@@ -1473,6 +1509,8 @@ function startRound(state) {
     pl._angerNext = ELEMENTS.anger.fx.markDelay;
     pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
+    // Guardian Angel (issue #3): its saves refresh with the round, like your HP
+    pl.angelUsed = 0;
     pl.roundKills = 0;
     pl.roundBounty = 0;
     pl.shopReady = false;
@@ -2322,6 +2360,30 @@ function stepProjectiles(state, dt) {
     pr.x += pr.vx * dt; pr.y += pr.vy * dt;
     pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
 
+    // Ricochet (issue #3): the one projectile that bounces. Its invisible wall
+    // is the CURRENT lava edge, so the arena's shrink drags it inwards with it,
+    // and the clock only starts at the first bounce.
+    if (pr.type === 'ricochet') {
+      if (pr.life != null) {
+        pr.life -= dt;
+        if (pr.life <= 0) {
+          state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
+          continue;
+        }
+      }
+      const d = Math.hypot(pr.x, pr.y);
+      const wall = Math.max(state.arenaRadius - prRadius, 0.1);
+      if (d > wall && d > 1e-6) {
+        const nx = pr.x / d, ny = pr.y / d;
+        // only a ball travelling OUTWARD is turned: one already over the lava
+        // (a shot fired from a swim) is free to come home.
+        if (pr.vx * nx + pr.vy * ny > 0) {
+          pr.x = nx * wall; pr.y = ny * wall;
+          bounceProjectile(state, pr, nx, ny);
+        }
+      }
+    }
+
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
     if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
@@ -2342,6 +2404,14 @@ function stepProjectiles(state, dt) {
       const pil = state.pillars[i];
       if (pil.sunk) continue;
       if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) > prRadius + pil.r) continue;
+      // Ricochet bounces off a pillar at every level instead of popping on it.
+      if (pr.type === 'ricochet') {
+        if (!bounceOffCircle(state, pr, px0, py0, pil.x, pil.y, pil.r + prRadius))
+          continue;       // already leaving this pillar: not a collision
+        blocked = true;   // handled: skip the rest of this tick's collisions
+        keep.push(pr);
+        break;
+      }
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
       if (smashes) {
         state.pillars.splice(i, 1);
@@ -2369,6 +2439,23 @@ function stepProjectiles(state, dt) {
         break;
       }
       if (stored) continue;
+    }
+
+    // Ricochet lv3, "all physical things" (issue #3): a mirror wall is just one
+    // more surface — ANY owner's, its own included — and the ball stays YOURS
+    // instead of being stolen the way the generic mirror below steals one.
+    if (pr.type === 'ricochet' && pr.level >= spec.bounceAllAtLevel) {
+      let hitWall = false;
+      for (const w of state.walls) {
+        const side = (px0 - w.x1) * w.nx + (py0 - w.y1) * w.ny;
+        const vn = pr.vx * w.nx + pr.vy * w.ny;
+        if (side * vn >= 0) continue;  // moving away from the plane (see below)
+        if (segSegDist(px0, py0, pr.x, pr.y, w.x1, w.y1, w.x2, w.y2) > prRadius + 0.4) continue;
+        bounceProjectile(state, pr, w.nx, w.ny);
+        hitWall = true;
+        break;
+      }
+      if (hitWall) { keep.push(pr); continue; }
     }
 
     // mirror walls: ENEMY projectiles bounce (mirrored across the wall's
@@ -2427,6 +2514,13 @@ function stepProjectiles(state, dt) {
       // collision test): allies ignore each other's spells, and a statue is a
       // spell — the stone pillars are the map, this is not.
       if (other.statueT > 0) {
+        // ...except a lv3 Ricochet, for which a statue is one of the "physical
+        // things" it bounces off (issue #3). It survives and keeps flying.
+        if (pr.type === 'ricochet' && pr.level >= spec.bounceAllAtLevel) {
+          bounceOffCircle(state, pr, px0, py0, other.x, other.y,
+            other.radius + prRadius);
+          break;   // bounced or already leaving: either way it survives
+        }
         state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
         dead = true;
         break;
@@ -2587,6 +2681,46 @@ function mosquitoPair(state, pl, trailing) {
   if (!due) return false;
   pl.mosqDue = trailing;   // carried to the next real cast, or spent here
   return !trailing;
+}
+
+// ---- ricochet (issue #3) ---------------------------------------------------
+// Mirror the velocity about a unit surface normal and arm the ball's clock: its
+// `life` runs from the FIRST bounce, never from the cast, so a shot that has met
+// nothing yet is not on a timer.
+function bounceProjectile(state, pr, nx, ny) {
+  const vn = pr.vx * nx + pr.vy * ny;
+  pr.vx -= 2 * vn * nx;
+  pr.vy -= 2 * vn * ny;
+  if (pr.life == null) pr.life = lvl(SPELLS[pr.type], 'life', pr.level);
+  state.events.push({ t: 'bounce', id: pr.owner, x: pr.x, y: pr.y });
+}
+
+// Bounce off a round obstacle (pillar, statue body). The normal is taken at the
+// closest point of THIS TICK'S SEGMENT, not at the post-move position: a fast
+// ball can end the tick past the obstacle's far side, and the post-move normal
+// then points backwards and reflects it straight through (the swept-collision
+// scar, one shape further on).
+//
+// Returns false when the ball is already LEAVING the surface, and the caller
+// must then treat the obstacle as a miss. ⚠ Load-bearing: a bounce parks the
+// ball exactly on the contact circle, so the very next tick's segment still
+// touches it — without this the ball flips its velocity every tick and sits
+// glued to the pillar forever (seen, not theorised).
+function bounceOffCircle(state, pr, px0, py0, cx, cy, minDist) {
+  const dx = pr.x - px0, dy = pr.y - py0;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 > 1e-12
+    ? clamp(((cx - px0) * dx + (cy - py0) * dy) / len2, 0, 1)
+    : 0;
+  let nx = px0 + t * dx - cx, ny = py0 + t * dy - cy;
+  const n = Math.hypot(nx, ny);
+  if (n > 1e-6) { nx /= n; ny /= n; }
+  else { const v = Math.hypot(pr.vx, pr.vy) || 1; nx = -pr.vx / v; ny = -pr.vy / v; }
+  if (pr.vx * nx + pr.vy * ny >= 0) return false;
+  pr.x = cx + nx * minDist;
+  pr.y = cy + ny * minDist;
+  bounceProjectile(state, pr, nx, ny);
+  return true;
 }
 
 // Turn a boomerang around toward its LAUNCH POINT (not the thrower — standing
@@ -2837,6 +2971,11 @@ export function viewEvents(state, events, viewerId = null) {
   });
 }
 
+function stripAngel(items) {
+  const { angel, ...rest } = items;
+  return rest;
+}
+
 export function snapshot(state, viewerId = null) {
   const elemental = state.mode === 'elemental';
   const coop = state.mode === 'coop';
@@ -2873,7 +3012,13 @@ export function snapshot(state, viewerId = null) {
       multiKillBest: p.multiKillBest,
       spectator: p.spectator, radius: round2(p.radius),
       againReady: !!p.againReady,
-      spells: p.spells, items: p.items,
+      // Guardian Angel (issue #3) is a SECRET item: it never reaches anyone
+      // else's client, the same rule as an invisible player's position above —
+      // hiding it client-side only would leave it in devtools. The copy is made
+      // only for a viewer who would otherwise see it, so the common path is
+      // still the same object reference it always was.
+      spells: p.spells,
+      items: p.id !== viewerId && p.items.angel ? stripAngel(p.items) : p.items,
       cooldowns: mapRound(p.cooldowns),
       // effective stats at your current item levels — the shop/stats panel
       // shows these so "what did lv 3 rings actually buy me" is answerable
@@ -2998,6 +3143,9 @@ export function snapshot(state, viewerId = null) {
       // vampire: the engorged ball must LOOK different — both fields can only
       // ever be set in elemental mode, so a classic projectile is byte-identical
       ...(p.engorged ? { engorged: 1 } : {}),
+      // ricochet: seconds left once its clock is armed, so the client can show
+      // the ball fading out instead of vanishing without warning (issue #3)
+      ...(p.life != null ? { life: round2(p.life) } : {}),
     })),
     // campaign HUD state, co-op only
     ...(coop && state.coop ? {

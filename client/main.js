@@ -40,6 +40,8 @@ const ICONS = {
   // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember.
   // Slow Spoon (21.8): Remi's joke — the slowest murder in history.
   hourglass: '⏳', brazier: '🎩', spoon: '🥄',
+  // Issue #3: a bouncing ball, and the wing that catches you.
+  ricochet: '🎾', angel: '🪽',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -57,10 +59,10 @@ const KEY_PRESETS = {
   // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a', decoy: 'z' },
+            statue: 'a', decoy: 'z', ricochet: 'y' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q', decoy: 'w' },
+            statue: 'q', decoy: 'w', ricochet: 'y' },
 };
 
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
@@ -396,6 +398,17 @@ function onEvent(e) {
     case 'vanish':
       fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 });
       if (e.id === myId) playSfx('teleport');
+      break;
+    // Issue #3. The bounce spark is everyone's (a ball ricocheting off-screen
+    // still matters); the click is only YOUR ball's, or a busy arena chatters.
+    case 'bounce':
+      fx.push({ ...e, type: 'reflect', at: now, dur: 0.25 });
+      if (e.id === myId) playSfx('reflect');
+      break;
+    // Guardian Angel: somebody just refused to die. Public, and anonymous.
+    case 'angel':
+      fx.push({ ...e, type: 'angel', at: now, dur: 0.9 });
+      playSfx('catch');
       break;
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
@@ -1020,11 +1033,14 @@ const SPELL_FIELDS = {
   clones: ['copies of you', fmtNum],
   stores: ['fireballs it stores', fmtNum],
   ballDelay: ['stored balls fire', (v) => `${fmtSec(v)} apart`],
+  life: ['lives on, after its first bounce', fmtSec],
 };
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
 // sim evaluates at resolution ({pad, min}) — spellTip prints the two readings a
 // player can act on instead (round 20.5).
-const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun']);
+// `bounceAllAtLevel` is skipped for the same reason: it is not a per-level row
+// but the level at which Ricochet's `long` line already promises the upgrade.
+const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun', 'bounceAllAtLevel']);
 // element fx whose array is NOT per-level (tierHits columns are tiers) —
 // their reading lives in another row's label instead. markDelay and
 // rampPermanent are display-only trims (Remi, round 19.4: those anger rows
@@ -1078,6 +1094,8 @@ const ITEM_FIELDS = {
   linger: ['keeps burning for', fmtSec],
   healOnHit: ['heal per enemy hit', (v) => `+${fmtNum(v)} hp`],
   tickFrac: ['burns & sickness heal', (v) => `${fmtNum(Math.round(v * 100))}% of that, max 1/s`],
+  saves: ['deaths refused, per round', fmtNum],
+  reviveFrac: ['you stand back up on', (v) => `${fmtNum(Math.round(v * 100))}% of max HP`],
 };
 
 // What the level you own actually bought, as a plain sentence. The maths lives
@@ -1095,6 +1113,7 @@ const ITEM_LIVE = {
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
   brazier: (lv) => `enemies within ${fmtNum(itemFxAt('brazier', 'auraR', lv))} units of you burn for ${fmtNum(itemFxAt('brazier', 'auraDps', lv))} hp/s, and keep burning ${fmtNum(itemFxAt('brazier', 'linger', lv))} s after they leave`,
   spoon: (lv) => `every enemy you damage heals you ${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp, and ${fmtNum(itemFxAt('spoon', 'healOnHit', lv) * ITEM_FX.spoon.tickFrac)} per burn or sickness tick`,
+  angel: (lv) => `${fmtNum(itemFxAt('angel', 'saves', lv))} death${itemFxAt('angel', 'saves', lv) > 1 ? 's' : ''} per round are refused: you stand back up where you fell on ${fmtNum(Math.round(PLAYER.MAX_HP * ITEM_FX.angel.reviveFrac))} hp — half of your base ${fmtNum(PLAYER.MAX_HP)} — and nobody is credited`,
 };
 
 // The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
@@ -1109,6 +1128,7 @@ const ITEM_TAG = {
   hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} haste`,
   brazier: (lv) => `${fmtNum(itemFxAt('brazier', 'auraDps', lv))} dmg/s, r ${fmtNum(itemFxAt('brazier', 'auraR', lv))}, +${fmtNum(itemFxAt('brazier', 'linger', lv))} s`,
   spoon: (lv) => `+${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp per hit`,
+  angel: (lv) => `${fmtNum(itemFxAt('angel', 'saves', lv))} free death${itemFxAt('angel', 'saves', lv) > 1 ? 's' : ''}/round`,
 };
 
 // One row of the per-level table. A scalar REPEATS in every level column

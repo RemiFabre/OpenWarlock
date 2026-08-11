@@ -563,6 +563,34 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.textBaseline = 'middle';
       ctx.fillText('🎭', x, y);
       ctx.textBaseline = 'alphabetic';
+    } else if (pr.type === 'ricochet') {
+      // Issue #3: a hard little sphere in its owner's colour, so a ball still
+      // bouncing around the arena is always attributable. Once its clock is
+      // armed (`life` on the wire) the ball dims towards the end and the halo
+      // shrinks with the time left — the "when does that stop" feedback.
+      const r = SPELLS.ricochet.radius * scale;
+      const owner = players.find(p => p && p.id === pr.owner);
+      const tint = (owner && owner.color) || '#cfe8ff';
+      const full = SPELLS.ricochet.life[SPELLS.ricochet.life.length - 1];
+      const frac = pr.life == null ? 1 : Math.max(0.15, Math.min(1, pr.life / full));
+      const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
+      ctx.save();
+      ctx.globalAlpha = pr.life == null ? 1 : 0.5 + 0.5 * frac;
+      ctx.strokeStyle = tint; ctx.lineWidth = r * 1.1; ctx.lineCap = 'round';
+      ctx.globalAlpha *= 0.4;
+      ctx.beginPath();
+      ctx.moveTo(x - Math.cos(ang) * r * 5, y - Math.sin(ang) * r * 5);
+      ctx.lineTo(x, y); ctx.stroke();
+      ctx.globalAlpha /= 0.4;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 1.9);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.45, tint);
+      glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * (1 + 0.5 * frac), 0, TAU); ctx.stroke();
+      ctx.restore();
     } else if (pr.type === 'boomerang') {
       const r = SPELLS.boomerang.radius * 0.9 * scale; // drawn a hair inside the hitbox
       ctx.save();
@@ -1147,6 +1175,35 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.strokeStyle = `rgba(170, 120, 70, ${a})`;
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(x, y, (1.4 + 1.6 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      // Guardian Angel (issue #3): the death that did not happen. A gold halo
+      // rising off the body plus two wing arcs — loud enough that everyone
+      // reads "they should be dead", and it says nothing about whose item it
+      // was (the event carries no player id on purpose).
+      case 'angel': {
+        const x = view.sx(f.x), y = view.sy(f.y);
+        // the shockwave, drawn well outside the body so it is never lost under
+        // the HP bar (the round-16 scar: an fx under the bar reads as nothing)
+        ctx.strokeStyle = `rgba(255, 236, 180, ${a})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(x, y, (1.4 + 5 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        // two wings sweeping open from the shoulders
+        ctx.strokeStyle = `rgba(255, 255, 255, ${a})`;
+        ctx.lineWidth = 3;
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.arc(x + s * (1.2 + 1.8 * k) * scale, y - 0.4 * scale, (1.6 + 1.6 * k) * scale,
+            s > 0 ? -2.2 : 1.0, s > 0 ? 1.0 : -2.2);
+          ctx.stroke();
+        }
+        // and the halo, climbing clear of the name plate
+        const hy = y - (2.4 + 3.4 * k) * scale;
+        ctx.strokeStyle = `rgba(255, 226, 120, ${a})`;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.ellipse(x, hy, 1.5 * scale, 0.5 * scale, 0, 0, Math.PI * 2);
+        ctx.stroke();
         break;
       }
       case 'rubble': {

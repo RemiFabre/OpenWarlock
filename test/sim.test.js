@@ -7078,3 +7078,201 @@ describe('decoy 👥 (the mirage)', () => {
       .toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Issue #3 (Biousere): Ricochet, and the Guardian Angel.
+// ---------------------------------------------------------------------------
+
+describe('Ricochet (issue #3)', () => {
+  const spec = SPELLS.ricochet;
+
+  // Two seats, both parked and harmless, no pillars: a clean table on which the
+  // only moving thing is the ball under test.
+  function table(level = 1) {
+    const state = freshBattle(2);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0;
+    b.x = 0; b.y = -40;            // out of the firing line, which points +x
+    a.spells.ricochet = level;
+    return state;
+  }
+  const ball = (state) => state.projectiles.find(p => p.type === 'ricochet');
+
+  it('costs the medium tier and its cooldown is exactly twice the fireball', () => {
+    expect(spec.costs).toEqual([10, 5, 5]);
+    expect(spec.cooldown).toBe(2 * SPELLS.fireball.cooldown[0]);
+    // bots cast no bounce shot, so the guard has to keep them from buying one
+    expect(spec.tier).toBe('power');
+  });
+
+  it('bounces off the invisible wall at the lava edge instead of flying out', () => {
+    const state = table();
+    castSpell(state, 'p0', 'ricochet', 100, 0);
+    const R = state.arenaRadius;
+    // long enough to reach the rim and come a good way back at 41 u/s
+    run(state, (1.6 * R) / spec.speed);
+    const pr = ball(state);
+    expect(pr).toBeTruthy();
+    expect(Math.hypot(pr.x, pr.y)).toBeLessThanOrEqual(R + 1e-6);
+    expect(pr.vx).toBeLessThan(0);   // it turned around
+    // an ordinary fireball on the same line is long gone over the lava
+    const s2 = table();
+    castSpell(s2, 'p0', 'fireball', 100, 0);
+    run(s2, (2.5 * R) / SPELLS.fireball.speed);
+    expect(s2.projectiles.length).toBe(0);
+  });
+
+  it('bounces off a pillar; a fireball still pops on one', () => {
+    const state = table();
+    state.pillars.push({ x: 12, y: 0, r: 2.2, sunk: false });
+    castSpell(state, 'p0', 'ricochet', 100, 0);
+    run(state, 0.6);
+    const pr = ball(state);
+    expect(pr).toBeTruthy();
+    expect(pr.vx).toBeLessThan(0);
+    const s2 = table();
+    s2.pillars.push({ x: 12, y: 0, r: 2.2, sunk: false });
+    castSpell(s2, 'p0', 'fireball', 100, 0);
+    run(s2, 0.6);
+    expect(s2.projectiles.length).toBe(0);
+  });
+
+  it('its clock starts at the FIRST bounce, and then runs out', () => {
+    for (const level of [1, 2, 3]) {
+      const state = table(level);
+      state.pillars.push({ x: 12, y: 0, r: 2.2, sunk: false });
+      castSpell(state, 'p0', 'ricochet', 100, 0);
+      run(state, 0.2);
+      expect(ball(state).life).toBe(null);        // not armed before the bounce
+      run(state, 0.4);
+      const life = spec.life[level - 1];
+      // armed at the bounce, which happened somewhere inside that 0.4 s
+      expect(ball(state).life).toBeLessThanOrEqual(life);
+      expect(ball(state).life).toBeGreaterThan(life - 0.4);
+      run(state, life - 0.5);
+      expect(ball(state)).toBeTruthy();
+      run(state, 0.6);
+      expect(ball(state)).toBeUndefined();
+    }
+  });
+
+  it('damages the first enemy it touches and disappears — it never bounces off a body', () => {
+    const state = table();
+    const b = state.players.p1;
+    b.x = 12; b.y = 0;
+    const hp = b.hp;
+    castSpell(state, 'p0', 'ricochet', 100, 0);
+    run(state, 0.6);
+    expect(hp - b.hp).toBe(spec.damage[0]);
+    expect(ball(state)).toBeUndefined();
+  });
+
+  it('level 3 bounces off a statue and off a mirror wall; level 1 does not', () => {
+    for (const level of [1, 3]) {
+      const state = table(level);
+      const b = state.players.p1;
+      b.x = 12; b.y = 0; b.statueT = 5;
+      castSpell(state, 'p0', 'ricochet', 100, 0);
+      run(state, 0.6);
+      expect(!!ball(state)).toBe(level === 3);
+    }
+    // a wall of the caster's OWN: level 1 flies through it, level 3 bounces and
+    // the ball stays theirs (the generic mirror below it steals ownership)
+    for (const level of [1, 3]) {
+      const state = table(level);
+      state.walls.push({
+        owner: 'p0', x1: 12, y1: -5, x2: 12, y2: 5, nx: -1, ny: 0,
+        until: state.time + 5,
+      });
+      castSpell(state, 'p0', 'ricochet', 100, 0);
+      run(state, 0.6);
+      const pr = ball(state);
+      expect(pr).toBeTruthy();
+      expect(pr.owner).toBe('p0');
+      expect(pr.vx < 0).toBe(level === 3);
+    }
+  });
+});
+
+describe('Guardian Angel (issue #3)', () => {
+  function table(level = 1) {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; }
+    a.x = 0; a.y = 0; b.x = 6; b.y = 0;
+    a.items.angel = level;
+    return state;
+  }
+  // p1 finishes p0 off with a fireball; p0 is left on 1 hp first. Both are
+  // re-parked every call, because a save leaves the victim carrying the shove.
+  function lethalHit(state) {
+    const a = state.players.p0, b = state.players.p1;
+    a.hp = 1; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    b.x = a.x + 6; b.y = a.y; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.5);
+  }
+
+  it('is 12 g and 25% dearer per purchase', () => {
+    expect([0, 1, 2].map(owned => itemCost('angel', owned))).toEqual([12, 15, 19]);
+    expect(ITEMS.angel.maxLevel).toBe(3);
+  });
+
+  it('refuses the death: half HP where you fell, and the attacker gets nothing', () => {
+    const state = table(1);
+    const a = state.players.p0, b = state.players.p1;
+    const kills = b.kills, gold = b.gold;
+    lethalHit(state);
+    expect(a.alive).toBe(true);
+    expect(a.hp).toBe(Math.round(a.maxHp * ITEM_FX.angel.reviveFrac));
+    expect(a.deaths).toBe(0);
+    expect(b.kills).toBe(kills);
+    expect(b.gold).toBe(gold);
+    expect(state.events.some(e => e.t === 'death')).toBe(false);
+  });
+
+  it('one save per level, per round, and they refresh with the round', () => {
+    const state = table(1);
+    const a = state.players.p0;
+    lethalHit(state);
+    expect(a.alive).toBe(true);
+    lethalHit(state);
+    expect(a.alive).toBe(false);     // level 1 had exactly one
+    expect(a.deaths).toBe(1);
+    // level 2 survives two lethal hits in the same round
+    const s2 = table(2);
+    lethalHit(s2); lethalHit(s2);
+    expect(s2.players.p0.alive).toBe(true);
+    lethalHit(s2);
+    expect(s2.players.p0.alive).toBe(false);
+    // and the next round hands the saves back
+    s2.players.p0.angelUsed = 2;
+    run(s2, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(s2.players.p0.angelUsed).toBe(0);
+  });
+
+  it('moves the first-death gold to the next real death', () => {
+    const state = table(1);
+    const a = state.players.p0;
+    lethalHit(state);
+    expect(a.diedFirstRound).not.toBe(state.round);  // the save was not a death
+    lethalHit(state);
+    expect(a.diedFirstRound).toBe(state.round);
+  });
+
+  it('is a secret: it never reaches another player, and the save is anonymous', () => {
+    const state = table(2);
+    state.players.p0.items.boots = 1;
+    expect(snapshot(state, 'p0').players.p0.items).toEqual({ angel: 2, boots: 1 });
+    expect(snapshot(state, 'p1').players.p0.items).toEqual({ boots: 1 });
+    // the untouched inventory is still the same object, not a copy per tick
+    expect(snapshot(state, 'p1').players.p1.items).toBe(state.players.p1.items);
+    lethalHit(state);
+    const ev = state.events.find(e => e.t === 'angel');
+    expect(ev).toBeTruthy();
+    expect(ev.id).toBeUndefined();   // the wire must not say whose item paid
+  });
+});
