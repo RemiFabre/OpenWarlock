@@ -71,6 +71,9 @@ build step, Node ESM, only dep is `ws`.
 
 ## Player idea queue (GitHub Issues)
 
+- The complete operational procedure is
+  [`docs/VERSIONING.md#issue-agent-runbook`](docs/VERSIONING.md#issue-agent-runbook).
+  This section is the compact policy summary; follow the runbook for every issue.
 - The public-issue agent runs in Codex's workspace sandbox from its own clone,
   never Full access, with a fine-grained token for THIS repo only: Contents/Issues
   write, Actions read, no Workflows/Admin/org. Tests run without GitHub tokens.
