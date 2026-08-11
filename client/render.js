@@ -833,6 +833,39 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
 
+    // Charge bar (issue #6): PUBLIC — five segments that fill one at a time,
+    // gold when the last one lands, flashing red in the final moments before the
+    // hold fizzles. Drawn above the name so it is never hidden by the HP bar.
+    if (pl.charge && fin(pl.charge.frac)) {
+      const cw = 52, ch = 7, tiers = 5;
+      const cy = y - r - 40;   // clear of the name plate, never on top of it
+      const frac = Math.max(0, Math.min(1, pl.charge.frac));
+      const tier = Math.max(0, Math.min(tiers - 1, pl.charge.tier | 0));
+      const full = tier >= tiers - 1;
+      const doomed = frac > 0.93;      // let go NOW
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(x - cw / 2, cy, cw, ch);
+      const seg = cw / tiers;
+      for (let i = 0; i <= tier; i++) {
+        ctx.fillStyle = doomed && (t * 12 | 0) % 2 === 0 ? '#ff4d3d'
+          : full ? '#ffcc55' : '#8fd0ff';
+        ctx.fillRect(x - cw / 2 + i * seg + 1, cy + 1, seg - 2, ch - 2);
+      }
+      ctx.strokeStyle = full ? 'rgba(255, 210, 120, 0.95)' : 'rgba(220, 235, 255, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - cw / 2, cy, cw, ch);
+      // your own charge also previews the ball you are about to throw
+      if (pl.id === myId && pl.charge.key === 'fireball') {
+        const CM = [1, 1.2, 1.45, 1.75, 2.2];
+        const pr = SPELLS.fireball.radius * CM[tier] * scale * 2.2;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, pr);
+        g.addColorStop(0, full ? 'rgba(255, 230, 170, 0.75)' : 'rgba(255, 190, 110, 0.5)');
+        g.addColorStop(1, 'rgba(255, 120, 30, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, pr, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
     // name + hp
     const bw = 46;
     ctx.font = '11px ui-sans-serif, system-ui';

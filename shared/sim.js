@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, itemCost,
+  DRAFT, TEAMS, CHARGE, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -199,6 +199,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     statueT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
+    charge: null,          // issue #6: {key, t, level, botAt} while a key is held
     slowT: 0,              // frost: seconds of slow remaining
     slowMultHit: 1,        // frost: strength of the slow that hit us
     // Per-attacker stack store: {kind: {attackerId: n}}. Stacks are PRIVATE to
@@ -523,6 +524,10 @@ export function castSpell(state, id, key, tx, ty) {
   // disappear — the burst fires from stealth but everyone saw the windup start
   // (the reverse order, vanish-then-charge, now reveals at the repulse press).
   if (pl.charging && key !== 'teleport' && key !== 'rush' && key !== 'vanish') return false;
+  // Issue #6: a HELD charge locks the same way a repulse wind-up does — the
+  // mobility whitelist is what makes "you can use mobility spells during
+  // charge" true, and it is the same three.
+  if (pl.charge && key !== 'teleport' && key !== 'rush' && key !== 'vanish') return false;
 
   let dx = tx - pl.x, dy = ty - pl.y;
   const d = Math.hypot(dx, dy) || 1;
@@ -532,6 +537,21 @@ export function castSpell(state, id, key, tx, ty) {
   if (key === 'fireball') haste += fireballHasteOf(state, pl);
   const cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
   pl.cooldowns[key] = cd;
+
+  // Issue #6: a chargeable cast does not fire here — it starts the hold. The
+  // cooldown above is already spent, which is exactly what makes an overcharge
+  // cost you the cast. One charge at a time: pressing rush while a fireball is
+  // charging resolves the dash immediately at tier 0 (a mini dash), which is
+  // also what keeps "mobility spells work while charging" true.
+  if (chargeSpec(state, pl, key) && !pl.charge) {
+    pl.charge = { key, t: 0, level, tier: 0, dx, dy };
+    if (pl.bot) {
+      const d = clamp((BOTS[pl.kind] && BOTS[pl.kind].difficulty) || 1, 1, CHARGE.BOT_HOLD.length);
+      pl.charge.botAt = chargeSpec(state, pl, key).max * CHARGE.BOT_HOLD[d - 1];
+    }
+    state.events.push({ t: 'chargeStart', id, spell: key, x: pl.x, y: pl.y });
+    return true;
+  }
 
   // Round 18.1 (Remi): a cast REVEALS an invisible caster — re-casting vanish
   // refreshes instead (its case below). The auto repulse burst in stepBattle
@@ -650,7 +670,11 @@ export function castSpell(state, id, key, tx, ty) {
       // zeroed at cast, so Rush is a real combo/lava escape (interpretation of
       // "rush could also cancel momentum, allows you to get out of combos").
       pl.vx = 0; pl.vy = 0;
-      pl.dash = { dx, dy, left: spec.distance, level, hit: {} };
+      // Issue #6: reaching this branch means a charge is ALREADY held (rush is
+      // a held cast otherwise), so this is the mobility-during-charge escape
+      // hatch — it resolves instantly at tier 0, a mini dash.
+      pl.dash = { dx, dy, left: spec.distance * CHARGE.rush.distMult[0],
+        level, hit: {}, tier: 0 };
       pl.moveTarget = null;
       break;
     }
@@ -864,8 +888,13 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       (elements = elements || {})[k] = v;
     }
   }
+  // issue #6: a charged ball is bigger, heavier and hits harder — one tier
+  // index drives all three, so the bar you saw IS the ball you threw.
+  const ct = opts.chargeTier;
+  const cm = ct != null ? CHARGE.fireball : null;
   const radius = spec.radius * (elements && elements.terra
-    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1);
+    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1)
+    * (cm ? cm.radiusMult[ct] : 1);
   // ghost lv1/2 (round 16): the fireball's SPEED axis — it just flies faster
   const speed = spec.speed * (elements && elements.ghost
     ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
@@ -890,6 +919,7 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
     pierced: 0,
     elements, radius,
+    ...(cm ? { chargeTier: ct } : {}),
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
@@ -915,6 +945,65 @@ function spawnStoredBall(state, sh, dx, dy) {
     ...(sh.kbMin != null ? { kbMin: sh.kbMin } : {}),
   });
   state.events.push({ t: 'mineShot', id: sh.owner, x: sh.x, y: sh.y, dx, dy });
+}
+
+// Issue #6. Which spells hold-to-charge, for THIS player: rush always, the
+// fireball only once ember has bought the unlock. Returns the CHARGE entry or
+// null, so every caller reads the window and the curves from one place.
+export function chargeSpec(state, pl, key) {
+  const spec = CHARGE[key];
+  if (!spec || !pl) return null;
+  if (key === 'fireball') {
+    const f = ELEMENTS.ember.fx;
+    const owned = (state.mode === 'elemental' && pl.elements && pl.elements.ember) || 0;
+    return f.unlocksCharge && owned >= f.unlocksCharge ? spec : null;
+  }
+  return spec;
+}
+
+// Which of the five steps `t` seconds of holding has reached (0-based).
+export function chargeTier(spec, t) {
+  return clamp(Math.floor((t / spec.max) * CHARGE.TIERS), 0, CHARGE.TIERS - 1);
+}
+
+// The key came back up. Fires whatever the hold earned; a hold that ran past
+// the window has already been thrown away by stepBattle, so there is nothing
+// left to release and this is a no-op.
+export function releaseSpell(state, id, key, tx, ty) {
+  const pl = state.players[id];
+  if (!pl || !pl.charge || pl.charge.key !== key) return false;
+  const spec = chargeSpec(state, pl, key);
+  const { t, level } = pl.charge;
+  pl.charge = null;
+  if (!spec || !pl.alive || pl.stunT > 0 || pl.statueT > 0) return false;
+  const tier = chargeTier(spec, t);
+  let dx = tx - pl.x, dy = ty - pl.y;
+  const d = Math.hypot(dx, dy) || 1;
+  dx /= d; dy /= d;
+  if (pl.vanishT > 0) pl.vanishT = 0;   // releasing IS the cast: it reveals you
+  state.events.push({
+    t: 'chargeFire', id, spell: key, tier, x: pl.x, y: pl.y,
+  });
+  if (key === 'fireball') {
+    spawnFireball(state, pl, level, dx, dy, {
+      engorged: vampireCharge(state, pl),
+      chargeTier: tier,
+    });
+  } else if (key === 'rush') {
+    pl.vx = 0; pl.vy = 0;
+    pl.dash = {
+      dx, dy, left: SPELLS.rush.distance * spec.distMult[tier],
+      level, hit: {}, tier,
+      // top tier only (CHARGE.rush.ghostTier): unseeable and unpushable for the
+      // whole dash. The invisibility is the REAL one — snapshot() strips the
+      // position, so no client is told where they are.
+      ghost: tier >= spec.ghostTier,
+    };
+    pl.moveTarget = null;
+    if (pl.dash.ghost) pl.vanishT = Math.max(pl.vanishT || 0, 9);
+  }
+  state.events.push({ t: 'cast', id, spell: key, x: pl.x, y: pl.y, charged: tier });
+  return true;
 }
 
 export function buy(state, id, thing) {
@@ -1130,6 +1219,9 @@ function applyKnockback(state, target, dx, dy, magnitude) {
   // impulse choke point covers every source — balls, repulse, gale gust,
   // rush, meteor, bolt.
   if (target.statueT > 0) return;
+  // issue #6: a fully charged Rush is UNSTOPPABLE — nothing shoves them off
+  // their line for the length of the dash.
+  if (target.dash && target.dash.ghost) return;
   const { kbMult } = stats(target);
   // the lower your hp PERCENTAGE, the further you fly (full HP = baseline,
   // near-death ≈ 1+KB_HP_FACTOR). Cape still multiplies on top. Deliberately
@@ -1445,6 +1537,7 @@ function startRound(state) {
     pl.cooldowns = {};
     // (a round boundary, not a cancel: nothing survives the respawn)
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
+    pl.charge = null;   // issue #6: nobody carries a held key across a round
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.statueT = 0;   // …nor already golden
     pl.slowT = 0; pl.slowMultHit = 1;
@@ -2073,6 +2166,30 @@ function stepBattle(state, dt) {
       if (pl.poisonT === 0) { pl.poisonTick = 0; pl.poisonBy = null; pl.malady = null; } // CURED
     }
 
+    // Issue #6: the HELD charge. Unlike the repulse wind-up below, this one is
+    // driven by the player's key and can be thrown away: hold past the window
+    // and the cast is simply lost (the cooldown was spent at the press). Stun
+    // and Statue drop it too — you cannot hold a spell you cannot cast.
+    if (pl.charge) {
+      const cspec = chargeSpec(state, pl, pl.charge.key);
+      if (!cspec || pl.stunT > 0 || pl.statueT > 0) {
+        pl.charge = null;
+      } else {
+        pl.charge.t += dt;
+        pl.charge.tier = chargeTier(cspec, pl.charge.t);
+        // bots cannot hold a key: they commit to a hold length at press time
+        if (pl.charge.botAt != null && pl.charge.t >= pl.charge.botAt) {
+          const { dx, dy } = pl.charge;
+          releaseSpell(state, pl.id, pl.charge.key,
+            pl.x + dx * 20, pl.y + dy * 20);
+        } else if (pl.charge.t > cspec.max) {
+          state.events.push({ t: 'chargeFizzle', id: pl.id, spell: pl.charge.key,
+            x: pl.x, y: pl.y });
+          pl.charge = null;
+        }
+      }
+    }
+
     // repulse charge: 2 s of visible wind-up, then a radial burst.
     // ⚠ RULING (round 21.0, Remi: "if you start charging, you blow up
     // eventually"): the charge is UNCANCELLABLE. Nothing interrupts it — not
@@ -2108,8 +2225,13 @@ function stepBattle(state, dt) {
       const move = Math.min(spec.speed * dt, pl.dash.left);
       pl.x += pl.dash.dx * move; pl.y += pl.dash.dy * move;
       pl.dash.left -= move;
-      // a pillar stops the dash cold
-      if (resolvePillarHit(state, pl)) pl.dash = null;
+      // a pillar stops the dash cold — even the charged ghost one (issue #6:
+      // "unstoppable" is read as immune to knockback and stun, not as phasing
+      // through the map; the pillars stay solid for everyone)
+      if (resolvePillarHit(state, pl)) {
+        if (pl.dash.ghost) pl.vanishT = 0;
+        pl.dash = null;
+      }
     }
     if (pl.dash) {
       const spec = SPELLS.rush;
@@ -2123,11 +2245,20 @@ function stepBattle(state, dt) {
           const kx = -pl.dash.dy * side * 0.8 + pl.dash.dx * 0.4;
           const ky = pl.dash.dx * side * 0.8 + pl.dash.dy * 0.4;
           const n = Math.hypot(kx, ky) || 1;
-          applyKnockback(state, other, kx / n, ky / n, lvl(spec, 'knockback', pl.dash.level));
-          applyDamage(state, other, lvl(spec, 'damage', pl.dash.level), pl.id);
+          const ct = pl.dash.tier;
+          const cm = ct != null ? CHARGE.rush : null;
+          applyKnockback(state, other, kx / n, ky / n,
+            lvl(spec, 'knockback', pl.dash.level) * (cm ? cm.kbMult[ct] : 1));
+          applyDamage(state, other,
+            lvl(spec, 'damage', pl.dash.level) * (cm ? cm.dmgMult[ct] : 1), pl.id);
         }
       }
-      if (pl.dash.left <= 0) pl.dash = null;
+      if (pl.dash.left <= 0) {
+        // the charged ghost dash's invisibility lasts exactly as long as the
+        // dash — it is granted at release and taken back here, never a timer
+        if (pl.dash.ghost) pl.vanishT = 0;
+        pl.dash = null;
+      }
     } else {
       // control movement toward target
       if (pl.moveTarget) {
@@ -2455,6 +2586,12 @@ function stepProjectiles(state, dt) {
       const v = Math.hypot(pr.vx, pr.vy) || 1;
       let dmg = lvl(spec, 'damage', pr.level);
       let kb = lvl(spec, 'knockback', pr.level);
+      // issue #6: the charge multiplies the base numbers BEFORE any element
+      // rider, so ember/gale/anger all scale with the hold instead of drowning it
+      if (pr.chargeTier != null) {
+        dmg *= CHARGE.fireball.dmgMult[pr.chargeTier];
+        kb *= CHARGE.fireball.kbMult[pr.chargeTier];
+      }
       // Anger's earned bonus rides along in its own accumulator so the
       // floating damage number can show base and bonus separately (the white
       // number over the red one IS the feature — see ELEMENTS.anger). Every
@@ -2898,6 +3035,14 @@ export function snapshot(state, viewerId = null) {
       ...(p._burns && Object.keys(p._burns).length ? { burning: true } : {}),
       dashing: !!p.dash,
       charging: !!p.charging,
+      // issue #6: the held charge is PUBLIC — the enemy reads your timing as
+      // well as you do, which is the whole risk. Absent when nobody is holding.
+      ...(p.charge ? {
+        charge: {
+          key: p.charge.key, tier: p.charge.tier,
+          frac: round2(Math.min(1, p.charge.t / (CHARGE[p.charge.key] || CHARGE.fireball).max)),
+        },
+      } : {}),
       // your OWN invisibility, so the client can show you that it is running and
       // when it is about to end. Never present on anybody else's entry.
       ...(p.vanishT > 0 && p.id === viewerId ? { vanishT: round2(p.vanishT) } : {}),

@@ -1,19 +1,28 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
-  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
+  startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, releaseSpell,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
   arenaStartRadius, setTeam, teamTally,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
-  ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
+  ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS, CHARGE,
   BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 
 const DT = 1 / 30;
+
+// Issue #6: Rush is a HELD cast now — press, hold, release. A tap (hold 0) is
+// the minimum charge, so tests that only care that a dash HAPPENED tap; the
+// ones that need the old full-distance dash hold to the top tier.
+function dash(state, id, tx, ty, hold = 0) {
+  const ok = castSpell(state, id, 'rush', tx, ty);
+  if (hold > 0) run(state, hold);
+  return releaseSpell(state, id, 'rush', tx, ty) || ok;
+}
 
 function run(state, seconds) {
   const n = Math.round(seconds / DT);
@@ -567,10 +576,14 @@ describe('spells', () => {
     a.spells.rush = 1;
     a.x = 0; a.y = 0; b.x = 6; b.y = 0;
     state.players.p2.y = 40;
-    castSpell(state, 'p0', 'rush', 20, 0);
+    // issue #6: the dash damage scales with the hold, so read the tier's
+    // multiplier off the spec rather than pinning a number
+    const tier = CHARGE.TIERS - 1;
+    const hit = SPELLS.rush.damage[0] * CHARGE.rush.dmgMult[tier];
+    dash(state, 'p0', 20, 0, CHARGE.rush.max * 0.95);
     run(state, 0.6);
-    expect(b.hp).toBeGreaterThanOrEqual(b.maxHp - SPELLS.rush.damage[0]);
-    expect(b.hp).toBeLessThan(b.maxHp - SPELLS.rush.damage[0] + 1);
+    expect(b.hp).toBeGreaterThanOrEqual(b.maxHp - hit);
+    expect(b.hp).toBeLessThan(b.maxHp - hit + 1);
     expect(a.dash).toBe(null);
   });
 });
@@ -822,7 +835,7 @@ describe('edge cases (fuzz campaign probes)', () => {
     a.x = ARENA.START_RADIUS - 1; a.y = 0;
     state.players.p1.x = 0; state.players.p1.y = 40;
     state.players.p2.x = 0; state.players.p2.y = -40;
-    castSpell(state, 'p0', 'rush', ARENA.START_RADIUS + 30, 0);
+    dash(state, 'p0', ARENA.START_RADIUS + 30, 0);
     run(state, 2);
     expect(a.alive).toBe(false);
     expect(a.dash).toBe(null);
@@ -834,7 +847,7 @@ describe('edge cases (fuzz campaign probes)', () => {
     a.spells.rush = 1;
     a.x = 0; a.y = 0; b.x = 5; b.y = 0; b.hp = 1;
     state.players.p2.x = 0; state.players.p2.y = 40;
-    castSpell(state, 'p0', 'rush', 20, 0);
+    dash(state, 'p0', 20, 0);
     run(state, 1);
     expect(b.alive).toBe(false);
     expect(a.dash).toBe(null);
@@ -3390,10 +3403,11 @@ describe('power spells & pillar', () => {
     run(state, 2.1);
     expect(a.charging).toBeFalsy();
     expect(b.hp).toBeLessThan(b.maxHp); // burst landed after repositioning
-    // rush works mid-charge too
+    // rush works mid-charge too — issue #6: a repulse wind-up is `charging`,
+    // not a held key, so rush still starts its own hold and releases normally
     a.cooldowns = {};
     castSpell(state, 'p0', 'repulse', 0, 0);
-    expect(castSpell(state, 'p0', 'rush', a.x + 10, 0)).toBe(true);
+    expect(dash(state, 'p0', a.x + 10, 0)).toBe(true);
     expect(a.dash).toBeTruthy();
     // ...but attack spells stay locked while charging
     expect(castSpell(state, 'p0', 'fireball', 10, 0)).toBe(false);
@@ -3407,7 +3421,7 @@ describe('power spells & pillar', () => {
     state.pillars = [];
     a.x = 0; a.y = 0;
     state.players.p1.x = 30; state.players.p2.y = -40;
-    castSpell(state, 'p0', 'rush', 16, 0);
+    dash(state, 'p0', 16, 0);
     expect(a.dash).toBeTruthy();
     expect(castSpell(state, 'p0', 'fireball', 10, 0)).toBe(false); // still locked
     expect(castSpell(state, 'p0', 'repulse', 0, 0)).toBe(true);    // the one exception
@@ -3615,7 +3629,8 @@ describe('rush cancels momentum (round 19.6)', () => {
     a.spells.rush = 1;
     a.x = 0; a.y = 0;
     a.vx = 60; a.vy = -40;   // mid-launch toward the lava
-    expect(castSpell(state, 'p0', 'rush', -10, 0)).toBe(true);
+    // issue #6: the momentum is cancelled at RELEASE (a tap is press+release)
+    expect(dash(state, 'p0', -10, 0)).toBe(true);
     expect(a.vx).toBe(0);
     expect(a.vy).toBe(0);
     expect(a.dash).toBeTruthy(); // and the dash itself proceeds
@@ -4588,7 +4603,9 @@ describe('co-op: teams', () => {
       b.x = 3; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
       a.spells[spell] = 1;
       const hp0 = b.hp;
-      castSpell(state, a.id, spell, b.x, b.y);
+      // issue #6: rush is a held cast, so it needs its release
+      if (spell === 'rush') dash(state, a.id, b.x, b.y);
+      else castSpell(state, a.id, spell, b.x, b.y);
       run(state, 2.5); // long enough for the repulse charge and the meteor delay
       expect(Math.abs(b.vx) + Math.abs(b.vy), spell).toBeGreaterThan(0);
       expect(b.hp, spell).toBeLessThan(hp0);
@@ -7076,5 +7093,170 @@ describe('decoy 👥 (the mirage)', () => {
     // …the same pair from a mirage is not a cast at all
     expect(checkJournal([ev(0, 'c1', { phantom: true }), ev(200, 'c1', { phantom: true })]))
       .toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #6 (Remi): hold-to-charge — ember lv3 on the fireball, and Rush.
+// ---------------------------------------------------------------------------
+
+describe('charged casts (issue #6)', () => {
+  function charger(emberLv = 3) {
+    const state = createGame({ seed: 5, mode: 'elemental' });
+    addPlayer(state, 'p0', 'A');
+    addPlayer(state, 'p1', 'B');
+    addPlayer(state, 'p2', 'C');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    a.elements = { ember: emberLv };
+    a.spells.rush = 1;
+    return state;
+  }
+  const ball = (s) => s.projectiles.find(p => p.type === 'fireball');
+
+  it('ember lv3 buys no damage — it buys the hold', () => {
+    const add = ELEMENTS.ember.fx.dmgAdd;
+    expect(add[2]).toBe(add[1]);                       // lv3 adds nothing new
+    expect(ELEMENTS.ember.fx.unlocksCharge).toBe(3);
+  });
+
+  it('without ember lv3 the fireball still fires on the press', () => {
+    const state = charger(2);
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    expect(ball(state)).toBeTruthy();
+    expect(state.players.p0.charge).toBe(null);
+  });
+
+  it('with ember lv3 the press holds and the release throws', () => {
+    const state = charger(3);
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    expect(ball(state)).toBeUndefined();               // nothing yet
+    expect(state.players.p0.charge.key).toBe('fireball');
+    expect(state.players.p0.cooldowns.fireball).toBeGreaterThan(0); // spent at the press
+    releaseSpell(state, 'p0', 'fireball', 30, 0);
+    expect(ball(state)).toBeTruthy();
+    expect(state.players.p0.charge).toBe(null);
+  });
+
+  it('the five tiers make the ball bigger and heavier, off the spec', () => {
+    const thrown = [];
+    for (const tier of [0, CHARGE.TIERS - 1]) {
+      const state = charger(3);
+      castSpell(state, 'p0', 'fireball', 30, 0);
+      if (tier > 0) run(state, CHARGE.fireball.max * 0.95);
+      expect(state.players.p0.charge.tier).toBe(tier);
+      releaseSpell(state, 'p0', 'fireball', 30, 0);
+      const pr = ball(state);
+      const hp0 = state.players.p1.hp;
+      run(state, 0.6);
+      thrown.push({ r: pr.radius, dmg: hp0 - state.players.p1.hp, vx: state.players.p1.vx });
+    }
+    const [tap, full] = thrown;
+    expect(full.r / tap.r).toBeCloseTo(CHARGE.fireball.radiusMult[CHARGE.TIERS - 1], 5);
+    // the charge multiplies the BALL's own damage; ember's flat +2 rides on top
+    // of the result either way, so the ratio is not the raw multiplier
+    const add = ELEMENTS.ember.fx.dmgAdd[2];
+    const base = SPELLS.fireball.damage[0];
+    const want = (base * CHARGE.fireball.dmgMult[CHARGE.TIERS - 1] + add) / (base + add);
+    expect(full.dmg / tap.dmg).toBeCloseTo(want, 1);
+    expect(full.vx).toBeGreaterThan(tap.vx);           // and it shoves harder
+  });
+
+  it('holding past the window throws the cast away — and the cooldown is gone', () => {
+    const state = charger(3);
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    const cd = state.players.p0.cooldowns.fireball;
+    run(state, CHARGE.fireball.max + 0.2);
+    expect(state.players.p0.charge).toBe(null);
+    expect(ball(state)).toBeUndefined();               // nothing came out
+    expect(state.events.some(e => e.t === 'chargeFizzle')).toBe(true);
+    expect(state.players.p0.cooldowns.fireball).toBeGreaterThan(0);
+    expect(state.players.p0.cooldowns.fireball).toBeLessThan(cd);
+    // and the late release finds nothing to fire
+    expect(releaseSpell(state, 'p0', 'fireball', 30, 0)).toBe(false);
+    expect(ball(state)).toBeUndefined();
+  });
+
+  it('mobility works while holding, and an attack spell does not', () => {
+    const state = charger(3);
+    const a = state.players.p0;
+    a.spells.teleport = 1; a.spells.vanish = 1; a.spells.lightning = 1;
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    expect(castSpell(state, 'p0', 'teleport', 12, 0)).toBe(true);
+    expect(a.charge).toBeTruthy();                     // the hold survives a blink
+    expect(castSpell(state, 'p0', 'lightning', 12, 0)).toBe(false);
+    // rush during a hold is the escape hatch: it resolves at once, mini dash
+    expect(castSpell(state, 'p0', 'rush', a.x + 10, 0)).toBe(true);
+    expect(a.dash.left).toBeCloseTo(SPELLS.rush.distance * CHARGE.rush.distMult[0], 5);
+  });
+
+  it('a full-charge Rush goes further, hits harder, and is invisible and unstoppable', () => {
+    const state = charger(3);
+    const a = state.players.p0;
+    dash(state, 'p0', 40, 0, CHARGE.rush.max * 0.95);
+    expect(a.dash.tier).toBe(CHARGE.TIERS - 1);
+    expect(a.dash.left).toBeCloseTo(
+      SPELLS.rush.distance * CHARGE.rush.distMult[CHARGE.TIERS - 1], 5);
+    expect(a.dash.ghost).toBe(true);
+    expect(a.vanishT).toBeGreaterThan(0);
+    // invisible for real: no other client is told where they are
+    expect(snapshot(state, 'p1').players.p0.x).toBeUndefined();
+    // unstoppable: nothing shoves them off the line
+    const vx0 = a.vx;
+    castSpell(state, 'p1', 'fireball', a.x, a.y);
+    run(state, 0.4);
+    expect(a.vx).toBe(vx0);
+    // ...and both end with the dash
+    run(state, 2);
+    expect(a.dash).toBe(null);
+    expect(a.vanishT).toBe(0);
+  });
+
+  it('a bot commits to a hold length at the press and always releases it', () => {
+    const state = createGame({ seed: 3, mode: 'elemental' });
+    addPlayer(state, 'h', 'H');
+    addPlayer(state, 'b', 'B', { bot: true, kind: 'berserker' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const bot = state.players.b;
+    bot.elements = { ember: 3 };
+    bot.cooldowns = {};
+    castSpell(state, 'b', 'fireball', bot.x + 20, bot.y);
+    expect(bot.charge.botAt).toBeGreaterThan(0);
+    expect(bot.charge.botAt).toBeLessThan(CHARGE.fireball.max);
+    run(state, CHARGE.fireball.max);
+    expect(bot.charge).toBe(null);
+    // it fired rather than fizzling
+    expect(state.events.some(e => e.t === 'chargeFire')).toBe(true);
+    expect(state.events.some(e => e.t === 'chargeFizzle')).toBe(false);
+  });
+
+  it('the charge bar is public: everyone is told what you are holding', () => {
+    const state = charger(3);
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    run(state, CHARGE.fireball.max * 0.5);
+    const seen = snapshot(state, 'p1').players.p0.charge;
+    expect(seen.key).toBe('fireball');
+    expect(seen.tier).toBe(2);
+    expect(seen.frac).toBeGreaterThan(0.4);
+    expect(seen.frac).toBeLessThan(0.6);
+  });
+
+  it('a freeze drops the hold, and a round never starts with one', () => {
+    const state = charger(3);
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    a.stunT = 1;
+    run(state, DT * 2);
+    expect(a.charge).toBe(null);
+    castSpell(state, 'p0', 'fireball', 30, 0);   // (still on cooldown: no hold)
+    a.charge = { key: 'fireball', t: 0, level: 1, tier: 0, dx: 1, dy: 0 };
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 6);
+    expect(a.charge).toBe(null);
   });
 });

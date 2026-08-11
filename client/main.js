@@ -575,6 +575,10 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
+// Issue #6: which spell keys are physically down, so a stray key-up (alt-tab,
+// a rebind mid-press) can never release a charge nobody started.
+const heldKeys = new Set();
+
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (!$('keysPanel').classList.contains('hidden')) {
@@ -586,8 +590,29 @@ window.addEventListener('keydown', (e) => {
   const spell = spellForKey(e.key.toLowerCase());
   if (spell) {
     const w = toWorld(mouse.x, mouse.y);
+    heldKeys.add(e.key.toLowerCase());
     send({ t: 'cast', key: spell, x: w.x, y: w.y });
   }
+});
+
+// Hold-to-charge (issue #6): every spell key sends a release on key-up. The
+// server ignores it unless that key was actually holding a charge, so nothing
+// changes for the spells that do not charge.
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (!heldKeys.delete(k)) return;
+  const spell = spellForKey(k);
+  if (!spell) return;
+  const w = toWorld(mouse.x, mouse.y);
+  send({ t: 'release', key: spell, x: w.x, y: w.y });
+});
+window.addEventListener('blur', () => {
+  // the tab lost focus mid-hold: let go of everything, or the charge fizzles
+  for (const k of heldKeys) {
+    const spell = spellForKey(k);
+    if (spell) { const w = toWorld(mouse.x, mouse.y); send({ t: 'release', key: spell, x: w.x, y: w.y }); }
+  }
+  heldKeys.clear();
 });
 
 // ---- join / lobby / shop DOM ------------------------------------------------------

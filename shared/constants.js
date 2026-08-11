@@ -384,6 +384,35 @@ export const SPELLS = {
   },
 };
 
+// ---- Charged casts (issue #6, Remi) -------------------------------------
+// Hold the key, release to cast. `max` is the window; holding PAST it fizzles —
+// no cast at all, and the cooldown was already spent at the press, which is the
+// whole risk. `tiers` are Remi's "clear levels of charge": the multipliers are
+// read straight off these arrays by index, so what the bar shows IS what fires.
+// The curve is deliberately back-loaded — most of the prize is in the last step.
+//
+// `botCharge` is the fraction of `max` a bot holds for, by difficulty (1..4).
+// ⚠ Load-bearing: without it a bot presses the key and never lets go, so every
+// cast fizzles and every measurement on this branch is noise.
+export const CHARGE = {
+  TIERS: 5,
+  BOT_HOLD: [0.15, 0.4, 0.62, 0.9],
+  fireball: {
+    max: 1.5,
+    dmgMult: [1, 1.15, 1.45, 1.95, 2.8],
+    radiusMult: [1, 1.2, 1.45, 1.75, 2.2],
+    kbMult: [1, 1.1, 1.25, 1.45, 1.8],
+  },
+  rush: {
+    max: 1.5,
+    distMult: [0.35, 0.6, 0.9, 1.25, 1.7],
+    dmgMult: [0.5, 0.8, 1.1, 1.5, 2],
+    kbMult: [0.6, 0.8, 1, 1.3, 1.6],
+    // top tier only: invisible AND immune to knockback for the whole dash
+    ghostTier: 4,
+  },
+};
+
 // ---- Items (passive, 3 LEVELS each) ------------------------------------
 // mode: 'elemental' = exists only under the elemental ruleset. Hard cap 3
 // levels, SAME gold cost per level — the diminishing effect is the brake.
@@ -526,10 +555,13 @@ export const ELEMENTS = {
   // general tuning principle: going all-in deserves the reward).
   // Round 21.7 (Remi's price pass over the whole roster — his hand spec):
   // ember [5,5,7], terra [6,6,7], gale [6,6,6], arcane [6,6,10], ghost [6,6,10].
+  // Issue #6 (Remi): lv3 STOPS buying damage (it repeats lv2's +2) and buys the
+  // CHARGE instead — hold the key, release to throw. Revert: dmgAdd [1, 2, 4]
+  // and drop `unlocksCharge`.
   ember: { name: 'Ember', icon: '🔥', maxLevel: 3, costs: [5, 5, 7],
-           desc: 'More damage.',
-           long: 'Every fireball hits harder.',
-           fx: { dmgAdd: [1, 2, 4] } },
+           desc: 'More damage, then the charge.',
+           long: 'Levels 1 and 2 make every fireball hit harder. Level 3 buys no damage at all: it lets you HOLD the key to charge a bigger, heavier ball, and release to throw it.',
+           fx: { dmgAdd: [1, 2, 2], unlocksCharge: 3 } },
   // Stack-and-detonate (2026-08-06 rework): stacks never melt, the 3rd triggers;
   // stacks PRIVATE per attacker since round 12. The ~17% mixed-table read is
   // mostly pre-existing variance; mid-strength in the absolute lab — NOT retuned.

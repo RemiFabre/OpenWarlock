@@ -12,7 +12,7 @@
 // reset) — it exists in browsers and Node alike and survives a paused caller.
 
 import {
-  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
+  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, releaseSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
   setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
 } from './sim.js';
@@ -223,6 +223,11 @@ export function createEngine({
         case 'cast':
           if (typeof m.x === 'number' && typeof m.y === 'number' && typeof m.key === 'string')
             castSpell(game, id, m.key, m.x, m.y);
+          break;
+        // issue #6: the key came back up — fires whatever the hold earned
+        case 'release':
+          if (typeof m.x === 'number' && typeof m.y === 'number' && typeof m.key === 'string')
+            releaseSpell(game, id, m.key, m.x, m.y);
           break;
         case 'buy': {
           const r = buy(game, id, String(m.id || ''));
