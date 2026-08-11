@@ -130,7 +130,7 @@ const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.c
 
 // #r=CODE in the hash (not the query: GitHub Pages needs no routing for it)
 export function roomCodeFromHash() {
-  const m = /[#&]r=([A-Za-z0-9]{4,6})\b/.exec(location.hash);
+  const m = /[#&]r=([A-Za-z2-9]{12})\b/.exec(location.hash);
   return m ? m[1].toUpperCase() : null;
 }
 

@@ -108,7 +108,7 @@ try {
   const barText = await host.textContent('#hostbar');
   if (!/keep this tab open/i.test(barText)) fail(`hostbar misses the keep-open notice: "${barText}"`);
   const code = (await host.textContent('#hostCode')).trim();
-  if (!/^[A-Z2-9]{4,6}$/.test(code)) fail(`bad room code "${code}"`);
+  if (!/^[A-Z2-9]{12}$/.test(code)) fail(`bad room code "${code}"`);
   await host.waitForSelector('#lobby:not(.hidden)', { timeout: 5000 }); // the host is a player
   console.log(`host is up, room ${code}, hostbar warns to keep the tab open`);
   await shot(host, 'hosting-b-host-lobby.png');

@@ -155,8 +155,8 @@ both → { t:'sig', to, data }               → relayed verbatim to that peer
 ```
 
 `data` is an opaque blob (SDP offer/answer, ICE candidates). The signaller must not parse it.
-Rooms are in-memory, expire after ~10 min idle, and a code is 4-6 chars from an
-unambiguous alphabet (no `0/O`, `1/l/I`).
+Rooms are in-memory, expire after ~10 min idle, and use 12 cryptographically
+random characters from an unambiguous alphabet (no `0/O`, `1/l/I`).
 
 Keep the transport pluggable behind one small module so this can be swapped for a Cloudflare
 Worker + Durable Object, or public-infrastructure signalling, without touching the client.

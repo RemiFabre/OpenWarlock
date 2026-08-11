@@ -1,6 +1,6 @@
 // OpenWarlock signalling relay (docs/BRIEF-browser-hosting.md §B1).
 // A standalone WebSocket rendezvous for browser-hosted games: a host opens a
-// room and gets a short code, guests join by code, and SDP/ICE blobs are
+// room and gets an invite code, guests join by code, and SDP/ICE blobs are
 // relayed VERBATIM between them ({t:'sig'} `data` is opaque — never parsed).
 // It carries NO game traffic: once WebRTC connects, this process can die or
 // restart mid-match with zero effect (hosts re-register their code, see
@@ -10,6 +10,7 @@
 // Deployment options for Remi: docs/history/2026-08-09-browser-hosting-phaseB.md
 
 import http from 'node:http';
+import { randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 
@@ -64,10 +65,12 @@ export function createHfStatsStore({
   };
 }
 
-// room codes: 4-6 chars, nothing that reads two ways (no 0/O, 1/l/I)
+// Invite links carry 12 unambiguous random chars: easy to copy, impractical to guess.
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const newCode = (n = 5) => Array.from({ length: n },
-  () => CODE_ALPHABET[(Math.random() * CODE_ALPHABET.length) | 0]).join('');
+export const CODE_LENGTH = 12;
+const CODE_RE = new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`);
+const newCode = () => Array.from({ length: CODE_LENGTH },
+  () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 export function createSignalServer({
   port = 3001, roomTtlMs = 10 * 60_000, sweepMs = 60_000,
@@ -167,23 +170,30 @@ export function createSignalServer({
   const say = (ws, m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
 
   wss.on('connection', (ws) => {
-    let room = null, me = null; // me: 'host' | peer id
+    let room = null, me = null, rejected = false; // me: 'host' | peer id
     ws.on('message', (raw) => {
       let m; try { m = JSON.parse(raw); } catch { return; }
       if (!m || typeof m !== 'object') return;
       if (m.t === 'create') {
+        if (room || rejected) return;
         // an explicit free code is honored (host re-registering after a relay
         // restart, or B4 migration re-opening the room) — a LIVE one is never stolen
         let code = typeof m.code === 'string' ? m.code.toUpperCase() : '';
-        if (!/^[A-Z2-9]{4,6}$/.test(code) || rooms.has(code)) code = newCode();
+        if (!CODE_RE.test(code) || rooms.has(code)) code = newCode();
         while (rooms.has(code)) code = newCode();
         room = { host: ws, peers: new Map(), nextPeer: 1, at: Date.now(), code };
         rooms.set(code, room);
         me = 'host';
         say(ws, { t: 'room', code });
       } else if (m.t === 'join') {
+        if (room || rejected) return;
         const r = rooms.get(String(m.code || '').toUpperCase());
-        if (!r) { say(ws, { t: 'error', reason: 'no such room — ask the host for a fresh link' }); return; }
+        if (!r) {
+          rejected = true;
+          ws.send(JSON.stringify({ t: 'error', reason: 'room unavailable — ask the host for a fresh link' }),
+            () => ws.close(1008, 'room unavailable'));
+          return;
+        }
         room = r; me = 'g' + room.nextPeer++;
         room.peers.set(me, ws);
         touch(room);

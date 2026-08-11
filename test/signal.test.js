@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import WebSocket from 'ws';
-import { createSignalServer, CODE_ALPHABET } from '../server/signal.js';
+import { createSignalServer, CODE_ALPHABET, CODE_LENGTH } from '../server/signal.js';
 
 let srv;
 beforeAll(async () => { srv = await createSignalServer({ port: 0 }); });
@@ -36,7 +36,7 @@ describe('signal server', () => {
     host.send({ t: 'create' });
     const m = await host.next();
     expect(m.t).toBe('room');
-    expect(m.code).toMatch(new RegExp(`^[${CODE_ALPHABET}]{5}$`));
+    expect(m.code).toMatch(new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`));
     host.ws.close();
   });
 
@@ -65,13 +65,14 @@ describe('signal server', () => {
     host.ws.close();
   });
 
-  it('join with an unknown code is a plain error', async () => {
+  it('an unknown code reports once, then closes the connection', async () => {
     const guest = await dial();
-    guest.send({ t: 'join', code: 'ZZZZZ' });
+    const closed = new Promise((resolve) => guest.ws.once('close', resolve));
+    guest.send({ t: 'join', code: 'ZZZZZZZZZZZZ' });
     const m = await guest.next();
     expect(m.t).toBe('error');
-    expect(m.reason).toMatch(/no such room/i);
-    guest.ws.close();
+    expect(m.reason).toMatch(/room unavailable/i);
+    await closed;
   });
 
   it('host vanishing notifies guests and frees the code for a same-code re-host (B4)', async () => {
