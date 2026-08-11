@@ -26,6 +26,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/3",
       "branch": "issue-3-ricochet-angel",
       "commit": "d3c5ff1c533c6548b798225aa2162fb7386604ef"
+    },
+    {
+      "slug": "trash-talk",
+      "name": "Trash Talk",
+      "author": "@RemiFabre",
+      "summary": "The warlocks comment on the fight: speech bubbles over their heads when they are hit, thrown, frozen, killed or upstaged — lower case for the ordinary, ALL CAPS for the loud.",
+      "issue": 4,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/4",
+      "branch": "issue-4-chatter",
+      "commit": "b8d7a2f613c520c6dfae810c4fe4595c909418cd"
     }
   ]
 }
