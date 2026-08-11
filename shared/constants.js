@@ -297,6 +297,12 @@ export const SPELLS = {
     // ⚠ The victim can answer with a Shield: the stored balls are REAL
     //    projectiles, so they reflect — but the mine's own damage still lands
     //    (it is the ground, not a projectile). Remi's ruling, test-locked.
+    // ⚠ A TRAP OUTLIVES ITS TRAPPER (Remi's ruling, test-locked): a mine keeps
+    //    arming, triggering and CREDITING after the planter dies — the kill, the
+    //    bounty, the damage column and every on-hit rider the stored balls carry
+    //    are all still theirs. Only effects that need a living body are skipped
+    //    (healing, arcane's refund), which the existing `src.alive` guards in
+    //    applyDamage already handle. Contrast Decoy, whose clones die with you.
     name: 'Mine', hotkey: 'B', tier: 'power', maxLevel: 2, costs: [10, 5],
     cooldown: [9, 8], radius: 1.32, damage: [10, 15], knockback: 100,
     stores: [1, 2], ballDelay: 1 / TICK_RATE,

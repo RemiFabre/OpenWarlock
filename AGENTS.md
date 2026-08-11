@@ -114,7 +114,7 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | 390 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 393 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 — every arena table printed before that date was classic |
@@ -201,7 +201,10 @@ build step, Node ESM, only dep is `ws`.
   [10,5] g, 2 levels. It SWALLOWS the owner's own fireballs (`stores` [1,2]);
   stepping on it costs the mine's damage [10,15] plus every stored ball fired
   point blank one TICK apart, all push-less but the last, which pushes at
-  max(ball, mine) (`kbMin`). A Shield answers the balls, never the ground;
+  max(ball, mine) (`kbMin`). A Shield answers the balls, never the ground; a
+  trap OUTLIVES ITS TRAPPER — it still arms, triggers and credits (kill,
+  bounty, damage, stacks) after the planter dies, unlike Decoy's clones
+  (both test-locked);
   pillars unlimited; `statue` (DISPLAYS as **NOPE** since 21.7, gold-tinted 🗿 —
   the Stone Pillar has the plain 🗿 back) = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
@@ -245,7 +248,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 390 green
+npx vitest run                                   # 393 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

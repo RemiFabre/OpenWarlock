@@ -5799,6 +5799,46 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     expect(state.mines.length).toBe(1);
   });
 
+  // ⚠ RULING (Remi, round 21.8): a trap outlives its trapper. Everything the
+  // mine does after the planter dies is still THEIRS — the kill, the damage
+  // column, and every on-hit rider the stored balls carry. Only things that
+  // need a living body are skipped (healing, arcane's cooldown refund), which
+  // falls out of applyDamage's existing `src.alive` guards.
+  it('still credits a DEAD planter: the kill and the gold are theirs', () => {
+    const state = mineBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 2;
+    plant(state, 'p0', 10, 0);
+    a.hp = 0; a.alive = false;                    // the planter is a corpse
+    const gold0 = a.gold;
+    b.hp = 4; b.x = 10.2; b.y = 0;
+    const seen = [];
+    for (let i = 0; i < 12; i++) { state.events = []; step(state, DT); seen.push(...state.events); }
+    expect(b.alive).toBe(false);
+    expect(a.kills).toBe(1);
+    expect((seen.find(e => e.t === 'death' && e.id === 'p1') || {}).killer).toBe('p0');
+    expect(a.gold).toBeGreaterThan(gold0);        // the bounty still pays out
+  });
+
+  it("still plants a DEAD planter's element stacks off the stored balls", () => {
+    const state = mineBattle(3, 'elemental');
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 2;
+    a.elements = { midas: 1, frost: 1, malady: 1 };
+    const m = plant(state, 'p0', 10, 0);
+    castSpell(state, 'p0', 'fireball', 40, 0);
+    run(state, 0.5);
+    expect(m.charges.length).toBe(1);
+    a.hp = 0; a.alive = false;                    // dies AFTER arming the trap
+    b.x = 10.4; b.y = 0;
+    const hp0 = b.hp;
+    run(state, 0.4);
+    expect(b.hp).toBeLessThan(hp0);               // ground hit + the stored ball
+    for (const el of ['midas', 'frost', 'malady'])
+      expect(b.stacks[el] && b.stacks[el].p0).toBe(1);
+    expect(a.dmgDealt).toBeGreaterThan(0);        // the damage column is theirs
+  });
+
   it('a mine kill credits the planter', () => {
     const state = mineBattle();
     const a = state.players.p0, b = state.players.p1;

@@ -159,6 +159,24 @@ and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
   moved −1 and is still last). If the meteor should be a real pick, the lever is
   its cast rules, not its damage.
 
+## A trap outlives its trapper — checked, and now locked
+
+Your mine already keeps working after you die, and everything it does stays
+yours: I killed the planter mid-test and the trap still armed, still went off,
+and the victim's death was credited to the corpse — kill, bounty gold, the
+damage column, and every stack the stored ball carried (midas mark, frost and
+malady all landed under the dead player's name). Nothing needed fixing; there
+are two tests now so nobody "tidies" it away later.
+
+The only things a corpse does not get are the ones that need a living body:
+healing (blade, spoon, vampire) and arcane's cooldown refund.
+
+⚠ Two cases where it can still LOOK like the mine did nothing, neither a bug:
+- **The round ended with you.** If your death leaves one team standing, the
+  round is over before anyone can step on the trap.
+- **Midas needs a second hit.** The mark lands, but +1 g only cashes on the next
+  hit on that target — and a corpse rarely lands one.
+
 ## The sustain pass — blade, spoon and hourglass
 
 Your three numbers, shipped: **blade 10/20/30%**, **spoon 1/2/3 flat per hit**
