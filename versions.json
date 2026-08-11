@@ -16,6 +16,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/1",
       "branch": "issue-1-blood-debt",
       "commit": "74523c1078d7e948e4237c67e52bbb2992add792"
+    },
+    {
+      "slug": "ju-ricochet",
+      "name": "Ju’s Ricochet & Guardian Angel",
+      "author": "@Biousere",
+      "summary": "Adds Ricochet, a ball that bounces off the pillars and off an invisible wall at the lava’s edge, and the Guardian Angel, a secret item that refuses your death and stands you back up on half health.",
+      "issue": 3,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/3",
+      "branch": "issue-3-ricochet-angel",
+      "commit": "d3c5ff1c533c6548b798225aa2162fb7386604ef"
     }
   ]
 }
