@@ -1,0 +1,24 @@
+name: Queue new issues
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add the coding-agent queue label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          has_status=$(gh issue view "$ISSUE_NUMBER" --json labels \
+            --jq '[.labels[].name | startswith("ai:")] | any')
+          if [ "$has_status" = false ]; then
+            gh issue edit "$ISSUE_NUMBER" --add-label ai:queued
+          fi

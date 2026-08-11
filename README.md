@@ -2,6 +2,13 @@
 
 ## ▶ [Play it now — no install](https://remifabre.github.io/OpenWarlock/client/)
 
+## 🧪 Player-made versions
+
+[See completed ideas](https://github.com/RemiFabre/OpenWarlock/issues?q=is%3Aissue%20state%3Aclosed)
+or [propose your own](https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md).
+An AI coding agent turns accepted requests into separate playable versions,
+credited to their authors, without changing the default game.
+
 An open-source, web-native remake of **Warlock**, the classic Warcraft III
 minigame: knock other warlocks into the lava with physics-driven spells, earn
 gold, buy upgrades between rounds, and be the last one standing as the arena
