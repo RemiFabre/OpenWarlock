@@ -33,10 +33,17 @@ function dial() {
 describe('signal server', () => {
   it('create -> room code from the unambiguous alphabet', async () => {
     const host = await dial();
-    host.send({ t: 'create' });
+    host.send({ t: 'create', codeLength: CODE_LENGTH });
     const m = await host.next();
     expect(m.t).toBe('room');
     expect(m.code).toMatch(new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`));
+    host.ws.close();
+  });
+
+  it('keeps immutable older clients on their five-character protocol', async () => {
+    const host = await dial();
+    host.send({ t: 'create' });
+    expect((await host.next()).code).toHaveLength(5);
     host.ws.close();
   });
 

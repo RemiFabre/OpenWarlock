@@ -127,10 +127,11 @@ export function signalUrl() {
 // through fine, relay costs money+accounts, and the fallback for the rare
 // blocked pair is "let someone else host". Adding TURN later = one array entry.
 const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }] };
+const ROOM_CODE_LENGTH = 12;
 
 // #r=CODE in the hash (not the query: GitHub Pages needs no routing for it)
 export function roomCodeFromHash() {
-  const m = /[#&]r=([A-Za-z2-9]{12})\b/.exec(location.hash);
+  const m = /[#&]r=([A-Za-z2-9]{12}|[A-Za-z2-9]{5})\b/.exec(location.hash);
   return m ? m[1].toUpperCase() : null;
 }
 
@@ -269,7 +270,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
     let opened = false;
     // re-register the SAME code after a relay restart, so the invite link
     // keeps working — the relay is a weak dependency by design
-    ws.onopen = () => { opened = true; ws.send(JSON.stringify({ t: 'create', ...(code ? { code } : {}) })); };
+    ws.onopen = () => { opened = true; ws.send(JSON.stringify({ t: 'create', codeLength: ROOM_CODE_LENGTH, ...(code ? { code } : {}) })); };
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       if (m.t === 'room') { code = m.code; onRoom(code); }

@@ -68,8 +68,9 @@ export function createHfStatsStore({
 // Invite links carry 12 unambiguous random chars: easy to copy, impractical to guess.
 export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const CODE_LENGTH = 12;
-const CODE_RE = new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`);
-const newCode = () => Array.from({ length: CODE_LENGTH },
+const LEGACY_CODE_LENGTH = 5; // immutable pre-r243 versions still speak this protocol
+const CODE_RE = new RegExp(`^(?:[${CODE_ALPHABET}]{${LEGACY_CODE_LENGTH}}|[${CODE_ALPHABET}]{${CODE_LENGTH}})$`);
+const newCode = (length = CODE_LENGTH) => Array.from({ length },
   () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 export function createSignalServer({
@@ -179,8 +180,9 @@ export function createSignalServer({
         // an explicit free code is honored (host re-registering after a relay
         // restart, or B4 migration re-opening the room) — a LIVE one is never stolen
         let code = typeof m.code === 'string' ? m.code.toUpperCase() : '';
-        if (!CODE_RE.test(code) || rooms.has(code)) code = newCode();
-        while (rooms.has(code)) code = newCode();
+        const length = m.codeLength === CODE_LENGTH ? CODE_LENGTH : LEGACY_CODE_LENGTH;
+        if (!CODE_RE.test(code) || rooms.has(code)) code = newCode(length);
+        while (rooms.has(code)) code = newCode(length);
         room = { host: ws, peers: new Map(), nextPeer: 1, at: Date.now(), code };
         rooms.set(code, room);
         me = 'host';

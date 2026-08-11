@@ -19,8 +19,9 @@ if that automation ever fails.
 The game and README now link directly to completed requests so visitors can see
 the project activity; GitHub does not let a repo redefine its Issues-tab filter.
 
-Online invite codes are now 12 cryptographically random characters. A wrong
-link gets one clear error and a fresh connection is required to try another.
+Current invite codes are now 12 cryptographically random characters. The relay
+keeps old immutable versions compatible; a wrong link gets one clear error and
+a fresh connection is required to try another.
 
 ## The Bomb is gone. It is a Mine now.
 
