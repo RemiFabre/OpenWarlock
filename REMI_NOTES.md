@@ -152,7 +152,46 @@ and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
   moved −1 and is still last). If the meteor should be a real pick, the lever is
   its cast rules, not its damage.
 
-## You asked me to test the spoon against the blade. The blade wins.
+## The sustain pass — blade, spoon and hourglass
+
+Your three numbers, shipped: **blade 10/20/30%**, **spoon 1/2/3 flat per hit**
+with **ticks paying a tenth** (0.1 / 0.2 / 0.3), and **hourglass 10/20/30**.
+
+**Why a tenth.** Ticks vastly outnumber hits — a Hat+plague player lands **984**
+of them a game against 157 real hits. At a tenth, the two fantasies pay almost
+exactly the same, which is what you asked for:
+
+| build, hp healed per game (lv3) | blade | spoon |
+|---|---|---|
+| anger (big hits) | **722** | 526 (−27%) |
+| plague | 646 | **768** (+19%) |
+| Hat + plague | 681 | **766** (+13%) |
+| plain low-damage kit | 456 | **624** (+37%) |
+| ember burst kit | **629** | 588 (−7%) |
+
+**anger + blade = 722 vs plague + spoon = 768**, six percent apart — play your
+fantasy, get your reward. At 0.05 the ticks were too small to matter (the Hat
+build would still rather have the blade); at 0.2 it ran +56% and the spoon
+became an aura item.
+
+**One rule, one line of text**, as you wanted — no aura/poison split: *"Every
+enemy you damage heals you. Burns and sickness heal a tenth of that, at most
+once a second per enemy."*
+
+**The once-a-second cap is in, and it does nothing today** — every tick source
+runs at 1/s. It is there for exactly the future you described: a poison at ten
+ticks a second for a tenth of the damage would leave the poison unchanged and
+multiply this item by ten. There is a test that runs malady at 10× speed and
+checks the spoon still gets paid three times in three seconds.
+
+⚠ Two things to watch when you play it. Your **lv1 blade now heals 0.7 off a
+bare fireball, so it pops no green number** until lv2 — the hp is credited (the
+bar and the scoreboard both move), it just does not shout. And bots never bunch
+up, so **the plague side of this is a floor**: contagion spreads further in your
+hands than in any of these numbers. If plague+spoon feels oppressive, 0.08 is
+the same rule with a smaller tenth.
+
+## The measurement that led here: spoon vs blade, before the change
 
 Same kit, one item swapped: maxed cadence (arcane 3 + hourglass 3), Echo pairs
 and three buttons — a build that lands as many hits as possible. Both items cost

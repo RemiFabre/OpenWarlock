@@ -110,7 +110,7 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | 389 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 390 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 — every arena table printed before that date was classic |
@@ -172,13 +172,15 @@ build step, Node ESM, only dep is `ws`.
 - **Shop text is TAGS** (Remi): `desc` = 2-4 words on the button, `long` = the
   mechanism sentence on hover. Keep new things in that shape.
 - **Items: 3 levels**, cumulative `ITEM_FX` totals, **flat price per level
-  since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1)
+  since round 20**: 5 g boots/treads/cape, 7 g sword/amulet/hourglass (21.1;
+  ⚠ 21.8 rebalance: sword lifesteal 10/20/30%, hourglass haste 10/20/30)
   6 g `brazier` (DISPLAYS as **Hat of Aura 🎩**: burn aura `auraR [5,6,7]`,
   and since 21.8 the burn LINGERS `[3,4,5]` s after you leave the ring) and
-  7 g `spoon` (**Slow Spoon 🥄**, 21.8: a FLAT `healOnHit [1,1.5,2]` per
-  damaging hit, once per victim — ⚠ auras and DoT ticks are excluded via
-  `applyDamage`'s `procs` flag, which is the item's whole balance) — so the
-  WHOLE shelf is 147 g, and the cuts did NOT move items off the bottom of the
+  7 g `spoon` (**Slow Spoon 🥄**, 21.8: a FLAT `healOnHit [1,2,3]` per damaging
+  hit, once per victim; DoT/aura ticks pay `tickFrac` = a TENTH of that, capped
+  at one proc per second per victim — `applyDamage`'s `procs: true|'tick'|false`
+  is the whole mechanism, and the cap is INSURANCE against a future
+  faster-ticking DoT, not balance) — so the WHOLE shelf is 147 g, and the cuts did NOT move items off the bottom of the
   strategy table. Sword is mandatory by
   structure (question L). Cape is pilot-sign-flipping — never buff it off
   Hard-bot tables; Remi hand-set it to −25/−40/−50% in 21.7. Echo Stone is
@@ -239,7 +241,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 389 green
+npx vitest run                                   # 390 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

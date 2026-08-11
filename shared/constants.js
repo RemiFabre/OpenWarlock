@@ -411,7 +411,7 @@ export const ITEMS = {
   // second for free); that exclusion is in the shop text, not just here.
   // Name: his joke — the slowest murder in history is committed with a spoon.
   spoon:  { name: 'Slow Spoon',           cost: 7, maxLevel: 3, desc: 'Heal on every hit.',
-            long: 'Every time you damage an enemy you heal a flat amount — once per victim per hit, so hitting three at once heals three times. Burns and sicknesses (Malady, the Hat of Aura) never pay.' },
+            long: 'Every enemy you damage heals you a flat amount — once per victim per hit, so hitting three at once heals three times. Burns and sicknesses heal a tenth of that, at most once a second per enemy.' },
   // (Echo Stone deleted in round 20.1 — merged into ELEMENTS.mosquito. Its old
   // spec: `git show 58ba4e7:shared/constants.js`.)
   // 2026-08-08 (Remi, round 16): arcane's old GLOBAL cooldown reduction moved
@@ -459,7 +459,11 @@ export const ITEM_FX = {
   // Round 21.7 (Remi's hand spec): −25/−40/−50% knockback. History:
   // [0.92,0.85,0.80] → 19.2 [0.88,0.78,0.70] → 19.6 [0.85,0.74,0.65] → now.
   cape: { kbMult: [0.75, 0.60, 0.50] },
-  sword: { lifesteal: [0.18, 0.30, 0.38] },
+  // Round 21.8 (Remi, after the spoon A/B): 18/30/38 → 10/20/30%. Two jobs at
+  // once — it nerfs the item the labs call mandatory-by-structure (question L),
+  // and it moves the spoon's break-even from ~5 damage a hit to 13-20, which is
+  // where a flat heal is supposed to win. Revert: [0.18, 0.30, 0.38].
+  sword: { lifesteal: [0.10, 0.20, 0.30] },
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
   // haste SUMS across sources — so stacking it with arcane's fireball haste
   // has diminishing returns where the old multipliers compounded (midas-cdr
@@ -467,7 +471,11 @@ export const ITEM_FX = {
   // level must never give MORE than the one before it. [8,18,28] measured
   // lv0 12.9% on the ladder; this is the same ballpark.
   // history: docs/history/2026-08-08-round17-battery.md
-  hourglass: { haste: [10, 18, 26] },
+  // Round 21.8 (Remi): [10, 18, 26] → [10, 20, 30]. ⚠ The old rule was "a later
+  // level must never give MORE than the one before"; equal steps still satisfy
+  // it, because cd = base/(1+h/100) is concave — +10 haste is worth 9.1%, then
+  // 8.3%, then 7.7% off your cooldowns. Revert: [10, 18, 26].
+  hourglass: { haste: [10, 20, 30] },
   // Hat of Aura (ex-Coal Brazier): damage is FLAT (Remi — every level burns for
   // the same 1/s), the RADIUS is the whole upgrade. Round 21.7 (his call):
   // [3, 3.8, 4.6] → [5, 6, 7], so lv1 equals malady's lv1 aura and lv3 still
@@ -481,7 +489,19 @@ export const ITEM_FX = {
   brazier: { auraDps: 1, auraR: [5, 6, 7], linger: [3, 4, 5] },
   // Slow Spoon: FLAT hp per damaging hit, no damage scaling anywhere in it.
   // ⚠ `healOnHit` must stay in items.js's ADD_FIELDS to reach stats().
-  spoon: { healOnHit: [1, 1.5, 2] },
+  // Slow Spoon (round 21.8 final, Remi). `healOnHit` is the flat heal per enemy
+  // per hit; against the sword's 10/20/30% that is a break-even of a flat
+  // **10 damage at every level**, which sits in the gap between a bare fireball
+  // (7) and an ember-3 one (11) — so the item wins low-damage kits and loses to
+  // lifesteal in damage kits, by construction.
+  // `tickFrac`: damage-over-time (malady's sickness, the Hat's burn) pays a
+  // TENTH, one rule for every tick — Remi ruled out splitting auras from poison
+  // as too much to explain. Sized so the two fantasies pay the same: anger+blade
+  // heals 722 hp/game and plague+spoon 768 (+6%), while each item still wins its
+  // own build (blade +27% in anger, spoon +19% in plague, +37% in a plain kit).
+  // At 0.05 the ticks stop mattering; at 0.2 the aura build runs +56%.
+  // history: docs/history/2026-08-11-round21.8-elo.md#addendum
+  spoon: { healOnHit: [1, 2, 3], tickFrac: 0.1 },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------

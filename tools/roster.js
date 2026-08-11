@@ -362,6 +362,24 @@ export const ROSTER = {
     core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['spoon', 3], ['boots', 2], ['amulet', 2]],
   },
+  // The mirror question (round 21.8): F1/F2 ask which item wins when hits are
+  // SMALL and frequent; F3/F4 ask the same with hits as BIG as a bot can land —
+  // ember 3, lightning 2, meteor 2, terra 3. If the answer is the same item in
+  // both, one of the two items has no reason to exist.
+  'F3-spoon-burst': {
+    family: 'F', fantasy: 'Big hits, and a flat crumb of healing per hit that barely notices them.',
+    tests: 'the Slow Spoon where lifesteal SHOULD win: few, large hits (vs F4)',
+    caps: { sword: 0 },
+    core: [['ember', 3], ['lightning', 2], ['meteor', 2], ['terra', 3],
+      ['spoon', 3], ['amulet', 2], ['hourglass', 2], ['boots', 3], ['treads', 2]],
+  },
+  'F4-sword-burst': {
+    family: 'F', fantasy: 'Big hits, and a percentage of every one of them.',
+    tests: 'the control for F3: the Blood Sword on the same big-hit kit',
+    caps: { spoon: 0 },
+    core: [['ember', 3], ['lightning', 2], ['meteor', 2], ['terra', 3],
+      ['sword', 3], ['amulet', 2], ['hourglass', 2], ['boots', 3], ['treads', 2]],
+  },
   'F2-sword-volume': {
     family: 'F', fantasy: 'The same barrage, paid for in lifesteal instead.',
     tests: 'the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned',

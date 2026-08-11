@@ -1076,7 +1076,8 @@ const ITEM_FIELDS = {
   auraDps: ['burn damage', (v) => `${fmtNum(v)}/s`],
   auraR: ['burn radius', fmtNum],
   linger: ['keeps burning for', fmtSec],
-  healOnHit: ['heal per hit', (v) => `+${fmtNum(v)} hp`],
+  healOnHit: ['heal per enemy hit', (v) => `+${fmtNum(v)} hp`],
+  tickFrac: ['burns & sickness heal', (v) => `${fmtNum(Math.round(v * 100))}% of that, max 1/s`],
 };
 
 // What the level you own actually bought, as a plain sentence. The maths lives
@@ -1093,7 +1094,7 @@ const ITEM_LIVE = {
   sword: (lv) => `you heal ${fmtNum(Math.round(itemFxAt('sword', 'lifesteal', lv) * 1000) / 10)}% of the damage you deal`,
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
   brazier: (lv) => `enemies within ${fmtNum(itemFxAt('brazier', 'auraR', lv))} units of you burn for ${fmtNum(itemFxAt('brazier', 'auraDps', lv))} hp/s, and keep burning ${fmtNum(itemFxAt('brazier', 'linger', lv))} s after they leave`,
-  spoon: (lv) => `every enemy you damage heals you ${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp`,
+  spoon: (lv) => `every enemy you damage heals you ${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp, and ${fmtNum(itemFxAt('spoon', 'healOnHit', lv) * ITEM_FX.spoon.tickFrac)} per burn or sickness tick`,
 };
 
 // The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —

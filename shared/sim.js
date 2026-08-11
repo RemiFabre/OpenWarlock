@@ -2,7 +2,7 @@
 // except through state.rng (seeded). Runs on the server; unit-testable.
 
 import {
-  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ELEMENTS, COLORS,
+  ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
   DRAFT, TEAMS, itemCost,
 } from './constants.js';
@@ -1159,11 +1159,23 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 // source's items pay (ELEMENTS.vampire's engorged ball). It obeys the same rule
 // as the Blood Sword and deliberately reuses its code path: paid on damage
 // actually dealt, so overkill is excluded, and lava (sourceId null) never pays.
-// `procs: false` = this damage is a TICK (a DoT bite, an aura burn), not a hit.
-// Round 21.8: the Slow Spoon's flat per-hit heal is the only thing that reads
-// it, and the exclusion is the item's whole balance (an aura would pay it every
-// second, for free, forever). Lifesteal deliberately still pays on ticks — that
-// is the Blood Sword's long-standing behaviour.
+// `procs` says what KIND of damage this is, for the Slow Spoon only:
+//   true    — a hit you landed: the full flat heal
+//   'tick'  — damage over time (malady's sickness, the Hat's burn): a TENTH of
+//             it (ITEM_FX.spoon.tickFrac), and at most once a second per victim
+//   false   — pays nothing (the off switch; unused today)
+// ⚠ The once-a-second gate is INSURANCE, not balance: every tick source in the
+// game runs at 1/s today, so it changes nothing — but a future poison ticking
+// 10x faster for a tenth of the damage would otherwise multiply this item by 10
+// while leaving the poison itself untouched (Remi, round 21.8).
+// Lifesteal is deliberately untouched by all of it: the Blood Sword has always
+// paid its percentage on ticks too, which is why plague builds like it.
+const SPOON_TICK_EVERY = 1;   // seconds, per (attacker, victim) pair
+// Smallest heal that earns a green floater. ⚠ DISPLAY ONLY — the hp itself is
+// always credited in full, fractions included (Remi, round 21.8): the heal is
+// applied and banked in the scoreboard column BEFORE this floor is consulted.
+const HEAL_FLOAT_MIN = 1;
+
 function applyDamage(state, target, amount, sourceId,
   { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0,
     procs = true } = {}) {
@@ -1218,8 +1230,13 @@ function applyDamage(state, target, amount, sourceId,
       // Slow Spoon (round 21.8): a FLAT heal per damaging hit, no damage
       // scaling — the sustain item for wide, low-damage, utility builds. One
       // proc per victim per hit, so a piercing ball through three bodies pays
-      // three times; ticks and auras never pay (see `procs`).
-      const flat = (procs && healOnHit > 0 && effective > 0) ? healOnHit : 0;
+      // three times; a DoT tick pays a tenth, rate-limited (see `procs`).
+      let flat = 0;
+      if (healOnHit > 0 && effective > 0) {
+        if (procs === true) flat = healOnHit;
+        else if (procs === 'tick' && spoonTickDue(state, src, target))
+          flat = healOnHit * (ITEM_FX.spoon.tickFrac || 0);
+      }
       if (total > 0 || flat > 0) {
         const before = src.hp;
         src.hp = Math.min(src.maxHp, src.hp + effective * total + flat);
@@ -1229,9 +1246,12 @@ function applyDamage(state, target, amount, sourceId,
         // green "+N" over the healed player — the Blood Sword used to be
         // deliberately silent and read as broken because of it (the old ramp/
         // mosquito scar: a correct mechanic with no on-screen presence is a bug
-        // in practice). The >= 1 floor keeps sub-point poison-tick heals from
-        // spamming; a full point is a popup, a rounding crumb is not.
-        if (healed >= 1)
+        // in practice). The floor keeps rounding crumbs off the screen.
+        // ⚠ Round 21.8 (Remi's ruling): the floor is COSMETIC — hp is credited
+        // above, whatever the size. Consequence to watch: a lv1 sword at 10%
+        // heals 0.7 off a bare fireball, so it pops no number; the bar and the
+        // scoreboard still move (the round-16 scar's edge case).
+        if (healed >= HEAL_FLOAT_MIN)
           state.events.push({
             t: 'lifesteal', id: src.id, amount: healed, x: src.x, y: src.y,
           });
@@ -1244,6 +1264,18 @@ function applyDamage(state, target, amount, sourceId,
       ...(bonus > 0 ? { bonus } : {}),  // anger: shown above the damage
     });
   if (target.hp <= 0) kill(state, target, sourceId);
+}
+
+// The Slow Spoon's tick gate: has this attacker been paid for this victim's
+// damage-over-time within the last second? Bookkeeping lives on the ATTACKER as
+// a plain {victimId: time} map, so it stays JSON-safe for crash dumps, and it is
+// wiped at every round start like the other per-round maps.
+function spoonTickDue(state, src, target) {
+  const seen = (src._spoonTick = src._spoonTick || {});
+  const last = seen[target.id];
+  if (last != null && state.time - last < SPOON_TICK_EVERY - 1e-6) return false;
+  seen[target.id] = state.time;
+  return true;
 }
 
 function kill(state, target, directSourceId) {
@@ -1421,6 +1453,7 @@ function startRound(state) {
     // the Hat of Aura's burns die with the round (they are victim-side since
     // 21.8: {ownerId: {left, next}} — see the aura engine in stepBattle)
     pl._burns = {};
+    pl._spoonTick = {};   // Slow Spoon: the per-victim tick clock is per round
     pl.mosqN = 0; pl.mosqDue = false;
     // vampire's charge counter resets with the round, exactly like mosquito's
     // (the other "every Nth cast" mechanic). Deliberate: the rhythm you
@@ -1947,7 +1980,7 @@ function stepBattle(state, dt) {
         if (b.next <= 1e-6) {
           b.next += tickEvery;
           applyDamage(state, q, b.dps * tickEvery, ownerId,
-            { stamp: false, procs: false });
+            { stamp: false, procs: 'tick' });
         }
         if (b.in) { b.in = false; continue; }   // still standing in the ring
         b.left -= dt;
@@ -2025,7 +2058,7 @@ function stepBattle(state, dt) {
           pl._poisonNext += ELEMENTS.malady.fx.tickEvery;
           // `procs: false`: a sickness tick is not a hit — no Slow Spoon heal
           applyDamage(state, pl, pl.poisonTick, pl.poisonBy,
-            { silent: true, stamp: false, procs: false });
+            { silent: true, stamp: false, procs: 'tick' });
           state.events.push({ t: 'hit', id: pl.id, amount: pl.poisonTick, x: pl.x, y: pl.y, poison: true });
         }
       }

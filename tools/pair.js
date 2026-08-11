@@ -17,8 +17,24 @@
 
 import { createGame, addPlayer, startGame, step, stepBot, buy, setShopReady, makeRng }
   from '../shared/sim.js';
+import { ITEM_FX, ITEMS, ELEMENTS } from '../shared/constants.js';
 import { ROSTER, paddedCore, expandCore } from './roster.js';
 import { EXHAUST_PASS } from './strategy-study.js';
+
+// --fx=<key>.<field>=<a,b,c> — same sweep hook arena.js has, so a "what if we
+// made it X" question is one command instead of an edit-run-revert cycle.
+for (const a of process.argv.filter(x => x.startsWith('--fx='))) {
+  const [lhs, rhs] = a.slice(5).split('=');
+  const [key, field] = lhs.split('.');
+  const vals = rhs.split(',').map(Number);
+  const target = Object.hasOwn(ITEM_FX, key) && field !== 'cost' ? ITEM_FX[key]
+    : Object.hasOwn(ELEMENTS, key) && field !== 'cost' ? ELEMENTS[key].fx
+    : Object.hasOwn(ITEMS, key) ? ITEMS[key]
+    : null;
+  if (!target) { console.error(`--fx: unknown key ${key}`); process.exit(1); }
+  target[field] = vals.length === 1 ? vals[0] : vals;
+  console.error(`--fx override: ${key}.${field} = ${JSON.stringify(target[field])}`);
+}
 
 const DT = 1 / 30;
 const arg = (n, d) => {

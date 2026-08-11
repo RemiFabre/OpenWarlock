@@ -126,6 +126,12 @@
 - **F1-spoon-volume** (156 g): Cast constantly, heal a flat crumb off every single connection.
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → spoon3 → boots2 → amulet2
   - tests: the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)
+- **F3-spoon-burst** (150 g): Big hits, and a flat crumb of healing per hit that barely notices them.
+  - order: ember3 → lightning2 → meteor2 → terra3 → spoon3 → amulet2 → hourglass2 → boots3 → treads2 → sword1
+  - tests: the Slow Spoon where lifesteal SHOULD win: few, large hits (vs F4)
+- **F4-sword-burst** (150 g): Big hits, and a percentage of every one of them.
+  - order: ember3 → lightning2 → meteor2 → terra3 → sword3 → amulet2 → hourglass2 → boots3 → treads2 → amulet3
+  - tests: the control for F3: the Blood Sword on the same big-hit kit
 - **F2-sword-volume** (156 g): The same barrage, paid for in lifesteal instead.
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
   - tests: the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned

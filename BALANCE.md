@@ -213,14 +213,30 @@ item raised A1 +58 and B6 +118 — human read needed); the **meteor lv2 buff
 (24→30) is invisible** (C5 still last, Δ −1) — its cast rules, not its damage,
 are the lever.
 
-**Slow Spoon vs Blood Sword, settled** (r236 addendum in the same file): in one
-identical high-volume kit with each side BANNED from the other item, the sword
-is **+54/+77 Elo** and heals 115 vs 75 hp per game. The spoon only wins a hit
-below **~5 damage** at every level (`flat heal ÷ lifesteal %`), and the game's
-smallest hit is a 7-damage lv1 fireball — so it currently loses on every hit
-that exists, and its own exclusions (Malady, the Hat) are the sub-5 sources that
-would have favoured it. Both cost 21 g, so this is not a price question. Lever:
-`healOnHit [2, 3, 4]` puts the break-even at ~10 damage.
+**The sustain pass (r238, Remi's rulings — the A/B that drove it is the r236
+addendum in the ELO file above).** Three numbers changed together:
+**sword lifesteal 18/30/38 → 10/20/30%**, **spoon `healOnHit` 1/1.5/2 → 1/2/3**
+with DoT/aura ticks paying **a tenth** (`tickFrac 0.1`, max one proc/s/victim),
+and **hourglass haste 10/18/26 → 10/20/30**.
+- **The break-even is now a flat 10 damage at every spoon level** (`flat ÷
+  lifesteal%`), and hit sizes in this game are two spikes — 7 (bare fireball) and
+  11 (ember-3 fireball) — so that line cleanly separates "no damage investment"
+  from "damage investment". Below 7: the spoon never won. Above 11: it always
+  won. Measured p10/median/p90 per hit: 7/7/8 in a plain kit, 7/11/11 in an
+  ember kit, max 18 in either.
+- **Ticks at a tenth make the two fantasies pay the same** (hp healed per player
+  per game, lv3, measured tick counts): anger+blade **722**, plague+spoon **768**
+  (+6%), hat+plague+spoon **766** (+6%) — while each item still wins its own
+  home: blade **+27%** in an anger build, spoon **+19%** in a plague build,
+  **+37%** in a plain low-damage kit, blade **+7%** back in an ember burst kit.
+  At `tickFrac` 0.05 the ticks stop mattering (the Hat build prefers the blade);
+  at 0.2 it runs +56% and the spoon becomes an aura item.
+- Tick counts behind that, per player per game: Hat3+malady3 **984** ticks vs 157
+  hits; malady3 alone **430** vs 213; anger builds ~**100** vs 165 hits at 14
+  dmg each (vs 7.3 for everyone else).
+- ⚠ Bots never cluster, so malady's contagion — and therefore the plague side of
+  this — is a FLOOR. If plague+spoon feels oppressive live, 0.08 is the same rule
+  with a smaller tenth.
 ⚠ **Instrument scar**: `EXHAUST_PASS` holds every item, so a one-variable item
 A/B MUST use `caps: {other: 0}` — without it the pair prices buy ORDER and
 produces a plausible, wrong table.

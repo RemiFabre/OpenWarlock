@@ -2455,12 +2455,18 @@ describe('elemental mode', () => {
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
     state.pillars = [];
-    a.items = { sword: 1 };
+    // ⚠ Round 21.8: at the sword's new lv1 (10%) a bare fireball heals 0.7 and
+    // pops NO number (the floater floor is cosmetic and hp is still credited —
+    // Remi's ruling). So the round-16 promise is tested at the lowest level that
+    // clears the floor, and the level is derived, never pinned.
+    const lv = ITEM_FX.sword.lifesteal
+      .findIndex(ls => SPELLS.fireball.damage[0] * ls >= 1) + 1;
+    expect(lv).toBeGreaterThan(0);
+    a.items = { sword: lv };
     a.hp = a.maxHp - 20;                    // room to heal
     a.x = 0; a.y = 0; a.vx = a.vy = 0;
     b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
-    const steal = ITEM_FX.sword.lifesteal[0];
-    expect(SPELLS.fireball.damage[0] * steal).toBeGreaterThanOrEqual(1);
+    const steal = ITEM_FX.sword.lifesteal[lv - 1];
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
     let ev = null;
@@ -6414,15 +6420,14 @@ describe('Slow Spoon 🥄 (flat heal per hit)', () => {
     expect(a.hp - hp0).toBeCloseTo(hit.length * at(2), 5);
   });
 
-  it('a sickness tick NEVER pays it (malady is excluded by design)', () => {
+  it('a sickness tick pays a TENTH of a hit, not nothing and not a full proc', () => {
     const state = spoonBattle(3, 2, 'elemental');
     const a = state.players.p0;
     a.elements = { malady: 1 };
-    // two hits infect; each of those hits DOES pay (they are hits)
+    // two hits infect; each of those hits DOES pay in full (they are hits)
     let hp0 = a.hp;
     for (let i = 0; i < 2; i++) {
       a.cooldowns = {};
-      // re-park the victim: the first hit shoves them out of the second ball's path
       state.players.p1.x = 8; state.players.p1.y = 0;
       state.players.p1.vx = 0; state.players.p1.vy = 0;
       castSpell(state, 'p0', 'fireball', 40, 0);
@@ -6430,23 +6435,56 @@ describe('Slow Spoon 🥄 (flat heal per hit)', () => {
     }
     expect(state.players.p1.poisonT).toBeGreaterThan(0);
     expect(a.hp - hp0).toBeCloseTo(2 * at(3), 5);
-    // ...and then the plague ticks away for seconds, paying nothing
+    // ...then the plague ticks, and each tick pays healOnHit x tickFrac
     hp0 = a.hp;
     const bHp = state.players.p1.hp;
-    run(state, 3);
-    expect(state.players.p1.hp).toBeLessThan(bHp);   // the ticks landed
-    expect(a.hp).toBe(hp0);                          // and healed nobody
+    const ticks = 3;
+    run(state, ticks + 0.05);
+    expect(state.players.p1.hp).toBeLessThan(bHp);
+    expect(a.hp - hp0).toBeCloseTo(ticks * at(3) * ITEM_FX.spoon.tickFrac, 2);
   });
 
-  it("the Hat of Aura's burn never pays it either", () => {
+  it("the Hat of Aura's burn pays the same tenth", () => {
     const state = spoonBattle(3);
     const a = state.players.p0;
     a.items.brazier = 3;
+    a.hp = 40;
     state.players.p1.x = 2;          // parked well inside the ring
     const hp0 = a.hp, bHp = state.players.p1.hp;
     run(state, 3);
     expect(state.players.p1.hp).toBeLessThan(bHp);   // burning
-    expect(a.hp).toBe(hp0);                          // healing nobody
+    expect(a.hp - hp0).toBeCloseTo(3 * at(3) * ITEM_FX.spoon.tickFrac, 2);
+  });
+
+  // ⚠ Insurance, not balance: everything ticks at 1/s today, so this gate is
+  // invisible — but a future poison at 10x the rate for a tenth of the damage
+  // would otherwise multiply the item by 10 (Remi, round 21.8).
+  it('pays AT MOST once a second per victim, however fast the ticks come', () => {
+    const f = ELEMENTS.malady.fx;
+    const [rate, dmg] = [f.tickEvery, f.tickDmg];
+    try {
+      f.tickEvery = rate / 10;                       // 10x faster...
+      f.tickDmg = dmg.map(d => d / 10);              // ...for a tenth of the bite
+      const state = spoonBattle(3, 2, 'elemental');
+      const a = state.players.p0;
+      a.elements = { malady: 1 };
+      for (let i = 0; i < 2; i++) {
+        a.cooldowns = {};
+        state.players.p1.x = 8; state.players.p1.y = 0;
+        state.players.p1.vx = 0; state.players.p1.vy = 0;
+        castSpell(state, 'p0', 'fireball', 40, 0);
+        run(state, 0.4);
+      }
+      expect(state.players.p1.poisonT).toBeGreaterThan(0);
+      const hp0 = a.hp;
+      const secs = 3;
+      run(state, secs + 0.05);
+      // 30 ticks landed, but the spoon was paid for 3 of them
+      expect(a.hp - hp0).toBeCloseTo(secs * at(3) * ITEM_FX.spoon.tickFrac, 2);
+    } finally {
+      f.tickEvery = rate;
+      f.tickDmg = dmg;
+    }
   });
 
   it('never overheals, and lava damage pays nobody', () => {
