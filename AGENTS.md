@@ -224,7 +224,12 @@ build step, Node ESM, only dep is `ws`.
   `lastHitBy` is wiped each round start so a claim never crosses rounds). That
   is what makes a knockback-into-lava kill land: a full-hp victim burns ~7 s,
   which used to outlive the old 5 s window and credit NOBODY.
-  DoT never stamps last-hitter; a lethal poison tick DOES take the kill. Lifesteal pays on damage actually dealt, never lava; heals
+  **DoT stamps like everything else since 21.8** (Remi: taking kills is part of
+  a plague's identity) — a lethal tick credits its owner directly, and an
+  ordinary tick claims the last-hitter slot, so a victim your sickness or burn
+  chased into the lava dies as YOUR kill. ⚠ Accepted consequence: a DoT ticking
+  every second usually out-claims whoever shoved the victim in, because it
+  damaged them more recently. Revert = `stamp: false` at the two tick sites. Lifesteal pays on damage actually dealt, never lava; heals
   ≥ 1 hp pop a green +N; poison ticks are exempt from the ≥1 floater filter.
 - **Draft mode**: optional flag over any ruleset. Unmeasured by design.
 - **Bots**: Easy/Normal/Hard/Extreme (`grunt/brawler/berserker/stalker` keys).

@@ -1941,9 +1941,10 @@ function stepBattle(state, dt) {
   // you `linger` more seconds of it. The bookkeeping is VICTIM-side and keyed by
   // owner ({ownerId: {left, next}}), which is what keeps two owners burning the
   // same body independently — and what lets the burn outlive the ring.
-  // Credit follows the DoT rule exactly: `stamp: false` never claims the
-  // last-hitter slot (no stolen lava kills), while a lethal tick still credits
-  // the owner through kill(). `procs: false` keeps it out of the Slow Spoon
+  // Credit follows the DoT rule exactly (round 21.8, Remi: "DoT needs to be able
+  // to credit kills, that is part of their identity"): a burn tick STAMPS the
+  // last-hitter slot like any other damage, so a victim who burns and then dies
+  // to the lava is yours — and a lethal tick still credits the owner directly. `procs: false` keeps it out of the Slow Spoon
   // (round 21.8: a ticking aura must never pay a per-hit heal). Ticks go through
   // applyDamage, so a statue takes zero; a statue'd OWNER keeps burning
   // (⚠ RULING, round 21.5 — the aura is passive, and being an unmissable rooted
@@ -1981,8 +1982,7 @@ function stepBattle(state, dt) {
         b.next -= dt;
         if (b.next <= 1e-6) {
           b.next += tickEvery;
-          applyDamage(state, q, b.dps * tickEvery, ownerId,
-            { stamp: false, procs: 'tick' });
+          applyDamage(state, q, b.dps * tickEvery, ownerId, { procs: 'tick' });
         }
         if (b.in) { b.in = false; continue; }   // still standing in the ring
         b.left -= dt;
@@ -2050,7 +2050,12 @@ function stepBattle(state, dt) {
       // tickEvery seconds. The tick runs BEFORE the clock decrement so the
       // final tick can't be lost to float residue on the last frame. A lethal
       // tick passes poisonBy as the direct source (they get the kill, even
-      // mid-lava) but never stamps lastHitBy — the round-9 credit rule.
+      // mid-lava), and since round 21.8 an ordinary tick also STAMPS the
+      // last-hitter slot (Remi: taking kills is part of the plague's identity)
+      // — so a victim your sickness chased into the lava dies as your kill.
+      // ⚠ Consequence, accepted: a DoT ticking every second usually out-claims
+      // the player who shoved them in, because it damaged them more recently.
+      // That IS the rule — last damage owns the death. Revert = `stamp: false`.
       if (pl.poisonTick > 0) {
         pl._poisonNext = (pl._poisonNext ?? ELEMENTS.malady.fx.tickEvery) - dt;
         // 1e-6 slack: dotTime is an exact multiple of tickEvery, so the LAST
@@ -2060,7 +2065,7 @@ function stepBattle(state, dt) {
           pl._poisonNext += ELEMENTS.malady.fx.tickEvery;
           // `procs: false`: a sickness tick is not a hit — no Slow Spoon heal
           applyDamage(state, pl, pl.poisonTick, pl.poisonBy,
-            { silent: true, stamp: false, procs: 'tick' });
+            { silent: true, procs: 'tick' });
           state.events.push({ t: 'hit', id: pl.id, amount: pl.poisonTick, x: pl.x, y: pl.y, poison: true });
         }
       }

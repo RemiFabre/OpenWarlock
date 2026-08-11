@@ -1553,7 +1553,11 @@ describe('elemental mode', () => {
     expect(seen.some(e => e.t === 'infected' && e.id === 'p2')).toBe(true);
   });
 
-  it('a lethal DoT tick gives the credited player the kill — without stamping lastHitBy', () => {
+  // ⚠ RULING (Remi, round 21.8): taking kills is part of a DoT's identity, so a
+  // tick stamps the last-hitter slot like any other damage — a victim your
+  // sickness chased into the lava dies as YOUR kill. (Before, ticks never
+  // stamped, so that death went to whoever last hit them, or to nobody.)
+  it('a DoT tick takes the kill AND claims the last-hitter slot', () => {
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     b.x = 10; b.y = 0; b.vx = 0; b.moveTarget = null;
@@ -1573,7 +1577,14 @@ describe('elemental mode', () => {
     b2.poisonT = 5; b2.poisonTick = 1; b2._poisonNext = 0.1; b2.poisonBy = 'p0';
     run(s2, 0.3);
     expect(b2.hp).toBeLessThan(b2.maxHp);
-    expect(b2.lastHitBy).toBe(null);        // round-9 rule: DoT never stamps
+    expect(b2.lastHitBy && b2.lastHitBy.id).toBe('p0');   // the tick claimed it
+    // …so if the lava finishes them, the plague owner still gets the kill
+    b2.hp = 0.4;
+    b2.x = s2.arenaRadius + 4; b2.y = 0;
+    const k0 = s2.players.p0.kills;
+    for (let i = 0; i < 60 && b2.alive; i++) { step(s2, DT); b2.moveTarget = null; }
+    expect(b2.alive).toBe(false);
+    expect(s2.players.p0.kills).toBe(k0 + 1);
   });
 
   // ---- anger 🔴 (momentum → Anger rework: the mark hunt) -----------------
@@ -6710,13 +6721,14 @@ describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 2
     expect(hp0 - b.hp).toBeCloseTo(2 * 3 * at('auraDps', 3) * spec.tickEvery, 5);
   });
 
-  it('credit follows the DoT rule: no lastHitBy stamp, but a lethal tick takes the kill', () => {
+  it('credit follows the DoT rule: the burn claims the last-hitter slot too', () => {
     const state = brazierBattle(1, at('auraR', 1) - 0.5);
     const a = state.players.p0, b = state.players.p1;
     b.lastHitBy = null;
     run(state, 1.1);
     expect(b.hp).toBeLessThan(b.maxHp);
-    expect(b.lastHitBy).toBe(null);          // a burn never steals a lava kill
+    // round 21.8: a burn DOES claim it, so burning someone into the lava pays
+    expect(b.lastHitBy && b.lastHitBy.id).toBe('p0');
     b.hp = at('auraDps', 1) * spec.tickEvery;
     const kills = a.kills;
     run(state, 1.1);

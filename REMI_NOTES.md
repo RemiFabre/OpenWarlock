@@ -159,6 +159,21 @@ and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
   moved −1 and is still last). If the meteor should be a real pick, the lever is
   its cast rules, not its damage.
 
+## DoT can take kills now — that was my rule, and it was wrong
+
+You were right, and it was worse than "not buffed": **a burn or a sickness never
+claimed the last-hitter slot at all.** A lethal tick took the kill, but if your
+plague chased someone into the lava and the lava finished them, the kill went to
+whoever last *hit* them — or to nobody. That was a rule I inherited and kept
+without questioning it.
+
+Ticks now stamp like every other point of damage. Burn someone into the fire and
+the kill is yours.
+
+⚠ The accepted consequence: a DoT ticking once a second usually **out-claims the
+player who shoved the victim in**, because it damaged them more recently. That
+is the rule you asked for — last damage owns the death — applied consistently.
+
 ## Your missing kill: found it, and the 5-second rule is gone
 
 I reproduced your exact scene — dead, my mine launches a bot off the rim, the
