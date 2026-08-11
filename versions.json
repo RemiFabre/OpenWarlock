@@ -36,6 +36,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/4",
       "branch": "issue-4-chatter",
       "commit": "b8d7a2f613c520c6dfae810c4fe4595c909418cd"
+    },
+    {
+      "slug": "sharpshooter",
+      "name": "Sharpshooter",
+      "author": "@RemiFabre",
+      "summary": "The fireball becomes a thin, very fast skillshot with a 50-unit range, and Frost stops slowing: its third stack freezes you where you stand and banks half the swallowed push for the next ability that hits you.",
+      "issue": 5,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/5",
+      "branch": "issue-5-sharpshooter",
+      "commit": "9770f0c2e04776a3a21346ec9da7b93907ab18bc"
     }
   ]
 }
