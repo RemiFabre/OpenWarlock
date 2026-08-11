@@ -119,7 +119,12 @@ export const ROUND = {
   // Measured 2026-08-06 (tools/coop.js): 14 is a formality, 12 locks solo out.
   // history: docs/history/2026-08-08-constants-sweeps.md#round-coop_max_rounds
   COOP_MAX_ROUNDS: 13,
-  KILL_CREDIT_WINDOW: 5,  // seconds: last hitter gets lava kills
+  // ⚠ INERT since round 21.8 (Remi): there is NO time limit on kill credit any
+  // more — the last player who damaged you owns your death, however long the
+  // swim takes (`lastHitBy` is wiped every round start, so it can never reach
+  // across rounds). Kept as the one-line revert path: put the comparison back in
+  // kill() and in applyDamage's lava branch, both in shared/sim.js.
+  KILL_CREDIT_WINDOW: 5,  // seconds — unused; the revert path
   // kill this fast after your last one and it's a DOUBLE KILL (then triple…)
   MULTIKILL_WINDOW: 6,
 };

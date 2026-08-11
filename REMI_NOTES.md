@@ -159,6 +159,30 @@ and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
   moved −1 and is still last). If the meteor should be a real pick, the lever is
   its cast rules, not its damage.
 
+## Your missing kill: found it, and the 5-second rule is gone
+
+I reproduced your exact scene — dead, my mine launches a bot off the rim, the
+bot burns to death — and the kill went **nowhere**. The cause was not the mine
+and not being dead:
+
+**The bot swam for 6.4 seconds. Kill credit expired after 5.** A victim knocked
+in at full health burns for about seven seconds (longer with Lava Treads), so
+the claim aged out mid-swim and the game credited nobody.
+
+**Per your call, the window is deleted.** The last player to damage you now owns
+your death, however long it takes — no timer at all. `lastHitBy` is already
+wiped at every round start, so a claim can never reach across rounds; the old
+5 s constant stays in the file, inert, as the one-line revert.
+
+⚠ This was never mine-specific. **Every** knockback-into-lava kill has been
+losing its credit this way whenever the victim survived more than five seconds
+in the fire — which is most of them at full health. Expect noticeably more lava
+kills to land on someone's name from now on, including yours.
+
+Three tests lock it: the long swim credits the shove, a hit fifteen seconds
+before the swim still credits, and the damage column follows the same rule so
+the scoreboard and the kill feed can never disagree.
+
 ## A trap outlives its trapper — checked, and now locked
 
 Your mine already keeps working after you die, and everything it does stays

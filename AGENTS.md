@@ -114,7 +114,7 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | 393 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | 395 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 — every arena table printed before that date was classic |
@@ -219,8 +219,12 @@ build step, Node ESM, only dep is `ws`.
   takes qwerty → azerty → first free key) and rebinding always swaps + toasts.
 - **Vanish**: position stripped in `snapshot()` AND masked from bot perception
   (`BOT_MEMORY`) — both load-bearing, test-locked.
-- **Credit rules**: DoT never stamps last-hitter; a lethal poison tick DOES
-  take the kill. Lifesteal pays on damage actually dealt, never lava; heals
+- **Credit rules**: the LAST player to damage you owns your death, with **no
+  time window** (round 21.8 — `KILL_CREDIT_WINDOW` is inert, the revert path;
+  `lastHitBy` is wiped each round start so a claim never crosses rounds). That
+  is what makes a knockback-into-lava kill land: a full-hp victim burns ~7 s,
+  which used to outlive the old 5 s window and credit NOBODY.
+  DoT never stamps last-hitter; a lethal poison tick DOES take the kill. Lifesteal pays on damage actually dealt, never lava; heals
   ≥ 1 hp pop a green +N; poison ticks are exempt from the ≥1 floater filter.
 - **Draft mode**: optional flag over any ruleset. Unmeasured by design.
 - **Bots**: Easy/Normal/Hard/Extreme (`grunt/brawler/berserker/stalker` keys).
@@ -248,7 +252,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 393 green
+npx vitest run                                   # 395 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

@@ -5804,6 +5804,47 @@ describe('mine 💣 (the trap, round 21.8)', () => {
   // column, and every on-hit rider the stored balls carry. Only things that
   // need a living body are skipped (healing, arcane's cooldown refund), which
   // falls out of applyDamage's existing `src.alive` guards.
+  // ⚠ RULING (Remi, round 21.8, from a live game): his mine launched a bot into
+  // the lava while he was already dead, the bot burned to death, and NOBODY got
+  // the kill — the victim swam 6.4 s at full hp and outlived the old 5 s credit
+  // window. Remi's ruling: DROP THE WINDOW. The last player to damage you owns
+  // your death, full stop. This was never mine-specific — every
+  // knockback-into-lava kill was losing its credit the same way.
+  it('a long swim no longer eats the kill: the shove owns the burn', () => {
+    const state = mineBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    const rim = state.arenaRadius;
+    plant(state, 'p0', rim - 1, 0);
+    a.hp = 0; a.alive = false;                    // dead before it even goes off
+    b.hp = b.maxHp; b.x = rim - 0.6; b.y = 0; b.moveTarget = null;
+    let swam = 0;
+    for (let i = 0; i < 30 * 30 && b.alive; i++) {
+      step(state, DT);
+      b.moveTarget = null;                        // no swimming back to shore
+      swam += DT;
+    }
+    expect(b.alive).toBe(false);
+    expect(swam).toBeGreaterThan(ROUND.KILL_CREDIT_WINDOW);   // a long burn
+    expect(a.kills).toBe(1);
+  });
+
+  it('the claim never expires: a hit long before the swim still takes the kill', () => {
+    const state = mineBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.nova = 1;
+    plant(state, 'p0', 10, 0);
+    b.x = 10.2; b.y = 0;
+    run(state, 0.3);                              // takes the mine, stays inside
+    expect(b.lastHitBy.id).toBe('p0');
+    run(state, ROUND.KILL_CREDIT_WINDOW * 3);     // ...and a long time passes
+    b.hp = 5;
+    b.x = state.arenaRadius + 3; b.y = 0;         // only NOW does it enter the lava
+    for (let i = 0; i < 30 * 30 && b.alive; i++) { step(state, DT); b.moveTarget = null; }
+    expect(b.alive).toBe(false);
+    expect(a.kills).toBe(1);                      // still the last player to hit it
+  });
+
   it('still credits a DEAD planter: the kill and the gold are theirs', () => {
     const state = mineBattle(3);
     const a = state.players.p0, b = state.players.p1;

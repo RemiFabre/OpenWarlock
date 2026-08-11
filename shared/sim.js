@@ -1189,12 +1189,12 @@ function applyDamage(state, target, amount, sourceId,
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
   // damage attribution: the direct source — or, for sourceless lava ticks,
-  // the last hitter within the kill-credit window (they knocked the victim
-  // in; the burn is theirs by the same rule that credits the kill)
+  // the last hitter, with NO time limit since round 21.8 (they knocked the
+  // victim in; the burn is theirs by the same rule that credits the kill)
   let creditId = sourceId != null && sourceId !== target.id ? sourceId : null;
+  // (same no-window rule as kill(): the last hitter owns the burn they caused)
   if (creditId == null && sourceId == null && target.lastHitBy &&
-      target.lastHitBy.id !== target.id &&
-      state.time - target.lastHitBy.t <= ROUND.KILL_CREDIT_WINDOW) {
+      target.lastHitBy.id !== target.id) {
     creditId = target.lastHitBy.id;
   }
   // victim-side accounting, independent of who gets the credit: lava is the one
@@ -1302,10 +1302,12 @@ function kill(state, target, directSourceId) {
   }
   // credit: direct source, else last hitter within the window
   let killerId = directSourceId != null && directSourceId !== target.id ? directSourceId : null;
-  if (killerId == null && target.lastHitBy &&
-      state.time - target.lastHitBy.t <= ROUND.KILL_CREDIT_WINDOW) {
-    killerId = target.lastHitBy.id;
-  }
+  // ⚠ RULING (Remi, round 21.8): NO TIME WINDOW. Whoever hit you last owns your
+  // death, however long ago it was — you shove someone into the lava and the
+  // kill is yours even if they burn for ten seconds. `lastHitBy` is wiped at
+  // every round start, so a claim can only ever come from the round you are in.
+  // Revert = re-add `state.time - target.lastHitBy.t <= ROUND.KILL_CREDIT_WINDOW`.
+  if (killerId == null && target.lastHitBy) killerId = target.lastHitBy.id;
   const killer = killerId != null ? state.players[killerId] : null;
   // Friendly fire kills your teammate for real, but it must never PAY. No
   // kill count, no gold, no "Double Kill" for dropping your own party into
