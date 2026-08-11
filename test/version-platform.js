@@ -60,6 +60,11 @@ try {
   await page.click('#owv-button');
   await page.waitForSelector('#owv-overlay.open');
   assert(await page.textContent('#owv-list').then((text) => text.includes('Remi’s Blood Debt')), 'experimental version missing');
+  await page.fill('#owv-search', 'remi debt');
+  assert(await page.textContent('#owv-list').then((text) => text.includes('Remi’s Blood Debt') && !text.includes('Official version')), 'multi-word version search failed');
+  await page.fill('#owv-search', 'nothing matches this');
+  assert(await page.textContent('#owv-list').then((text) => text.includes('No versions match')), 'empty search result missing');
+  await page.fill('#owv-search', '');
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'versions-default.png') });
 
   await page.locator('.owv-item', { hasText: 'Remi’s Blood Debt' }).locator('.owv-play').click();
@@ -74,10 +79,10 @@ try {
   const directContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const direct = await directContext.newPage();
   direct.on('pageerror', (error) => errors.push(error.message));
-  await direct.goto(`${BASE}/v/${COMMIT}/client/?version=remis-blood-debt#r=TEST`, { waitUntil: 'domcontentloaded' });
+  await direct.goto(`${BASE}/v/${COMMIT}/client/?version=remis-blood-debt#r=ABCDEFGHJKM2`, { waitUntil: 'domcontentloaded' });
   await direct.waitForSelector('#joinBtn', { timeout: 15000 });
   await direct.waitForSelector('#owv-join');
-  assert(direct.url().includes(`#r=TEST`), 'shared room hash was lost');
+  assert(direct.url().includes(`#r=ABCDEFGHJKM2`), 'shared room hash was lost');
   assert(await direct.evaluate(() => window.__keys().debt === 'y'), 'fresh shared link did not load the branch');
   console.log('fresh permanent link booted and preserved its invite hash');
 
@@ -86,6 +91,11 @@ try {
   await direct.waitForURL(`**${PREFIX}/client/`, { timeout: 10000 });
   await direct.waitForSelector('#joinBtn');
   console.log('experimental version switched back to default');
+
+  const invalid = 'a'.repeat(40);
+  await direct.goto(`${BASE}/v/${invalid}/client/`);
+  assert(await direct.textContent('body').then((text) => text.includes('no longer listed')), 'unlisted commit was not blocked');
+  console.log('unlisted commit was blocked');
 
   assert(errors.length === 0, `page errors:\n${errors.join('\n')}`);
   console.log(`VERSION PLATFORM OK (${process.env.ENGINE || 'chromium'})`);

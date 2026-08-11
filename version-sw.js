@@ -1,5 +1,7 @@
 const CACHE = 'openwarlock-versions-v1';
 const REPO_CDN = 'https://cdn.jsdelivr.net/gh/RemiFabre/OpenWarlock@';
+const RAW_MANIFEST = 'https://raw.githubusercontent.com/RemiFabre/OpenWarlock/main/versions.json';
+let validCommits;
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -19,6 +21,13 @@ self.addEventListener('fetch', (event) => {
 async function versionFile(request, commit, filePath) {
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
   if (!filePath || filePath.endsWith('/')) filePath += 'index.html';
+
+  try {
+    if (request.mode === 'navigate' || !validCommits) validCommits = loadValidCommits();
+    if (!(await validCommits).has(commit)) return new Response('This game version is no longer listed.', { status: 403 });
+  } catch {
+    return new Response('The version list is unavailable right now.', { status: 503 });
+  }
 
   const cache = await caches.open(CACHE);
   const cached = await cache.match(request, { ignoreSearch: true });
@@ -54,6 +63,21 @@ async function versionFile(request, commit, filePath) {
       headers: { 'content-type': 'text/plain; charset=utf-8' }
     });
   }
+}
+
+async function loadValidCommits() {
+  const root = self.registration.scope;
+  for (const url of [`${RAW_MANIFEST}?bust=${Date.now()}`, `${root}versions.json?bust=${Date.now()}`]) {
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (!Array.isArray(data.versions)) continue;
+      const commits = data.versions.map((version) => String(version.commit || '').toLowerCase());
+      if (commits.every((commit) => /^[0-9a-f]{40}$/.test(commit))) return new Set(commits);
+    } catch { /* try the Pages copy */ }
+  }
+  throw new Error('version list unavailable');
 }
 
 function mimeType(path) {
