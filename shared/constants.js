@@ -182,9 +182,18 @@ export const SPELLS = {
     // buy the old cadence back
     // lv1 damage 5 → 7 (2026-08-06): at 5 a lv1 fireball could not out-damage
     // passive regen, which is what made round 1 a 52-second stalemate
-    cooldown: [2.1, 1.85, 1.6], speed: 41, radius: 0.8, range: Infinity,
+    // Issue #5 (Remi): the Ezreal-Q pass — MUCH thinner, MUCH faster, and no
+    // longer infinite, so nobody snipes from the far rim. Damage, push and
+    // cadence are deliberately untouched: this is a feel change, and pricing it
+    // before it has been played would just be guessing.
+    // ⚠ Two things read these numbers and therefore move with them: Switcheroo's
+    // stun window is "the time a fireball needs to cross the swapped gap"
+    // (so a faster ball = a tighter combo), and the bot brains hold fire past
+    // `range` (shared/sim.js) instead of shooting balls that expire mid-air.
+    // Revert: speed 41, radius 0.8, range Infinity.
+    cooldown: [2.1, 1.85, 1.6], speed: 78, radius: 0.35, range: 50,
     damage: [7, 10, 14], knockback: [65, 70, 76],
-    desc: 'Your bread and butter: a medium projectile with strong knockback.',
+    desc: 'Your bread and butter: a thin, fast projectile with strong knockback.',
   },
   lightning: {
     // Round 17 (docs/ROUND17.md §2): hitscan → telegraphed sky-bolt. Mark a
@@ -535,11 +544,18 @@ export const ELEMENTS = {
   // mostly pre-existing variance; mid-strength in the absolute lab — NOT retuned.
   // ⚠ The mixed table is the wrong ruler for "is this element weak".
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-frost
+  // Issue #5 REWORK (Remi): frost is no longer a slow at any level. The 3rd
+  // stack FREEZES IN PLACE — the victim's momentum is cancelled, so the ball
+  // that procs it does not shove them away — and `storeFrac` of the push it
+  // just cancelled is kept "inside the ice", then added to the knockback of the
+  // next damaging ability that lands on them. DoT ticks are excluded for free:
+  // a burn or a sickness applies no knockback at all, so it can never spend it.
+  // Revert: slowMult [0.7, 0.5, 1], slowT [3, 3, 0], stunT [0, 0, 2], and drop
+  // the freeze/store block in applyElementsHit (the slow machinery is intact).
   frost: { name: 'Frost', icon: '❄️', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Crowd control.',
-           long: 'Hits stack frost: the 3rd stack slows the victim, or freezes them solid at lv3.',
-           fx: { stacksToTrigger: 3, slowMult: [0.7, 0.5, 1], slowT: [3, 3, 0],
-                 stunT: [0, 0, 2] } },
+           desc: 'Freeze and launch.',
+           long: 'Hits stack frost: the 3rd stack freezes the victim solid where they stand instead of pushing them, and half the push it swallowed is added to the next ability that hits them.',
+           fx: { stacksToTrigger: 3, stunT: [1, 1.5, 2], storeFrac: 0.5 } },
   // Round 19 (Remi): venom → MALADY, the contagion rework. Two hits infect
   // (private stack, like midas); the sickness radiates auraR — anyone close
   // catches the SAME instance once each, ever (immunity set = no ping-pong).

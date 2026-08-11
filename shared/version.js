@@ -2,4 +2,4 @@
 // rN = repo commit count. Shown in the client corner, in /health and in the
 // welcome handshake, so a stale tab, a stale Pages CDN copy or a mixed
 // client/server pair announces itself instead of being a mystery.
-export const VERSION = 'r257 · 2026-08-11 23:13 UTC';
+export const VERSION = 'r258 · 2026-08-11 23:38 UTC';

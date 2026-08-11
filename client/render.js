@@ -826,6 +826,16 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.stroke();
     }
+    // frost (issue #5): this body is carrying banked push — the next ability to
+    // hit them sends them much further, and BOTH players need to see that.
+    if (fin(pl.iceStore) && pl.iceStore > 0) {
+      const puls = 0.85 + 0.15 * Math.sin(t * 7);
+      ctx.strokeStyle = `rgba(150, 225, 255, ${0.85 * puls})`;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (fin(pl.shieldT) && pl.shieldT > 0) {
       ctx.strokeStyle = 'rgba(140, 210, 255, 0.9)';
       ctx.fillStyle = 'rgba(140, 210, 255, 0.14)';

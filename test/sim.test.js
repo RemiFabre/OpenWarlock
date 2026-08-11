@@ -938,16 +938,20 @@ describe('round-3 mechanics', () => {
     expect(state.players.p0.shopReady).toBe(false);
   });
 
-  it('fireballs have unlimited range but are culled off-world', () => {
+  // Issue #5: the ball has a finite range now, so the world cull is no longer
+  // what stops it. Read the distance off the SPEC, never off a pinned number.
+  it('fireballs expire at their spec range', () => {
+    const range = SPELLS.fireball.range;
+    const speed = SPELLS.fireball.speed;
     const state = freshBattle(3);
     const a = state.players.p0;
     a.x = 0; a.y = 0;
     state.players.p1.y = 50; state.players.p2.y = -50;
     castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 2); // traveled ~68u — far beyond the old 45u cap
-    expect(state.projectiles.length).toBe(1);
-    run(state, 2); // now beyond 2× arena radius: culled
-    expect(state.projectiles.length).toBe(0);
+    run(state, (range * 0.8) / speed);
+    expect(state.projectiles.length).toBe(1);   // still flying, well inside range
+    run(state, (range * 0.4) / speed);
+    expect(state.projectiles.length).toBe(0);   // past it: gone
   });
 });
 
@@ -968,7 +972,12 @@ describe('size-by-lead & spectators', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.y = -40;
-    a.x = 0; a.y = 0; b.x = 15; b.y = 2.6; // grazing shot: misses a normal body (reach 2.2)
+    // grazing shot: it must MISS a normal body and clip an enlarged one, so the
+    // offset is derived from the two reaches rather than pinned (the issue-#5
+    // fireball is a much thinner ball, which moved this by more than a unit)
+    const normalReach = PLAYER.RADIUS + SPELLS.fireball.radius;
+    const bigReach = PLAYER.RADIUS * PLAYER.SIZE_LEAD.MAX + SPELLS.fireball.radius;
+    a.x = 0; a.y = 0; b.x = 15; b.y = (normalReach + bigReach) / 2;
     b.kills = 10; // big lead -> big body
     step(state, DT);
     castSpell(state, 'p0', 'fireball', 15, 0); // aimed straight, not at b
@@ -1183,13 +1192,61 @@ describe('elemental mode', () => {
   it('frost: the first two hits only stack — the THIRD detonates', () => {
     const two = frostHits(1, 2);
     expect(frostOn(two.players.p1, 'p0')).toBe(2);
-    expect(two.players.p1.slowT).toBe(0);   // nothing yet: it just builds
+    expect(two.players.p1.stunT).toBe(0);   // nothing yet: it just builds
     const three = frostHits(1, 3);
     const b = three.players.p1;
     expect(frostOn(b, 'p0')).toBe(0);       // detonated and reset
-    expect(b.slowT).toBeGreaterThan(2.5);   // lv1: 3 s of slow
-    expect(b.slowMultHit).toBeCloseTo(ELEMENTS.frost.fx.slowMult[0], 5);
+    // issue #5: a FREEZE at every level, off the spec — no slow any more.
+    // frostHits() keeps stepping after the proc, so the clock has already
+    // started: check the band, not the exact value.
+    expect(b.stunT).toBeGreaterThan(ELEMENTS.frost.fx.stunT[0] - 0.5);
+    expect(b.stunT).toBeLessThanOrEqual(ELEMENTS.frost.fx.stunT[0]);
+    expect(b.slowT).toBe(0);
     expect(three.events.some(e => e.t === 'frostBreak')).toBe(true);
+  });
+
+  // Issue #5 (Remi): the proc freezes them WHERE THEY STAND, and banks half of
+  // the shove it just cancelled for the next ability to spend.
+  it('frost freezes in place: the procing ball does not push, and the push is banked', () => {
+    const state = frostHits(1, 3);
+    const b = state.players.p1;
+    expect(b.vx).toBe(0);
+    expect(b.vy).toBe(0);
+    const kb = SPELLS.fireball.knockback[0];
+    expect(b.iceStore).toBeCloseTo(kb * ELEMENTS.frost.fx.storeFrac, 5);
+    expect(state.events.some(e => e.t === 'frostBreak' && e.stored > 0)).toBe(true);
+  });
+
+  it('the banked push rides the NEXT ability, once, and a DoT tick can never spend it', () => {
+    // a plain (element-free) fireball into a frozen, loaded victim must shove
+    // them further than the same ball into an unloaded one, by exactly the bank
+    const shoot = (loaded) => {
+      const state = elementalBattle(3);
+      const a = state.players.p0, b = state.players.p1;
+      state.players.p2.x = 0; state.players.p2.y = -45;
+      state.pillars = [];
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+      b.stunT = 5;                       // frozen either way: same physics
+      b.iceStore = loaded ? 100 : 0;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.2);
+      return { vx: b.vx, store: b.iceStore, events: state.events };
+    };
+    const plain = shoot(false), loaded = shoot(true);
+    // both decay under the same friction, so the ratio is the impulse ratio:
+    // (65 + 100) / 65 ≈ 2.5
+    expect(loaded.vx).toBeGreaterThan(plain.vx * 2);
+    expect(loaded.store).toBe(0);        // spent, and spent once
+    // a burn tick applies damage and no knockback at all, so it cannot spend it
+    const state = elementalBattle(2);
+    const b = state.players.p1;
+    b.iceStore = 100;
+    b.poisonTick = 2; b.poisonT = 3; b.poisonBy = 'p0';
+    const hp0 = b.hp;
+    run(state, 1.5);
+    expect(b.hp).toBeLessThan(hp0);   // the sickness really did bite…
+    expect(b.iceStore).toBe(100);     // …and the bank is untouched
   });
 
   it('frost lv3 detonates into a real stun: no walking, no casting', () => {
@@ -1235,7 +1292,7 @@ describe('elemental mode', () => {
     const need = ELEMENTS.frost.fx.stacksToTrigger;
     expect(frostOn(b, 'p0')).toBe(need - 1);
     expect(frostOn(b, 'p2')).toBe(1);
-    expect(b.slowT).toBe(0);                // nobody reached their own 3
+    expect(b.stunT).toBe(0);                // nobody reached their own 3
     expect(state.events.some(e => e.t === 'frostBreak')).toBe(false);
     // a's own third stack does detonate, and clears only a's counter
     a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
@@ -1245,7 +1302,7 @@ describe('elemental mode', () => {
     run(state, 0.4);
     expect(frostOn(b, 'p0')).toBe(0);
     expect(frostOn(b, 'p2')).toBe(1);       // c's pile is untouched
-    expect(b.slowT).toBeGreaterThan(2.5);
+    expect(b.stunT).toBeGreaterThan(ELEMENTS.frost.fx.stunT[0] - 0.5);
   });
 
   it('snapshots are PER VIEWER: you only see the stacks you applied', () => {
@@ -3223,10 +3280,11 @@ describe('power spells & pillar', () => {
     // Round 21.0 (Remi). The gap is measured between the two traded positions AT
     // the switch moment, so anything that moves either end during the bolt's
     // flight lengthens the stun — unbounded without a ceiling. It is not a
-    // theoretical ceiling: a full cross-arena trade (2 × START_RADIUS) already
-    // asks for more than `max`.
+    // theoretical ceiling — though on THIS branch (issue #5) the ball is fast
+    // enough that even a cross-arena trade no longer reaches it, so the clamp
+    // is exercised with the absurd distance below instead.
     const s = SPELLS.swap.stun;
-    expect(s.pad + 2 * ARENA.START_RADIUS / SPELLS.fireball.speed).toBeGreaterThan(s.max);
+    expect(swapStun(2 * ARENA.START_RADIUS)).toBeLessThanOrEqual(s.max);
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
     a.spells.swap = 1;
@@ -3238,7 +3296,7 @@ describe('power spells & pillar', () => {
     step(state, DT);
     a.x = -200; a.vx = a.vy = 0; a.moveTarget = null;  // blown absurdly far mid-bolt
     expect(stepToSwap(state, 300)).toBeTruthy();
-    expect(s.pad + 212 / SPELLS.fireball.speed).toBeGreaterThan(5);  // raw formula
+    expect(s.pad + 212 / SPELLS.fireball.speed).toBeGreaterThan(s.max);  // raw formula
     expect(swapStun(212)).toBe(s.max);                               // clamped
     expect(b.stunT).toBeCloseTo(s.max, 5);
   });
@@ -3535,7 +3593,9 @@ describe('power spells & pillar', () => {
     expect(state.walls.length).toBe(1);
     // b's shot bounces: ownership flips to a, and it flies back at b
     castSpell(state, 'p1', 'fireball', -20, 0);
-    run(state, 0.25); // reflected (~0.18 s) but not landed yet
+    // caught just after the bounce: the flight to the wall is 10 units, and the
+    // time is read off the SPEC so the issue-#5 speed change cannot break it
+    run(state, 10 / SPELLS.fireball.speed + 0.03);
     const pr = state.projectiles.find(p => p.type === 'fireball');
     expect(pr).toBeTruthy();
     expect(pr.owner).toBe('p0');
@@ -5605,8 +5665,11 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     expect(state.mines.length).toBe(1);
   });
 
-  it('the trigger ring is 1.65x the fireball, and only ENEMIES set it off', () => {
-    expect(spec.radius).toBeCloseTo(SPELLS.fireball.radius * 1.65, 5);
+  // ⚠ Issue #5 decoupled these: the mine's ring is a TRAP size and stays where
+  // Remi set it, while the fireball became a much thinner ball. The ring is the
+  // spec number, full stop.
+  it('the trigger ring is the spec ring, and only ENEMIES set it off', () => {
+    expect(spec.radius).toBe(1.32);
     const state = mineBattle();
     const a = state.players.p0, b = state.players.p1;
     a.spells.nova = 1;

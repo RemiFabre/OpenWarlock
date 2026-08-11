@@ -199,7 +199,8 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     statueT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
-    slowT: 0,              // frost: seconds of slow remaining
+    iceStore: 0,           // frost (issue #5): push banked for the next ability
+    slowT: 0,              // frost: seconds of slow remaining (inert since #5)
     slowMultHit: 1,        // frost: strength of the slow that hit us
     // Per-attacker stack store: {kind: {attackerId: n}}. Stacks are PRIVATE to
     // whoever applied them (2026-08-07, round 12 — reverses the shared-counter
@@ -1143,6 +1144,15 @@ function applyKnockback(state, target, dx, dy, magnitude) {
     ? 1 - clamp(target.hp / target.maxHp, 0, 1)
     : PLAYER.KB_CONSTANT_MISSING;
   const hpScale = 1 + PLAYER.KB_HP_FACTOR * missing;
+  // Issue #5: the push frost swallowed comes back out here, on the FIRST
+  // ability that shoves this victim afterwards. This choke point is the whole
+  // "ticks excluded" rule: a burn or a sickness never calls applyKnockback, so
+  // it can never spend the charge — no separate exclusion list to keep in sync.
+  if (target.iceStore > 0) {
+    magnitude += target.iceStore;
+    target.iceStore = 0;
+    state.events.push({ t: 'iceBurst', id: target.id, x: target.x, y: target.y });
+  }
   target.vx += dx * magnitude * kbMult * hpScale;
   target.vy += dy * magnitude * kbMult * hpScale;
 }
@@ -1450,6 +1460,7 @@ function startRound(state) {
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.stacks = {};   // frost/gale/midas stacks are round-long, like the hp bar
+    pl.iceStore = 0;  // and so is the push frost banked (issue #5)
     pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
     pl.malady = null; // infections die with the round (instances go with them)
     // the Hat of Aura's burns die with the round (they are victim-side since
@@ -2503,7 +2514,7 @@ function stepProjectiles(state, dt) {
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
-      if (pr.elements) applyElementsHit(state, pr, other);
+      if (pr.elements) applyElementsHit(state, pr, other, kb);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // swap (round 17): full state exchange with the (surviving) victim —
@@ -2672,7 +2683,9 @@ function infectMalady(state, target, inst, byId) {
 // Elemental on-hit riders (frost / malady / midas / terra), each at its own
 // level. Ember is a pure number tweak handled at the damage/knockback
 // computation above; gale is resolved there too, by galeHit().
-function applyElementsHit(state, pr, target) {
+// `kbApplied` is the knockback this hit actually shoved the target with, which
+// frost needs in order to bank half of what it is about to cancel (issue #5).
+function applyElementsHit(state, pr, target, kbApplied = 0) {
   for (const [ek, el] of Object.entries(pr.elements)) {
     const f = ELEMENTS[ek].fx;
     // frost: stacks build on the VICTIM but are PRIVATE to each attacker
@@ -2695,7 +2708,7 @@ function applyElementsHit(state, pr, target) {
       if (n >= f.stacksToTrigger) {
         clearStacks(target, 'frost', pr.owner);
         const stun = efxV(f.stunT, el);
-        const slowT = efxV(f.slowT, el);
+        const slowT = f.slowT ? efxV(f.slowT, el) : 0;
         if (stun > 0) {
           target.stunT = Math.max(target.stunT || 0, stun);
           target.moveTarget = null;
@@ -2707,9 +2720,19 @@ function applyElementsHit(state, pr, target) {
           target.slowT = slowT;
           target.slowMultHit = efxV(f.slowMult, el);
         }
+        // Issue #5: FREEZE IN PLACE. The procing ball's shove has already been
+        // applied a few lines up in stepProjectiles, so cancelling the momentum
+        // here is what makes "it does not push them away" true — and it takes
+        // whatever else they were carrying with it, which is the point of being
+        // frozen solid. Half of the swallowed push is banked for the next
+        // ability to spend (applyKnockback).
+        if (f.storeFrac > 0) {
+          target.vx = 0; target.vy = 0;
+          target.iceStore = (target.iceStore || 0) + (kbApplied || 0) * f.storeFrac;
+        }
         state.events.push({
           t: 'frostBreak', id: target.id, stun: stun > 0,
-          x: target.x, y: target.y,
+          stored: round2(target.iceStore || 0), x: target.x, y: target.y,
         });
       }
     }
@@ -2891,6 +2914,9 @@ export function snapshot(state, viewerId = null) {
       // gold column). Absent when 0, so nothing changes for anyone not casting it.
       ...(p.statueT > 0 ? { statueT: round2(p.statueT) } : {}),
       inLava: !!p.inLava,
+      // frost (issue #5): loaded with banked push. Absent when 0, so a game
+      // where nobody plays ice is byte-identical on the wire.
+      ...(p.iceStore > 0 ? { iceStore: round2(p.iceStore) } : {}),
       // Hat of Aura (round 21.8): on fire — inside someone's ring, or still
       // burning after leaving it. A bare flag: whose burn it is stays private.
       // ⚠ Outside the elemental block on purpose — it is an ITEM, it burns in
@@ -3758,6 +3784,9 @@ function stepBerserker(state, pl, dt) {
   if (mark && (pl.cooldowns.fireball || 0) <= 0) {
     const mdx = mark.x - pl.x, mdy = mark.y - pl.y;
     const mDist = Math.hypot(mdx, mdy) || 1;
+    // issue #5: the ball has a range now — a shot from further away expires in
+    // mid-air, so holding fire is strictly better than spending the cooldown
+    if (mDist > SPELLS.fireball.range) return;
     const lag = seen ? Math.max(0, Math.min(0.5, state.time - seen.t)) : 0;
     const ghost = seen
       ? { x: seen.x + seen.vx * lag, y: seen.y + seen.vy * lag,
@@ -3889,7 +3918,8 @@ function stepStalker(state, pl, dt) {
   }
 
   // -- fireball with a proper intercept solve; error shrinks at close range
-  if ((pl.spells.fireball || 0) > 0 && (pl.cooldowns.fireball || 0) <= 0) {
+  if ((pl.spells.fireball || 0) > 0 && (pl.cooldowns.fireball || 0) <= 0 &&
+      dist <= SPELLS.fireball.range) {
     const aim = interceptPoint(pl, target, SPELLS.fireball.speed);
     const [errFloor, errPerUnit] = botTune(pl, 'aimErr', [0.4, 0.05]);
     const err = (rng(state) - 0.5) * (errFloor + dist * errPerUnit);

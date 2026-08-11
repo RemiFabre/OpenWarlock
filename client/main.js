@@ -397,6 +397,11 @@ function onEvent(e) {
       fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 });
       if (e.id === myId) playSfx('teleport');
       break;
+    // issue #5: the ice just spent its banked push on somebody
+    case 'iceBurst':
+      fx.push({ ...e, type: 'galeBurst', at: now, dur: 0.6 });
+      playSfx('freeze');
+      break;
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
       playSfx('freeze');
