@@ -221,7 +221,7 @@ function drawEngorged(ctx, x, y, r, t) {
   ctx.restore();
 }
 
-export function draw(view, vs, fx, myId, moveMark, now) {
+export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   if (vs) view.fitArena(vs.startRadius);   // arena size is per-game (round 21.2)
   const { ctx, w, h, scale } = view;
   const t = now / 1000;
@@ -846,6 +846,48 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.fillStyle = frac > 0.5 ? '#7fb069' : frac > 0.25 ? '#f0b64a' : '#c0392b';
     ctx.fillRect(x - bw / 2, y - r - 12, bw * frac, 5);
     ctx.restore();   // pairs with the Vanish ghosting save() above
+  }
+
+  // --- Trash Talk bubbles (issue #4) ---
+  // A separate pass on top of every body, so a line is never half-covered by
+  // the player standing in front. Anchored to the live position, and skipped
+  // entirely for anyone the snapshot gives no place to draw (an invisible
+  // player has no x/y here, so a bubble can never give one away).
+  for (const b of bubbles) {
+    const pl = players.find(p => p && p.id === b.id);
+    if (!pl || !pl.alive || !fin(pl.x) || !fin(pl.y)) continue;
+    const age = (now - b.at) / (b.until - b.at);
+    if (!(age >= 0 && age <= 1)) continue;
+    const alpha = (age > 0.75 ? (1 - age) / 0.25 : 1) * worldAlpha;
+    if (alpha <= 0.01) continue;
+    const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
+    const x = view.sx(pl.x);
+    const y = view.sy(pl.y) - r - 30 - age * 8;   // drifts up as it fades
+    const shout = b.text === b.text.toUpperCase();
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `${shout ? 'bold ' : ''}${shout ? 14 : 12}px ui-sans-serif, system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const wpx = ctx.measureText(b.text).width + 14;
+    const hpx = shout ? 20 : 18;
+    ctx.fillStyle = 'rgba(18, 14, 12, 0.82)';
+    ctx.strokeStyle = shout ? 'rgba(255, 190, 90, 0.9)' : 'rgba(210, 195, 170, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    // roundRect is recent; a browser without it still gets a readable box
+    if (ctx.roundRect) ctx.roundRect(x - wpx / 2, y - hpx / 2, wpx, hpx, 7);
+    else ctx.rect(x - wpx / 2, y - hpx / 2, wpx, hpx);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();                         // the little tail toward the head
+    ctx.moveTo(x - 4, y + hpx / 2);
+    ctx.lineTo(x, y + hpx / 2 + 5);
+    ctx.lineTo(x + 4, y + hpx / 2);
+    ctx.fillStyle = 'rgba(18, 14, 12, 0.82)';
+    ctx.fill();
+    ctx.fillStyle = shout ? '#ffd28a' : '#e8dcc6';
+    ctx.fillText(b.text, x, y);
+    ctx.restore();
   }
 
   // --- fx ---

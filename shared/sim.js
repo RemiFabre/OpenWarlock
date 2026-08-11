@@ -1262,6 +1262,10 @@ function applyDamage(state, target, amount, sourceId,
     state.events.push({
       t: 'hit', id: target.id, amount, x: target.x, y: target.y,
       ...(bonus > 0 ? { bonus } : {}),  // anger: shown above the damage
+      // Trash Talk (issue #4): who dealt it, so the SENDER can react to their
+      // own hit. Cosmetic only — the client refuses to speak for an attacker
+      // it cannot see, which is what keeps a Vanish quiet.
+      ...(sourceId != null && sourceId !== target.id ? { src: sourceId } : {}),
     });
   if (target.hp <= 0) kill(state, target, sourceId);
 }
