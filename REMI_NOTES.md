@@ -159,6 +159,34 @@ and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
   moved −1 and is still last). If the meteor should be a real pick, the lever is
   its cast rules, not its damage.
 
+## The tournament, re-run on all of it
+
+37 strategies, 8000 games × 2 seeds, full table at
+`docs/history/2026-08-11-round21.9-elo.md`. Your hypothesis is **half right**.
+
+- **The aura gained, the sickness did not.** D12-hatburner (Hat + plague) is
+  **3rd of 37**, +50 and its best placing ever — but plague *without* the Hat
+  moved +17, which is noise. So it is the burning ring that got better, not the
+  disease. Likely the Hat's ~750 ticks a game now each pay a tenth of a spoon
+  proc *and* claim the last-hitter slot.
+- **Your blade nerf landed exactly on its target.** You cut it because
+  "anger + blade makes you a drain tank": the anger+blade build takes the
+  **single biggest drop in the table, −94**, with the other two damage-lifesteal
+  builds at −58 and −50. All three are still top six, so it is a trim.
+- **The sustain shelf rose as a class**: +140 for HP+healing items, +115 and +82
+  for the two spoon builds, +80/+63/+56 for the mobility, tank and sumo builds.
+  ⚠ The spoon builds are still **31st and 34th** — the item is playable now, not
+  strong.
+- **100% of deaths now land on a name** (3523 of 3523 in an 80-game lobby). The
+  share that are lava deaths did not change; who owns them did.
+- Statue is dead-average for the second table running, and the meteor is last
+  for the third — your +6 damage at lv2 changed nothing. Its problem is that
+  bots only fire it into hard CC, i.e. its cast rules.
+
+⚠ Five things changed between the last table and this one (blade, spoon, tick
+healing, hourglass, and both credit rules), and Elo is zero-sum — so no single
+row can be pinned on one cause.
+
 ## DoT can take kills now — that was my rule, and it was wrong
 
 You were right, and it was worse than "not buffed": **a burn or a sickness never

@@ -196,9 +196,22 @@ stated, every number a one-line revert)**:
   `tools/elo.js` — the 30-strategy roster ranking, the one that matters — has
   always run elemental off explicit roster cores and was never affected.
 
-### The strategy ELO table — THE current ranking (r232, 33 strategies, 8000 games × 2 seeds)
+### The strategy ELO table — THE current ranking (r249, 37 strategies, 8000 games × 2 seeds)
 
-Full table, diffs and blind spots: **`docs/history/2026-08-11-round21.8-elo.md`**
+**`docs/history/2026-08-11-round21.9-elo.md`** is the STANDING baseline (drift
+mean 10.1). It measures the whole sustain pass + the credit rules at once, so no
+row is attributable to one change. Headlines: the **blade nerf landed on its
+target** — B3 anger+blade takes the biggest drop in the table (−94), with
+D2 −58 and D1 −50; the **sustain shelf rose as a class** (A1 +140, F1 +115,
+D11 +82, A2 +80, D8 +63, D6 +56, B5 +52) though the spoon builds are still 31st
+and 34th — playable, not strong; **D12-hatburner reached 3rd**, +50, while
+plague-without-the-Hat moved +17, so it is the AURA that gained, not the
+sickness; **100% of deaths now land on a name** (was: a full-hp lava swim
+outlived the old 5 s window and credited nobody); statue is dead-average and
+meteor last for the third table running.
+
+The previous table (r232/r236, 33-35 strategies, pre-sustain-pass):
+**`docs/history/2026-08-11-round21.8-elo.md`**
 (the STANDING baseline; it replaces the r219 round-21 table, which replaced r207).
 Cross-seed drift mean 8.8 / max 30 Elo — the tightest yet. Headlines: **anger
 unmoved at #1** (B3 2087); the NEW **D12-hatburner (Hat of Aura 3 + malady 3)
