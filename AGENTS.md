@@ -71,6 +71,9 @@ build step, Node ESM, only dep is `ws`.
 
 ## Player idea queue (GitHub Issues)
 
+- The public-issue agent runs in Codex's workspace sandbox from its own clone,
+  never Full access, with a fine-grained token for THIS repo only: Contents/Issues
+  write, Actions read, no Workflows/Admin/org. Tests run without GitHub tokens.
 - The template and `.github/workflows/queue-new-issues.yml` add `ai:queued`, even
   for a plain manually-created issue. As a fallback, **untreated** means ANY OPEN
   issue with neither `ai:working` nor `ai:ignore`; check oldest first without
@@ -89,7 +92,8 @@ build step, Node ESM, only dep is `ws`.
   `main` by default.
 - Implement the smallest faithful version, test it, and push the issue branch. Then,
   from another clean worktree based on the latest `origin/main`, add its immutable
-  commit and player-facing metadata to `versions.json`; push that manifest to `main`.
+  commit and player-facing metadata to `versions.json`; that list IS the loader's
+  allowlist, so removing an entry revokes it. Push the manifest to `main`.
   Verify `/v/COMMIT/client/`, then `@mention` the author with the version name,
   permanent link, branch/commit, and verification. Close only when that link is
   playable. If blocked, explain why and restore `ai:queued`.

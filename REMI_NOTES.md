@@ -11,10 +11,16 @@ menu switches between the default game and published player ideas. Each idea
 runs its exact branch commit at a permanent, shareable link; no experimental
 code is merged into the default game. **Remi’s Blood Debt** is the first live
 test version.
+Only commits listed in `versions.json` now load; removing one revokes its link.
+The selector reads the fresh GitHub copy first, falls back to Pages, and has a
+multi-word search over version name, author and description.
 Plain GitHub issues are auto-queued too; the agent also catches unlabelled issues
 if that automation ever fails.
 The game and README now link directly to completed requests so visitors can see
 the project activity; GitHub does not let a repo redefine its Issues-tab filter.
+
+Online invite codes are now 12 cryptographically random characters. A wrong
+link gets one clear error and a fresh connection is required to try another.
 
 ## The Bomb is gone. It is a Mine now.
 
