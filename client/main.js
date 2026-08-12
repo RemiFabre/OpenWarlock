@@ -211,6 +211,7 @@ function onMessage(m) {
   if (m.t === 'welcome') {
     myId = m.id;
     snaps.length = 0; fx.length = 0; // drop state from any previous connection
+    gapEst = 1000 / SNAPSHOT_RATE; renderDelay = BASE_DELAY; // ...and its lag estimate
     setConnBanner(null);
     $('join').classList.add('hidden');
     // Version handshake (round 19.3, Remi): a mixed client/server pair must
@@ -225,6 +226,7 @@ function onMessage(m) {
     if (m.pings && typeof m.pings === 'object') m.s.pings = m.pings; // per-player RTT (ms)
     snaps.push({ at: performance.now(), s: m.s });
     if (snaps.length > 40) snaps.shift();
+    trackSnapGap(snaps[snaps.length - 1].at);
     if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
     window.__phase = m.s.phase; // test/debug hook
     window.__snapN = (window.__snapN || 0) + 1; // test hook: snapshots received
@@ -452,14 +454,33 @@ function phaseMusic(s) {
 
 // ---- interpolation -----------------------------------------------------------
 
-const RENDER_DELAY = 1000 / SNAPSHOT_RATE * 1.6 + 25;
+// How far in the past to render, so there is always a NEWER snapshot to lerp
+// toward. One-and-a-bit snapshot intervals is enough on a healthy link.
+const BASE_DELAY = 1000 / SNAPSHOT_RATE * 1.6 + 25;
+const MAX_DELAY = 600;     // past this, lag is worse than the stutter it hides
+// ...but the interval is not a constant any more: the server SKIPS states for a
+// link that is falling behind (shared/snapwire.js), so a struggling player gets
+// fewer, complete updates. The delay follows the gap it actually observes —
+// peak-hold with a slow decay, so one hiccup widens it and a recovered link
+// tightens it back. Without this, sparse snapshots read as freeze-then-jump;
+// with it, the same motion is simply sampled more coarsely.
+// Revert: `renderDelay = BASE_DELAY` in one line.
+let gapEst = 1000 / SNAPSHOT_RATE;
+let renderDelay = BASE_DELAY;
+function trackSnapGap(at) {
+  const prev = snaps.length > 1 ? snaps[snaps.length - 2].at : null;
+  if (prev == null) return;
+  gapEst = Math.max(at - prev, gapEst * 0.92);
+  renderDelay = Math.min(MAX_DELAY, Math.max(BASE_DELAY, gapEst * 1.6 + 25));
+}
+window.__delay = () => ({ renderDelay, gapEst }); // test/debug hook
 
 const fin = Number.isFinite;
 const lerp = (a, b, k) => (fin(a) && fin(b)) ? a + (b - a) * k : (fin(b) ? b : a);
 
 function interpolated(now) {
   if (!snaps.length) return null;
-  const rt = now - RENDER_DELAY;
+  const rt = now - renderDelay;
   let i = snaps.length - 1;
   while (i > 0 && snaps[i - 1].at > rt) i--;
   const b = snaps[i];
