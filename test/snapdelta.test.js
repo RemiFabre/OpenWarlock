@@ -70,6 +70,32 @@ function playRound(onPayload, { seed = 5 } = {}) {
   if (!sawShop) throw new Error('round never reached shop');
 }
 
+describe('snapdelta: the encoder base must survive source mutation', () => {
+  // The round-22.2 field bug: snapshot() embeds LIVE references (items, spells,
+  // elements are the sim's own objects), and the encoder kept `last = payload`.
+  // A buy mutated p.items, which retroactively mutated the encoder's memory of
+  // what it had already sent, so diff() saw "no change" and the level never
+  // rode the wire. Gold (a primitive, copied per snapshot) moved fine, which
+  // is exactly what guests reported: gold spent, boots stuck at lv 1. Cadence
+  // keyframes used to mask it every 2 s; echo mode (dropped as duplicates on
+  // a healthy link) made it permanent.
+  it('a purchase mutating the same items object still reaches the decoder', () => {
+    const enc = createSnapEncoder();
+    const dec = createSnapDecoder();
+    // a REAL wire stringifies; without this round-trip the decoder shares
+    // memory with the mutated source and the bug hides
+    const wire = (msg) => dec.decode(JSON.parse(JSON.stringify(msg)));
+    const items = { boots: 1 };                       // the sim's live object
+    const snap = () => ({ s: { players: { g1: { gold: 20, items } } } });
+    wire(enc.encode(snap()));                         // keyframe, boots lv 1
+    items.boots = 2;                                  // the buy mutates in place
+    const after = { s: { players: { g1: { gold: 15, items } } } };
+    const r = wire(enc.encode(after));
+    expect(r.payload.s.players.g1.gold).toBe(15);
+    expect(r.payload.s.players.g1.items.boots).toBe(2); // the level MUST travel
+  });
+});
+
 describe('snapdelta: encoder/decoder over a real round', () => {
   it('lossless channel: every decoded payload matches the authoritative one exactly', () => {
     const enc = createSnapEncoder();

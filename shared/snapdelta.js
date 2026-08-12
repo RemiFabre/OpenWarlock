@@ -47,6 +47,12 @@ export function patch(a, d) {
 // fullEvery is the belt-and-braces cadence on top (~2 s at 15 Hz).
 export function createSnapEncoder({ fullEvery = 30, echo = false } = {}) {
   let q = 0, last = null, sinceFull = 0;
+  // ⚠ The base is a DEEP COPY (round 22.2 scar): snapshot() embeds the sim's
+  // live objects (items, spells, elements...), and holding them by reference
+  // let a buy rewrite the encoder's memory of what it had already sent, so
+  // diff() saw "no change" and the purchase never rode the wire. Cadence
+  // keyframes masked it for a year of rounds; echo mode (21.11) exposed it.
+  const keep = (p) => { last = structuredClone(p); };
   return {
     encode(payload, { full = false } = {}) {
       q++;
@@ -63,15 +69,15 @@ export function createSnapEncoder({ fullEvery = 30, echo = false } = {}) {
         // Forced fulls (join, gap, phase change) have no useful base — no echo.
         if (echo && !forced) {
           const d = diff(last, payload);
-          last = payload;
+          keep(payload);
           return { t: 'snap', q, b: q - 1, ...(d !== undefined ? { d } : {}), echo: kf };
         }
-        last = payload;
+        keep(payload);
         return kf;
       }
       const d = diff(last, payload);
       const msg = { t: 'snap', q, b: q - 1, ...(d !== undefined ? { d } : {}) };
-      last = payload; sinceFull++;
+      keep(payload); sinceFull++;
       return msg;
     },
   };
