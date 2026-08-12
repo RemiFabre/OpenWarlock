@@ -23,42 +23,44 @@ const FLY_GAP_MS = 3500;
 const pick = (list, rng) => list[Math.floor(rng() * list.length) % list.length];
 
 // The lines. Each entry: what is said, how likely, and whether it shouts.
+// ⚠ Remi (second pass): keep them SHORT — a long line eats the arena. Nothing
+// here goes past ~14 characters.
 // `rare: true` means "must not be missed" — always said, never rate-limited.
 const LINES = {
   hitSmall:   { p: 0.10, lines: ['ouch', 'hey', 'tsk', 'rude', 'ow', 'stop it'] },
   hitMedium:  { p: 0.35, lines: ['OUCH', 'ow ow', "I'll remember", 'seriously?', 'not cool'] },
   hitBig:     { p: 1, rare: true, lines: ['OUCH', 'AAAH', 'WHY', 'MY BONES'] },
-  dealtBig:   { p: 1, rare: true, lines: ['sorry hehe', 'hehe', 'my bad', 'oops', 'that one hurt huh'] },
+  dealtBig:   { p: 1, rare: true, lines: ['sorry hehe', 'hehe', 'my bad', 'oops', 'that one hurt'] },
   dealtNice:  { p: 0.30, lines: ['hehe', 'nice', 'gotcha', 'tap tap'] },
-  watchBig:   { p: 0.55, lines: ['wtf?', 'is he dead?', 'what a brute', 'oooohhh', 'brutal'] },
-  fly:        { p: 1, rare: true, lines: ['I CAN FLYYY', 'WHEEEEE', 'BYE', 'SEE YOU NEXT TUESDAY'] },
-  lava:       { p: 0.25, lines: ['hot hot hot', 'ow ow ow', 'this was a mistake', 'just a swim'] },
-  died:       { p: 1, rare: true, lines: ['welp', 'rip me', 'unlucky', 'that was avoidable'] },
+  watchBig:   { p: 0.55, lines: ['wtf?', 'is he dead?', 'brutal', 'oooohhh', 'monster'] },
+  fly:        { p: 1, rare: true, lines: ['I CAN FLYYY', 'WHEEEEE', 'BYE', 'SO LONG'] },
+  lava:       { p: 0.25, lines: ['hot hot hot', 'ow ow ow', 'bad idea', 'just a swim'] },
+  died:       { p: 1, rare: true, lines: ['welp', 'rip me', 'unlucky', 'my fault'] },
   killed:     { p: 1, rare: true, lines: ['hehe', 'gg', 'get gud', 'one down'] },
   watchDeath: { p: 0.45, lines: ['oooohhh', 'rip', 'poor guy', 'better him'] },
-  multikill:  { p: 1, rare: true, lines: ['HAHAHA', 'I AM UNSTOPPABLE', 'WHO ELSE'] },
-  watchMulti: { p: 1, rare: true, lines: ['WHAT', 'OOOOH', 'SOMEBODY STOP HIM'] },
+  multikill:  { p: 1, rare: true, lines: ['HAHAHA', 'UNSTOPPABLE', 'WHO ELSE'] },
+  watchMulti: { p: 1, rare: true, lines: ['WHAT', 'OOOOH', 'STOP HIM'] },
   // one per shop thing, so every purchase eventually says something
   reflect:    { p: 1, rare: true, lines: ['nope', 'no thanks', 'send it back'] },
   gale:       { p: 1, rare: true, lines: ['WOOOOSH', 'THE WIND', 'NOT AGAIN'] },
   frost:      { p: 0.55, lines: ['brrr', 'cold cold cold', "can't move"] },
-  infected:   { p: 0.40, lines: ['eww', 'I feel sick', 'is that contagious'] },
+  infected:   { p: 0.40, lines: ['eww', 'I feel sick', 'contagious?'] },
   anger:      { p: 0.50, lines: ["you're mine", 'found you', 'run'] },
   midas:      { p: 0.40, lines: ['cha-ching', 'money money', 'payday'] },
   drain:      { p: 0.35, lines: ['yum', 'tasty', 'delicious'] },
-  refund:     { p: 0.30, lines: ['again!', 'and again', 'no cooldown for me'] },
+  refund:     { p: 0.30, lines: ['again!', 'and again', 'no cooldown'] },
   meteor:     { p: 0.7, rare: true, lines: ['NOT THE ROCK', 'FROM THE SKY?', 'LOOK OUT'] },
-  bolt:       { p: 0.7, rare: true, lines: ['NOT THE SKY AGAIN', 'ZAP', 'I SAW THAT COMING'] },
-  mined:      { p: 1, rare: true, lines: ['hehe', 'walked right in', 'told you'] },
-  swapped:    { p: 1, rare: true, lines: ['wait what?', 'hey!', 'wrong side', 'how did I get here'] },
+  bolt:       { p: 0.7, rare: true, lines: ['NOT AGAIN', 'ZAP', 'SAW IT COMING'] },
+  mined:      { p: 1, rare: true, lines: ['hehe', 'right on cue', 'told you'] },
+  swapped:    { p: 1, rare: true, lines: ['wait what?', 'hey!', 'wrong side', 'wrong place'] },
   statue:     { p: 0.60, lines: ['nope', 'not today', 'stone mode'] },
-  decoy:      { p: 0.50, lines: ['which one is me', 'good luck', 'hello hello hello'] },
-  vanish:     { p: 0.50, lines: ['poof', 'bye', 'you cannot see me'] },
+  decoy:      { p: 0.50, lines: ['which one?', 'good luck', 'hello hello'] },
+  vanish:     { p: 0.50, lines: ['poof', 'bye', 'invisible'] },
   blink:      { p: 0.30, lines: ['zoom', 'over here', 'nice try'] },
-  catch:      { p: 0.60, lines: ['nice catch', 'mine again', 'boomerangs work'] },
-  pillarGone: { p: 1, rare: true, lines: ['MY PILLAR', 'THAT WAS LOAD BEARING', 'RUDE'] },
+  catch:      { p: 0.60, lines: ['nice catch', 'mine again', 'still got it'] },
+  pillarGone: { p: 1, rare: true, lines: ['MY PILLAR', 'MY COVER', 'RUDE'] },
   repulse:    { p: 1, rare: true, lines: ['GET OUT', 'EVERYBODY OUT', 'PERSONAL SPACE'] },
-  roundStart: { p: 0.35, lines: ["let's go", 'here we go', 'this one is mine', 'good luck'] },
+  roundStart: { p: 0.35, lines: ["let's go", 'here we go', 'my round', 'good luck'] },
 };
 
 // Damage bands. Below SMALL nothing is worth a word; above BIG everyone

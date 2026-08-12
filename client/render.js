@@ -863,29 +863,18 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
     const x = view.sx(pl.x);
     const y = view.sy(pl.y) - r - 30 - age * 8;   // drifts up as it fades
+    // Remi (issue #4, second pass): "too visible and takes too much space —
+    // a bit smaller and just white letters with no background". So: no box, no
+    // border, no tail, no colour. The only thing left carrying the intensity is
+    // the WEIGHT — a shout is bold, an ordinary line is not — which is the same
+    // signal the upper/lower case already gives.
     const shout = b.text === b.text.toUpperCase();
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.font = `${shout ? 'bold ' : ''}${shout ? 14 : 12}px ui-sans-serif, system-ui`;
+    ctx.font = `${shout ? 'bold ' : ''}${shout ? 11 : 10}px ui-sans-serif, system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const wpx = ctx.measureText(b.text).width + 14;
-    const hpx = shout ? 20 : 18;
-    ctx.fillStyle = 'rgba(18, 14, 12, 0.82)';
-    ctx.strokeStyle = shout ? 'rgba(255, 190, 90, 0.9)' : 'rgba(210, 195, 170, 0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    // roundRect is recent; a browser without it still gets a readable box
-    if (ctx.roundRect) ctx.roundRect(x - wpx / 2, y - hpx / 2, wpx, hpx, 7);
-    else ctx.rect(x - wpx / 2, y - hpx / 2, wpx, hpx);
-    ctx.fill(); ctx.stroke();
-    ctx.beginPath();                         // the little tail toward the head
-    ctx.moveTo(x - 4, y + hpx / 2);
-    ctx.lineTo(x, y + hpx / 2 + 5);
-    ctx.lineTo(x + 4, y + hpx / 2);
-    ctx.fillStyle = 'rgba(18, 14, 12, 0.82)';
-    ctx.fill();
-    ctx.fillStyle = shout ? '#ffd28a' : '#e8dcc6';
+    ctx.fillStyle = '#ffffff';
     ctx.fillText(b.text, x, y);
     ctx.restore();
   }
