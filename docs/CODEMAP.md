@@ -3,7 +3,7 @@
 Symbols by file and by the section banner they sit under. No line numbers on
 purpose: grep the name. Regenerate after any change that moves code around.
 
-## shared/sim.js (4052 lines)
+## shared/sim.js (4276 lines)
 
 - makeRng, MODES, createGame, setMode, setDraft, rng
 - **players** — freeTeam, setTeam, addPlayer, fighters
@@ -22,17 +22,19 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **gale (elemental)** — galeHit, infectMalady, applyElementsHit
 - **serialization** — viewStacks, ownStacks, viewEvents, snapshot, segSegDist, segmentPointDist, round2, mapRound, clamp
 - **bot AI** — stepBot, botTune, boltEscape, boltAim
-- **CC-gated casting (round 20, BOT_CC_CAST)** — ccHeld, ccPinned, heldAim, pilotOwnedSpells, unwedgeFromPillars
+- **CC-gated casting (round 20, BOT_CC_CAST)** — ccHeld, ccPinned, heldAim
+- **Faker (issue #7)** — driftTo, comboStep, stepFaker
+- **Runner (issue #7): the sparring partner** — stepRunner, pilotOwnedSpells, unwedgeFromPillars
 - **shared bot helpers** — anyHidden, vanishInPlay, rememberEnemies, enemiesSeen, killLead, leadPull, nearestEnemy, estVel, interceptPoint, scanThreats
 - **grunt ★: pure chaos** — stepGrunt, pickPrey
 - **berserker ★★: relentless brawler** — stepBerserker
 - **stalker ★★★: the skilled one** — stepStalker, botElementFor, botShop, botShopPass
 
-## shared/engine.js (384 lines)
+## shared/engine.js (434 lines)
 
-- normName, createEngine, playerCount, maybeAutoStart, resetToLobby, scheduleLobbyReset, cancelLobbyReset
+- BOT_NAMES, normName, createEngine, playerCount, botName, maybeAutoStart, resetToLobby, scheduleLobbyReset, cancelLobbyReset
 
-## shared/constants.js (808 lines)
+## shared/constants.js (878 lines)
 
 - TICK_RATE, SNAPSHOT_RATE, ARENA, PLAYER, LAVA, ROUND, TEAMS, teamTint, MULTIKILL_NAMES, GOLD
 - **Spells** — SPELLS
@@ -61,11 +63,11 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - diff, patch, createSnapEncoder, createSnapDecoder
 
-## shared/snapwire.js (199 lines)
+## shared/snapwire.js (203 lines)
 
 - QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
 
-## client/main.js (2147 lines)
+## client/main.js (2152 lines)
 
 - **key bindings (rebindable, persisted)** — loadKeys, saveKeys, spellForKey, keyLabel
 - **state** — me, latest
@@ -85,12 +87,12 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **versus teams (round 21.3)** — kitIcons, pingBadge, statsTable, updateUi, esc
 - **main loop** — frame
 
-## client/render.js (1454 lines)
+## client/render.js (1467 lines)
 
 - makeView, drawEngorged, draw
 - **fx** — drawBackdrop, drawWorldDone, drawBanners, drawRoundEndBanner, drawFx
 
-## client/transport.js (504 lines)
+## client/transport.js (495 lines)
 
 - createWsTransport, createInTabEngine, createLocalTransport, ensureEngine
 - **WebRTC hosting (docs/BRIEF-browser-hosting.md §B)** — SIGNAL_URL, signalUrl, roomCodeFromHash, createRtcHostTransport, ensureEngine, sendTo, dropPeer, onPeer, onSig, dialSignal, createRtcGuestTransport, dropped, wireCtrl, dial, onSig, selectTransport
