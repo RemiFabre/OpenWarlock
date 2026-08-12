@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 3,
+  "serial": 4,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -62,11 +62,11 @@
       "slug": "faker",
       "name": "Faker",
       "author": "@RemiFabre",
-      "summary": "A difficulty above Extreme whose whole identity is the combo: it solves where your body will land under a knockback and puts the lightning there before you arrive. Ships with a Runner sparring bot that never escapes with a spell.",
+      "summary": "A difficulty above Extreme built around combos: four Faker-only arsenals (Hookstorm, Permafrost, Minefield, Galeforce) with chains like trap-under-feet → Switcheroo onto it → burst → lightning on the landing. Ships with a stand-still Runner dummy for sparring, and a Faker already seated in the lobby.",
       "issue": 7,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/7",
       "branch": "issue-7-faker",
-      "commit": "b9d68425e59d8474985c1a6f6a059a87851e3e26"
+      "commit": "f7be69a60b73ecf0f1d4069c1671f1034d014c65"
     },
     {
       "slug": "soul-harvest",
