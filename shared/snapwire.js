@@ -151,9 +151,10 @@ export function createSnapSink(deliver, requestFull = () => {}, {
   // like a backlog (the first version acked at 2 Hz and throttled everybody).
   ack = () => {},
   ackEveryMs = 0,
-  // injectable so a loss test can run 300 frames against a VIRTUAL clock: with
-  // the real one they all land in the same millisecond and the rate limits below
-  // suppress everything, which silently understates recovery
+  // injectable so a loss test or a faster-than-real sim (tools/rtclab.js) can
+  // run against a VIRTUAL clock: with the real one, frames land in the same
+  // millisecond and the rate limits below suppress everything, which silently
+  // understates recovery
   now = () => Date.now(),
 } = {}) {
   let dec = createSnapDecoder();
