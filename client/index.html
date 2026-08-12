@@ -586,8 +586,18 @@
   /* spectate toggle: "pressed" while watching */
   #spectateBtn.watching { border-color: var(--ember); color: var(--ember); background: var(--obsidian); }
 
-  /* rules toggle: same family as the spectate toggle, alchemical when elemental */
-  #modeBtn.elemental { border-color: #9b59b6; color: #c9a0e8; background: var(--obsidian); }
+  /* config column (round 22): quiet vertical toggles — "I'm ready" is the only
+     loud button in the lobby. A lit toggle brightens instead of changing hue. */
+  .cfgcol { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-width: 300px; }
+  .cfgcol button { text-align: left; }
+  .cfgcol button[aria-pressed="true"] { border-color: #699b54; color: #dfffd1; }
+  #rateBox { position: absolute; top: 12px; right: 16px; font-size: 19px; letter-spacing: 2px; user-select: none; }
+  #rateBox button { background: none; border: none; padding: 0 1px; cursor: pointer; color: #443728; font: inherit; text-shadow: none; }
+  #rateBox button.lit { color: #e8b83a; }
+  #lobbyRules summary { cursor: pointer; color: #b7a98f; }
+  #lobbyRules[open] { background: rgba(0,0,0,.22); padding: 6px 9px; }
+  #specpanel .sphead #specFoldBtn { margin-left: auto; }
+  #specpanel.folded .spbody { display: none; }
 
   /* element picked in the shop */
   .ware.sel { border-color: var(--gold); }
@@ -623,6 +633,7 @@
     <div class="sphead">
       <span class="sptitle">👁 Live standings</span>
       <span class="spsub" id="specSub"></span>
+      <button id="specFoldBtn" class="mini" type="button" title="Collapse — watch the fight, reopen any time">▾</button>
     </div>
     <div class="spbody"><table id="specStats" class="stats"></table></div>
   </div>
@@ -645,16 +656,15 @@
       <button id="hostBtn" class="primary" style="flex:1"
         title="Open a room and get a link your friends can join over peer-to-peer — this tab becomes the game server, so keep it open">📡 Host online</button>
     </div>
-    <div class="avgrid" id="avatarGrid" aria-label="Choose your avatar"></div>
     <p class="hint hidden" id="netMode"></p>
-    <p class="hint">
-      <kbd>right-click</kbd> move &nbsp;·&nbsp; <span id="joinKeyHint"></span>
-      cast at cursor &nbsp;·&nbsp; knock enemies into the lava
-    </p>
-    <p class="hint" style="margin-top:8px"><button id="joinKeysBtn" class="mini" type="button">⌨ Keys</button> non-QWERTY? rebind your spell keys</p>
+    <!-- Round 22 (Remi): the first screen carries only the two doors — avatar,
+         keys and control hints moved to the lobby, where players actually
+         settle in. Joining a friend's game needs no button: it is a link. -->
+    <p class="hint">Joining friends? The host sends you their link — there are
+      no public servers, every game is hosted by a player.</p>
     <div class="ideaPitch">
       <span class="experimental">experimental</span>
-      <span>Have an idea to improve the game? An AI agent will create a version in your name using your ideas.</span>
+      <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
       <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write it here ↗</a>
       <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues?q=is%3Aissue%20state%3Aclosed" target="_blank" rel="noopener">See completed ideas ↗</a>
     </div>
@@ -674,10 +684,15 @@
 </div>
 
 <div id="lobby" class="overlay hidden">
-  <div class="slab" style="--w:960px">
+  <div class="slab" style="--w:960px; position:relative">
+    <div id="rateBox" title="Rate this version — the average shows in the version list"></div>
     <h1 class="display" style="font-size:26px">The Gathering</h1>
     <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
       <span id="lobbyFormat"></span></p>
+    <!-- Round 22 (Remi): the wall of rules text is collapsed behind one word;
+         the controls line stays always visible. -->
+    <details id="lobbyRules" class="hint"><summary>📜 Rules</summary><div id="lobbyRulesBody"></div></details>
+    <p class="hint" id="controlsHint" style="margin:4px 0 0"></p>
     <div class="scroller">
       <!-- Controls FIRST, the growing player list LAST (Remi: clicking an
            add-bot button must never shift the other buttons under the cursor).
@@ -687,12 +702,17 @@
           <h2 class="secttl">You</h2>
           <div class="row">
             <button id="readyBtn" class="primary">I am ready</button>
-            <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing ⚔</button>
             <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
+            <button id="shopBrowseBtn" class="mini" type="button"
+              title="Browse everything the shop sells — buying still happens between rounds">🗿 Shop</button>
           </div>
-          <div class="row" style="margin-top:10px">
+          <div class="avgrid" id="avatarGrid" aria-label="Choose your avatar"></div>
+          <!-- Config, not actions (round 22): a vertical stack of toggles, so
+               "I'm ready" is the only thing that looks like a button to press. -->
+          <div class="cfgcol">
+            <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing</button>
             <button id="modeBtn" type="button" aria-pressed="false"
-              title="Elemental (the default): the fireball itself never levels — eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…). Three levels each. Applies to everyone.">Rules: ⚗️ Elemental</button>
+              title="Elemental (the default): the fireball itself never levels — eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…). Three levels each. Applies to everyone.">Rules: Elemental</button>
             <button id="draftBtn" type="button" aria-pressed="false"
               title="Draft (experimental): half of everything — spells, items and elements together — leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">Draft: off</button>
             <button id="testingBtn" type="button" aria-pressed="false"
@@ -710,7 +730,8 @@
             <div id="botBtns"></div>
           </div>
           <div class="row" id="botRow" style="margin-top:8px">
-            <button id="removeBotBtn" class="mini" type="button">Remove bot</button>
+            <!-- the global "Remove bot" button is gone (round 22): every bot
+                 row in the Warlocks list carries its own ✕ -->
             <button id="unbanBtn" class="mini hidden" type="button" title="Lift all lobby bans">Unban all</button>
           </div>
           <details id="botHelp" class="hint">
@@ -726,8 +747,12 @@
       </div>
       <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
       <div id="playerList" style="min-height:216px"></div>
+      <div class="ideaPitch">
+        <span class="experimental">experimental</span>
+        <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
+        <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write it here ↗</a>
+      </div>
     </div>
-    <p class="hint" id="lobbyHint"></p>
   </div>
 </div>
 
@@ -738,6 +763,7 @@
       <span id="shopGold" class="num">0 g</span>
       <span id="shopTimer" class="num"></span>
       <button id="shopPauseBtn" title="Freeze the shop clock — you can still buy, and everyone readying up still starts the round">⏸ Pause</button>
+      <button id="shopCloseBtn" class="mini hidden" type="button">✕ Close</button>
     </div>
     <p class="sub" id="shopSub"></p>
     <div class="scroller">

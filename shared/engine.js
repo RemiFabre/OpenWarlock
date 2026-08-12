@@ -196,6 +196,12 @@ export function createEngine({
         case 'shopPause':
           setShopPause(game, id, !!m.on);
           break;
+        case 'avatar':
+          // the picker lives in the lobby since round 22 — same sanitization
+          // as addPlayer gives a join avatar
+          if (typeof m.avatar === 'string' && m.avatar.trim())
+            pl.avatar = m.avatar.trim().slice(0, 8);
+          break;
         case 'spectate':
           setSpectator(game, id, !!m.on);
           maybeAutoStart();

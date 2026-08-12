@@ -14,7 +14,8 @@ import {
   nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
 } from './coop.js';
 import { selectTransport, createRtcHostTransport } from './transport.js';
-import { sendEvent, trackSnapshot, modeName, fetchStats } from './analytics.js';
+import * as analytics from './analytics.js';
+const { sendEvent, trackSnapshot, modeName, fetchStats } = analytics;
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -689,6 +690,7 @@ $('hostBtn').addEventListener('click', doHost);
       myAvatar = av;
       try { localStorage.setItem('owAvatar', av); } catch { }
       syncAvatarGrid();
+      send({ t: 'avatar', avatar: av }); // the grid lives in the lobby now — apply live
     });
     grid.appendChild(b);
   }
@@ -747,14 +749,16 @@ setInterval(async () => {
 }, 60_000);
 // teams (round 21.3): one sentence, because the selector on your row is the
 // only place the feature is discoverable and "same number = allies" is the rule
-$('lobbyFormat').textContent =
-  `First to ${ROUND.KILLS_TO_WIN} kills wins — pick the same team number as a ` +
-  'friend and you fight as one (your spells pass through each other, and a ' +
-  `team of N races to ${ROUND.KILLS_TO_WIN} × N). ${goldRules}`;
+$('lobbyFormat').textContent = `First to ${ROUND.KILLS_TO_WIN} kills wins.`;
 $('shopIncome').textContent = goldRules;
-$('lobbyHint').textContent =
+// the long-form rules live behind the 📜 Rules fold (round 22 declutter)
+$('lobbyRulesBody').innerHTML = [
+  `Pick the same team number as a friend and you fight as one — your spells ` +
+  `pass through each other, and a team of N races to ${ROUND.KILLS_TO_WIN} × N kills.`,
+  goldRules,
   `You start with ${GOLD.START} gold — the shop opens after round 1. ` +
-  'Hover anything in the shop for its full per-level numbers.';
+  'Hover anything in the shop for its full per-level numbers.',
+].map((t) => `<p>${esc(t)}</p>`).join('');
 
 // ---- key bindings panel -------------------------------------------------------
 
@@ -813,7 +817,6 @@ $('presetQwerty').addEventListener('click', () => applyPreset('qwerty'));
 $('presetAzerty').addEventListener('click', () => applyPreset('azerty'));
 function closeKeysPanel() { cancelCapture(); $('keysPanel').classList.add('hidden'); }
 $('keysCloseBtn').addEventListener('click', closeKeysPanel);
-$('joinKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 $('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
 
 // ---- rebinding: ONE rule, both entry points ---------------------------------
@@ -872,8 +875,10 @@ function refreshKeyUi() {
     el.querySelector('.key').textContent = keyLabel(keyBindings[spell]);
   for (const chip of document.querySelectorAll('.keychip'))
     chip.textContent = keyLabel(keyBindings[chip.dataset.spell]);
-  $('joinKeyHint').innerHTML = Object.keys(SPELLS)
-    .map((spell) => `<kbd>${esc(keyLabel(keyBindings[spell]))}</kbd>`).join('');
+  // the one always-visible controls line in the lobby, LIVE binding, never a
+  // hardcoded Q (non-QWERTY scar, round 21.7)
+  $('controlsHint').innerHTML =
+    `press <kbd>${esc(keyLabel(keyBindings.fireball))}</kbd> to throw your fireball · <kbd>right-click</kbd> to move`;
 }
 
 $('readyBtn').addEventListener('click', () => {
@@ -904,13 +909,72 @@ $('draftBtn').addEventListener('click', () => {
   send({ t: 'draft', on: !(s && s.draft) });
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
+// Browse-only shop (round 22): the same grid straight from the lobby, no more
+// testing→ready dance just to read the shelves. Buying stays phase-gated.
+let shopPreview = false;
+function setShopPreview(on) {
+  shopPreview = on;
+  $('shopCloseBtn').classList.toggle('hidden', !on);
+  setVisible('shopPauseBtn', !on);
+  if (!on) {
+    const s = latest();
+    setVisible('shop', !!(s && myId && s.phase === 'shop'));
+    return;
+  }
+  const s = latest();
+  const shopMode = s && s.mode === 'classic' ? 'classic' : 'elemental';
+  if (shopMode !== shopModeBuilt) {
+    shopModeBuilt = shopMode;
+    refreshShop = buildShop($('shopGrid'), shopMode);
+  }
+  refreshShop(me(s), 0, s);
+  $('shopGold').textContent = '';
+  $('shopTimer').textContent = '';
+  $('shopStats').innerHTML = '';
+  $('shopSub').textContent = 'Browsing the shelves — buying happens between rounds.';
+  setVisible('shopGrid', true);
+  setVisible('shopReadyBtn', false);
+  setVisible('shop', true);
+}
+$('shopBrowseBtn').addEventListener('click', () => setShopPreview(true));
+$('shopCloseBtn').addEventListener('click', () => setShopPreview(false));
+// dead-and-watching scoreboard: collapsible so you can just watch the fight
+$('specFoldBtn').addEventListener('click', () => {
+  const folded = $('specpanel').classList.toggle('folded');
+  $('specFoldBtn').textContent = folded ? '▸' : '▾';
+});
+// ★ rate this version (round 22): fire-and-forget to the relay; the average
+// shows in the version picker. localStorage remembers yours so a re-rate
+// replaces instead of stuffing the ballot. Friends-lobby trust, like kicks.
+{
+  const slug = new URLSearchParams(location.search).get('version') || 'main';
+  const box = $('rateBox');
+  const saved = () => { try { return JSON.parse(localStorage.owRatings || '{}'); } catch { return {}; } };
+  const paint = (n) => { [...box.children].forEach((b, i) => b.classList.toggle('lit', i < n)); };
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = '★';
+    b.title = 'Rate this version — the average shows in the version list';
+    b.addEventListener('click', () => {
+      const all = saved();
+      const prev = all[slug] || null;
+      all[slug] = i;
+      try { localStorage.owRatings = JSON.stringify(all); } catch { }
+      analytics.rateVersion?.(slug, i, prev);
+      paint(i);
+      toast(prev ? 'rating updated — thanks' : 'thanks for rating ★');
+    });
+    box.appendChild(b);
+  }
+  paint(saved()[slug] || 0);
+}
 // Shop pause: anyone may freeze or unfreeze the clock (friends-lobby trust, same
 // as the kick/ban buttons). Reads the current state off the last snapshot so the
 // one button toggles.
 $('shopPauseBtn').addEventListener('click', () => {
   send({ t: 'shopPause', on: !shopPausedBy });
 });
-$('removeBotBtn').addEventListener('click', () => send({ t: 'removeBot' }));
 $('unbanBtn').addEventListener('click', () => { send({ t: 'unbanAll' }); toast('bans cleared'); });
 $('againBtn').addEventListener('click', () => {
   goPinned = false;
@@ -1393,7 +1457,10 @@ function buildShop(container, mode = 'classic') {
       <span class="name">${spec.name} <span class="lv"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
-    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
+    b.addEventListener('click', () => {
+      if (shopPreview) { toast('browsing only — buying happens between rounds'); return; }
+      playSfx('buy'); send({ t: 'buy', id: key });
+    });
     // key chip (spells only): sits OUTSIDE the buy button in a relative wrapper
     // — a disabled button (max level / can't afford) eats clicks on its
     // children, and the chip must stay clickable to open the rebind popup.
@@ -1437,7 +1504,10 @@ function buildShop(container, mode = 'classic') {
       <span class="tag">${esc(spec.desc)}</span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
-    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
+    b.addEventListener('click', () => {
+      if (shopPreview) { toast('browsing only — buying happens between rounds'); return; }
+      playSfx('buy'); send({ t: 'buy', id: key });
+    });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'element' };
     attachTip(b, () => elementTip(key, spec, w.level || 0));
@@ -1469,7 +1539,10 @@ function buildShop(container, mode = 'classic') {
       <span class="tag"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
-    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'buy', id: key }); });
+    b.addEventListener('click', () => {
+      if (shopPreview) { toast('browsing only — buying happens between rounds'); return; }
+      playSfx('buy'); send({ t: 'buy', id: key });
+    });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
     attachTip(b, () => itemTip(key, spec, w.level || 0));
@@ -1795,7 +1868,8 @@ function updateUi(s) {
   if (s.phase === 'gameover') goPinned = true;
   else if (s.phase !== 'lobby') goPinned = false;
   setVisible('lobby', !!myId && s.phase === 'lobby' && !goPinned);
-  setVisible('shop', !!myId && s.phase === 'shop');
+  if (shopPreview && s.phase !== 'lobby') setShopPreview(false); // browsing is a lobby thing
+  setVisible('shop', (!!myId && s.phase === 'shop') || shopPreview);
   setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
   if (s.phase !== 'shop') hideTip();
   // Dead and watching the rest of the round: the same scoreboard the end screen
@@ -1875,6 +1949,16 @@ function updateUi(s) {
           kb.addEventListener('click', () => send({ t: 'kick', id: p.id, ban: true }));
           div.appendChild(kb);
         }
+        // per-row bot remove (round 22): pick WHICH bot leaves, not just the last
+        if (p.bot) {
+          const rb = document.createElement('button');
+          rb.type = 'button';
+          rb.className = 'mini kick';
+          rb.title = `Remove ${p.name}`;
+          rb.textContent = '✕';
+          rb.addEventListener('click', () => send({ t: 'removeBot', id: p.id }));
+          div.appendChild(rb);
+        }
         list.appendChild(div);
       }
     }
@@ -1890,7 +1974,6 @@ function updateUi(s) {
     const elemental = s.mode === 'elemental';
     modeBtn.textContent = modeLabel(s.mode);
     modeBtn.title = modeTitle(s.mode);
-    modeBtn.classList.toggle('elemental', elemental);
     modeBtn.setAttribute('aria-pressed', s.mode !== 'classic' ? 'true' : 'false');
     // draft toggle — also server-authoritative, and orthogonal to the ruleset
     const draftBtn = $('draftBtn');

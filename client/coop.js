@@ -32,8 +32,9 @@ export function nextMode(mode) {
 }
 
 export function modeLabel(mode) {
-  if (mode === 'elemental') return 'Rules: ⚗️ Elemental';
-  if (mode === 'coop') return 'Rules: 🛡️ Co-op campaign';
+  // no emoji, no accent color — a quiet config toggle since round 22 (Remi)
+  if (mode === 'elemental') return 'Rules: Elemental';
+  if (mode === 'coop') return 'Rules: Co-op campaign';
   return 'Rules: Classic';
 }
 
