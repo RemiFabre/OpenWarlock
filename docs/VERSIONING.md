@@ -96,6 +96,13 @@ duplicate truths, verbose comments, and new documentation that future agents
 would have to read. Comments should explain only non-obvious intent or warnings
 and stay under five lines. Do not merge the feature branch into `main`.
 
+**The version must demonstrate itself** (Remi, 2026-08-12): whatever the issue
+asks for is ACTIVE the moment the link opens — a new mode defaults ON, a new
+spell is in the starting kit or featured in the shop, a new bot is pre-seated.
+Nobody hunts for a toggle to see what a version does; a toggle may exist to turn
+it off. Put the default at the lobby/engine seam so the base rules and their
+tests stay neutral.
+
 Run focused tests plus `npx vitest run`, and run relevant browser or harness
 tests for the affected behavior. Tests and game processes do not need GitHub
 credentials:

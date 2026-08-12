@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 2,
+  "serial": 3,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -76,7 +76,7 @@
       "issue": 8,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/8",
       "branch": "issue-8-one-round",
-      "commit": "9d9222231d37515ce8def9d5ae635a134636c508"
+      "commit": "275f9e16dc4fd991a6c32ca79ed38edc2a947462"
     }
   ]
 }
