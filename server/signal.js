@@ -6,7 +6,8 @@
 // restart mid-match with zero effect (hosts re-register their code, see
 // client/transport.js). Optional and separate — `npm start`/`npm run host`
 // never touch it. Run: node server/signal.js [--port=3001]   (or PORT env)
-// It also hosts the anonymous usage counters (/beacon + /stats, see below).
+// It also hosts the anonymous usage counters (/beacon + /stats) and the
+// per-version play stats + star ratings (/rate + /versions), see below.
 // Deployment options for Remi: docs/history/2026-08-09-browser-hosting-phaseB.md
 
 import http from 'node:http';
@@ -46,7 +47,11 @@ export function createHfStatsStore({
   };
   return {
     async load(dayKey) {
-      return { day: await read(`days/${dayKey}.json`), totals: await read('totals.json') };
+      return {
+        day: await read(`days/${dayKey}.json`),
+        totals: await read('totals.json'),
+        versions: await read('versions.json'),
+      };
     },
     async save(files) { // files: { 'days/YYYY-MM-DD.json': obj, 'totals.json': obj }
       const lines = [JSON.stringify({ key: 'header', value: { summary: 'stats flush' } })];
@@ -89,6 +94,50 @@ export function createSignalServer({
   const bucket = (k) => { let b = days.get(k); if (!b) { b = emptyBucket(); days.set(k, b); } return b; };
   const clampN = (x, cap) => Math.min(cap, Math.max(0, Math.floor(Number(x) || 0)));
 
+  // ---- per-version stats + star ratings (round 22) ----
+  // Beacons carry a `slug` (?version= param, 'main' by default) since r250;
+  // older pinned versions send none and only feed the global counters above.
+  const versions = new Map(); // slug -> { plays, finished, player_rounds, rating_sum, rating_n }
+  let versionsDirty = false;
+  const MAX_SLUGS = 200;
+  const slugOf = (s) => {
+    const t = String(s ?? '').toLowerCase();
+    return /^[a-z0-9-]{1,32}$/.test(t) ? t : 'unknown';
+  };
+  const version = (slug) => {
+    let v = versions.get(slug);
+    if (!v) {
+      v = { plays: 0, finished: 0, player_rounds: 0, rating_sum: 0, rating_n: 0 };
+      versions.set(slug, v);
+      if (versions.size > MAX_SLUGS) { // memory bound: evict the least-played
+        let worstK = null, worstP = Infinity;
+        for (const [k, e] of versions) if (k !== slug && e.plays < worstP) { worstK = k; worstP = e.plays; }
+        versions.delete(worstK);
+      }
+    }
+    return v;
+  };
+  // rating invariants after ANY update (rate, merge): garbage prev values or
+  // hostile persisted files can never push the aggregates negative or absurd
+  const clampRating = (v) => {
+    v.rating_n = Math.max(0, v.rating_n);
+    v.rating_sum = Math.min(v.rating_n * 5, Math.max(0, v.rating_sum));
+  };
+
+  // POST /rate body: { slug, stars 1..5, prev 1..5|null }. A re-rate replaces
+  // (prev = what this browser sent before) — trust-based, it's a friends game.
+  function recordRating(m) {
+    if (!m || typeof m !== 'object') return;
+    const stars = m.stars;
+    if (!Number.isInteger(stars) || stars < 1 || stars > 5) return;
+    const prev = Number.isInteger(m.prev) && m.prev >= 1 && m.prev <= 5 ? m.prev : null;
+    const v = version(slugOf(m.slug));
+    v.rating_sum += stars - (prev || 0);
+    v.rating_n += prev ? 0 : 1;
+    clampRating(v);
+    versionsDirty = true;
+  }
+
   function recordBeacon(m) {
     if (!m || typeof m !== 'object') return;
     if (m.e !== 'visit' && m.e !== 'game_start' && m.e !== 'game_end') return;
@@ -107,6 +156,12 @@ export function createSignalServer({
         t.rounds_total += clampN(m.rounds, 1000);
       }
     }
+    if (m.slug != null && m.e !== 'visit') { // slug-less = old pinned version: global only
+      const v = version(slugOf(m.slug));
+      if (m.e === 'game_start') v.plays++;
+      else { v.finished++; v.player_rounds += clampN(m.rounds, 1000) * clampN(m.players, 64); }
+      versionsDirty = true;
+    }
     dirty.add(k);
   }
 
@@ -117,17 +172,31 @@ export function createSignalServer({
     for (const [mode, n] of Object.entries(from.by_mode || {}))
       into.by_mode[mode] = (into.by_mode[mode] || 0) + clampN(n, 1e9);
   };
+  const mergeVersions = (from) => { // boot resume: counters AND ratings merge-add
+    if (!from || typeof from !== 'object') return;
+    for (const [slug, e] of Object.entries(from)) {
+      if (!e || typeof e !== 'object') continue;
+      const v = version(slugOf(slug));
+      for (const f of ['plays', 'finished', 'player_rounds', 'rating_sum', 'rating_n'])
+        v[f] += clampN(e[f], 1e9);
+      clampRating(v);
+    }
+  };
 
   // dirty clears BEFORE the await: beacons landing mid-save re-mark the day and
   // the next flush rewrites the (cumulative) bucket — nothing is ever lost, at
   // worst re-uploaded. A failed save re-marks so the next tick retries.
   async function flushStats() {
-    if (!statsStore || !dirty.size) return;
+    if (!statsStore || (!dirty.size && !versionsDirty)) return;
     const keys = [...dirty];
     dirty.clear();
+    const hadVersions = versionsDirty;
+    versionsDirty = false;
     const files = { 'totals.json': totals };
+    if (hadVersions) files['versions.json'] = Object.fromEntries(versions);
     for (const k of keys) files[`days/${k}.json`] = days.get(k);
-    try { await statsStore.save(files); } catch { for (const k of keys) dirty.add(k); }
+    try { await statsStore.save(files); }
+    catch { for (const k of keys) dirty.add(k); versionsDirty ||= hadVersions; }
     // memory bound: day buckets older than ~60 days are flushed history — drop them
     for (const k of days.keys()) if (!dirty.has(k) && days.size > 60) days.delete(k);
   }
@@ -137,6 +206,7 @@ export function createSignalServer({
       if (!r) return;
       mergeAdd(bucket(dayKey()), r.day); // totals.json already includes every day file,
       mergeAdd(totals, r.totals);        // so day files merge into their day ONLY
+      mergeVersions(r.versions);
     }).catch(() => { });
   }
 
@@ -146,25 +216,35 @@ export function createSignalServer({
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
+  // any content type (sendBeacon ships text/plain), any garbage: always 204
+  const swallowJson = (req, res, record) => {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 4096) req.destroy(); });
+    req.on('error', () => { });
+    req.on('end', () => {
+      try { record(JSON.parse(body)); } catch { }
+      res.writeHead(204, CORS); res.end();
+    });
+  };
+
+  const CORS_PATHS = ['/beacon', '/stats', '/rate', '/versions'];
   const httpServer = http.createServer((req, res) => {
     const path = new URL(req.url, 'http://x').pathname;
     if (path === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
-    } else if (req.method === 'OPTIONS' && (path === '/beacon' || path === '/stats')) {
+    } else if (req.method === 'OPTIONS' && CORS_PATHS.includes(path)) {
       res.writeHead(204, CORS); res.end();
     } else if (path === '/beacon' && req.method === 'POST') {
-      // any content type (sendBeacon ships text/plain), any garbage: always 204
-      let body = '';
-      req.on('data', (c) => { body += c; if (body.length > 4096) req.destroy(); });
-      req.on('error', () => { });
-      req.on('end', () => {
-        try { recordBeacon(JSON.parse(body)); } catch { }
-        res.writeHead(204, CORS); res.end();
-      });
+      swallowJson(req, res, recordBeacon);
+    } else if (path === '/rate' && req.method === 'POST') {
+      swallowJson(req, res, recordRating);
     } else if (path === '/stats' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json', ...CORS });
       res.end(JSON.stringify({ ok: true, total: totals, days: Object.fromEntries(days) }));
+    } else if (path === '/versions' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json', ...CORS });
+      res.end(JSON.stringify({ ok: true, versions: Object.fromEntries(versions) }));
     } else { res.writeHead(404); res.end(); }
   });
   const wss = new WebSocketServer({ server: httpServer });

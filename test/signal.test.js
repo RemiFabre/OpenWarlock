@@ -256,3 +256,128 @@ describe('usage counters', () => {
     s.close();
   });
 });
+
+// ---- per-version stats + star ratings (/rate -> /versions, round 22) --------
+// Beacons carry a `slug` (?version= URL param, 'main' by default); the relay
+// keeps per-slug plays / finished games / player-rounds and a star-rating
+// aggregate. Slug-less beacons (old pinned versions) stay global-only.
+
+const rate = (port, body) =>
+  fetch(`http://127.0.0.1:${port}/rate`, { method: 'POST', body });
+const versions = async (port) => (await fetch(`http://127.0.0.1:${port}/versions`)).json();
+
+describe('per-version stats and ratings', () => {
+  it('accounts plays and player_rounds per slug, alongside the global buckets', async () => {
+    const s = await createSignalServer({ port: 0 });
+    await post(s.port, JSON.stringify({ e: 'game_start', slug: 'main', players: 5, humans: 2 }));
+    await post(s.port, JSON.stringify({ e: 'game_end', slug: 'main', players: 5, rounds: 3 }));
+    await post(s.port, JSON.stringify({ e: 'game_start', slug: 'issue-7', players: 2, humans: 1 }));
+    const j = await versions(s.port);
+    expect(j.ok).toBe(true);
+    expect(j.versions.main).toEqual({ plays: 1, finished: 1, player_rounds: 15, rating_sum: 0, rating_n: 0 });
+    expect(j.versions['issue-7'].plays).toBe(1);
+    const g = await stats(s.port); // globals unchanged by the slug split
+    expect(g.total.games).toBe(2);
+    expect(g.total.rounds_total).toBe(3);
+    s.close();
+  });
+
+  it('sanitizes slugs: lowercased if clean, anything else lands on "unknown"', async () => {
+    const s = await createSignalServer({ port: 0 });
+    await post(s.port, JSON.stringify({ e: 'game_start', slug: 'ISSUE-7' }));
+    await post(s.port, JSON.stringify({ e: 'game_start', slug: 'bad slug!' }));
+    await post(s.port, JSON.stringify({ e: 'game_start', slug: 'x'.repeat(33) }));
+    await post(s.port, JSON.stringify({ e: 'game_start', slug: { evil: 1 } }));
+    const j = await versions(s.port);
+    expect(j.versions['issue-7'].plays).toBe(1);
+    expect(j.versions.unknown.plays).toBe(3);
+    s.close();
+  });
+
+  it('slug-less beacons (old pinned versions) count globally, create no slug entry', async () => {
+    const s = await createSignalServer({ port: 0 });
+    await post(s.port, JSON.stringify({ e: 'game_start', players: 4, humans: 1 }));
+    await post(s.port, JSON.stringify({ e: 'game_end', rounds: 9 }));
+    expect((await stats(s.port)).total.games).toBe(1);
+    expect((await versions(s.port)).versions).toEqual({});
+    s.close();
+  });
+
+  it('rate then re-rate: prev replaces the old vote instead of double-counting', async () => {
+    const s = await createSignalServer({ port: 0 });
+    await rate(s.port, JSON.stringify({ slug: 'main', stars: 4, prev: null }));
+    let j = await versions(s.port);
+    expect(j.versions.main.rating_sum).toBe(4);
+    expect(j.versions.main.rating_n).toBe(1);
+    await rate(s.port, JSON.stringify({ slug: 'main', stars: 2, prev: 4 }));
+    j = await versions(s.port);
+    expect(j.versions.main.rating_sum).toBe(2);
+    expect(j.versions.main.rating_n).toBe(1); // still one voter
+    s.close();
+  });
+
+  it('rejects invalid stars and clamps prev abuse — aggregates never go absurd', async () => {
+    const s = await createSignalServer({ port: 0 });
+    for (const stars of [0, 6, 'x', 4.5, null]) {
+      expect((await rate(s.port, JSON.stringify({ slug: 'main', stars }))).status).toBe(204);
+    }
+    expect((await rate(s.port, 'not json')).status).toBe(204);
+    expect((await versions(s.port)).versions).toEqual({}); // nothing recorded
+    // lying prev on a fresh slug: sum would be 1-5 = -4, n would be 0
+    await rate(s.port, JSON.stringify({ slug: 'a', stars: 1, prev: 5 }));
+    const a = (await versions(s.port)).versions.a;
+    expect(a.rating_sum).toBe(0);       // clamped up from -4
+    expect(a.rating_n).toBe(0);         // prev claimed -> no new voter
+    await rate(s.port, JSON.stringify({ slug: 'b', stars: 5, prev: 1 }));
+    const b = (await versions(s.port)).versions.b;
+    expect(b.rating_n).toBe(0);
+    expect(b.rating_sum).toBe(0);       // sum clamped to rating_n * 5
+    s.close();
+  });
+
+  it('CORS: preflight and permissive headers on /rate and /versions', async () => {
+    const s = await createSignalServer({ port: 0 });
+    for (const path of ['/rate', '/versions']) {
+      const pre = await fetch(`http://127.0.0.1:${s.port}${path}`, { method: 'OPTIONS' });
+      expect(pre.status).toBe(204);
+      expect(pre.headers.get('access-control-allow-origin')).toBe('*');
+    }
+    expect((await rate(s.port, '{}')).headers.get('access-control-allow-origin')).toBe('*');
+    const v = await fetch(`http://127.0.0.1:${s.port}/versions`);
+    expect(v.headers.get('access-control-allow-origin')).toBe('*');
+    s.close();
+  });
+
+  it('persistence: versions.json flushes with the day files and merge-adds on boot', async () => {
+    const disk = {};
+    const store = {
+      load: async (dayKey) => ({
+        day: disk[`days/${dayKey}.json`] || null,
+        totals: disk['totals.json'] || null,
+        versions: disk['versions.json'] || null,
+      }),
+      save: async (files) => { Object.assign(disk, JSON.parse(JSON.stringify(files))); },
+    };
+    const a = await createSignalServer({ port: 0, statsStore: store });
+    await post(a.port, JSON.stringify({ e: 'game_start', slug: 'main', players: 3 }));
+    await post(a.port, JSON.stringify({ e: 'game_end', slug: 'main', players: 3, rounds: 2 }));
+    await rate(a.port, JSON.stringify({ slug: 'main', stars: 5, prev: null }));
+    await a.flushStats();
+    expect(disk['versions.json'].main)
+      .toEqual({ plays: 1, finished: 1, player_rounds: 6, rating_sum: 5, rating_n: 1 });
+    a.close();
+
+    // "restart": counters AND ratings resume by merge-add, then keep counting
+    const b = await createSignalServer({ port: 0, statsStore: store });
+    await new Promise((r) => setTimeout(r, 20)); // boot load is async
+    await post(b.port, JSON.stringify({ e: 'game_start', slug: 'main', players: 3 }));
+    await rate(b.port, JSON.stringify({ slug: 'main', stars: 3, prev: null }));
+    const j = await versions(b.port);
+    expect(j.versions.main.plays).toBe(2);
+    expect(j.versions.main.rating_sum).toBe(8);
+    expect(j.versions.main.rating_n).toBe(2);
+    await b.flushStats();
+    expect(disk['versions.json'].main.plays).toBe(2);
+    b.close();
+  });
+});
