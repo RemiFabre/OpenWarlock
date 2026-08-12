@@ -172,3 +172,21 @@ commit, and tests performed. Remove `ai:working` and close the issue.
 If blocked, explain why, remove `ai:working`, restore `ai:queued`, leave the
 issue open, and do not publish it. If a run dies after claiming an issue, the
 next run resumes that `ai:working` issue and its branch before taking new work.
+
+### 7. Iterations on an existing version
+
+Non-collaborators cannot reopen an issue a maintainer closed, so improvements
+usually arrive as a NEW issue referencing the old one ("improve my version from
+issue #N", a link, or the version's name). That is an ITERATION, not a second
+version (Remi, 2026-08-12):
+
+- keep the SAME branch, slug and player-facing name (append "v2" to the name
+  only if the author asks); continue the branch with new commits;
+- replace the `commit` in the existing versions.json entry and bump `serial` —
+  the old build is revoked and the link identity moves forward, so nobody keeps
+  playing the superseded copy;
+- report and close on the NEW issue, and drop a pointer comment on the old one.
+
+Cross-author iterations ("improve X's version") are accepted like any request
+if the change is additive; when it CHANGES the original author's design,
+`@mention` them in the verdict so they can object before it ships.
