@@ -39,9 +39,11 @@ instead of just what changed. Four things, each revertible in one line:
    most compressible thing in the game — repetitive pillar lists squash to 17-21%
    of their size. One option, ~5× fewer bytes.
 2. **Only what changed.** The state is now delta-coded per player, reusing the
-   encoder your browser-hosting path has had since round 21. A live measurement
-   on a real 4-seat lobby: **246 bytes** per snapshot where the whole thing was
-   ~3,100.
+   encoder your browser-hosting path has had since round 21. Measured live in a
+   real browser: a delta state message is **246 bytes**. For scale, a *whole*
+   snapshot of a 4-seat game at round 1 is **3,087 bytes**, and 22,159 at 450
+   pillars — and the delta barely grows with the pillar count, because pillars
+   only cost bytes on the frames where they actually change.
 3. **Events ride separately** and are never dropped — a lost death is a lost kill
    cue. That split is what makes the state safe to drop.
 4. **Falling behind now drops frames instead of queueing them.** A dropped

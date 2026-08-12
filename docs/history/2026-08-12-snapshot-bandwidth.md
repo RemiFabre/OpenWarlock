@@ -109,10 +109,13 @@ And starved *below* what even the compressed stream needs — the same lab at
 | deflate + delta (shipped) | 10.4 Hz | 0.38 s avg / 1.27 s worst | 163 |
 | neither | **0.0 Hz** | never received a battle state at all | 0 |
 
-Live confirmation on a healthy 4-seat lobby through a real browser: a delta
-state message is **246 bytes** on the wire where the full snapshot was ~3,100,
-and the client's interpolation delay stays at its 131.7 ms baseline (the
-adaptive path is inert until snapshots actually get sparse).
+Live confirmation through a real browser against a real server: a delta state
+message is **246 bytes** (`/health` → `wire[].lastBytes`), and the client's
+interpolation delay stays at its **131.7 ms** baseline with `gapEst` 66.5 ms —
+the adaptive path is inert until snapshots actually get sparse. ⚠ That 246 B is
+a smaller lobby than the 3,087 B full-snapshot row above, so read them as two
+separate facts, not a ratio; the honest ratio is the `--only=delta` lab row,
+6 KB/s against 53 KB/s for the same game.
 
 ## 4. Scars this round earned
 
