@@ -708,6 +708,32 @@ export const BOTS = {
   stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
                react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 0.85,
                desc: 'Dodges your projectiles AND nearly every lightning mark, leads its shots with a real intercept, and saves itself with blink and shield.' },
+  // Issue #7 (Remi): a tier ABOVE Extreme whose whole identity is the combo —
+  // it keeps every stalker behaviour and adds a layer that follows up on a body
+  // it has just put in the air or on the floor. `combo` is that layer's own
+  // clock and its windows; see stepFaker in shared/sim.js.
+  faker:     { name: 'Faker', label: 'Insane', difficulty: 5, brain: 'faker',
+               react: [0.10, 0.06], aimErr: [0.25, 0.03], boltDodge: 0.95,
+               combo: {
+                 // how often the combo layer gets to look, in seconds
+                 think: [0.05, 0.05],
+                 // a body moving this fast (u/s) is under someone's knockback
+                 flySpeed: 26,
+                 // ...and is worth a rock rather than a bolt from this far up
+                 meteorFly: 40,
+                 // it will not spend a telegraphed cast on a body it predicts
+                 // will be further than this from the drop point
+                 aimTrust: 2.2,
+               },
+               desc: 'Everything Extreme does, plus the follow-up: it reads where your body is going to land and puts the lightning there before you arrive.' },
+  // Issue #7: the sparring partner, not a difficulty. It fights until the first
+  // hit of the round lands on it, then runs from whoever hit it — and it NEVER
+  // casts a mobility or defensive spell, so a combo that lands on it landed
+  // because it was a combo. Not in the lobby dropdown (see MODES/BOT list).
+  runner:    { name: 'Runner', label: 'Runner', difficulty: 2, brain: 'runner',
+               react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0.3,
+               spar: true,
+               desc: 'A sparring dummy: it shoots back until it is hit, then it just runs. It never blinks, dashes, shields or vanishes.' },
 };
 
 // Seconds a bot keeps aiming at an enemy's last SEEN position (Vanish masking,

@@ -3066,6 +3066,8 @@ const BRAINS = {
   grunt: stepGrunt,
   berserker: stepBerserker,
   stalker: stepStalker,
+  faker: stepFaker,
+  runner: stepRunner,
 };
 
 export function stepBot(state, id, dt) {
@@ -3179,6 +3181,157 @@ function heldAim(pl, target, spec) {
   return { x: target.x, y: target.y };
 }
 
+// ---- Faker (issue #7) ------------------------------------------------------
+// The tier ABOVE Extreme. Its body is the stalker's — every dodge, every save,
+// the same intercept aim — and the tier is the LAYER in front of it: a combo
+// planner that runs on its own tighter clock and, when it fires, takes the tick.
+//
+// The one idea underneath all three of Remi's examples is the same: a body that
+// has just been shoved, or frozen, is a body whose position `delay` seconds from
+// now is KNOWN. Everything else is bookkeeping around that.
+
+// Where a body will be after `t` seconds if nothing but friction acts on it.
+// Velocity decays as e^(-k t) (stepBattle's exponential damping), so the
+// distance travelled is the integral of that: (v / k)(1 - e^(-k t)).
+function driftTo(target, t) {
+  const k = PLAYER.FRICTION;
+  const f = (1 - Math.exp(-k * t)) / k;
+  return { x: target.x + target.vx * f, y: target.y + target.vy * f };
+}
+
+// The combo layer. Returns true when it has spent the tick on a cast.
+function comboStep(state, pl) {
+  const spec = BOTS[pl.kind] || {};
+  const C = spec.combo;
+  if (!C) return false;
+  const id = pl.id;
+  const ready = (k) => (pl.spells[k] || 0) > 0 && (pl.cooldowns[k] || 0) <= 0;
+  const seen = enemiesSeen(state, pl);
+  if (!seen.length) return false;
+
+  // the juiciest victim first: airborne beats held, and faster beats slower —
+  // a body still travelling is the one whose landing spot is worth a rock
+  const scored = seen.map((t) => {
+    const speed = Math.hypot(t.vx || 0, t.vy || 0);
+    return { t, speed, held: (t.stunT || 0) > 0 };
+  }).sort((a, b) => (b.speed + (b.held ? 100 : 0)) - (a.speed + (a.held ? 100 : 0)));
+
+  for (const { t: mark, speed, held } of scored) {
+    if (!mark.alive) continue;
+    const dist = Math.hypot(mark.x - pl.x, mark.y - pl.y);
+
+    // 1. HELD (frost freeze, or the stun a Switcheroo leaves behind): the body
+    //    cannot move, so the telegraphed cast goes straight onto it.
+    if (held) {
+      if (ready('meteor') && ccPinned(mark, SPELLS.meteor.delay)) {
+        const aim = heldAim(pl, mark, SPELLS.meteor);
+        if (aim && castSpell(state, id, 'meteor', aim.x, aim.y)) return true;
+      }
+      if (ready('lightning')) {
+        const aim = heldAim(pl, mark, SPELLS.lightning);
+        if (aim && castSpell(state, id, 'lightning', aim.x, aim.y)) return true;
+      }
+    }
+
+    // 2. IN THE AIR: solve where the body lands and put the spell THERE. The
+    //    trust check refuses the cast when the prediction and the body have
+    //    barely diverged — at that point it is an ordinary shot, and the
+    //    stalker layer below takes it with a cheaper cooldown.
+    if (speed >= C.flySpeed) {
+      if (ready('meteor') && speed >= C.meteorFly) {
+        const p = driftTo(mark, SPELLS.meteor.delay);
+        if (Math.hypot(p.x - mark.x, p.y - mark.y) >= C.aimTrust &&
+            Math.hypot(p.x - pl.x, p.y - pl.y) > SPELLS.meteor.radius + pl.radius + 1 &&
+            castSpell(state, id, 'meteor', p.x, p.y)) return true;
+      }
+      if (ready('lightning')) {
+        const p = driftTo(mark, SPELLS.lightning.delay);
+        if (Math.hypot(p.x - mark.x, p.y - mark.y) >= C.aimTrust &&
+            Math.hypot(p.x - pl.x, p.y - pl.y) > SPELLS.lightning.radius + pl.radius + 1 &&
+            castSpell(state, id, 'lightning', p.x, p.y)) return true;
+      }
+    }
+
+    // 3. OPENERS. Switcheroo is the hook: the victim wakes stunned, which is
+    //    branch 1 on the next tick. Only worth it when the follow-up is
+    //    actually loaded, or the trade is a pure gift to the enemy.
+    if (!held && ready('swap') && dist <= lvl(SPELLS.swap, 'range', pl.spells.swap) &&
+        (ready('lightning') || ready('meteor') || (pl.cooldowns.fireball || 0) <= 0) &&
+        castSpell(state, id, 'swap', mark.x, mark.y)) return true;
+
+    // 4. Spend the third frost stack ON PURPOSE: with the follow-up ready, the
+    //    next fireball is not a shot, it is the start of the chain.
+    if (!held && (pl.elements && pl.elements.frost) &&
+        stackCount(mark, 'frost', id) >= ELEMENTS.frost.fx.stacksToTrigger - 1 &&
+        (ready('lightning') || ready('meteor')) && (pl.cooldowns.fireball || 0) <= 0) {
+      const aim = interceptPoint(pl, mark, SPELLS.fireball.speed);
+      if (castSpell(state, id, 'fireball', aim.x, aim.y)) return true;
+    }
+  }
+  return false;
+}
+
+function stepFaker(state, pl, dt) {
+  const C = (BOTS[pl.kind] || {}).combo;
+  pl._comboT = (pl._comboT || 0) - dt;
+  if (C && pl._comboT <= 0) {
+    const [base, jitter] = C.think;
+    pl._comboT = base + rng(state) * jitter;
+    if (comboStep(state, pl)) return;
+  }
+  stepStalker(state, pl, dt);
+}
+
+// ---- Runner (issue #7): the sparring partner ------------------------------
+// Not a difficulty — a measuring instrument. It trades normally until the first
+// hit of the round lands on it, then it runs from whoever hit it, and it NEVER
+// casts a mobility or a defensive spell. So a combo that lands on a Runner
+// landed because the victim could not get out, not because it did not try.
+const RUNNER_BANNED = new Set(['teleport', 'rush', 'shield', 'statue', 'vanish']);
+
+function stepRunner(state, pl, dt) {
+  const id = pl.id;
+  const [reactBase, reactJitter] = botTune(pl, 'react', [0.14, 0.08]);
+  pl._botT = (pl._botT || 0) - dt;
+  if (pl._botT > 0) return;
+  pl._botT = reactBase + rng(state) * reactJitter;
+
+  const arena = state.arenaRadius;
+  const seen = enemiesSeen(state, pl).filter((t) => t.alive);
+  if (!seen.length) return;
+  let mark = seen[0], best = Infinity;
+  for (const t of seen) {
+    const d = Math.hypot(t.x - pl.x, t.y - pl.y);
+    if (d < best) { best = d; mark = t; }
+  }
+
+  // fleeing is the whole point: away from the attacker, but never into the lava
+  const fleeing = !!pl.lastHitBy;
+  if (fleeing) {
+    const src = state.players[pl.lastHitBy.id] || mark;
+    let ax = pl.x - src.x, ay = pl.y - src.y;
+    const an = Math.hypot(ax, ay) || 1;
+    let tx = pl.x + (ax / an) * 20, ty = pl.y + (ay / an) * 20;
+    if (Math.hypot(tx, ty) > arena - 3) {
+      // pinned against the rim: run along it instead of off it
+      const t = Math.atan2(pl.y, pl.x) + (rng(state) < 0.5 ? 0.7 : -0.7);
+      const r = Math.max(0, arena - 6);
+      tx = Math.cos(t) * r; ty = Math.sin(t) * r;
+    }
+    setMoveTarget(state, id, tx, ty);
+  } else if (best > 14) {
+    setMoveTarget(state, id, mark.x, mark.y);
+  }
+
+  // it still shoots — a dummy that never threatens back is not a fight
+  if ((pl.cooldowns.fireball || 0) <= 0) {
+    const aim = interceptPoint(pl, mark, SPELLS.fireball.speed);
+    const [errFloor, errPerUnit] = botTune(pl, 'aimErr', [0.6, 0.12]);
+    const err = (rng(state) - 0.5) * (errFloor + best * errPerUnit);
+    castSpell(state, id, 'fireball', aim.x + err, aim.y - err);
+  }
+}
+
 // Generic "use what you own" pilot. Each kind's native logic covers its own
 // kit; this layer opportunistically casts the REST of a build's spells (a
 // sniper-build grunt actually zaps, a boomer-build berserker actually
@@ -3189,7 +3342,11 @@ function pilotOwnedSpells(state, pl, dt) {
   if (pl._pilotT > 0) return;
   pl._pilotT = 0.3 + rng(state) * 0.3;
   const arena = state.arenaRadius;
-  const owns = (k) => (pl.spells[k] || 0) > 0 && (pl.cooldowns[k] || 0) <= 0;
+  // ⚠ issue #7: the Runner's ban is enforced HERE too, not just in its brain —
+  // this generic layer is what would otherwise hand it a blink or a shield.
+  const banned = (BOTS[pl.kind] || {}).spar ? RUNNER_BANNED : null;
+  const owns = (k) => !(banned && banned.has(k)) &&
+    (pl.spells[k] || 0) > 0 && (pl.cooldowns[k] || 0) <= 0;
 
   // lava saves for whoever owns the tools (stalker teleports natively; the
   // 1k-game study showed a build with unpiloted escapes is just dead gold:
@@ -3912,6 +4069,14 @@ const BOT_BUILDS = {
     'rush', 'cape', 'treads'],
   stalker: ['teleport', 'fireball', 'lightning', 'boots', 'fireball',
     'shield', 'lightning', 'cape', 'teleport', 'lightning', 'shield'],
+  // Issue #7: the Faker buys the combo, in the order it needs it — the hook and
+  // the bolt first, the rock as the payoff, boots and cape to survive getting
+  // there. Meteor is on the PILOTED_POWER list, so the guard lets it through.
+  faker: ['lightning', 'fireball', 'swap', 'boots', 'lightning', 'meteor',
+    'teleport', 'cape', 'lightning', 'meteor', 'shield'],
+  // The Runner buys nothing that would let it escape (its ban is enforced in
+  // code as well, so this list is only about not wasting its gold).
+  runner: ['fireball', 'amulet', 'boots', 'fireball', 'amulet', 'treads', 'cape'],
 };
 
 // In elemental mode each bot kind commits to a fixed element (bought as soon
@@ -3949,7 +4114,10 @@ export function botElementFor(pl, seat = 0) {
 // so it is no longer a spell they would own and never press. ⚠ Mine, Decoy,
 // Switcheroo, Repulse, Wall stay OUT: no bot can read a trap or a bluff.
 // Revert = drop the entry; the roster's C7 core then measures nothing.
-const PILOTED_POWER = new Set(['meteor', 'statue']);
+// Issue #7: the Faker pilots Switcheroo as a combo OPENER (comboStep), so the
+// guard has to let its build buy one. No other build lists it, so nothing else
+// changes — that is exactly what this set is for.
+const PILOTED_POWER = new Set(['meteor', 'statue', 'swap']);
 
 export function botShop(state, id) {
   // Testing sandbox (round 19.8, Remi): the ONE untimed shop stands in for
