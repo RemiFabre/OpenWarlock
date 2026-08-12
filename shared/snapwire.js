@@ -1,5 +1,5 @@
 // One connection's snapshot wire: what the adapter actually sends, and when it
-// sends nothing. Pure — no sockets, no JSON parsing back — so every rule below
+// sends nothing. Pure (no sockets, no JSON parsing back), so every rule below
 // is unit-tested in test/snapwire.test.js.
 //
 // Why this exists (round 21.10): the payload GROWS all game (a permanent pillar
@@ -9,17 +9,17 @@
 // history: docs/history/2026-08-12-snapshot-bandwidth.md
 //
 // Three rules, in the order they matter:
-//   1. EVENTS RIDE ALONE and are never skipped — a lost death is a lost kill
+//   1. EVENTS RIDE ALONE and are never skipped; a lost death is a lost kill
 //      cue. Splitting them out is what makes the state below droppable.
 //   2. STATE IS DELTA-CODED per connection (shared/snapdelta.js). Opt-in, so a
 //      stale cached tab that never asked still gets whole snapshots.
 //   3. A BACKED-UP SOCKET GETS ITS STATE SKIPPED, not queued: a dropped
-//      snapshot costs nothing (deltas span it — see below), a queued one costs
+//      snapshot costs nothing (deltas span it; see below), a queued one costs
 //      permanent latency that never drains.
 //
 // Round 21.11, after tools/rtclab.js reproduced the late-game RTC lag: a
 // skipped state never reaches the encoder, so the NEXT delta is still valid
-// against the last state actually sent — a skip does not break the chain and
+// against the last state actually sent; a skip does not break the chain and
 // forces no keyframe (the old forced keyframe landed ~18 KB on an already-full
 // link, exactly when it hurt most). The delta chain only breaks when the
 // RECEIVER loses a message, and that is its call to requestFull().
@@ -41,7 +41,7 @@ export const QUEUE_FLOOR_BYTES = 8192;
 //   - the ABSOLUTE backlog is not the signal either. It sits at RTT × 15 Hz
 //     even on a perfect link, so a distant friend on a fat pipe would be
 //     throttled for being far away. A congested pipe's backlog GROWS; a merely
-//     distant one's is a constant offset — so compare against the floor.
+//     distant one's is a constant offset, so compare against the floor.
 export const ACK_LIMIT_SNAPS = 6;   // ~400 ms of backlog ABOVE this link's floor
 
 export function createSnapWire({
@@ -74,7 +74,7 @@ export function createSnapWire({
 
     // One engine 'snap' message -> the strings to send, in order.
     // `queued` is the socket's unflushed byte count (ws.bufferedAmount).
-    // -> { evt, state, key, full, skipped } — any string may be null. `full`
+    // -> { evt, state, key, full, skipped }; any string may be null. `full`
     // says the state is a KEYFRAME, which matters to a caller that has both a
     // reliable and a lossy channel; `key` (echo mode only) is a redundant
     // cadence keyframe for the reliable channel while `state` stays a delta
@@ -82,7 +82,7 @@ export function createSnapWire({
     frame(msg, queued = 0) {
       const out = { evt: null, state: null, key: null, full: false, skipped: false };
       if (!msg || msg.t !== 'snap' || !msg.s) return out;
-      // Events get their own reliable message — but only for a client that
+      // Events get their own reliable message, but only for a client that
       // announced it understands this framing. A pre-21.10 tab still finds them
       // INSIDE the snapshot, or it would silently lose every death cue; and its
       // snapshot is then never skipped, for the same reason.
@@ -99,12 +99,12 @@ export function createSnapWire({
         behind = backlog > floor + ackLimitSnaps;
       }
       // A keyframe the client ASKED for bypasses the ack test: a gapped client
-      // cannot apply anything, so it stops acking — withholding its keyframe
+      // cannot apply anything, so it stops acking; withholding its keyframe
       // until it acks again is a deadlock (multi-second stalls, found by
       // tools/rtclab.js). The byte test still stands: a full pipe is full.
       if ((queued > limit || (behind && !wantFull)) && !(!delta && hasEvents)) {
         // Falling behind: drop this state on the floor. The encoder never sees
-        // it, so the next delta spans the hole — nothing to re-base.
+        // it, so the next delta spans the hole; nothing to re-base.
         out.skipped = true;
         skipped++;
         return out;
@@ -116,7 +116,7 @@ export function createSnapWire({
         ...(msg.pings != null ? { pings: msg.pings } : {}),
       };
       // Keyframe on join, on a reported gap, after a skip of ours, and on a
-      // phase change — a shop opening changes almost every field anyway, so a
+      // phase change: a shop opening changes almost every field anyway, so a
       // delta there is bigger than the thing it describes.
       const full = wantFull || msg.s.phase !== lastPhase;
       lastPhase = msg.s.phase;
@@ -134,7 +134,7 @@ export function createSnapWire({
       return out;
     },
 
-    // `behind` is the live "how far back is this player" number — the thing
+    // `behind` is the live "how far back is this player" number; the thing
     // that was invisible when a friend reported late-game jerkiness. `floor` is
     // what this link costs when healthy, so behind−floor is the congestion.
     stats() {
@@ -149,12 +149,12 @@ export function createSnapWire({
 
 // The receiving half: turn `evt` messages and delta-coded `snap` messages back
 // into the one `{t:'snap', s, e}` the client has always seen. Used by BOTH
-// client transports (ws and rtc guest — they differ in their channels, not in
+// client transports (ws and rtc guest; they differ in their channels, not in
 // their framing) and by tools/slowlink.js. A host older than 21.10 sends `s`
 // inline; that shape still works untouched, which is what lets a stale tab play.
 export function createSnapSink(deliver, requestFull = () => {}, {
   fullEveryMs = 500,
-  // "I applied state q" — the only way the sender can tell this link is falling
+  // "I applied state q": the only way the sender can tell this link is falling
   // behind (see ACK_LIMIT_SNAPS). ⚠ EVERY applied state, not a sampled subset:
   // ~20 bytes × 15 Hz = 300 B/s upstream, and a slower cadence would itself look
   // like a backlog (the first version acked at 2 Hz and throttled everybody).
@@ -171,7 +171,7 @@ export function createSnapSink(deliver, requestFull = () => {}, {
   let lastReq = 0, lastAck = 0;
   const flush = (payload) => {
     // shallow-clone s: the client annotates it (bans/pings) and the decoder's
-    // copy must stay pristine — it is the base the next delta patches
+    // copy must stay pristine; it is the base the next delta patches
     const out = { t: 'snap', s: { ...payload.s }, e: events };
     events = [];
     if (payload.bans != null) out.bans = payload.bans;

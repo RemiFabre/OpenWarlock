@@ -1,14 +1,14 @@
-// Item level maths — the ONE place that knows how ITEM_FX is shaped.
+// Item level maths: the ONE place that knows how ITEM_FX is shaped.
 //
 // 2026-08-07 (round 12): items are LEVELLED like spells. `pl.items` is a plain
 // object `{key: level}` (1..maxLevel, never 0), and every ITEM_FX value is an
-// ABSOLUTE CUMULATIVE total indexed by level-1 — level 2 boots ARE ×1.27, not
+// ABSOLUTE CUMULATIVE total indexed by level-1: level 2 boots ARE ×1.27, not
 // ×1.15×1.27. Reading the level's entry is therefore the whole rule; nothing
 // compounds.
 //
 // This file exists because the previous freely-stackable items compounded
 // (`speedMult ** n`, `maxHp * n`) and that formula was duplicated in three
-// places — sim's stats(), the shop tooltip and the shop button — which is
+// places (sim's stats(), the shop tooltip and the shop button), which is
 // exactly how a UI ends up lying about the numbers the server uses.
 
 import { ITEM_FX } from './constants.js';
