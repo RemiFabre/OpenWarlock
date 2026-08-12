@@ -187,6 +187,8 @@ version (Remi, 2026-08-12):
   playing the superseded copy;
 - report and close on the NEW issue, and drop a pointer comment on the old one.
 
-Cross-author iterations ("improve X's version") are accepted like any request
-if the change is additive; when it CHANGES the original author's design,
-`@mention` them in the verdict so they can object before it ships.
+Cross-author changes: NOBODY modifies another author's version without that
+author's explicit agreement — `@mention` the original author in the verdict and
+WAIT for their reply before implementing (Remi, 2026-08-12). Without it, the
+requester gets their OWN new version built on top of the other one (new slug,
+new branch forked from that version's branch, both credited).
