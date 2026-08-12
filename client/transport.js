@@ -191,15 +191,25 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
     if (!p || !p.ctrl || p.ctrl.readyState !== 'open') return;
     try {
       if (msg.t === 'snap') {
-        // events ride ctrl (reliable — a lost death is a lost kill cue); state
-        // rides the lossy snap channel as full-or-delta, and is SKIPPED rather
-        // than queued when that channel is backing up (shared/snapwire.js).
+        // Two channels, and WHICH one a message takes is the whole robustness
+        // story on this path:
+        //  - events -> ctrl, reliable. A lost death is a lost kill cue.
+        //  - a KEYFRAME -> ctrl, reliable. It is rare (~1 per 2 s) and every
+        //    delta after it is worthless without it. ⚠ It used to ride the lossy
+        //    channel, where a full late-game snapshot fragments into ~18 SCTP
+        //    chunks with maxRetransmits:0 — losing ANY one discarded the whole
+        //    thing, orphaning every following delta, and the recovery request is
+        //    rate-limited to 2 Hz. That is a spiral that gets worse as the
+        //    pillar list grows: exactly the "low freq" a friend reported.
+        //  - a DELTA -> snap, unreliable. Disposable by design: a stale one is
+        //    worthless, and reliability there would head-of-line-block the
+        //    fresh ones behind it.
         const live = p.snap && p.snap.readyState === 'open';
         const f = p.wire.frame(msg, live ? p.snap.bufferedAmount : p.ctrl.bufferedAmount);
         if (f.evt) p.ctrl.send(f.evt);
         if (f.state) {
-          if (live) p.snap.send(f.state);
-          else p.ctrl.send(f.state); // snap channel not up (yet): framing still works
+          if (live && !f.full) p.snap.send(f.state);
+          else p.ctrl.send(f.state);
         }
       } else {
         p.ctrl.send(JSON.stringify(msg)); // welcome / denied

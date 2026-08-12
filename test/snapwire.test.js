@@ -197,6 +197,43 @@ describe('snapwire: wire -> sink, the shape main.js sees', () => {
   });
 });
 
+describe('snapwire: `full` tells a two-channel caller which state is precious', () => {
+  // The RTC host routes keyframes down the RELIABLE channel and deltas down the
+  // lossy one. Getting this flag wrong sends a 20 KB all-or-nothing keyframe
+  // over maxRetransmits:0, and one lost fragment orphans every delta after it.
+  it('flags the opening keyframe, the phase-change one, and a requested one', () => {
+    const w = createSnapWire();
+    expect(w.frame(snap('battle')).full).toBe(true);         // join
+    expect(w.frame(snap('battle', { time: 2 })).full).toBe(false);
+    expect(w.frame(snap('shop')).full).toBe(true);           // phase change
+    expect(w.frame(snap('shop', { time: 2 })).full).toBe(false);
+    w.requestFull();
+    expect(w.frame(snap('shop', { time: 3 })).full).toBe(true);
+  });
+
+  it('flags exactly the states a receiver can stand up on with no history', () => {
+    // the invariant, checked message by message against a cold decoder: `full`
+    // is true iff that message alone is enough. The encoder also keyframes on
+    // its own fullEvery cadence, which a caller reading only its own request
+    // flag would miss.
+    const w = createSnapWire({ fullEvery: 4 });
+    let fulls = 0;
+    for (let i = 0; i < 12; i++) {
+      const f = w.frame(snap('battle', { time: i }));
+      const standsAlone = !createSnapDecoder().decode(JSON.parse(f.state)).needFull;
+      expect(f.full).toBe(standsAlone);
+      if (f.full) fulls++;
+    }
+    expect(fulls).toBeGreaterThan(1);   // the periodic ones really did happen
+  });
+
+  it('flags every state for a pre-21.10 client — all of them are self-contained', () => {
+    const w = createSnapWire({ delta: false });
+    expect(w.frame(snap('battle')).full).toBe(true);
+    expect(w.frame(snap('battle', { time: 2 })).full).toBe(true);
+  });
+});
+
 describe('snapwire: falling behind is detected by ACKS, not by the socket', () => {
   // The scar this encodes: bufferedAmount stayed at 0 while a throttled seat ran
   // 19 s behind, because the backlog lived in the kernel send buffer.

@@ -70,9 +70,11 @@ export function createSnapWire({
 
     // One engine 'snap' message -> the strings to send, in order.
     // `queued` is the socket's unflushed byte count (ws.bufferedAmount).
-    // -> { evt, state, skipped } — either string may be null.
+    // -> { evt, state, full, skipped } — either string may be null. `full` says
+    // the state is a KEYFRAME, which matters to a caller that has both a
+    // reliable and a lossy channel: see the RTC host in client/transport.js.
     frame(msg, queued = 0) {
-      const out = { evt: null, state: null, skipped: false };
+      const out = { evt: null, state: null, full: false, skipped: false };
       if (!msg || msg.t !== 'snap' || !msg.s) return out;
       // Events get their own reliable message — but only for a client that
       // announced it understands this framing. A pre-21.10 tab still finds them
@@ -114,6 +116,9 @@ export function createSnapWire({
       const wire = delta
         ? enc.encode(payload, { full })
         : { t: 'snap', ...payload, ...(hasEvents ? { e: msg.e } : { e: [] }) };
+      // `full` above is what we ASKED for; the encoder also keyframes on its own
+      // fullEvery cadence, so read the answer off the message it produced.
+      out.full = wire.f !== undefined || !delta;
       if (wire.q != null) sentQ = wire.q;
       out.state = JSON.stringify(wire);
       lastBytes = out.state.length;
