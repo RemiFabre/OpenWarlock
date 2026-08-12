@@ -25,6 +25,9 @@ window.addEventListener('resize', () => view.resize());
 // ⚠ Every value here is injected as HTML (shop cards, spell bar, tooltips,
 // draft banner, kit strip) — never as textContent — which is what lets an icon
 // carry a wrapper span. Keep it that way if you add a call site.
+// issue #13 (Ju v4): shopHidden spells are BALL MUTATIONS — no key, no shop
+// card, no spellbar slot; the fireball key fires them
+const CASTABLE = (key) => !SPELLS[key].shopHidden;
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
   // Round 21.7 (Remi): the Stone Pillar has its 🗿 back, and NOPE (SPELLS.statue)
@@ -42,7 +45,7 @@ const ICONS = {
   hourglass: '⏳', brazier: '🎩', spoon: '🥄',
   // Issue #3: a bouncing ball, and the wing that catches you.
   // Issue #9 (Ju v2): the blackout ball and the arcing storm orb.
-  ricochet: '🎾', angel: '🪽', umbra: '🌑', chainball: '🌩️',
+  ricochet: '🎾', angel: '🪽', umbra: '🌑', chainball: '🌩️', vomit: '🤮',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -60,10 +63,10 @@ const KEY_PRESETS = {
   // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a', decoy: 'z', ricochet: 'y', umbra: 'u', chainball: 'j' },
+            statue: 'a', decoy: 'z', vomit: 'y' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q', decoy: 'w', ricochet: 'y', umbra: 'u', chainball: 'j' },
+            statue: 'q', decoy: 'w', vomit: 'y' },
 };
 
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
@@ -431,6 +434,15 @@ function onEvent(e) {
       fx.push({ ...e, type: 'boltHit', at: now, dur: 0.5 });
       playSfx('freeze');
       break;
+    // issue #13 (Ju v4): the splash, and the walk of shame back into it
+    case 'vomit':
+      fx.push({ ...e, type: 'boom', at: now, dur: 0.5 });
+      playSfx('catch');
+      break;
+    case 'vomitRoot':
+      fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
+      playSfx('freeze');
+      break;
     // issue #11 (Ju v3): the hook found stone — the caster is yanked to it
     case 'grapple':
       fx.push({ x: e.fx, y: e.fy, type: 'teleport', at: now, dur: 0.4 });
@@ -573,6 +585,8 @@ function interpolated(now) {
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
     // issue #11: destroyed ground — like pillars, it sits still
     holes: Array.isArray(s.holes) ? s.holes : [],
+    // issue #13: vomit puddles — they also sit still, mercifully
+    puddles: Array.isArray(s.puddles) ? s.puddles : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
     // mines never move: no interpolation, straight off the snapshot
@@ -893,7 +907,7 @@ function refreshKeyUi() {
     el.querySelector('.key').textContent = keyLabel(keyBindings[spell]);
   for (const chip of document.querySelectorAll('.keychip'))
     chip.textContent = keyLabel(keyBindings[chip.dataset.spell]);
-  $('joinKeyHint').innerHTML = Object.keys(SPELLS)
+  $('joinKeyHint').innerHTML = Object.keys(SPELLS).filter(CASTABLE)
     .map((spell) => `<kbd>${esc(keyLabel(keyBindings[spell]))}</kbd>`).join('');
 }
 
@@ -1045,6 +1059,10 @@ const fmtGold = (v) => (+v > 0 ? `${fmtNum(v)} g` : 'free');
 // label + formatter per known field; anything unknown still prints (raw key,
 // raw value) so a newly added constant shows up instead of vanishing.
 const SPELL_FIELDS = {
+  // vomit (issue #13)
+  puddleLife: ['puddle lasts', fmtSec],
+  slowPct: ['slows by', (v) => `${fmtNum(v)}%`],
+  rootTime: ['own-vomit root', fmtSec],
   damage: ['damage', fmtNum],
   knockback: ['knockback', fmtNum],
   cooldown: ['cooldown', fmtSec],
@@ -1077,7 +1095,8 @@ const SPELL_FIELDS = {
 // player can act on instead (round 20.5).
 // `bounceAllAtLevel` is skipped for the same reason: it is not a per-level row
 // but the level at which Ricochet's `long` line already promises the upgrade.
-const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun', 'bounceAllAtLevel']);
+const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun', 'bounceAllAtLevel',
+  'shopHidden', 'hotkey_retired', 'puddleMult', 'spreadMult']);
 // element fx whose array is NOT per-level (tierHits columns are tiers) —
 // their reading lives in another row's label instead. markDelay and
 // rampPermanent are display-only trims (Remi, round 19.4: those anger rows
@@ -1455,7 +1474,7 @@ function buildShop(container, mode = 'classic') {
     for (const key of keys) if (SPELLS[key]) mkSpell(key, SPELLS[key]);
     if (i === SPELL_ROWS.length - 1)
       for (const [key, spec] of Object.entries(SPELLS))
-        if (!SPELL_ROW_KEYS.has(key)) mkSpell(key, spec);
+        if (!SPELL_ROW_KEYS.has(key) && CASTABLE(key)) mkSpell(key, spec);
   }
   // elements carry their 2-4 word tag ON the card (round 20.1, Remi: the
   // no-text doctrine went one step too far here — a tag is parseable at a
@@ -1659,7 +1678,7 @@ let refreshShop = buildShop($('shopGrid'), shopModeBuilt);
 const spellEls = {};
 {
   const bar = $('spellbar');
-  for (const key of Object.keys(SPELLS)) {
+  for (const key of Object.keys(SPELLS).filter(CASTABLE)) {
     const el = document.createElement('div');
     el.className = 'spell';
     el.innerHTML = `<span class="key"></span>${ICONS[key]}

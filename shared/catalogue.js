@@ -28,11 +28,16 @@ export const STARTING_KIT = new Set(['fireball']);
 export function catalogue(mode = 'classic') {
   const elemental = mode === 'elemental';
   const out = [];
-  for (const [key, spec] of Object.entries(SPELLS))
+  for (const [key, spec] of Object.entries(SPELLS)) {
+    // issue #13 (Ju v4): shopHidden spells are ball MUTATIONS — their shop
+    // identity is the ELEMENTS entry of the same key, so listing both would
+    // put the key in the catalogue twice
+    if (spec.shopHidden) continue;
     out.push({
       key, kind: 'spell', spec, cost: spec.costs[0], maxLevel: spec.maxLevel,
       starter: STARTING_KIT.has(key),
     });
+  }
   if (elemental)
     for (const [key, spec] of Object.entries(ELEMENTS))
       out.push({
@@ -61,7 +66,9 @@ export function draftable(mode = 'classic') {
 // What kind of thing is this key, without three `Object.hasOwn` calls at every
 // call site? Returns null for anything unknown (hostile wire input included).
 export function kindOf(key) {
-  if (Object.hasOwn(SPELLS, key)) return 'spell';
+  // issue #13 (Ju v4): a shopHidden SPELL key's ownable identity is the
+  // ELEMENTS entry of the same name (the ball mutations)
+  if (Object.hasOwn(SPELLS, key) && !SPELLS[key].shopHidden) return 'spell';
   if (Object.hasOwn(ELEMENTS, key)) return 'element';
   if (Object.hasOwn(ITEMS, key)) return 'item';
   return null;

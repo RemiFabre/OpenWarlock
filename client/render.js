@@ -329,6 +329,36 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   }
 
   // --- pillars: obsidian columns; sunken ones melt dimly under the lava ---
+  // issue #13 (Ju v4): vomit puddles — misshapen, proudly so. Eight wobble
+  // points seeded off the puddle's position keep the shape stable per puddle
+  // (a re-rolled wobble every frame reads as boiling, not as a puddle).
+  const puddles = Array.isArray(vs.puddles) ? vs.puddles : [];
+  for (const pu of puddles) {
+    if (!pu || !fin(pu.x) || !fin(pu.y) || !fin(pu.r)) continue;
+    const x = view.sx(pu.x), y = view.sy(pu.y);
+    const rr = pu.r * scale;
+    const alpha = 0.5 + 0.35 * (fin(+pu.a) ? +pu.a : 1);
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.fillStyle = '#5a6b1f';
+    ctx.strokeStyle = 'rgba(150, 170, 60, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 8; i++) {
+      const ang = (i / 8) * TAU;
+      const seed = Math.sin(pu.x * 13.7 + pu.y * 7.3 + i * 5.1);
+      const wr = rr * (0.78 + 0.22 * Math.abs(seed));
+      const px = x + Math.cos(ang) * wr, py = y + Math.sin(ang) * wr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.font = `${Math.max(10, Math.round(rr * 0.5))}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.globalAlpha *= 0.8;
+    ctx.fillText('🤮', x, y);
+    ctx.restore();
+  }
+
   // issue #11 (Ju v3): destroyed ground — the floor is simply GONE. A void
   // down to the lava's glow, with a cracked ember rim so the edge reads as
   // a hard boundary (you cannot walk in or across).
@@ -618,6 +648,13 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, TAU); ctx.fill();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * (1 + 0.5 * frac), 0, TAU); ctx.stroke();
+      ctx.restore();
+    } else if (pr.type === 'vomit') {
+      const r = Math.max(4, SPELLS.vomit.radius * 1.4 * scale);
+      ctx.save();
+      ctx.fillStyle = '#7a8f2a';
+      ctx.strokeStyle = '#b6c95a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
       ctx.restore();
     } else if (pr.type === 'umbra') {
       // issue #9: the Dark Ball — a hole in the light with a violet corona

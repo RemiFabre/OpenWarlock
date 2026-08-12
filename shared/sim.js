@@ -71,6 +71,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     // Cleared each round until anyone reaches 10 kills (holdHoles), then kept.
     holes: [],             // [{x, y, r}]
     holdHoles: false,
+    puddles: [],           // issue #13: vomit — {x,y,r,level,owner,victim,until}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     // Mine (round 21.8, SPELLS.nova — key unchanged, the artillery bomb is gone)
     mines: [],             // planted traps: {id,x,y,r,owner,level,charges:[ball payloads]}
@@ -570,6 +571,24 @@ export function castSpell(state, id, key, tx, ty) {
       // LEAD — kbScale 0 (zero knockback from every source: base, kbAdd riders
       // and gale's gust alike; damage and every on-hit rider are untouched) —
       // and the trailing ball is queued a beat behind on the same aim.
+      // issue #13 (Ju v4): an owned ball identity TRANSFORMS this cast — the
+      // fireball key launches that ball at the mutation's level, riders and
+      // pair/engorge mechanics deliberately excluded (the mutation replaces
+      // the ball wholesale). Ricochet's identity keeps its doubled cooldown.
+      const tk = ['ricochet', 'umbra', 'chainball'].find(k => (pl.elements[k] || 0) > 0);
+      if (tk) {
+        const tlvl = pl.elements[tk];
+        const tspec = SPELLS[tk];
+        if (ELEMENTS[tk].fx.cdMult) pl.cooldowns[key] = cd * ELEMENTS[tk].fx.cdMult;
+        state.projectiles.push({
+          id: state.nextId++, type: tk, owner: id, level: tlvl,
+          x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
+          vx: dx * tspec.speed, vy: dy * tspec.speed,
+          traveled: 0, hit: {}, pierce: false, pierced: 0,
+          ...(tk === 'ricochet' ? { life: null } : {}),
+        });
+        break;
+      }
       const pair = mosquitoPair(state, pl, false);
       spawnFireball(state, pl, level, dx, dy, {
         engorged: vampireCharge(state, pl),
@@ -617,6 +636,18 @@ export function castSpell(state, id, key, tx, ty) {
         vx: dx * spec.speed, vy: dy * spec.speed,
         traveled: 0, hit: {}, pierce: false, pierced: 0,
         life: null,
+      });
+      break;
+    }
+    case 'vomit': {
+      // issue #13 (Ju v4): a lobbed glob that splashes AT THE CURSOR (or on
+      // whoever it meets on the way — the puddle is sized off them)
+      state.projectiles.push({
+        id: state.nextId++, type: key, owner: id, level,
+        x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
+        vx: dx * spec.speed, vy: dy * spec.speed,
+        traveled: 0, hit: {}, pierce: false, pierced: 0,
+        maxDist: d,
       });
       break;
     }
@@ -962,7 +993,9 @@ export function buy(state, id, thing) {
   if (draftLocked(state, pl, thing))
     return { ok: false, err: 'not sold this game — draft it first' };
 
-  if (Object.hasOwn(SPELLS, thing)) {
+  // issue #13 (Ju v4): a shopHidden SPELL key falls through — its purchasable
+  // identity is the ELEMENTS entry of the same name (the ball mutations)
+  if (Object.hasOwn(SPELLS, thing) && !SPELLS[thing].shopHidden) {
     const spec = SPELLS[thing];
     // power tier: locked until enough rounds have been fought
     if (spec.minRound && state.round < spec.minRound)
@@ -985,6 +1018,13 @@ export function buy(state, id, thing) {
     // Own as many as you like (frost+ember = chilling fire).
     if (state.mode !== 'elemental') return { ok: false, err: 'elemental mode only' };
     const espec = ELEMENTS[thing];
+    // issue #13 (Ju v4): one ball identity per player — a second transform
+    // is refused outright (only one ball projectile can exist)
+    if (espec.fx && espec.fx.ballTransform) {
+      const other = Object.keys(ELEMENTS).find(k =>
+        k !== thing && ELEMENTS[k].fx.ballTransform && (pl.elements[k] || 0) > 0);
+      if (other) return { ok: false, err: `your ball is already ${ELEMENTS[other].name}` };
+    }
     // every element is a fireball rider (round 16 — the last global element,
     // arcane, became fireball-scoped and chronos became the hourglass item)
     if ((pl.spells.fireball || 0) < 1)
@@ -1067,9 +1107,13 @@ export function draftDue(round) {
 // covers "never offer what is already maxed"), and never a power spell to a bot,
 // which cannot pilot one (see botShop: buying it would just burn its gold).
 function draftOptionsFor(state, pl) {
+  const ownsBall = ['ricochet', 'umbra', 'chainball']
+    .some(k => (pl.elements && pl.elements[k]) > 0);
   const cands = draftable(state.mode).filter(e =>
     state.draftPool.includes(e.key) &&
     ownedLevel(pl, e.key) < 1 &&
+    // ball identities are exclusive (issue #13): a second one is a dead offer
+    !(ownsBall && e.spec.fx && e.spec.fx.ballTransform) &&
     !(pl.bot && e.kind === 'spell' && e.spec.tier === 'power'));
   // shuffle first so the price sort's ties (most things cost 10 g) are random
   // rather than catalogue order
@@ -1469,6 +1513,7 @@ function startRound(state) {
   // Issue #11 (Ju v3): destroyed ground heals with the round — until anyone
   // has 10 kills, after which the craters are forever (holdHoles, kill()).
   if (!state.holdHoles) state.holes = [];
+  state.puddles = [];   // no humiliation outlives the round (issue #13)
   state.projectiles = [];
   state.delayedShots = [];
   state.clones = [];       // decoy: no mirage outlives the round it was cast in
@@ -1976,6 +2021,32 @@ function stepBattle(state, dt) {
   // Ground hazards (generic; empty in classic). No element spawns these since
   // the venom trail died with the round-19 malady rework — the stepping stays
   // for whatever uses them next. Damage credits the owner, plus the green tint.
+  // Vomit puddles (issue #13): enemies inside are slowed; the tagged victim
+  // stepping back into THEIR OWN vomit is rooted on entry and vomits again.
+  if (state.puddles && state.puddles.length) {
+    state.puddles = state.puddles.filter(p => p.until > state.time);
+    const spec = SPELLS.vomit;
+    for (const pu of state.puddles) {
+      for (const pl of Object.values(state.players)) {
+        if (!pl.alive || pl.id === pu.owner || alliedIds(state, pu.owner, pl.id)) continue;
+        const inside = Math.hypot(pl.x - pu.x, pl.y - pu.y) <= pu.r + pl.radius * 0.3;
+        if (!inside) { delete pu._in[pl.id]; continue; }
+        // the slow re-arms every tick you stand in it (a short residue on exit)
+        pl.slowT = Math.max(pl.slowT || 0, 0.25);
+        pl.slowMultHit = Math.min(pl.slowMultHit || 1, 1 - lvl(spec, 'slowPct', pu.level) / 100);
+        if (!pu._in[pl.id]) {
+          pu._in[pl.id] = true;
+          if (pu.victim === pl.id) {
+            // your own vomit: rooted, and you retch again — ON ENTRY only
+            pl.stunT = Math.max(pl.stunT || 0, lvl(spec, 'rootTime', pu.level));
+            state.events.push({ t: 'vomitRoot', id: pl.id, x: pl.x, y: pl.y });
+            vomitFrom(state, pl, pu.level, pu.owner);
+          }
+        }
+      }
+    }
+  }
+
   if (state.hazards && state.hazards.length) {
     state.hazards = state.hazards.filter(h => h.until > state.time);
     for (const pl of players) {
@@ -2449,6 +2520,12 @@ function stepProjectiles(state, dt) {
       }
     }
 
+    // vomit (issue #13): the glob splashes where it was aimed
+    if (pr.type === 'vomit' && pr.traveled >= pr.maxDist) {
+      vomitSplash(state, pr, null);
+      continue;
+    }
+
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
     if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
@@ -2690,6 +2767,7 @@ function stepProjectiles(state, dt) {
       if (pr.elements) applyElementsHit(state, pr, other);
       // issue #9 (Ju, v2): the on-hit identities of the two new balls
       if (pr.type === 'umbra') umbraMark(state, pr, other);
+      if (pr.type === 'vomit') { vomitSplash(state, pr, other); dead = true; }
       if (pr.type === 'chainball') chainZap(state, pr, other, dmg, other.radius * 2);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
@@ -2827,6 +2905,31 @@ function chainZap(state, pr, victim, dmg, size, at = victim) {
     state.events.push({ t: 'paralysis', x: at.x, y: at.y, n: crowd.length,
       dur: stun });
   }
+}
+
+// ---- vomit puddle (issue #13, Ju v4) ----------------------------------------
+// The glob splashed: a puddle 4x the size of whoever it landed on (a standard
+// body if it hit the ground), slowing enemies inside. The victim VOMITS IN
+// TURN nearby — and their own vomit is tagged: stepping back into it roots
+// them and makes them vomit again. Humiliation compounds.
+function vomitSplash(state, pr, victim) {
+  const spec = SPELLS.vomit;
+  const r = (victim ? victim.radius : PLAYER.RADIUS) * spec.puddleMult;
+  state.puddles.push({ x: pr.x, y: pr.y, r, level: pr.level, owner: pr.owner,
+    victim: null, until: state.time + lvl(spec, 'puddleLife', pr.level), _in: {} });
+  state.events.push({ t: 'vomit', x: pr.x, y: pr.y, r });
+  if (victim && victim.alive) vomitFrom(state, victim, pr.level, pr.owner);
+}
+
+function vomitFrom(state, victim, level, owner) {
+  const spec = SPELLS.vomit;
+  const a = rng(state) * Math.PI * 2;
+  const d = rng(state) * victim.radius * spec.spreadMult;
+  const x = victim.x + Math.cos(a) * d, y = victim.y + Math.sin(a) * d;
+  const r = victim.radius * spec.puddleMult * 0.7;   // their own retch, smaller
+  state.puddles.push({ x, y, r, level, owner, victim: victim.id,
+    until: state.time + lvl(spec, 'puddleLife', level), _in: {} });
+  state.events.push({ t: 'vomit', x, y, r, id: victim.id });
 }
 
 // ---- ricochet (issue #3) ---------------------------------------------------
@@ -3251,6 +3354,15 @@ export function snapshot(state, viewerId = null) {
     // issue #11 (Ju v3): destroyed ground — absent while there is none
     ...(state.holes && state.holes.length ? {
       holes: state.holes.map(h => ({ x: h.x, y: h.y, r: h.r })),
+    } : {}),
+    // issue #13 (Ju v4): vomit puddles — `by` names whose retch it is (public:
+    // the whole arena watched them vomit; that is the humiliation)
+    ...(state.puddles && state.puddles.length ? {
+      puddles: state.puddles.map(p => ({
+        x: round2(p.x), y: round2(p.y), r: round2(p.r),
+        a: round2(clamp((p.until - state.time) / 1.5, 0, 1)),
+        ...(p.victim ? { by: p.victim } : {}),
+      })),
     } : {}),
     winner: state.winner,
     ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),

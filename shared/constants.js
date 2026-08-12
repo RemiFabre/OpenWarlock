@@ -230,7 +230,8 @@ export const SPELLS = {
     // ⚠ `tier: 'power'` is the BOT GUARD, nothing else (see the tier note
     // below): no bot brain casts a bounce shot, and without the guard the
     // round-19.1 leftover pass would happily buy one and never fire it.
-    name: 'Ricochet', hotkey: 'Y', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
+    shopHidden: true,   // issue #13 (Ju v4): sold as a MUTATION now
+    name: 'Ricochet', hotkey_retired: 'Y', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2 * 2.1, speed: 41, radius: 0.8, range: Infinity,
     damage: [10, 13, 16], knockback: [60, 65, 70],
     life: [4, 8, 12], bounceAllAtLevel: 3,
@@ -247,7 +248,8 @@ export const SPELLS = {
     // victim's perception is cut for the duration (rememberEnemies) so the
     // effect is not humans-only. Damage is deliberately light: the blind IS
     // the payload. tier 'power' = the bot shopping guard, like Ricochet.
-    name: 'Dark Ball', hotkey: 'U', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
+    shopHidden: true,   // issue #13 (Ju v4): sold as a MUTATION now
+    name: 'Dark Ball', hotkey_retired: 'U', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2.1, speed: 41, radius: 0.8, range: Infinity,
     damage: [5, 6, 7], knockback: [40, 44, 48],
     blind: [1.5, 2, 2.75], marksToBlind: 3,
@@ -260,12 +262,27 @@ export const SPELLS = {
     // pops on) for chainFrac of the damage, and a crowd of packCount+ in the
     // arc is paralysed. Flat 10 damage at every level: the levels buy the
     // paralysis, exactly as asked.
-    name: 'Storm Ball', hotkey: 'J', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
+    shopHidden: true,   // issue #13 (Ju v4): sold as a MUTATION now
+    name: 'Storm Ball', hotkey_retired: 'J', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2.1, speed: Math.round(41 * 1.3), radius: 0.56, range: Infinity,
     damage: [10, 10, 10], knockback: [40, 44, 48],
     chainFrac: 0.3, chainRangeMult: 1.5, packCount: 3, packStun: [0.75, 1, 1.25],
     desc: 'Arcs to everyone nearby.',
     long: 'A small, fast orb (70% of a fireball, 30% quicker). Its hit sends lightning to every enemy within 1.5 victim-widths for 30% of the damage — and if three or more players stand in the arc, all of them are paralysed. It chains off pillars it pops on, too.',
+  },
+  vomit: {
+    // Issue #13 (Ju v4): la Flaque de Vomi Humiliante. A lobbed glob to ANY
+    // point; the puddle is a misshapen circle 4x the size of the enemy it
+    // lands on (4x a standard body otherwise), lasts `puddleLife`, slows by
+    // `slowPct` while stood in. The victim VOMITS in turn (a secondary puddle
+    // within 5x their size), and stepping in YOUR OWN vomit roots you
+    // `rootTime` and makes you vomit again. tier 'power' = bot guard.
+    name: 'Vomit Puddle', hotkey: 'Y', tier: 'power', maxLevel: 3, costs: [8, 5, 5],
+    cooldown: [20, 20, 20], speed: 34, radius: 0.7, range: Infinity,
+    puddleLife: [7, 10, 12], slowPct: [25, 30, 40], rootTime: [2, 3, 4],
+    puddleMult: 4, spreadMult: 5,
+    desc: 'Humiliate them, durably.',
+    long: 'Lob a glob of vomit at any spot. The puddle (4x the size of whoever it lands on) stays 7/10/12 s and slows enemies inside by 25/30/40%. The enemy it hits vomits in turn nearby — and anyone who steps back into THEIR OWN vomit is rooted 2/3/4 s and vomits again.',
   },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
@@ -653,6 +670,24 @@ export const ELEMENTS = {
   // engine of the midas-cdr 86% auto-win (question J). +1 g cap unchanged
   // forever; levels still only buy back the damage/push penalty.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
+  // ---- Issue #13 (Ju v4): the BALL IDENTITIES — mutations that transform the
+  // fireball itself. Exclusive: a player owns at most ONE (buy() refuses a
+  // second), because only one ball projectile can exist. The physics stay on
+  // the hidden SPELLS entries of the same key; the level here IS the ball's
+  // level. Stat elements (ember, gale...) do NOT ride a transformed ball —
+  // the mutation replaces the ball wholesale (Ricochet's v1 rule, kept).
+  ricochet: { name: 'Ricochet', icon: '🎾', maxLevel: 3, costs: [10, 5, 5],
+    desc: 'Your fireball bounces.',
+    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. You can own only one ball identity.',
+    fx: { ballTransform: true, cdMult: 2 } },
+  umbra: { name: 'Dark Ball', icon: '🌑', maxLevel: 3, costs: [10, 5, 5],
+    desc: 'Third hit blinds them.',
+    long: 'Your fireball becomes the Dark Ball: the third hit on the same enemy blacks their screen out for 1.5/2/2.75 s. You can own only one ball identity.',
+    fx: { ballTransform: true } },
+  chainball: { name: 'Storm Ball', icon: '🌩️', maxLevel: 3, costs: [10, 5, 5],
+    desc: 'Arcs to everyone nearby.',
+    long: 'Your fireball becomes the Storm Ball: smaller, 30% faster, and its hit arcs to every enemy within 1.5 victim-widths for 30% of the damage — 3+ bodies in the arc are paralysed. You can own only one ball identity.',
+    fx: { ballTransform: true } },
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
            long: 'Your first hit marks a target, the next hit on them cashes +1 g. The price: a weaker fireball, until lv3 lifts the penalty.',

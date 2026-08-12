@@ -4830,9 +4830,17 @@ describe('draft mode 🎴', () => {
     off.phase = 'shop';
     const a = off.players.a;
     a.gold = 9999;
-    // every single catalogue entry is still purchasable, and no offer exists
+    // every single catalogue entry is still purchasable, and no offer exists.
+    // The ONE exception is by design (issue #13): ball identities are
+    // exclusive — the first transform bought locks the other two out.
+    let ballOwned = false;
     for (const e of catalogue('elemental')) {
       if (e.key === 'fireball') continue;    // starting kit, level 1 already owned
+      if (e.spec.fx && e.spec.fx.ballTransform) {
+        expect(buy(off, 'a', e.key).ok).toBe(!ballOwned);
+        ballOwned = true;
+        continue;
+      }
       expect(buy(off, 'a', e.key).ok).toBe(true);
     }
     expect(a.draftOffer).toBe(null);
@@ -4881,7 +4889,16 @@ describe('draft mode 🎴', () => {
     expect(rest.length).toBe(all.length - state.draftPool.length);
     const a = state.players.a;
     a.gold = 9999;
-    for (const e of rest) expect(buy(state, 'a', e.key).ok).toBe(true);
+    let ballOwned2 = false;
+    for (const e of rest) {
+      // ball identities are exclusive (issue #13): first one wins
+      if (e.spec.fx && e.spec.fx.ballTransform) {
+        expect(buy(state, 'a', e.key).ok).toBe(!ballOwned2);
+        ballOwned2 = true;
+        continue;
+      }
+      expect(buy(state, 'a', e.key).ok).toBe(true);
+    }
   });
 
   it('a pooled thing cannot be bought at any price until it is drafted', () => {
@@ -5024,7 +5041,10 @@ describe('draft mode 🎴', () => {
     addPlayer(state, 'z', 'Zed', { bot: true, kind: 'berserker' });
     setDraft(state, true);
     startGame(state);
-    const power = Object.entries(SPELLS).filter(([, s]) => s.tier === 'power').map(([k]) => k);
+    // shopHidden power keys are ball MUTATIONS now (issue #13) — draftable as
+    // elements, and a transformed fireball is something a bot CAN pilot
+    const power = Object.entries(SPELLS)
+      .filter(([, s]) => s.tier === 'power' && !s.shopHidden).map(([k]) => k);
     state.draftPool = power.slice();          // a pool of nothing but power spells
     run(state, ROUND.COUNTDOWN + DT);
     toShop(state);
@@ -7531,5 +7551,100 @@ describe('Ju v3 (issue #11)', () => {
     run(state, 0.5);
     expect(a.x).toBeCloseTo(12, 0);   // swapped
     expect(a.cooldowns.swap).toBeLessThan(SPELLS.swap.cooldown[0] - 1.4);
+  });
+});
+
+// ---- Issue #13 (Ju, v4): ball mutations + the vomit puddle -------------------
+describe('Ju v4 (issue #13)', () => {
+  function pitch(setup = () => {}) {
+    const state = freshOf('elemental');
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; b.x = 15; b.y = 0;
+    setup(state, a, b);
+    return state;
+  }
+  function freshOf(mode) {
+    const state = createGame({ seed: 42, mode });
+    addPlayer(state, 'p0', 'A'); addPlayer(state, 'p1', 'B');
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    return state;
+  }
+
+  it('the ball identities are mutations: exclusive, and the old spells unbuyable', () => {
+    const state = pitch();
+    state.phase = 'shop';
+    const a = state.players.p0;
+    a.gold = 999;
+    expect(buy(state, 'p0', 'ricochet').ok).toBe(true);
+    expect(a.elements.ricochet).toBe(1);
+    expect(buy(state, 'p0', 'umbra').err).toContain('already');
+    expect(buy(state, 'p0', 'chainball').err).toContain('already');
+    expect(a.spells.ricochet || 0).toBe(0);   // never a spell any more
+  });
+
+  it('an owned identity transforms the FIREBALL cast, cooldown rules included', () => {
+    const state = pitch((s, a) => { a.elements.ricochet = 2; });
+    castSpell(state, 'p0', 'fireball', 15, 0);
+    const pr = state.projectiles.find(p => p.type === 'ricochet');
+    expect(pr).toBeTruthy();
+    expect(pr.level).toBe(2);
+    // ricochet's identity keeps its doubled cooldown
+    expect(state.players.p0.cooldowns.fireball)
+      .toBeCloseTo(SPELLS.fireball.cooldown[0] * 2, 1);
+    // a storm identity fires at the fireball's own cadence
+    const s2 = pitch((s, a) => { a.elements.chainball = 1; });
+    castSpell(s2, 'p0', 'fireball', 15, 0);
+    expect(s2.projectiles.find(p => p.type === 'chainball')).toBeTruthy();
+    expect(s2.players.p0.cooldowns.fireball).toBeCloseTo(SPELLS.fireball.cooldown[0], 1);
+  });
+
+  it('vomit: the glob splashes at the cursor into a slowing puddle', () => {
+    const state = pitch((s, a) => { a.spells.vomit = 1; });
+    castSpell(state, 'p0', 'vomit', 10, 8);
+    run(state, 1);
+    expect(state.puddles.length).toBe(1);
+    const pu = state.puddles[0];
+    expect(Math.hypot(pu.x - 10, pu.y - 8)).toBeLessThan(1.5);
+    expect(pu.r).toBeCloseTo(PLAYER.RADIUS * SPELLS.vomit.puddleMult, 1);
+    // an enemy standing in it is slowed by the level's percentage
+    const b = state.players.p1;
+    b.x = 10; b.y = 8;
+    run(state, DT * 3);
+    expect(b.slowT).toBeGreaterThan(0);
+    expect(b.slowMultHit).toBeCloseTo(1 - SPELLS.vomit.slowPct[0] / 100, 5);
+  });
+
+  it('the victim vomits in turn, and their own vomit roots them on re-entry', () => {
+    const state = pitch((s, a, b) => { a.spells.vomit = 3; b.x = 12; });
+    castSpell(state, 'p0', 'vomit', 12, 0);
+    run(state, 0.6);
+    // primary puddle (sized off the victim) + the victim's own retch
+    expect(state.puddles.length).toBe(2);
+    const own = state.puddles.find(p => p.victim === 'p1');
+    expect(own).toBeTruthy();
+    expect(Math.hypot(own.x - 12, own.y)).toBeLessThanOrEqual(
+      state.players.p1.radius * SPELLS.vomit.spreadMult + 1);
+    // walk them back into their own vomit: rooted for the level's time, and
+    // they retch AGAIN
+    const b = state.players.p1;
+    b.x = own.x; b.y = own.y; b.stunT = 0;
+    run(state, DT * 3);
+    expect(b.stunT).toBeGreaterThan(SPELLS.vomit.rootTime[2] - 0.5);
+    // 3+, not exactly 3: the fresh retch can land ON the victim, who then
+    // re-enters it and retches again — the chain is the feature
+    expect(state.puddles.length).toBeGreaterThanOrEqual(3);
+    expect(state.events.some(e => e.t === 'vomitRoot' && e.id === 'p1')).toBe(true);
+  });
+
+  it('puddles die with the round and with their clock', () => {
+    const state = pitch((s, a) => { a.spells.vomit = 1; });
+    castSpell(state, 'p0', 'vomit', 10, 0);
+    run(state, 0.6);
+    expect(state.puddles.length).toBe(1);
+    run(state, SPELLS.vomit.puddleLife[0] + 0.5);
+    expect(state.puddles.length).toBe(0);
   });
 });
