@@ -37,6 +37,8 @@ const ICONS = {
   // should be". 👤/👥 were both free.
   decoy: '👥',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
+  // Fire Walk (round 22): footprints, NOT 🥾 — that boot is already Lava Treads
+  firewalk: '👣',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember.
   // Slow Spoon (21.8): Remi's joke — the slowest murder in history.
@@ -58,10 +60,10 @@ const KEY_PRESETS = {
   // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a', decoy: 'z' },
+            statue: 'a', decoy: 'z', firewalk: 'h' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q', decoy: 'w' },
+            statue: 'q', decoy: 'w', firewalk: 'h' },
 };
 
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
@@ -1398,9 +1400,9 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 // Round 21.7/21.8 (Remi): the Stone Pillar and the Mine both sit in Special —
 // they are things you LEAVE somewhere, not things you throw at a face.
 const SPELL_ROWS = [
-  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'repulse']],
-  ['Defense', ['teleport', 'shield', 'statue', 'rush', 'wall']],
-  ['Special', ['swap', 'vanish', 'decoy', 'pillar', 'nova']],
+  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'repulse', 'nova']], // Mine is a weapon (Remi, round 22)
+  ['Defense', ['teleport', 'shield', 'statue', 'rush', 'wall', 'firewalk']],
+  ['Special', ['swap', 'vanish', 'decoy', 'pillar']],
 ];
 const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 

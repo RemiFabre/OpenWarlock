@@ -5,7 +5,7 @@
 // then the solo (in-tab) and future WebRTC transports have a room to run.
 
 import { describe, it, expect } from 'vitest';
-import { createEngine } from '../shared/engine.js';
+import { createEngine, BOT_NAMES } from '../shared/engine.js';
 import { TICK_RATE } from '../shared/constants.js';
 
 const DT = 1 / TICK_RATE;
@@ -124,6 +124,48 @@ describe('engine: headless room (no sockets)', () => {
     expect(engine.join('h3', { name: 'Pest' })).toEqual({ ok: false, reason: 'banned from this lobby' });
     engine.message('h1', { t: 'unbanAll' });
     expect(engine.join('h3', { name: 'Pest' }).ok).toBe(true);
+    engine.destroy();
+  });
+
+  // Per-kind name pools (round 22): a tier meets you with its own names, a
+  // lobby never repeats one while any is unused, and exhaustion borrows.
+  it('bot names: the kind pool first, distinct, then borrowed from the others', () => {
+    const engine = createEngine({ seed: 5, demoBot: false });
+    engine.join('h1', { name: 'Host' });
+    const pool = BOT_NAMES.grunt;
+    for (let i = 0; i < pool.length + 1; i++) engine.message('h1', { t: 'addBot', kind: 'grunt' });
+    const names = Object.values(engine.game.players).filter(p => p.bot).map(p => p.name);
+    expect(names.length).toBe(pool.length + 1);
+    expect(new Set(names).size).toBe(names.length);           // no repeats
+    expect(names.filter(n => pool.includes(n)).length).toBe(pool.length);
+    const borrowed = names.find(n => !pool.includes(n));      // the overflow bot
+    expect(Object.values(BOT_NAMES).flat()).toContain(borrowed);
+
+    // Hard still answers to the classic six (Remi: the CURRENT names are Hard's)
+    engine.message('h1', { t: 'addBot', kind: 'berserker' });
+    const hard = Object.values(engine.game.players).find(p => p.kind === 'berserker');
+    expect(BOT_NAMES.berserker).toContain(hard.name);
+    expect(BOT_NAMES.berserker).toContain('Gul\'dan');
+    engine.destroy();
+  });
+
+  // round 22: removeBot takes an optional id (per-row remove buttons). A bot
+  // id removes THAT bot; a human id is ignored; no id keeps last-bot behavior.
+  it('removeBot: by id for bots only, last-added without an id', () => {
+    const engine = createEngine({ seed: 8, demoBot: false });
+    engine.join('h1', { name: 'Host' });
+    engine.join('h2', { name: 'Friend' });
+    for (let i = 0; i < 3; i++) engine.message('h1', { t: 'addBot', kind: 'grunt' });
+    const [b1, b2, b3] = Object.values(engine.game.players).filter(p => p.bot).map(p => p.id);
+
+    engine.message('h1', { t: 'removeBot', id: b2 });        // a named bot goes
+    expect(engine.game.players[b2]).toBeUndefined();
+    engine.message('h1', { t: 'removeBot', id: 'h2' });      // a human never does
+    expect(engine.game.players.h2).toBeTruthy();
+    expect(Object.values(engine.game.players).filter(p => p.bot).length).toBe(2);
+    engine.message('h1', { t: 'removeBot' });                // no id = last added
+    expect(engine.game.players[b3]).toBeUndefined();
+    expect(engine.game.players[b1]).toBeTruthy();
     engine.destroy();
   });
 

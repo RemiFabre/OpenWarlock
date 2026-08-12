@@ -4130,13 +4130,44 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       expect(typeof spec.brain).toBe('string');
       expect(typeof spec.label).toBe('string');
       // a tier whose brain does not exist would silently fall back to the grunt
-      expect(['grunt', 'berserker', 'stalker', 'faker', 'runner']).toContain(spec.brain);
+      expect(['grunt', 'berserker', 'stalker', 'faker', 'runner', 'dummy']).toContain(spec.brain);
     }
     // and the DIFFICULTY ladder ranks are unique and cover 1..N. `spar` bots
     // (issue #7's Runner) are measuring instruments, not a rung on it.
     const ranks = Object.values(BOTS).filter(b => !b.spar)
       .map(b => b.difficulty).sort((a, b) => a - b);
     expect(ranks).toEqual(ranks.map((_, i) => i + 1));
+  });
+
+  // Round 22 standoff: BOTS[kind].standoff floors the prowl ring (wounded-prey
+  // dive included) — a Normal bot never WANTS to stand in your face, and Hard
+  // refuses melee. The values are read off the spec, never pinned here.
+  it('standoff floors the prowl ring, even over the old wounded-prey dive', () => {
+    for (const kind of ['brawler', 'berserker']) {
+      const state = tierBattle(kind);
+      const bot = state.players.b, h = state.players.h;
+      h.hp = 20;                        // the bait that used to pull ring -> 1.5
+      bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+      h.x = 4; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+      bot._botT = 0; bot.cooldowns.fireball = 99;
+      stepBot(state, 'b', DT);
+      expect(bot.moveTarget, kind).toBeTruthy();
+      const d = Math.hypot(bot.moveTarget.x - h.x, bot.moveTarget.y - h.y);
+      expect(d, kind).toBeGreaterThanOrEqual(BOTS[kind].standoff);
+    }
+  });
+
+  it('standoff never backs a bot into the lava: no room = the point comes inside', () => {
+    const state = tierBattle('brawler');
+    state.arenaRadius = 8;              // a late-game ring with no room for 13 units
+    const bot = state.players.b, h = state.players.h;
+    bot.x = 3; bot.y = 0; bot.vx = bot.vy = 0;
+    h.x = 0; h.y = 0; h.vx = h.vy = 0; h.hp = 20; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 99;
+    stepBot(state, 'b', DT);
+    expect(bot.moveTarget).toBeTruthy();
+    expect(Math.hypot(bot.moveTarget.x, bot.moveTarget.y))
+      .toBeLessThanOrEqual(state.arenaRadius - 2.5);
   });
 
   it('brawler (Normal) runs the BERSERKER brain, not the grunt brain', () => {
@@ -6457,6 +6488,75 @@ describe('statue 🗿 (the golden pillar)', () => {
 // Slow Spoon 🥄 (round 21.8, Remi): a FLAT heal per damaging hit — the sustain
 // item for wide, low-damage, utility builds that lifesteal ignores. The whole
 // balance of it is the exclusion: auras and sicknesses never pay.
+// ---------------------------------------------------------------------------
+// Fire Walk 🥾 (SPELLS.firewalk, round 22): active self-buff — zero lava
+// damage while the timer runs. Every number is read off the spec.
+// ---------------------------------------------------------------------------
+describe('Fire Walk 🥾 (lava immunity)', () => {
+  const spec = SPELLS.firewalk;
+
+  // two parked players, p0 owning firewalk at `level`, p0 dropped in the lava
+  function lavaBattle(level = 1) {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.spells.firewalk = level;
+    a.cooldowns = {};
+    a.x = state.arenaRadius + 4; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    return state;
+  }
+
+  it('spec shape: 2 levels priced like Blink, duration levels, cooldown does not', () => {
+    expect(spec.maxLevel).toBe(2);
+    expect(spec.costs).toEqual(SPELLS.teleport.costs);       // the [10, 5] tier
+    expect(Array.isArray(spec.cooldown)).toBe(false);        // flat by ruling
+    expect(spec.duration[1]).toBeGreaterThan(spec.duration[0]); // lv2 buys time
+  });
+
+  it('zeroes lava damage for exactly the duration, then the burn resumes', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    expect(castSpell(state, 'p0', 'firewalk', a.x, a.y)).toBe(true);
+    const hp0 = a.hp;
+    run(state, spec.duration[0] - 0.1);   // still inside the immunity window
+    expect(a.hp).toBe(hp0);
+    expect(a.inLava).toBe(true);          // it IS swimming — just not burning
+    run(state, 0.5);                      // ...and now the window has closed
+    expect(a.hp).toBeLessThan(hp0);
+  });
+
+  it('lv2 runs the lv2 duration, and only the CASTER is immune', () => {
+    const state = lavaBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    expect(a.fireWalkT).toBe(spec.duration[1]);
+    b.x = state.arenaRadius + 4; b.y = -8;   // no firewalk: the control burn
+    run(state, spec.duration[0] + 0.2);      // beyond lv1's window, inside lv2's
+    expect(a.hp).toBe(PLAYER.MAX_HP);        // lv2 window still open
+    expect(b.hp).toBeLessThan(PLAYER.MAX_HP); // the lava did not go soft
+  });
+
+  it('cooldown is enforced and read from the spec', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    expect(a.cooldowns.firewalk).toBeCloseTo(spec.cooldown, 5);
+    run(state, 1);
+    expect(castSpell(state, 'p0', 'firewalk', a.x, a.y)).toBe(false); // too soon
+  });
+
+  it('snapshot exposes `fw` to EVERYONE while active, and only while active', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    expect(snapshot(state, 'p1').players.p0.fw).toBeUndefined(); // inactive: absent
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    const seen = snapshot(state, 'p1').players.p0.fw;            // p1's view of p0
+    expect(seen).toBeGreaterThan(0);
+    expect(seen).toBeLessThanOrEqual(spec.duration[0]);
+    run(state, spec.duration[0] + 0.2);
+    expect(snapshot(state, 'p1').players.p0.fw).toBeUndefined(); // expired: absent
+  });
+});
+
 describe('Slow Spoon 🥄 (flat heal per hit)', () => {
   const spec = ITEMS.spoon;
   const at = (lv) => ITEM_FX.spoon.healOnHit[lv - 1];
@@ -7217,6 +7317,28 @@ describe('Faker & Runner (issue #7)', () => {
     for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
     expect(b.x).toBeGreaterThan(x0);                      // fled along +x
     expect(Object.keys(b.cooldowns).length).toBe(0);      // STILL castless
+  });
+
+  // Round 22: the Dummy tier — even the Runner's one reaction (fleeing after
+  // the first hit) is gone. It must hold still and silent no matter what.
+  it('the Dummy never moves nor casts, hit or not — and it dies like anyone', () => {
+    const state = duel('faker', 'dummy');
+    const d = state.players.B;
+    d.spells = { fireball: 1, teleport: 2, rush: 2, shield: 2 };
+    d.cooldowns = {};
+    d.lastHitBy = { id: 'A', t: state.time };   // the hit that sends a Runner running
+    const x0 = d.x, y0 = d.y;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(d.moveTarget).toBe(null);                     // never even wants to move
+    expect(d.x).toBe(x0); expect(d.y).toBe(y0);
+    expect(Object.keys(d.cooldowns).length).toBe(0);     // no cast of any kind
+    // dies normally: drop it in lava it will never step out of
+    d.x = state.arenaRadius + 3; d.y = 0; d.vx = d.vy = 0;
+    for (let i = 0; i < Math.round(12 / DT) && d.alive; i++) {
+      stepBot(state, 'B', DT); step(state, DT);
+    }
+    expect(d.alive).toBe(false);
+    expect(d.deaths).toBe(1);
   });
 
   it('the detonator: trap underfoot + hook ready -> the swap drops the victim on the mine', () => {

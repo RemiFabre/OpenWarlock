@@ -266,6 +266,18 @@ export const SPELLS = {
     desc: 'Become an invincible statue.',
     long: 'For 2 seconds you turn to solid gold: nothing damages you and nothing can push you, and your body blocks balls like a pillar — but you cannot move or cast.',
   },
+  firewalk: {
+    // Round 22 (Remi): active self-buff — ZERO lava damage while it runs.
+    // Only the lava tick reads the timer; the ×2 lava swim SPEED stays, so it
+    // buys crossings and rim escapes, not a new home. lv2 buys duration; the
+    // cooldown never levels. Price matches Blink/Mine. Public on the wire as
+    // `fw` (client draws a flame ring) — chasing them in must be an informed
+    // mistake. Default key h (free in both layouts; loadKeys de-conflicts).
+    name: 'Fire Walk', hotkey: 'H', maxLevel: 2, costs: [10, 5],
+    cooldown: 15, duration: [3, 5],
+    desc: 'Walk on lava.',
+    long: 'For a few seconds lava deals you no damage at all — you still swim it at double speed, so a burning shortcut becomes a free one.',
+  },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
   // BOT_CC_CAST + PILOTED_POWER in shared/sim.js). For the rest, omission from
@@ -695,11 +707,17 @@ export const BOTS = {
   // boltDodge (round 17, Remi: "Hard dodging 100% of lightnings is a bit
   // tough"): the chance a bot bothers stepping out of a sky-bolt telegraph,
   // committed ONCE per bolt. Missing = always dodges.
+  // Round 22 `standoff` (Remi: less point-blank oppression): the preferred
+  // MINIMUM engagement distance the berserker brain keeps when the arena has
+  // room — it floors the prowl ring, wounded-prey dive included. Normal holds
+  // a real gap (the melee chase is gone); Hard only refuses melee (its 8.5
+  // prowl ring is untouched, the 1.5 finish dive stops at 5). Extreme/Faker
+  // kite on their own brain and take no knob. Revert = delete the fields.
   brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
-               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35,
-               desc: 'Hunts you and trades, but it reads you slowly and its aim is loose. Walks out of a lightning mark only a third of the time. A fair fight.' },
+               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35, standoff: 13,
+               desc: 'Hunts you and trades, but it reads you slowly, its aim is loose, and it keeps a respectful distance. Walks out of a lightning mark only a third of the time. A fair fight.' },
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
-               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5,
+               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5, standoff: 5,
                desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well. Dodges your lightning half the time — a coin flip, not an oracle.' },
   // ⚠ stalker aimErr is [0.4, 0.05] on purpose (bigger floor, much flatter
   // distance term = accurate at range) — NOT the berserker's pair; 65f5597
@@ -734,6 +752,12 @@ export const BOTS = {
                react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0,
                spar: true,
                desc: 'A sparring dummy (Remi\'s spec): it stands perfectly still until the first hit lands on it, then it just runs. It never casts anything — so whatever chains onto it was a real combo.' },
+  // Round 22 (Remi): the immobile training tier. Unlike the Runner it never
+  // reacts AT ALL — no step, no cast, hit or not. It still takes knockback,
+  // burns in lava and dies normally. `spar` mutes the generic spell pilot.
+  dummy:     { name: 'Dummy', label: 'Dummy', difficulty: 0, brain: 'dummy',
+               boltDodge: 0, spar: true,
+               desc: 'A stationary target. It never moves and never casts, even under fire — pure aim and combo practice.' },
 };
 
 // Seconds a bot keeps aiming at an enemy's last SEEN position (Vanish masking,

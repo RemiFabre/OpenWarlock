@@ -197,6 +197,9 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // ONE timer drives all of it; the guards live in applyDamage,
     // applyKnockback, castSpell, stats() and stepProjectiles.
     statueT: 0,
+    // Fire Walk (round 22, SPELLS.firewalk): seconds of lava immunity left.
+    // ONE consumer: the lava tick in step(). Public in snapshot() as `fw`.
+    fireWalkT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
     slowT: 0,              // frost: seconds of slow remaining
@@ -631,6 +634,14 @@ export function castSpell(state, id, key, tx, ty) {
       pl.statueT = spec.duration;
       pl.vx = 0; pl.vy = 0;
       state.events.push({ t: 'statueUp', id, x: pl.x, y: pl.y, duration: spec.duration });
+      break;
+    }
+    case 'firewalk': {
+      // Fire Walk (round 22): lava immunity for `duration` seconds. The lava
+      // tick in step() is the only reader; movement, knockback and every other
+      // damage source are untouched. Re-casting can't overlap (cooldown 15 >
+      // duration), so plain assignment is the whole cast.
+      pl.fireWalkT = lvl(spec, 'duration', level);
       break;
     }
     case 'vanish': {
@@ -1293,6 +1304,7 @@ function kill(state, target, directSourceId) {
   // a statue cannot be killed (applyDamage returns early), so this only ever
   // runs for a body that died some other way — keep the flag off a corpse
   target.statueT = 0;
+  target.fireWalkT = 0; // a corpse doesn't glow lava-proof (wire stays lean)
   // decoy: your mirages die with you, on the same frame (round 21.6) — a
   // corpse with three copies still kiting would be a lie nobody paid for
   if (state.clones && state.clones.length) {
@@ -1447,6 +1459,7 @@ function startRound(state) {
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.statueT = 0;   // …nor already golden
+    pl.fireWalkT = 0; // …nor already lava-proof
     pl.slowT = 0; pl.slowMultHit = 1;
     pl.stunT = 0; pl.regenLockT = 0; pl.roundGold = 0;
     pl.stacks = {};   // frost/gale/midas stacks are round-long, like the hp bar
@@ -2031,6 +2044,7 @@ function stepBattle(state, dt) {
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
     if (pl.vanishT > 0) pl.vanishT = Math.max(0, pl.vanishT - dt);
+    if (pl.fireWalkT > 0) pl.fireWalkT = Math.max(0, pl.fireWalkT - dt);
     // Statue (round 21.4): rooted and unpushable. stats() already zeroed the
     // walk speed for this tick; zeroing the velocity keeps any impulse that
     // landed on the same frame as the cast from carrying over when it ends.
@@ -2178,9 +2192,12 @@ function stepBattle(state, dt) {
     }
 
     // lava (radius 0 = the whole world is lava). No lingering burn: step out
-    // and the damage stops — the price is only paid while swimming.
+    // and the damage stops — the price is only paid while swimming. Fire Walk
+    // (round 22) zeroes the damage outright while its timer runs; the ×2 lava
+    // speed in stats() is deliberately untouched.
     const inLava = state.arenaRadius <= 0 || Math.hypot(pl.x, pl.y) > state.arenaRadius;
-    if (inLava) applyDamage(state, pl, LAVA.DPS * st.lavaMult * dt, null, { silent: true });
+    if (inLava && pl.fireWalkT <= 0)
+      applyDamage(state, pl, LAVA.DPS * st.lavaMult * dt, null, { silent: true });
     if (pl.alive) pl.inLava = inLava;
 
     // regen (throttled for REGEN_LOCK seconds after taking damage)
@@ -2892,6 +2909,9 @@ export function snapshot(state, viewerId = null) {
       // whole downside, so everyone sees it (the client draws the body as a
       // gold column). Absent when 0, so nothing changes for anyone not casting it.
       ...(p.statueT > 0 ? { statueT: round2(p.statueT) } : {}),
+      // Fire Walk (round 22): PUBLIC like statueT — the flame ring must warn a
+      // pursuer that the lava is free for this player. Absent when inactive.
+      ...(p.fireWalkT > 0 ? { fw: round2(p.fireWalkT) } : {}),
       inLava: !!p.inLava,
       // Hat of Aura (round 21.8): on fire — inside someone's ring, or still
       // burning after leaving it. A bare flag: whose burn it is stays private.
@@ -3070,6 +3090,10 @@ const BRAINS = {
   stalker: stepStalker,
   faker: stepFaker,
   runner: stepRunner,
+  // Dummy (round 22): the immobile training tier — no step, no cast, ever
+  // (contrast the Runner, which flees after the first hit). Knockback, lava
+  // and death still apply; `spar: true` on BOTS keeps pilotOwnedSpells silent.
+  dummy: () => {},
 };
 
 export function stepBot(state, id, dt) {
@@ -3890,7 +3914,12 @@ function stepBerserker(state, pl, dt) {
   if (!fleeing) {
     if (!pl._strafe) pl._strafe = rng(state) < 0.5 ? 1 : -1;
     else if (rng(state) < 0.14) pl._strafe = -pl._strafe;
-    const ring = target.hp <= 30 ? 1.5 : 8.5; // wounded prey gets no breathing room
+    // Round 22 standoff (Remi: "less point-blank oppression"): BOTS[kind]
+    // .standoff is a preferred MINIMUM engagement distance — it floors the
+    // ring, wounded-prey dive included, so the bot backs off between casts
+    // instead of camping a face nobody can out-react. Revert = drop the knob.
+    let ring = target.hp <= 30 ? 1.5 : 8.5; // wounded prey gets no breathing room
+    ring = Math.max(ring, (BOTS[pl.kind] || {}).standoff || 0);
     const tCenter = Math.hypot(target.x, target.y) || 1;
     // blend "our side of the prey" with "the center side of the prey"
     let dx = -(tdx / dist) * 0.5 - (target.x / tCenter) * 0.5;
@@ -3899,8 +3928,13 @@ function stepBerserker(state, pl, dt) {
     // strafe grows with distance: a straight-line charge is a shooting-range
     // target, a spiral approach walks between the incoming fireballs
     const sw = Math.min(10, 4 + dist * 0.3) * pl._strafe;
-    const cx = target.x + (dx / dn) * ring - (tdy / dist) * sw;
-    const cy = target.y + (dy / dn) * ring + (tdx / dist) * sw;
+    let cx = target.x + (dx / dn) * ring - (tdy / dist) * sw;
+    let cy = target.y + (dy / dn) * ring + (tdx / dist) * sw;
+    // keeping distance must never mean backing into the lava: when the ring
+    // point falls off the solid ground, pull it radially back inside — the
+    // bot closes in instead when the arena leaves no room.
+    const cd = Math.hypot(cx, cy);
+    if (cd > arena - 2.5) { cx *= (arena - 3) / cd; cy *= (arena - 3) / cd; }
     setMoveTarget(state, id, cx, cy);
   }
 
@@ -4095,6 +4129,9 @@ const BOT_BUILDS = {
   // A dummy never casts, so its gold goes to STAYING MEASURABLE: hp to survive
   // longer chains, then legs and lava-proofing for the flee phase.
   runner: ['amulet', 'amulet', 'boots', 'amulet', 'treads', 'cape', 'boots'],
+  // The Dummy never moves or casts: hp is the only purchase that keeps it a
+  // usable target for longer. Nothing else would ever be exercised.
+  dummy: ['amulet', 'amulet', 'amulet'],
 };
 
 // In elemental mode each bot kind commits to a fixed element (bought as soon

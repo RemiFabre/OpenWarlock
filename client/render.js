@@ -704,6 +704,19 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
     }
+    // Fire Walk (SPELLS.firewalk, round 22): the immunity is running — a warm
+    // double flame-gold ring on EVERYONE's screen (`fw` is public wire, seconds
+    // left, present only while active), so "the lava is free for them right
+    // now" reads at a glance and chasing them into it is an informed mistake.
+    if (fin(pl.fw) && pl.fw > 0 && !statue) {
+      const fl = 0.5 + 0.5 * Math.sin(t * 12 + x);
+      ctx.strokeStyle = `rgba(255, 190, 60, ${0.55 + 0.35 * fl})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 120, 30, ${0.30 + 0.25 * fl})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.62, 0, Math.PI * 2); ctx.stroke();
+    }
     // Hat of Aura burn (round 21.8): the victim smoulders — a thin ember ring
     // that survives leaving the owner's circle, which is the whole point of the
     // linger. Never drawn on the owner: `burning` only ever marks a victim.
