@@ -184,8 +184,12 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
     // history: docs/history/2026-08-12-rtc-lag-rootcause.md
     let spareN = 0;
     setInterval(() => {
-      const alive = [...peers.values()].filter(p =>
-        p.joined && p.ctrl && p.ctrl.readyState === 'open' && p.ctrl.bufferedAmount === 0);
+      // one wire line per beat in the downloadable log: the RTC counterpart of
+      // the ws server's /health `wire[]` — behind/skipped per guest is THE
+      // number to read when someone reports lag
+      const joined = [...peers.values()].filter(p => p.joined);
+      if (joined.length) log('wire', Object.fromEntries(joined.map(p => [p.connId, p.wire.stats()])));
+      const alive = joined.filter(p => p.ctrl && p.ctrl.readyState === 'open' && p.ctrl.bufferedAmount === 0);
       if (!alive.length) return;
       const p = alive[spareN++ % alive.length];
       try { p.ctrl.send(JSON.stringify({ t: 'spare', code, state: engine.serialize() })); } catch { }
@@ -267,6 +271,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       }
       if (m.t === 'full') { p.wire.requestFull(); return; } // guest's decoder hit a gap
       if (m.t === 'ack') { p.wire.ack(m.q); return; }       // ...and how far behind it is
+      if (m.t === 'rtt') { engine.setPing(connId, m.ms); return; } // guest-measured RTT -> everyone's ms badge
       engine.message(connId, m);
     };
     p.ctrl.onclose = () => dropPeer(p, 'ctrl closed');
@@ -352,6 +357,24 @@ export function createRtcGuestTransport(code) {
     () => up({ t: 'full' }),
     { ack: (q) => up({ t: 'ack', q }) },
   );
+
+  // The guest measures its own link (21.11) — there was NO number for an RTC
+  // player's connection while the ws path had a ping badge. getStats() on a
+  // data-only connection exposes RTT (no loss counter exists there); reported
+  // over ctrl, fed to engine.setPing, rendered as the same ms badge.
+  setInterval(async () => {
+    if (!pc || !ctrl || ctrl.readyState !== 'open') return;
+    try {
+      const stats = await pc.getStats();
+      let pair = null;
+      for (const s of stats.values())
+        if (s.type === 'transport' && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId);
+      if (!pair) for (const s of stats.values())
+        if (s.type === 'candidate-pair' && s.nominated && !pair) pair = s;
+      if (pair && pair.currentRoundTripTime != null)
+        up({ t: 'rtt', ms: Math.round(pair.currentRoundTripTime * 1000) });
+    } catch { }
+  }, 2000);
 
   function dropped(err) {
     if (closedFired) return;
