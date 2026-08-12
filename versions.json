@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 1,
+  "serial": 2,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -67,6 +67,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/7",
       "branch": "issue-7-faker",
       "commit": "b9d68425e59d8474985c1a6f6a059a87851e3e26"
+    },
+    {
+      "slug": "soul-harvest",
+      "name": "Soul Harvest",
+      "author": "@FabienDanieau",
+      "summary": "One endless round: kills absorb one of the victim's spells, their items drop on the ground for anyone to grab, and the dead shop with catch-up gold before respawning. First to 15 kills — the lava closes slowly, and if the arena runs out, most kills wins.",
+      "issue": 8,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/8",
+      "branch": "issue-8-one-round",
+      "commit": "9d9222231d37515ce8def9d5ae635a134636c508"
     }
   ]
 }
