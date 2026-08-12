@@ -217,6 +217,14 @@
 
   /* ---- key bindings panel ---- */
   #keysPanel { z-index: 60; }
+  #scorepanel {
+    position: fixed; inset: 0; z-index: 230; display: grid; place-items: center;
+    pointer-events: none; background: rgba(10, 6, 4, 0.55);
+  }
+  #scorepanel .scoreslab {
+    background: #171210; border: 1px solid #4a3a2c; border-top: 3px solid var(--ember);
+    padding: 18px 22px; box-shadow: 0 24px 80px #000; max-width: min(920px, 92vw);
+  }
   #keyList { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 24px; }
   #keysPanel .krow {
     display: flex; align-items: center; gap: 10px;
@@ -232,6 +240,11 @@
 
   /* ---- shop ---- */
   #shop .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  /* the shop must fit WITHOUT scrolling at ordinary window heights (round
+     22.3, Remi) — tighter chrome than the other slabs */
+  #shop .slab { padding: 12px 22px 10px; }
+  #shop h1 { font-size: 22px; }
+  #shop .sub { margin: 2px 0 6px; }
   #shop .head h1 { font-size: 26px; flex: 1; }
   #shopGold { color: var(--gold); font-size: 20px; }
   #shopTimer { color: var(--parchment); font-size: 20px; }
@@ -283,8 +296,8 @@
   /* round 20 (Remi): MINIMAL cards (icon + name + cost), one flex ROW per
      category so a whole shelf reads as one line; everything else is on hover */
   .shopgrid {
-    display: flex; flex-direction: column; gap: 6px;
-    margin-top: 4px; padding-bottom: 4px;
+    display: flex; flex-direction: column; gap: 5px;
+    margin-top: 2px; padding-bottom: 2px;
   }
   .shoprow { display: flex; flex-wrap: wrap; gap: 6px; }
   /* round 20.1 (Remi): every card in every row is the SAME fixed tile;
@@ -292,11 +305,11 @@
   .shoprow > .ware, .shoprow > .warewrap {
     flex: 0 0 200px; width: 200px; min-width: 0;
   }
-  .shoprow .ware { height: 56px; }
+  .shoprow .ware { height: 46px; }
   .ware {
     display: flex; gap: 8px; align-items: center; position: relative;
-    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 11px 12px;
-    text-align: left; width: 100%; min-height: 42px;
+    background: var(--obsidian); border: 1px solid #2e241c; padding: 5px 11px 11px;
+    text-align: left; width: 100%; min-height: 38px;
   }
   /* level pips (round 22.2): one cell per level along the card's bottom edge */
   .ware .pips { position: absolute; left: 8px; right: 8px; bottom: 3px; display: flex; gap: 3px; pointer-events: none; }
@@ -343,8 +356,8 @@
      Emoji are colour glyphs, so this is a filter, not a colour. */
   .goldicon { filter: sepia(1) saturate(5.5) hue-rotate(-12deg) brightness(1.12); }
   .shoplabel { grid-column: 1 / -1; color: var(--ash); font-size: 12px;
-    text-transform: uppercase; letter-spacing: .12em; margin-top: 10px;
-    border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+    text-transform: uppercase; letter-spacing: .12em; margin-top: 5px;
+    border-bottom: 1px solid var(--line); padding-bottom: 3px; }
 
   /* ---- draft mode: the free pick, at the top of the shop and unmissable ---- */
   .draftpick {
@@ -793,14 +806,20 @@
     </div>
     <p class="sub" id="shopSub"></p>
     <div class="scroller">
-      <table id="shopStats" class="stats"></table>
-      <p class="hint" id="shopIncome" style="margin:10px 0 12px"></p>
+      <p class="hint" id="shopIncome" style="margin:0 0 6px"></p>
       <div class="shopgrid" id="shopGrid"></div>
     </div>
-    <div class="row" style="margin-top:14px">
+    <div class="row" style="margin-top:6px; align-items:center">
       <button id="shopReadyBtn" class="primary" style="flex:1">Ready: next round</button>
+      <span class="hint" style="margin:0">Hold <kbd>Tab</kbd> for the scoreboard</span>
     </div>
   </div>
+</div>
+
+<!-- Tab scoreboard (round 22.3): hold Tab in shop, countdown or battle for the
+     live standings. pointer-events off so a held key never blocks a click. -->
+<div id="scorepanel" class="hidden">
+  <div class="scoreslab"><table id="scoreStats" class="stats"></table></div>
 </div>
 
 <div id="avatarPanel" class="overlay hidden">

@@ -896,7 +896,7 @@ function refreshKeyUi() {
   // the one always-visible controls line in the lobby, LIVE binding, never a
   // hardcoded Q (non-QWERTY scar, round 21.7)
   $('controlsHint').innerHTML =
-    `press <kbd>${esc(keyLabel(keyBindings.fireball))}</kbd> to throw your fireball · <kbd>right-click</kbd> to move`;
+    `press <kbd>${esc(keyLabel(keyBindings.fireball))}</kbd> to throw your fireball · <kbd>right-click</kbd> to move · hold <kbd>Tab</kbd> in game for the scoreboard`;
 }
 
 $('readyBtn').addEventListener('click', () => {
@@ -943,7 +943,6 @@ function setShopPreview(on) {
   refreshShop(me(s), 0, s);
   $('shopGold').textContent = '';
   $('shopTimer').textContent = '';
-  $('shopStats').innerHTML = '';
   $('shopSub').textContent = 'Browsing the shelves. Buying happens between rounds.';
   setVisible('shopGrid', true);
   setVisible('shopReadyBtn', false);
@@ -1736,6 +1735,32 @@ refreshKeyUi(); // paint current bindings on panel, spell bar, and join hint
 function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
 
 // Standings order: most kills first, fewer deaths breaks ties, then gold.
+// Tab scoreboard (round 22.3, Remi): HOLD Tab anywhere inside a game (shop,
+// countdown, battle) for the live standings; release hides it. Replaces the
+// stats table that used to sit on top of the shop.
+let tabScore = false;
+function paintScoreboard() {
+  const s = latest();
+  if (!s) return;
+  const ps = Object.values(s.players || {}).filter((p) => p && typeof p === 'object');
+  $('scoreStats').innerHTML = statsTable(
+    ps.filter((p) => !p.spectator).sort(byRank),
+    ps.filter((p) => p.spectator),
+    { showRound: true });
+}
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || capturing) return; // a rebind capture owns the keyboard
+  const t = document.activeElement;
+  if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+  const s = latest();
+  if (!myId || !s || s.phase === 'lobby' || s.phase === 'gameover') return;
+  e.preventDefault(); // never walk the browser focus mid-game
+  if (!tabScore) { tabScore = true; paintScoreboard(); $('scorepanel').classList.remove('hidden'); }
+});
+const hideScoreboard = () => { tabScore = false; $('scorepanel').classList.add('hidden'); };
+addEventListener('keyup', (e) => { if (e.key === 'Tab') hideScoreboard(); });
+addEventListener('blur', hideScoreboard); // alt-tab must not leave it stuck
+
 const byRank = (a, b) =>
   (b.kills || 0) - (a.kills || 0) || (a.deaths || 0) - (b.deaths || 0) || (b.gold || 0) - (a.gold || 0);
 
@@ -1876,6 +1901,7 @@ function updateUi(s) {
   if (!s || typeof s !== 'object') return;
   lastPings = (s.pings && typeof s.pings === 'object') ? s.pings : {};
   shopPausedBy = typeof s.shopPaused === 'string' ? s.shopPaused : null;
+  if (tabScore) paintScoreboard(); // live while held
   const m = me(s);
   const playerList = Object.values(s.players || {}).filter(p => p && typeof p === 'object');
   const phaseT = fin(+s.phaseT) ? +s.phaseT : 0;
@@ -2013,10 +2039,6 @@ function updateUi(s) {
     }
     const watching = !!(m && m.spectator);
     $('shopGold').textContent = !watching && m ? `${m.gold} g` : '';
-    $('shopStats').innerHTML = statsTable(
-      playerList.filter(p => !p.spectator).sort(byRank),
-      playerList.filter(p => p.spectator),
-      { showRound: true });
     const timer = $('shopTimer');
     const pausedBy = shopPausedBy;
     // testing: the shop clock never runs; only readying up moves the game on
