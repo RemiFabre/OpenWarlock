@@ -17,8 +17,8 @@ export const modeName = (kind) => MODES[kind] || 'unknown';
 // (version-menu.js appends it), the main version has no param. Rides on every
 // beacon so the relay can aggregate per version (server sanitizes).
 export const VERSION_SLUG = (() => {
-  try { return new URLSearchParams(location.search).get('version') || 'main'; }
-  catch { return 'main'; }
+  try { return new URLSearchParams(location.search).get('version') || 'default'; }
+  catch { return 'default'; } // 'default' = versions.json's slug for the main game
 })();
 
 function relayHttp(pathname) {

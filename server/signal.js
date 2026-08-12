@@ -95,7 +95,7 @@ export function createSignalServer({
   const clampN = (x, cap) => Math.min(cap, Math.max(0, Math.floor(Number(x) || 0)));
 
   // ---- per-version stats + star ratings (round 22) ----
-  // Beacons carry a `slug` (?version= param, 'main' by default) since r250;
+  // Beacons carry a `slug` (?version= param, 'default' = the main game) since round 22;
   // older pinned versions send none and only feed the global counters above.
   const versions = new Map(); // slug -> { plays, finished, player_rounds, rating_sum, rating_n }
   let versionsDirty = false;

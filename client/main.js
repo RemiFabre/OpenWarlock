@@ -947,7 +947,7 @@ $('specFoldBtn').addEventListener('click', () => {
 // shows in the version picker. localStorage remembers yours so a re-rate
 // replaces instead of stuffing the ballot. Friends-lobby trust, like kicks.
 {
-  const slug = new URLSearchParams(location.search).get('version') || 'main';
+  const slug = new URLSearchParams(location.search).get('version') || 'default'; // versions.json's slug for the main game
   const box = $('rateBox');
   const saved = () => { try { return JSON.parse(localStorage.owRatings || '{}'); } catch { return {}; } };
   const paint = (n) => { [...box.children].forEach((b, i) => b.classList.toggle('lit', i < n)); };
