@@ -1,13 +1,13 @@
-# Strategy roster — GENERATED from tools/roster.js (edit there, `node tools/roster.js --doc`)
+# Strategy roster, GENERATED from tools/roster.js (edit there, `node tools/roster.js --doc`)
 
 **Goal**: mass AI games, ELO per strategy (random 4-strategy lobbies, Elo fitted from placements).
-**Core cost target**: 150-185 g — a bit above the ~145 g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.
+**Core cost target**: 150-185 g, a bit above the ~145 g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.
 **After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.
-**Fireball**: free at lv1 for everyone in elemental, never levels — not listed.
-**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button — hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.
+**Fireball**: free at lv1 for everyone in elemental, never levels; not listed.
+**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button; hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.
 
 
-## Family A — system purity (price each shelf as a class)
+## Family A: system purity (price each shelf as a class)
 
 - **A1-items-sustain** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's best self: HP and both kinds of healing.
   - order: amulet1 → sword1 → spoon1 → amulet2 → sword2 → spoon2 → amulet3 → sword3 → spoon3 → cape2 → hourglass2 → boots1 → boots2 → boots3 → cape3 → treads1 → treads2 → treads3 → hourglass3 → brazier1 → brazier2 → brazier3
@@ -28,7 +28,7 @@
   - order: amulet1 → sword1 → boots1 → lightning1 → amulet2 → sword2 → boomerang1 → cape1 → treads1 → hourglass1 → amulet3 → sword3 → lightning2 → boots2 → boots3 → cape2 → cape3 → treads2 → treads3 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
   - tests: control: what skipping elements costs
 
-## Family B — depth vs breadth, per system
+## Family B: depth vs breadth, per system
 
 - **B1-element-depth** (153 g): Rush two stat axes to max before anything else.
   - order: ember3 → arcane3 → sword1 → amulet1 → sword2 → amulet2 → gale1 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3
@@ -49,7 +49,7 @@
   - order: sword1 → amulet1 → boots1 → cape1 → treads1 → hourglass1 → brazier1 → spoon1 → sword2 → amulet2 → boots2 → cape2 → treads2 → hourglass2 → brazier2 → spoon2 → sword3 → amulet3 → boots3 → cape3 → treads3 → hourglass3 → brazier3 → spoon3
   - tests: breadth (vs B5) for items, post-reworks
 
-## Family C — spell-scaling probes
+## Family C: spell-scaling probes
 
 - **C1-bolt-rush** (153 g): Max one spell immediately: is spell depth worth 22 g?
   - order: lightning3 → hourglass2 → amulet1 → sword1 → amulet2 → sword2 → hourglass3 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → brazier1 → brazier2 → brazier3 → spoon1
@@ -71,9 +71,9 @@
   - tests: lightning in the same CC shell as C5
 - **C7-statue-guard** (152 g): A 2 s invulnerable statue as the panic button on a plain fighting kit.
   - order: statue1 → ember2 → statue2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2
-  - tests: what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound) — a floor for a spell whose real value is human timing
+  - tests: what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound); a floor for a spell whose real value is human timing
 
-## Family D — play-style archetypes
+## Family D: play-style archetypes
 
 - **D1-warlord** (155 g): No tricks, bigger numbers: win every straight trade.
   - order: ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → arcane2 → sword3 → amulet3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
@@ -89,7 +89,7 @@
   - tests: the vampire×mosquito cast-counting ruling; sustain stacking
 - **D5-plaguebearer** (153 g): Wade into the pack; everyone leaves sick.
   - order: malady2 → terra1 → treads1 → malady3 → terra2 → amulet1 → treads2 → terra3 → amulet2 → sword2 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads3 → hourglass1 → hourglass2 → hourglass3
-  - tests: contagion value (the lab is blind to it — this is the human entry)
+  - tests: contagion value (the lab is blind to it; this is the human entry)
 - **D6-sumo** (151 g): Never mind damage: you fly, I don't.
   - order: gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3 → boots2 → treads2 → amulet2 → boots3 → sword1 → sword2 → sword3 → amulet3 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1
   - tests: today's gale buff vs cape buff, head-on; lava economics
@@ -107,21 +107,21 @@
   - tests: the mobility-spell package (rush+blink) as a fighting style
 - **D11-spoonbearer** (152 g): Low damage, endless uptime: hold them still and heal a flat amount off every tap.
   - order: spoon1 → frost1 → gale1 → spoon2 → frost2 → gale2 → spoon3 → frost3 → gale3 → boots1 → treads1 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots2 → boots3 → cape1 → cape2 → cape3 → treads2 → treads3
-  - tests: the Slow Spoon's premise (round 21.8) — does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?
+  - tests: the Slow Spoon's premise (round 21.8): does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?
 - **D12-hatburner** (152 g): Stand in the pack and cook: a burning ring that follows them out of it.
   - order: brazier1 → malady1 → brazier2 → malady2 → brazier3 → malady3 → treads1 → amulet1 → treads2 → amulet2 → sword1 → sword2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads3 → hourglass1 → hourglass2 → hourglass3
-  - tests: passive damage as a build — the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range
+  - tests: passive damage as a build: the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range
 
-## Family E — cooldown reduction (question M)
+## Family E: cooldown reduction (question M)
 
 - **E1-hastemaker** (154 g): Cast faster, and every so often the cast is two balls.
   - order: arcane1 → mosquito1 → hourglass1 → arcane2 → arcane3 → mosquito2 → mosquito3 → lightning1 → boomerang1 → shield1 → lightning2 → boomerang2 → teleport1 → lightning3 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3
-  - tests: question M: CDR x fireball throughput — arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave
+  - tests: question M: CDR x fireball throughput. Arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave
 - **E2-chronomancer** (153 g): Five buttons, none of them ever off cooldown for long.
   - order: hourglass1 → arcane1 → hourglass2 → arcane2 → hourglass3 → arcane3 → lightning1 → boomerang1 → shield1 → rush1 → teleport1 → shield2 → rush2 → teleport2 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3
-  - tests: question M: CDR x kit WIDTH — the same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)
+  - tests: question M: CDR x kit WIDTH. The same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)
 
-## Family F — sustain: flat heal-per-hit vs lifesteal (round 21.8)
+## Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)
 
 - **F1-spoon-volume** (156 g): Cast constantly, heal a flat crumb off every single connection.
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → spoon3 → boots2 → amulet2
@@ -135,4 +135,19 @@
 - **F2-sword-volume** (156 g): The same barrage, paid for in lifesteal instead.
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
   - tests: the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned
+
+## undefined
+
+- **K1-faker-hookstorm** (150 g): The hook: Switcheroo into the bolt, the rock onto the landing point.
+  - order: lightning3 → swap3 → meteor2 → ember2 → boots2 → cape1 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots3 → cape2 → cape3 → treads1 → treads2
+  - tests: does the combo layer out-earn raw value at equal cost
+- **K2-faker-permafrost** (154 g): The freeze: the third stack is spent on purpose, with the bolt loaded.
+  - order: frost3 → lightning3 → hourglass3 → boots2 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3
+  - tests: frost-hold combos vs the chainer, on a brain that times them
+- **K3-faker-minefield** (154 g): The detonator: a loaded trap underfoot, Switcheroo drops you on it.
+  - order: lightning2 → nova2 → swap3 → ember2 → boots2 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1
+  - tests: the trap-hook chain: the biggest measured true combos (tools/combo.js)
+- **K4-faker-galeforce** (151 g): The wind: every third ball shoves, the bolt is already falling there.
+  - order: gale3 → lightning3 → arcane2 → boots2 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2
+  - tests: gust-into-bolt chains; the weakest combo identity in the lab, priced here
 

@@ -1,49 +1,49 @@
-# Code map (generated — `node tools/codemap.js --doc`)
+# Code map (generated: `node tools/codemap.js --doc`)
 
 Symbols by file and by the section banner they sit under. No line numbers on
 purpose: grep the name. Regenerate after any change that moves code around.
 
-## shared/sim.js (4276 lines)
+## shared/sim.js (4280 lines)
 
 - makeRng, MODES, createGame, setMode, setDraft, rng
-- **players** — freeTeam, setTeam, addPlayer, fighters
-- **friend or foe** — hostile
-- **versus teams: the DAMAGE/EFFECT-path predicate** — allied, alliedIds, rankTeams, teamTally, partyOf, waveOf, setSpectator, updateRadii, removePlayer, stats, playerStats, lvl, efxV
-- **per-attacker stack store (elemental)** — stackCount, addStack, clearStacks, worstStack, vampireCharge, hasteOf, fireballHasteOf, arcaneRefund
-- **inputs** — setMoveTarget, castSpell
-- **Decoy: the mirage (SPELLS.decoy, round 21.6)** — spawnClones, mimicCast, stepClones, spawnFireball, spawnStoredBall, buy
-- **draft mode (docs/ROUND12.md S7)** — draftLocked, rollDraftPool, draftDue, draftOptionsFor, rollDraftOffers, grantDraft, draftPick, resolveDraftOffers
-- **combat helpers** — applyKnockback, applyDamage, spoonTickDue, kill
-- **round flow** — setTesting, arenaStartRadius, startGame, startRound
-- **co-op campaign** — coopPrepareRound, coopSpawnWave, makePillars, endRound, afterSummary, setShopReady, setShopPause
-- **main step** — step, stepBattle
-- **pillar geometry** — resolvePillarHit, collidePillars, stepProjectiles
-- **mosquito (elemental)** — mosquitoPair, turnBoomerangHome
-- **gale (elemental)** — galeHit, infectMalady, applyElementsHit
-- **serialization** — viewStacks, ownStacks, viewEvents, snapshot, segSegDist, segmentPointDist, round2, mapRound, clamp
-- **bot AI** — stepBot, botTune, boltEscape, boltAim
-- **CC-gated casting (round 20, BOT_CC_CAST)** — ccHeld, ccPinned, heldAim
-- **Faker (issue #7)** — driftTo, comboStep, stepFaker
-- **Runner (issue #7): the sparring partner** — stepRunner, pilotOwnedSpells, unwedgeFromPillars
-- **shared bot helpers** — anyHidden, vanishInPlay, rememberEnemies, enemiesSeen, killLead, leadPull, nearestEnemy, estVel, interceptPoint, scanThreats
-- **grunt ★: pure chaos** — stepGrunt, pickPrey
-- **berserker ★★: relentless brawler** — stepBerserker
-- **stalker ★★★: the skilled one** — stepStalker, botElementFor, botShop, botShopPass
+- **players**: freeTeam, setTeam, addPlayer, fighters
+- **friend or foe**: hostile
+- **versus teams: the DAMAGE/EFFECT-path predicate**: allied, alliedIds, rankTeams, teamTally, partyOf, waveOf, setSpectator, updateRadii, removePlayer, stats, playerStats, lvl, efxV
+- **per-attacker stack store (elemental)**: stackCount, addStack, clearStacks, worstStack, vampireCharge, hasteOf, fireballHasteOf, arcaneRefund
+- **inputs**: setMoveTarget, castSpell
+- **Decoy: the mirage (SPELLS.decoy, round 21.6)**: spawnClones, mimicCast, stepClones, spawnFireball, spawnStoredBall, buy
+- **draft mode (docs/ROUND12.md S7)**: draftLocked, rollDraftPool, draftDue, draftOptionsFor, rollDraftOffers, grantDraft, draftPick, resolveDraftOffers
+- **combat helpers**: applyKnockback, applyDamage, spoonTickDue, kill
+- **round flow**: setTesting, arenaStartRadius, startGame, startRound
+- **co-op campaign**: coopPrepareRound, coopSpawnWave, makePillars, endRound, afterSummary, setShopReady, setShopPause
+- **main step**: step, stepBattle
+- **pillar geometry**: resolvePillarHit, collidePillars, stepProjectiles
+- **mosquito (elemental)**: mosquitoPair, turnBoomerangHome
+- **gale (elemental)**: galeHit, infectMalady, applyElementsHit
+- **serialization**: viewStacks, ownStacks, viewEvents, snapshot, segSegDist, segmentPointDist, round2, mapRound, clamp
+- **bot AI**: stepBot, botTune, boltEscape, boltAim
+- **CC-gated casting (round 20, BOT_CC_CAST)**: ccHeld, ccPinned, heldAim
+- **Faker (issue #7)**: driftTo, comboStep, stepFaker
+- **Runner (issue #7): the sparring partner**: stepRunner, pilotOwnedSpells, unwedgeFromPillars
+- **shared bot helpers**: anyHidden, vanishInPlay, rememberEnemies, enemiesSeen, killLead, leadPull, nearestEnemy, estVel, interceptPoint, scanThreats
+- **grunt ★: pure chaos**: stepGrunt, pickPrey
+- **berserker ★★: relentless brawler**: stepBerserker
+- **stalker ★★★: the skilled one**: stepStalker, botElementFor, botShop, botShopPass
 
-## shared/engine.js (441 lines)
+## shared/engine.js (452 lines)
 
-- BOT_NAMES, normName, createEngine, playerCount, botName, maybeAutoStart, resetToLobby, scheduleLobbyReset, cancelLobbyReset
+- BOT_NAMES, normName, createEngine, playerCount, botName, freeAvatar, maybeAutoStart, resetToLobby, scheduleLobbyReset, cancelLobbyReset
 
-## shared/constants.js (878 lines)
+## shared/constants.js (891 lines)
 
-- TICK_RATE, SNAPSHOT_RATE, ARENA, PLAYER, LAVA, ROUND, TEAMS, teamTint, MULTIKILL_NAMES, GOLD
-- **Spells** — SPELLS
-- **Items (passive, 3 LEVELS each)** — ITEMS, itemCost, ITEM_FX
-- **Elements (elemental mode only)** — ELEMENTS
-- **Draft mode (round 12): optional lobby toggle, OFF by default** — DRAFT, COLORS
-- **Bots: roster contract; behavior lives in shared/sim.js (stepBot)** — BOTS, BOT_MEMORY, BOT_TARGETING
-- **CC-gated casting (round 20: Remi's frost+gale+mosquito combo)** — BOT_CC_CAST
-- **Bot build strategies** — BUILDS
+- TICK_RATE, SNAPSHOT_RATE, ARENA, PLAYER, LAVA, ROUND, TEAMS, teamTint, MULTIKILL_NAMES, AVATARS, GOLD
+- **Spells**: SPELLS
+- **Items (passive, 3 LEVELS each)**: ITEMS, itemCost, ITEM_FX
+- **Elements (elemental mode only)**: ELEMENTS
+- **Draft mode (round 12): optional lobby toggle, OFF by default**: DRAFT, COLORS
+- **Bots: roster contract; behavior lives in shared/sim.js (stepBot)**: BOTS, BOT_MEMORY, BOT_TARGETING
+- **CC-gated casting (round 20: Remi's frost+gale+mosquito combo)**: BOT_CC_CAST
+- **Bot build strategies**: BUILDS
 
 ## shared/items.js (59 lines)
 
@@ -55,9 +55,9 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 ## shared/campaign.js (419 lines)
 
-- **what the ITEM-CAP repair of 2026-08-07 (later) learned** — TEAM, ENEMY_COLOR, SCALE
-- **the 10 levels** — CAMPAIGN
-- **retuned 2026-08-07 (item-cap repair)** — MAX_LEVEL, levelFor, waveUnits, levelRoster
+- **what the ITEM-CAP repair of 2026-08-07 (later) learned**: TEAM, ENEMY_COLOR, SCALE
+- **the 10 levels**: CAMPAIGN
+- **retuned 2026-08-07 (item-cap repair)**: MAX_LEVEL, levelFor, waveUnits, levelRoster
 
 ## shared/snapdelta.js (98 lines)
 
@@ -67,35 +67,35 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
 
-## client/main.js (2237 lines)
+## client/main.js (2242 lines)
 
-- **key bindings (rebindable, persisted)** — loadKeys, saveKeys, spellForKey, keyLabel
-- **state** — me, latest
-- **error surfacing** — reportError, setConnBanner
-- **networking** — wireTransport, connect, onMessage, scheduleReconnect, send, pushFloater, onEvent
-- **phase-driven sounds** — phaseSounds
-- **phase-driven music** — phaseMusic
-- **interpolation** — trackSnapGap, interpolated
-- **input** — toWorld
-- **join / lobby / shop DOM** — doJoin
-- **hosting online (docs/BRIEF-browser-hosting.md §B3)** — inviteLink, showHostbar, copyInviteLink, doHost, syncAvatarGrid
-- **key bindings panel** — startCapture, cancelCapture, onCaptureClick, onCaptureKey, applyPreset, closeKeysPanel
-- **rebinding: ONE rule, both entry points** — bindKey, openRebind, closeRebind, onRebindKey, refreshKeyUi, setShopPreview, toast
-- **shop numbers** — fmtNum, fmtMult, tipRow, orderedFields, tipHead, tipShell, spellTip, elementTip, itemTip
-- **hover tooltip** — placeTip, showTip, hideTip, refreshTip, attachTip, buildShop, drawDraftBanner, thingSpec, thingName, thingDesc, thingIcon, thingCost
-- **DOM update per phase** — setVisible
-- **versus teams (round 21.3)** — kitIcons, pingBadge, statsTable, updateUi, esc
-- **main loop** — frame
+- **key bindings (rebindable, persisted)**: loadKeys, saveKeys, spellForKey, keyLabel
+- **state**: me, latest
+- **error surfacing**: reportError, setConnBanner
+- **networking**: wireTransport, connect, onMessage, scheduleReconnect, send, pushFloater, onEvent
+- **phase-driven sounds**: phaseSounds
+- **phase-driven music**: phaseMusic
+- **interpolation**: trackSnapGap, interpolated
+- **input**: toWorld
+- **join / lobby / shop DOM**: doJoin
+- **hosting online (docs/BRIEF-browser-hosting.md §B3)**: inviteLink, showHostbar, copyInviteLink, doHost
+- **key bindings panel**: startCapture, cancelCapture, onCaptureClick, onCaptureKey, applyPreset, closeKeysPanel
+- **rebinding: ONE rule, both entry points**: bindKey, openRebind, closeRebind, onRebindKey, refreshKeyUi, setShopPreview, toast
+- **shop numbers**: fmtNum, fmtMult, tipRow, orderedFields, tipHead, tipShell, spellTip, elementTip, itemTip
+- **hover tooltip**: placeTip, showTip, hideTip, refreshTip, attachTip, buildShop, drawDraftBanner, thingSpec, thingName, thingDesc, thingIcon, thingCost
+- **DOM update per phase**: setVisible
+- **versus teams (round 21.3)**: kitIcons, pingBadge, statsTable, updateUi, esc
+- **main loop**: frame
 
-## client/render.js (1467 lines)
+## client/render.js (1498 lines)
 
 - makeView, drawEngorged, draw
-- **fx** — drawBackdrop, drawWorldDone, drawBanners, drawRoundEndBanner, drawFx
+- **fx**: drawBackdrop, drawWorldDone, drawBanners, drawRoundEndBanner, drawFx
 
 ## client/transport.js (495 lines)
 
 - createWsTransport, createInTabEngine, createLocalTransport, ensureEngine
-- **WebRTC hosting (docs/BRIEF-browser-hosting.md §B)** — SIGNAL_URL, signalUrl, roomCodeFromHash, createRtcHostTransport, ensureEngine, sendTo, dropPeer, onPeer, onSig, dialSignal, createRtcGuestTransport, dropped, wireCtrl, dial, onSig, selectTransport
+- **WebRTC hosting (docs/BRIEF-browser-hosting.md §B)**: SIGNAL_URL, signalUrl, roomCodeFromHash, createRtcHostTransport, ensureEngine, sendTo, dropPeer, onPeer, onSig, dialSignal, createRtcGuestTransport, dropped, wireCtrl, dial, onSig, selectTransport
 
 ## server/index.js (353 lines)
 
