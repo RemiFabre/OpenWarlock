@@ -51,7 +51,9 @@ for (let g = 0; g < GAMES; g++) {
   // ⚠ `caps` rides along: a roster entry may BAN a thing outright (caps {x: 0}),
   // which is the only way to keep the shared exhaust tail from handing a seat
   // the very item its core exists to do without (round 21.8, family F).
-  const lineup = picks.map(id => ({ id, kind: KIND, priorities: lists[id],
+  // issue #7: a roster entry may pin its own bot (family K rides the Faker
+  // brain); everyone else runs the tournament's --kind seat.
+  const lineup = picks.map(id => ({ id, kind: ROSTER[id].kind || KIND, priorities: lists[id],
     ...(ROSTER[id].caps ? { caps: ROSTER[id].caps } : {}) }));
   const res = playGame(lineup, SEED * 1_000_000 + g, { mode: 'elemental' });
   if (!res.finished) unfinished++;

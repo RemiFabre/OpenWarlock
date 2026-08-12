@@ -44,10 +44,25 @@ export function createEngine({
   againGraceMs = 45000,
   // Humans-all-gone mid-game: wait this long for a reconnect before resetting.
   resetGraceMs = 60000,
+  // Faker (issue #7): a fresh lobby opens with a Faker already seated. True on
+  // the issue-7-faker demo version; on MAIN it defaults off — bots are added
+  // by choice (round 22 port).
+  demoBot = false,
 } = {}) {
   if (state && state.seed != null) seed = state.seed;
   let game = state ? state.game : createGame({ seed, mode });
   let nextBotId = state ? state.nextBotId : 1;
+  // Faker (issue #7): the version opens SHOWING its tier — a Faker with a
+  // random combo arsenal is already seated in every fresh lobby. Remove it
+  // like any bot; "play again" carries it like any bot.
+  if (demoBot && !state && mode !== 'coop') {
+    const arsenals = Object.keys(BUILDS).filter(k => (BUILDS[k].kinds || []).includes('faker'));
+    const bp = addPlayer(game, 'bot' + nextBotId++, BOT_NAMES[0], {
+      bot: true, kind: 'faker',
+      build: arsenals[(Math.random() * arsenals.length) | 0], avatar: BOT_AVATARS[0],
+    });
+    bp.ready = true;
+  }
   let lastPhase = game.phase;
 
   const conns = new Set();      // connection ids currently attached (adapter's sockets mirror)
@@ -233,9 +248,14 @@ export function createEngine({
         case 'addBot': {
           if (game.phase !== 'lobby' || playerCount() >= maxPlayers) break;
           const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
-          // build strategy: explicit lobby pick, or a random one ('random'/absent)
-          const buildKeys = Object.keys(BUILDS);
-          const build = typeof m.build === 'string' && Object.hasOwn(BUILDS, m.build)
+          // build strategy: explicit lobby pick, or a random one ('random'/absent).
+          // Issue #7: a `kinds` build is restricted to those tiers (the Faker's
+          // combo arsenals), and those tiers get ONLY their own builds — a
+          // combo bot with a generic build is just Extreme, which defeats it.
+          const buildKeys = Object.keys(BUILDS).filter(k =>
+            BUILDS[k].kinds ? BUILDS[k].kinds.includes(kind)
+              : !Object.values(BUILDS).some(b => b.kinds && b.kinds.includes(kind)));
+          const build = typeof m.build === 'string' && buildKeys.includes(m.build)
             ? m.build : buildKeys[(Math.random() * buildKeys.length) | 0];
           const bid = 'bot' + nextBotId++;
           const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {

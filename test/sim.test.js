@@ -12,6 +12,7 @@ import {
   BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
+import { createEngine } from '../shared/engine.js';
 
 const DT = 1 / 30;
 
@@ -3063,9 +3064,13 @@ describe('power spells & pillar', () => {
       BUILDS.warlord.order = ['meteor', 'swap', 'repulse', 'wall', 'nova', 'fireball'];
       bot.build = 'warlord';
       botShop(state, 'p0');
-      for (const key of ['swap', 'repulse', 'wall', 'nova'])
+      for (const key of ['repulse', 'wall'])
         expect(bot.spells[key] || 0).toBe(0);
-      expect(bot.spells.meteor).toBe(1);              // the piloted exception
+      // the piloted exceptions: meteor since round 20, Switcheroo and the Mine
+      // since issue #7 (the Faker hooks with one and detonates the other)
+      expect(bot.spells.meteor).toBe(1);
+      expect(bot.spells.swap).toBe(1);
+      expect(bot.spells.nova).toBe(1);
       expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
     } finally {
       BUILDS.warlord.order = orig;
@@ -4125,10 +4130,12 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       expect(typeof spec.brain).toBe('string');
       expect(typeof spec.label).toBe('string');
       // a tier whose brain does not exist would silently fall back to the grunt
-      expect(['grunt', 'berserker', 'stalker']).toContain(spec.brain);
+      expect(['grunt', 'berserker', 'stalker', 'faker', 'runner']).toContain(spec.brain);
     }
-    // and the ladder ranks are unique and cover 1..N
-    const ranks = Object.values(BOTS).map(b => b.difficulty).sort((a, b) => a - b);
+    // and the DIFFICULTY ladder ranks are unique and cover 1..N. `spar` bots
+    // (issue #7's Runner) are measuring instruments, not a rung on it.
+    const ranks = Object.values(BOTS).filter(b => !b.spar)
+      .map(b => b.difficulty).sort((a, b) => a - b);
     expect(ranks).toEqual(ranks.map((_, i) => i + 1));
   });
 
@@ -7076,5 +7083,198 @@ describe('decoy 👥 (the mirage)', () => {
     // …the same pair from a mirage is not a cast at all
     expect(checkJournal([ev(0, 'c1', { phantom: true }), ev(200, 'c1', { phantom: true })]))
       .toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #7 (Remi): the Faker tier and its sparring partner, the Runner.
+// ---------------------------------------------------------------------------
+
+describe('Faker & Runner (issue #7)', () => {
+  function duel(kindA, kindB = 'runner') {
+    const state = createGame({ seed: 17, mode: 'elemental' });
+    addPlayer(state, 'A', 'A', { bot: true, kind: kindA });
+    addPlayer(state, 'B', 'B', { bot: true, kind: kindB });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    const a = state.players.A, b = state.players.B;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 18; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.cooldowns = {};
+    return state;
+  }
+  // give the bot a turn of thinking (its combo clock is short)
+  const think = (state, id, s = 0.2) => {
+    for (let i = 0; i < Math.round(s / DT); i++) stepBot(state, id, DT);
+  };
+
+  it('the tier is declared and sits above Extreme', () => {
+    expect(BOTS.faker.brain).toBe('faker');
+    expect(BOTS.faker.difficulty).toBeGreaterThan(BOTS.stalker.difficulty);
+    expect(BOTS.runner.spar).toBe(true);
+  });
+
+  it('leads a telegraphed bolt onto where a flying body will LAND, not onto it', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells.lightning = 1;
+    b.vx = 60; b.vy = 0;                     // freshly shoved down the +x lane
+    think(state, 'A');
+    const bolt = state.bolts.find(z => z.owner === 'A');
+    expect(bolt).toBeTruthy();
+    // it must be AHEAD of the body, and inside where friction will actually
+    // carry it over the bolt's own delay — not a wild lead
+    const drift = (60 / PLAYER.FRICTION) * (1 - Math.exp(-PLAYER.FRICTION * SPELLS.lightning.delay));
+    expect(bolt.x).toBeGreaterThan(b.x + 2);
+    expect(bolt.x).toBeCloseTo(b.x + drift, 0);
+    expect(Math.abs(bolt.y - b.y)).toBeLessThan(1);
+  });
+
+  it('drops it straight onto a body that cannot move', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells.lightning = 1;
+    b.stunT = 2; b.vx = 0; b.vy = 0;         // frozen solid: no lead at all
+    think(state, 'A');
+    const bolt = state.bolts.find(z => z.owner === 'A');
+    expect(bolt).toBeTruthy();
+    expect(Math.hypot(bolt.x - b.x, bolt.y - b.y)).toBeLessThan(0.5);
+  });
+
+  it('an Extreme bot does neither — the lead is the tier, not the kit', () => {
+    const state = duel('stalker');
+    const a = state.players.A, b = state.players.B;
+    a.spells.lightning = 1;
+    b.vx = 60; b.vy = 0;
+    think(state, 'A');
+    const bolt = state.bolts.find(z => z.owner === 'A');
+    // the stalker may or may not bolt at all here; what it must NOT do is put
+    // it on the friction-solved landing point
+    if (bolt) {
+      const drift = (60 / PLAYER.FRICTION) * (1 - Math.exp(-PLAYER.FRICTION * SPELLS.lightning.delay));
+      expect(Math.abs(bolt.x - (b.x + drift))).toBeGreaterThan(1);
+    }
+  });
+
+  it('the Runner never casts a mobility or defensive spell, even owning them all', () => {
+    const state = duel('runner', 'faker');
+    const r = state.players.A;
+    r.spells = { fireball: 1, teleport: 2, rush: 2, shield: 2, statue: 2, vanish: 3 };
+    r.cooldowns = {};
+    r.hp = 20;                                // in trouble: every excuse to escape
+    state.players.B.x = 6; state.players.B.y = 0;
+    for (let i = 0; i < 400; i++) {
+      stepBot(state, 'A', DT);
+      step(state, DT);
+      if (state.phase !== 'battle') break;
+    }
+    for (const k of ['teleport', 'rush', 'shield', 'statue', 'vanish'])
+      expect(state.events.some(e => e.t === 'cast' && e.id === 'A' && e.spell === k), k)
+        .toBe(false);
+  });
+
+  it('the Runner runs once it has been hit, and holds its ground before', () => {
+    const state = duel('runner', 'faker');
+    const r = state.players.A, f = state.players.B;
+    f.x = 8; f.y = 0; f.moveTarget = null;
+    r.x = 0; r.y = 0;
+    think(state, 'A', 0.4);
+    const before = r.moveTarget ? Math.hypot(r.moveTarget.x - f.x, r.moveTarget.y - f.y) : 0;
+    r.lastHitBy = { id: 'B', t: state.time };   // the first hit lands
+    r.moveTarget = null;
+    think(state, 'A', 0.4);
+    expect(r.moveTarget).toBeTruthy();
+    // it now wants to be further from its attacker than it is
+    expect(Math.hypot(r.moveTarget.x - f.x, r.moveTarget.y - f.y))
+      .toBeGreaterThan(Math.hypot(r.x - f.x, r.y - f.y));
+    expect(before).toBeLessThan(9999);          // (the pre-hit read, unused otherwise)
+  });
+
+  it('the Faker may buy Switcheroo — it pilots it as an opener', () => {
+    const state = duel('faker');
+    state.phase = 'shop';
+    const a = state.players.A;
+    a.gold = 999;
+    botShop(state, 'A');
+    expect(a.spells.swap || 0).toBeGreaterThan(0);
+  });
+
+  it('the lobby label IS the name — Remi: "Faker, not Insane"', () => {
+    expect(BOTS.faker.label).toBe('Faker');
+  });
+
+  it('the dummy does not move and does not cast until the first hit lands', () => {
+    const state = duel('runner', 'runner');
+    const b = state.players.B;
+    b.spells = { fireball: 1, teleport: 1, lightning: 1 };
+    const x0 = b.x, y0 = b.y;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(b.x).toBe(x0); expect(b.y).toBe(y0);          // never stepped
+    expect(Object.keys(b.cooldowns).length).toBe(0);      // never cast
+    // first hit: now it runs — away from the attacker, still castless
+    b.lastHitBy = { id: 'A', t: state.time };
+    state.players.A.x = x0 - 10; state.players.A.y = y0;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(b.x).toBeGreaterThan(x0);                      // fled along +x
+    expect(Object.keys(b.cooldowns).length).toBe(0);      // STILL castless
+  });
+
+  it('the detonator: trap underfoot + hook ready -> the swap drops the victim on the mine', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.build = 'minefield';
+    a.spells = { fireball: 1, nova: 1, swap: 1, lightning: 1 };
+    think(state, 'A', 0.3);
+    // it plants at its own feet first (victim in hook range, no trap yet)
+    expect(state.mines.length).toBe(1);
+    expect(Math.hypot(state.mines[0].x - a.x, state.mines[0].y - a.y)).toBeLessThan(1);
+    // next thought: the hook — a travelling projectile (speed 50, 18 units
+    // out), so give the world the flight time. The stalker layer would shove
+    // the victim off the hook's line with an ordinary ball meanwhile — block
+    // everything but the hook so the chain itself is what's under test.
+    a.cooldowns.fireball = 9; a.cooldowns.teleport = 9; a.cooldowns.rush = 9;
+    const bx = b.x;
+    think(state, 'A', 0.2);
+    a.moveTarget = null; a.vx = 0; a.vy = 0;    // stay ON the trap for the trade
+    run(state, 0.8);
+    expect(b.x).not.toBe(bx);                              // swapped
+    expect(state.mines.length).toBe(0);                    // trap consumed
+    expect(state.events.some(e => e.t === 'mineHit')).toBe(true);
+  });
+
+  it('faker builds are Faker-only and the Faker gets nothing else (engine addBot)', () => {
+    const fakerBuilds = Object.keys(BUILDS).filter(k => (BUILDS[k].kinds || []).includes('faker'));
+    expect(fakerBuilds.length).toBeGreaterThanOrEqual(3);
+    const engine = createEngine({ seed: 5 });
+    engine.join('h1', { name: 'Host' });
+    // an explicit non-combo build on a Faker is refused -> rerolled into the pool
+    engine.message('h1', { t: 'addBot', kind: 'faker', build: 'tycoon' });
+    // random on a Faker also lands in the pool
+    engine.message('h1', { t: 'addBot', kind: 'faker', build: 'random' });
+    // and a non-Faker can never take a combo build
+    engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'minefield' });
+    const bots = Object.values(engine.game.players).filter(p => p.bot);
+    const fakers = bots.filter(p => p.kind === 'faker');
+    const others = bots.filter(p => p.kind !== 'faker');
+    expect(fakers.length).toBe(2); // the two added (no demo Faker on main since round 22)
+    for (const b of fakers) expect(fakerBuilds).toContain(b.build);
+    expect(others.length).toBe(1);
+    expect(fakerBuilds).not.toContain(others[0].build);
+    engine.destroy();
+  });
+
+  it('demoBot seats a Faker in a fresh lobby — opt-in since the round-22 main port', () => {
+    const engine = createEngine({ seed: 6, demoBot: true });
+    const seated = Object.values(engine.game.players).filter(p => p.bot);
+    expect(seated.length).toBe(1);
+    expect(seated[0].kind).toBe('faker');
+    expect((BUILDS[seated[0].build].kinds || [])).toContain('faker');
+    engine.destroy();
+    const coop = createEngine({ seed: 6, demoBot: true, mode: 'coop' });
+    expect(Object.values(coop.game.players).length).toBe(0); // the campaign is exempt
+    coop.destroy();
+    const plain = createEngine({ seed: 6 });
+    expect(Object.values(plain.game.players).length).toBe(0); // main default: empty lobby
+    plain.destroy();
   });
 });
