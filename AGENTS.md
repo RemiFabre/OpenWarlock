@@ -31,6 +31,18 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
+- **Issue-agent session of 2026-08-12 shipped 10 deliverables** — all recorded
+  on their issues: Soul Harvest (#8, one-round mode, ON by default), the Faker
+  rework + held-bolt whiff fix (#7), Genki (#12), Ju's v2-v5 (#9/#11/#13, all
+  on `issue-3-ricochet-angel`, slug `ju-ricochet`, serial 10), the pinned
+  contributor guide (#10, `ai:ignore`), and the credential setup
+  (`scripts/agent-env.sh`, env `GITHUB_TOKEN_WARLOCK` in `~/.bashrc`).
+- ⚠ **Pending Remi's call**: main's merged Faker (round 22) still has the
+  held-bolt whiff — `git cherry-pick 1c10ff7` from `issue-7-faker` applies
+  cleanly (details: issue #7's closing comment). Branch + version are fixed.
+- **Issue #13 is Ju's living iteration thread** — he reopens/edits it for each
+  new version. A reopen with NO new comment/body-edit is a no-op: ask, don't
+  re-implement (runbook §7 note).
 - **THE GAME IS PUBLIC** (2026-08-09): GitHub Pages serves it at
   remifabre.github.io/OpenWarlock/client/. Solo play AND player hosting
   (📡 Host online → room code/link over WebRTC; signalling relay = HF Space

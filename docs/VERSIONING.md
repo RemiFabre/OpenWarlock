@@ -187,6 +187,10 @@ version (Remi, 2026-08-12):
   playing the superseded copy;
 - report and close on the NEW issue, and drop a pointer comment on the old one.
 
+A REOPENED issue with no new comment and no body edit since the last delivery
+is a no-op: comment asking what changed and wait — the reopen alone (often just
+the queue workflow re-labelling) is not a work order.
+
 Cross-author changes: NOBODY modifies another author's version without that
 author's explicit agreement: `@mention` the original author in the verdict and
 WAIT for their reply before implementing (Remi, 2026-08-12). Without it, the
