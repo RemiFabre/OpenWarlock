@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 7,
+  "serial": 8,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -66,7 +66,7 @@
       "issue": 7,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/7",
       "branch": "issue-7-faker",
-      "commit": "f7be69a60b73ecf0f1d4069c1671f1034d014c65"
+      "commit": "1c10ff7d91d074879c3456ccbf18edcc854e951c"
     },
     {
       "slug": "soul-harvest",
