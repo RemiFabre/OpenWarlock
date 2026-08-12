@@ -109,13 +109,49 @@ and it does not exercise the browser-hosting path.
   far behind they are, and how many states we dropped for them. If someone
   reports lag again, that is the number to look at — and the in-game ms badge
   tells you the same story from the other end.
-- **I could not tell which way your friend was connected** (`npm run host`
-  tunnel, or 📡 Host online peer-to-peer). Both paths got the fix, but if it was
-  peer-to-peer the mechanism was sharper: that channel is deliberately
-  unreliable, a big snapshot fragments into ~18 packets, and losing *any one*
-  discards the whole thing — so a lossy link there was capped at about **2 usable
-  updates a second**. If the jerkiness ever comes back, tell me which one he
-  used and I will chase that path specifically.
+- **He was on 📡 Host online, so read the section below** — the four fixes above
+  helped him less than they help the tunnel, and there was a fifth thing.
+
+## He was on "Host online" — so here is the honest accounting
+
+You told me after I shipped the four fixes above, and it changes the story. On
+the peer-to-peer path:
+
+- **Compression does nothing.** Data channels have no permessage-deflate. Fix 1
+  buys him zero.
+- **Deltas were already there.** Your browser-hosting path has delta-coded its
+  snapshots since round 21. Fix 2 buys him zero too.
+- So of the four, he only got the dropping and the smoothing — worth having, but
+  not an explanation.
+
+**The thing that was actually breaking his game was the keyframe.** Roughly once
+every 2 seconds the host must send a *complete* snapshot, and it was sending it
+down the **deliberately unreliable** channel. A full late-game snapshot is 20 KB
+plus, which splits into about **18 network packets, and that channel does not
+retransmit** — so losing *any single one of the 18* threw away the whole
+keyframe. Every delta after it is then worthless (no base to patch), his client
+asks for a fresh one, and the request is rate-limited to twice a second. Another
+big all-or-nothing keyframe goes out, and on a lossy link it gets shredded again.
+
+That is a spiral, and **it gets worse exactly as the pillar list grows** —
+early rounds are a small keyframe that usually survives, late rounds are a big one
+that usually doesn't. It is the best match yet for "fine early, huge lag later,
+like low freq", and it is specific to his connection because it is driven by *his*
+packet loss.
+
+**Fixed:** keyframes now take the **reliable** channel — they are rare and
+everything depends on them — and only the disposable deltas ride the lossy one,
+which is what it is for. A test pins the rule to "a receiver with no history can
+stand up on exactly the messages we mark as keyframes", so this cannot silently
+regress.
+
+⚠ **Honest caveat**: I cannot reproduce packet loss in the lab (`tools/slowlink.js`
+is one machine, bandwidth only, and it does not exercise the peer-to-peer path at
+all). The RTC end-to-end test proves a real round still plays over WebRTC with
+keyframes on the reliable channel, but "this is what was hurting him" is
+reasoning about the mechanism, not a measurement of his session. **Play a long
+game with him and tell me.** If it is still bad late-game, the next suspect is
+your upload: your tab serves every guest, and that is measurable.
 
 ## Still waiting on you (unchanged from 21.9)
 

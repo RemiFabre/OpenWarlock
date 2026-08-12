@@ -117,6 +117,36 @@ a smaller lobby than the 3,087 B full-snapshot row above, so read them as two
 separate facts, not a ratio; the honest ratio is the `--only=delta` lab row,
 6 KB/s against 53 KB/s for the same game.
 
+## 3b. The friend was on 📡 Host online — what that changes
+
+Learned after the four fixes shipped. On the RTC path, **two of the four buy
+nothing**: data channels have no permessage-deflate, and that path has been
+delta-coding since round 21. Its remaining failure mode is sharper and is the
+best match for the report:
+
+The `~2 s` keyframe (`fullEvery = 30` at 15 Hz) was sent on the **`snap` channel
+— `ordered: false, maxRetransmits: 0`**. A late-game keyframe is 20 KB+, which
+SCTP splits into ~18 chunks, and with no retransmits **losing any one chunk
+discards the whole message**. Every following delta is then unusable (its base
+never arrived), the client's recovery request is rate-limited to 2 Hz
+(`fullEveryMs = 500`), and the answer is another big all-or-nothing keyframe.
+Loss probability per keyframe scales with its size, so the spiral tightens as the
+pillar list grows — fine early, unplayable late, and only for the peer whose link
+actually drops packets.
+
+**Fix:** keyframes ride `ctrl` (reliable); only deltas ride the lossy channel.
+`createSnapWire().frame()` now reports `full`, pinned by a test to the invariant
+"`full` is true iff a cold decoder can stand up on that message alone" — the
+encoder keyframes on its own `fullEvery` cadence too, which a caller reading only
+its own request flag would miss.
+
+⚠ **Not measured, reasoned.** `tools/slowlink.js` is one machine: bandwidth only,
+no packet loss, and it does not drive the RTC path at all. `test/rtc-host.js`
+proves a real round still plays with keyframes on the reliable channel. Whether
+this was *the* cause of that friend's session is a mechanism argument until a long
+game with him says otherwise. Next suspect if it persists: the host tab's upload,
+which serves every guest.
+
 ## 4. Scars this round earned
 
 - **`bufferedAmount` is blind.** The first version of the skip used it and never
