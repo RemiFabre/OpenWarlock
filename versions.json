@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 6,
+  "serial": 7,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -77,6 +77,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/8",
       "branch": "issue-8-one-round",
       "commit": "275f9e16dc4fd991a6c32ca79ed38edc2a947462"
+    },
+    {
+      "slug": "genki",
+      "name": "Genki",
+      "author": "@RemiFabre",
+      "summary": "A new spell in honor of the Genki-Dama: charge a ball above your head (3 damage per second, forever; the area grows like a filling pool), then fire one omega hit. At Terra-3 size it smashes pillars and flies on; five seconds later nothing reflects it. Any other cast or any direct hit drops the charge.",
+      "issue": 12,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/12",
+      "branch": "issue-12-genki",
+      "commit": "95f0e3b3f0b2c4743ea2bcb83583db0c85b810e3"
     }
   ]
 }
