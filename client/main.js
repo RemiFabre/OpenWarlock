@@ -1468,7 +1468,7 @@ function buildShop(container, mode = 'classic') {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="name">${spec.name}</span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
@@ -1514,7 +1514,7 @@ function buildShop(container, mode = 'classic') {
     const b = document.createElement('button');
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${spec.icon}</span>
-      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="info"><span class="name">${spec.name}</span>
       <span class="tag">${esc(spec.desc)}</span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
@@ -1549,7 +1549,7 @@ function buildShop(container, mode = 'classic') {
     // items carry a one-value stat tag (round 20.1, Remi: "a very short
     // description of the stats it gives"); refresh() repaints it per level
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
+      <span class="info"><span class="name">${spec.name}</span>
       <span class="tag"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
@@ -1596,8 +1596,6 @@ function buildShop(container, mode = 'classic') {
         // are its progression (same rule as buy() in shared/sim.js)
         const maxLevel = elemental && w.key === 'fireball' ? 1 : w.spec.maxLevel;
         w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
-        const lv = w.el.querySelector('.lv');
-        lv.textContent = level ? `lv ${level}` : '';
         if (level >= maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1609,8 +1607,6 @@ function buildShop(container, mode = 'classic') {
         const elevel = (m.elements && m.elements[w.key]) || 0;
         w.level = elevel;
         w.el.classList.toggle('sel', elevel > 0);
-        const lv = w.el.querySelector('.lv');
-        lv.textContent = elevel ? `lv ${elevel}` : '';
         if (elevel >= w.spec.maxLevel) {
           cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
         } else {
@@ -1624,7 +1620,6 @@ function buildShop(container, mode = 'classic') {
         // itemCost handles both), and maxLevel is the wall.
         const level = Math.min(items[w.key] || 0, w.spec.maxLevel);
         w.level = level;
-        w.el.querySelector('.lv').textContent = level ? `lv ${level}` : '';
         w.el.classList.toggle('sel', level > 0);
         // the stat tag tracks the level you'd BUY (totals); at max, what you own
         w.el.querySelector('.tag').textContent = ITEM_TAG[w.key]
@@ -2157,7 +2152,7 @@ function updateUi(s) {
       el.querySelector('.lv').textContent = level > 1 ? 'lv' + level : '';
       // your owned elements ride on the fireball slot (elemental mode); since
       // round 16 EVERY element is a fireball rider, so they all badge there.
-      // The Hourglass of Haste (global CDR) is an item and shows in the shop.
+      // The Hourglass (global haste, ex-"of Haste") is an item and shows in the shop.
       const riders = key === 'fireball' && m.elements
         ? Object.keys(m.elements)
             .filter(k => m.elements[k] > 0 && ELEMENTS[k])

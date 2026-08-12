@@ -295,7 +295,7 @@
   .shoprow .ware { height: 56px; }
   .ware {
     display: flex; gap: 8px; align-items: center; position: relative;
-    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 11px 9px;
+    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 11px 12px;
     text-align: left; width: 100%; min-height: 42px;
   }
   /* level pips (round 22.2): one cell per level along the card's bottom edge */
@@ -306,8 +306,9 @@
   .ware .icon { font-size: 19px; width: 24px; text-align: center; flex: none; }
   .ware .info { flex: 1; min-width: 0; }
   .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; }
-  .ware .info .name { flex: none; }
-  .ware .name .lv { color: var(--ash); font-weight: 400; white-space: nowrap; }
+  /* item/element names run long (Hourglass of Haste): a notch smaller keeps
+     them to one line clear of the pips (round 22.3, Remi) */
+  .ware .info .name { flex: none; font-size: 11.5px; line-height: 1.25; }
   .ware .desc { color: var(--ash); font-size: 12px; display: block; }
   /* the card's tag line: an element's 2-4 word desc / an item's one stat value */
   .ware .tag { display: block; color: var(--ash); font-size: 10.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

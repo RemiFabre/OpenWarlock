@@ -424,7 +424,7 @@ export const ITEMS = {
   // Round 17 §9 (ruling: no item may be mandatory by win rate; amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
   // Target: any forbidden-item ladder seat stays ≥ ~15%.
-  amulet: { name: 'Amulet of Health',     cost: 7, maxLevel: 3, desc: 'Max HP.' },
+  amulet: { name: 'Health Amulet',     cost: 7, maxLevel: 3, desc: 'Max HP.' },
   // (Ring of Regeneration removed with passive regen, round 17; see PLAYER.REGEN)
   // Round 15 isolation lab: treads buffed to [0.50,0.36,0.28] (real but too
   // small before); value is bounded by lava being ~8.5% of all damage.
@@ -455,7 +455,7 @@ export const ITEMS = {
   // progression now, and a thing that affects ALL spells is thematically an
   // item. Round 20: its element-era `costs` curve dropped, flat 8 g like every
   // other item. (`costs` is still supported by itemCost; elements use it.)
-  hourglass: { name: 'Hourglass of Haste', cost: 7, maxLevel: 3,
+  hourglass: { name: 'Hourglass' /* of Haste: the full name wrapped into the level pips (22.3) */, cost: 7, maxLevel: 3,
             desc: 'Ability Haste: all your cooldowns run faster.' },
   // Round 21.5 (Remi): the first PASSIVE-DAMAGE item; a burning ring around
   // you, 1 dmg/s flat at every level, only the RADIUS levels (ITEM_FX below).
