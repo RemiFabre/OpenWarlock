@@ -61,7 +61,11 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - diff, patch, createSnapEncoder, createSnapDecoder
 
-## client/main.js (2126 lines)
+## shared/snapwire.js (184 lines)
+
+- QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
+
+## client/main.js (2147 lines)
 
 - **key bindings (rebindable, persisted)** — loadKeys, saveKeys, spellForKey, keyLabel
 - **state** — me, latest
@@ -69,7 +73,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **networking** — wireTransport, connect, onMessage, scheduleReconnect, send, pushFloater, onEvent
 - **phase-driven sounds** — phaseSounds
 - **phase-driven music** — phaseMusic
-- **interpolation** — interpolated
+- **interpolation** — trackSnapGap, interpolated
 - **input** — toWorld
 - **join / lobby / shop DOM** — doJoin
 - **hosting online (docs/BRIEF-browser-hosting.md §B3)** — inviteLink, showHostbar, copyInviteLink, doHost, syncAvatarGrid
@@ -86,12 +90,12 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - makeView, drawEngorged, draw
 - **fx** — drawBackdrop, drawWorldDone, drawBanners, drawRoundEndBanner, drawFx
 
-## client/transport.js (462 lines)
+## client/transport.js (463 lines)
 
 - createWsTransport, createInTabEngine, createLocalTransport, ensureEngine
-- **WebRTC hosting (docs/BRIEF-browser-hosting.md §B)** — SIGNAL_URL, signalUrl, roomCodeFromHash, createRtcHostTransport, ensureEngine, sendTo, dropPeer, onPeer, onSig, dialSignal, createRtcGuestTransport, dropped, onSnapWire, wireCtrl, dial, onSig, selectTransport
+- **WebRTC hosting (docs/BRIEF-browser-hosting.md §B)** — SIGNAL_URL, signalUrl, roomCodeFromHash, createRtcHostTransport, ensureEngine, sendTo, dropPeer, onPeer, onSig, dialSignal, createRtcGuestTransport, dropped, wireCtrl, dial, onSig, selectTransport
 
-## server/index.js (314 lines)
+## server/index.js (353 lines)
 
 - journal, crashDump
 

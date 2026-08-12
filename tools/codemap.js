@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const FILES = [
   'shared/sim.js', 'shared/engine.js', 'shared/constants.js', 'shared/items.js',
   'shared/catalogue.js', 'shared/campaign.js', 'shared/snapdelta.js',
+  'shared/snapwire.js',
   'client/main.js', 'client/render.js', 'client/transport.js',
   'server/index.js', 'version-sw.js', 'version-menu.js',
 ];
