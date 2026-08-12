@@ -146,7 +146,7 @@ export function roomCodeFromHash() {
 }
 
 // The host: the solo engine + a signalling room + one pair of data channels per
-// guest. ctrl = reliable/ordered (join, inputs, events, hot-spare state);
+// guest. ctrl = reliable/ordered (join, inputs, events, keyframes);
 // snap = unreliable/unordered (delta snapshots — a stale one is worthless, and
 // reliability there would head-of-line-block every fresh one behind it).
 export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} } = {}) {
@@ -174,25 +174,17 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       onKick: (connId) => { const p = peers.get(connId); if (p) dropPeer(p, 'kicked'); },
       onLog: log,
     });
-    // hot spare for host migration (§B4): a guest holds a full serialized room,
-    // so a survivor CAN resume the game if this tab dies. Round 21.11: ONE
-    // guest per 2 s, rotating, and only on an idle channel — the old
-    // every-guest-every-2-s send was the single biggest late-game stream (the
-    // blob carries the full pillar list, ~40 KB by round 25) and it drowned
-    // thin downlinks. Migration needs A recent spare somewhere, not a fresh
-    // one everywhere; a backed-up guest is a poor migration host anyway.
-    // history: docs/history/2026-08-12-rtc-lag-rootcause.md
-    let spareN = 0;
+    // The B4 hot spare (every guest holding a serialized room for host
+    // migration) was DELETED in 21.11: migration isn't built, and the blob was
+    // the single biggest late-game stream, drowning thin downlinks. The plan
+    // survives in docs/BRIEF-browser-hosting.md §B4 — re-add the spare WITH the
+    // feature. history: docs/history/2026-08-12-rtc-lag-rootcause.md
     setInterval(() => {
       // one wire line per beat in the downloadable log: the RTC counterpart of
       // the ws server's /health `wire[]` — behind/skipped per guest is THE
       // number to read when someone reports lag
       const joined = [...peers.values()].filter(p => p.joined);
       if (joined.length) log('wire', Object.fromEntries(joined.map(p => [p.connId, p.wire.stats()])));
-      const alive = joined.filter(p => p.ctrl && p.ctrl.readyState === 'open' && p.ctrl.bufferedAmount === 0);
-      if (!alive.length) return;
-      const p = alive[spareN++ % alive.length];
-      try { p.ctrl.send(JSON.stringify({ t: 'spare', code, state: engine.serialize() })); } catch { }
     }, 2000);
   }
 
@@ -395,7 +387,6 @@ export function createRtcGuestTransport(code) {
     ch.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       if (!m || typeof m !== 'object') return;
-      if (m.t === 'spare') { window.__spare = m; return; } // B4 hot spare, held for migration
       if (sink.take(m)) return;   // evt, and the reliable-fallback snap framing
       handlers.msg(m);                                      // welcome / denied
     };

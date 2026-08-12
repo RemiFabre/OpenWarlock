@@ -165,15 +165,8 @@ try {
   await shot(host, 'hosting-b-shop-host.png');
   await shot(guest, 'hosting-b-shop-guest.png');
 
-  // ---- the B4 hot spare reached the guest ---------------------------------
-  const spare = await guest.evaluate(() => window.__spare && {
-    code: window.__spare.code, phase: window.__spare.state.game.phase,
-    players: Object.keys(window.__spare.state.game.players).length,
-    rngA: window.__spare.state.game.rngA,
-  });
-  if (!spare || spare.code !== code || !(spare.players >= 3) || spare.rngA == null)
-    fail(`hot-spare state missing or wrong on the guest: ${JSON.stringify(spare)}`);
-  console.log(`hot spare on the guest: ${JSON.stringify(spare)}`);
+  // (the B4 hot-spare assertion lived here until 21.11 — the spare is deleted
+  // until host migration is actually built; plan in docs/BRIEF-browser-hosting.md §B4)
 
   if (host.errors.length) fail(`host page errors:\n${host.errors.join('\n')}`);
   if (guest.errors.length) fail(`guest page errors:\n${guest.errors.join('\n')}`);

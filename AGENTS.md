@@ -1,8 +1,7 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-12 (round 21.11, branch `rtc-lag` — merge is Remi's call
-after tonight's session). Read this first, then REMI_NOTES.md (latest round
-only) — that is the whole entry set.*
+*Last updated 2026-08-12 (round 21.11). Read this first, then REMI_NOTES.md
+(latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
 
@@ -140,7 +139,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
 | `tools/slowlink.js` | **the ws netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). ⚠ bandwidth only — no jitter, no loss, no RTC path |
-| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link — per-guest bandwidth/RTT/bursty loss, shared host uplink, the spare cadence. Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
+| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link — per-guest bandwidth/RTT/bursty loss, shared host uplink. Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
 | `BALANCE.md` | current balance truths + open questions + repro commands. Full reports: `docs/history/` |
 | `STRATEGIES.md` | bot tiers × builds chart, the 25-strategy ranking, how to read arena reports |
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |

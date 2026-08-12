@@ -1,7 +1,7 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Round 21.11, 2026-08-12, branch `rtc-lag` (NOT on main yet — your call after
-tonight). Round 21.10 (the ws-path bandwidth fixes) is archived at
+*Round 21.11, 2026-08-12, merged to main at your request before tonight's
+session. Round 21.10 (the ws-path bandwidth fixes) is archived at
 `docs/history/2026-08-12-remi-notes-round-21.10.md`. Full investigation:
 `docs/history/2026-08-12-rtc-lag-rootcause.md`.*
 
@@ -19,10 +19,12 @@ Two things caused it, both growing with the pillar list, which is why it only
 shows late:
 
 1. **A hidden second stream.** Every 2 s your hosting tab sent EVERY guest a
-   complete backup of the room (for host migration, if your tab dies). By
-   round 25 that blob is 40 KB — twice a keyframe — and it shared the ordered
-   channel with keyframes and kill events, jamming them behind it. Fix: one
-   rotating guest per 2 s, and only when their channel is idle.
+   complete backup of the room, preparation for a host-migration feature that
+   is not built. By round 25 that blob is 40 KB — twice a keyframe — and it
+   shared the ordered channel with keyframes and kill events, jamming them
+   behind it. Per your call: **deleted entirely** — the migration plan stays
+   written in `docs/BRIEF-browser-hosting.md` §B4 and the spare returns with
+   the feature, throttled.
 2. **Keyframes raced their own deltas.** A delta patches the state right
    before it. The every-2-s keyframe IS one of those states, and it travelled
    on the slow reliable channel — so late-game, the little deltas arrived

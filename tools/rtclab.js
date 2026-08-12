@@ -3,8 +3,8 @@
 // Built for the round-21.11 question: one friend degrades progressively on the
 // RTC path while another is fine, and tools/slowlink.js cannot see it (ws only,
 // bandwidth only). This lab runs the REAL engine, the real createSnapWire host
-// half and createSnapSink guest half, and the real spare cadence from
-// client/transport.js, through a modeled two-channel link per guest:
+// half and createSnapSink guest half, through a modeled two-channel link per
+// guest:
 //   ctrl  reliable + ORDERED  — a lost chunk stalls everything behind it one
 //                               retransmit; big messages queue ahead of small
 //   snap  unreliable+unordered — losing ANY chunk of a message drops all of it
@@ -14,15 +14,13 @@
 //
 //   node tools/rtclab.js                     # 1 host + 3 profiled guests
 //   node tools/rtclab.js --guests=dsl:250/45/1 --minutes=8
-//   node tools/rtclab.js --up=125 --spare=10
 //
 // --guests = name:downKBs/rttMs/loss% per guest, comma-separated.
 // --up     = host uplink KB/s (shared by everyone — the host tab IS the server).
-// --spare  = hot-spare cadence in seconds (0 = off). --sparemode=robin|all:
-//            robin = one rotating guest per beat (shipped), all = every guest
-//            every beat (the pre-21.11 behaviour that drowned thin links).
 // --echo   = 1|0: cadence keyframes ride beside the delta (shipped) vs
-//            replacing it (pre-21.11 — the keyframe race).
+//            replacing it (pre-21.11 — the keyframe race). The 21.10 hot-spare
+//            stream is gone from the game and from here; its cost is on record
+//            in docs/history/2026-08-12-rtc-lag-rootcause.md.
 // ⚠ What this cannot see: it is arithmetic, not SCTP — no congestion control
 // (real loss also collapses the send window, so real harm is WORSE), no browser
 // scheduling, and guest inputs reach the engine with zero delay. Trends and
@@ -38,8 +36,6 @@ const arg = (n, d) => {
 };
 const UP_KBS = Number(arg('up', 1250));        // 10 Mbit/s host uplink
 const MINUTES = Number(arg('minutes', 25));    // sim cap; the game usually ends first
-const SPARE_S = Number(arg('spare', 2));       // transport.js cadence
-const SPARE_MODE = arg('sparemode', 'robin');
 const ECHO = arg('echo', '1') !== '0';
 const GUESTS = arg('guests', 'fiber:2500/12/0.3,cable:1000/25/1,dsl:250/45/1')
   .split(',').map(s => {
@@ -80,7 +76,7 @@ function makeGuest(cfg, id) {
     ctrlDone: 0,              // ordered delivery horizon (seconds)
     inbox: [],                // {at, msg} ready to parse
     // metrics for the current report bucket
-    m: { applied: 0, kf: 0, fulls: 0, staleSum: 0, staleMax: 0, spareB: 0, ctrlB: 0, snapB: 0 },
+    m: { applied: 0, kf: 0, fulls: 0, staleSum: 0, staleMax: 0, ctrlB: 0, snapB: 0 },
     sink: null,
   };
 }
@@ -173,13 +169,13 @@ for (const id of ['p1', ...guests.map(g => g.id)]) engine.message(id, { t: 'read
 // ---- run the game: everyone spams pillars, exactly like tools/slowlink.js
 const snapEvery = Math.max(1, Math.round(TICK_RATE / SNAPSHOT_RATE));
 const gm = () => engine.game;
-let castN = 0, tick = 0, lastShop = false, lastSpare = 0, lastReport = 0, spareN = 0;
+let castN = 0, tick = 0, lastShop = false, lastReport = 0;
 const BUCKET_S = 120;
-console.log(`host uplink ${UP_KBS} KB/s · spare every ${SPARE_S || '∞'} s · guests: ` +
+console.log(`host uplink ${UP_KBS} KB/s · echo ${ECHO ? 'on' : 'off'} · guests: ` +
   GUESTS.map(g => `${g.name} ${g.downKBs}KB/s ${g.rttMs}ms ${(g.loss * 100).toFixed(1)}%`).join(' · '));
 console.log('\nHz = state updates applied per second (15 = keeping up, in battle only).');
 console.log('stale = host clock minus the state on the guest screen, battle only.');
-console.log('min  guest   Hz     stale avg/max   fulls  wasted  skip  ctrl KB/s  snap KB/s  spare KB/s  pillars');
+console.log('min  guest   Hz     stale avg/max   fulls  wasted  skip  ctrl KB/s  snap KB/s  pillars');
 
 function report() {
   const mins = `${Math.round(now / 60)}`.padStart(3);
@@ -192,9 +188,9 @@ function report() {
       `${(stale.toFixed(2) + ' / ' + g.m.staleMax.toFixed(2)).padStart(13)}   ` +
       `${String(g.m.fulls).padStart(5)}  ${String(g.m.wasted || 0).padStart(6)}  ${String(w.skipped - (g.m.skip0 || 0)).padStart(4)}  ` +
       `${(g.m.ctrlB / 1024 / BUCKET_S).toFixed(1).padStart(9)}  ` +
-      `${(g.m.snapB / 1024 / BUCKET_S).toFixed(1).padStart(9)}  ${(g.m.spareB / 1024 / BUCKET_S).toFixed(1).padStart(10)}  ` +
+      `${(g.m.snapB / 1024 / BUCKET_S).toFixed(1).padStart(9)}  ` +
       `${String((gm().pillars || []).length).padStart(7)}`);
-    g.m = { applied: 0, kf: 0, fulls: 0, staleSum: 0, staleMax: 0, spareB: 0, ctrlB: 0, snapB: 0, skip0: w.skipped };
+    g.m = { applied: 0, kf: 0, fulls: 0, staleSum: 0, staleMax: 0, ctrlB: 0, snapB: 0, skip0: w.skipped };
   }
 }
 
@@ -218,18 +214,6 @@ while (now < MINUTES * 60) {
 
   engine.tick(DT);
   if (++tick % snapEvery === 0) engine.pushSnapshots();
-  // the hot spare, mirroring transport.js ensureEngine(): 'robin' = the shipped
-  // one-rotating-guest-on-an-idle-channel, 'all' = the pre-21.11 firehose
-  if (SPARE_S && now - lastSpare >= SPARE_S) {
-    lastSpare = now;
-    const idle = guests.filter(g => g.queued.ctrl === 0);
-    const targets = SPARE_MODE === 'all' ? guests : idle.length ? [idle[spareN++ % idle.length]] : [];
-    if (targets.length) {
-      const spare = JSON.stringify({ t: 'spare', code: 'ABCDEFGH2345', state: engine.serialize() });
-      for (const g of targets) { send(g, 'ctrl', spare, now); g.m.spareB += spare.length; }
-    }
-  }
-
   pumpNet(now);
   for (let i = laterQ.length - 1; i >= 0; i--)
     if (laterQ[i].at <= now) { laterQ[i].fn(); laterQ.splice(i, 1); }
@@ -239,7 +223,6 @@ while (now < MINUTES * 60) {
     while (g.inbox.length && g.inbox[0].at <= now) {
       const { msg } = g.inbox.shift();
       let m; try { m = JSON.parse(msg.str); } catch { continue; }
-      if (m.t === 'spare') continue;                       // held for migration, not gameplay
       const before = g.m.applied;
       g.sink.take(m);
       if (m.t === 'snap') {

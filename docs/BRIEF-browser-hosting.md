@@ -198,11 +198,17 @@ Node path, free.)
 
 ## B4. Host migration — the objection that kills naive P2P, and why it does not apply here
 
-Closing the host tab must not end the game. Full state is **4 KB and JSON-round-trippable**,
-so: the host broadcasts `engine.serialize()` on `ctrl` every ~2 s as a hot spare. If the host
+Closing the host tab must not end the game. Full state is JSON-round-trippable,
+so: the host broadcasts `engine.serialize()` on `ctrl` as a hot spare. If the host
 vanishes, peers deterministically elect a successor (lowest peer id among survivors), that
 peer calls `createEngine({ state })`, re-opens a signalling room under the **same code**, and
 the others reconnect.
+
+> ⚠ 21.11 (Remi): the hot-spare broadcast is **deleted from the code** until migration
+> itself is built — it grew with the game state (~40 KB in long games, not 4 KB) and was
+> the biggest late-game stream per guest, drowning thin downlinks
+> (`docs/history/2026-08-12-rtc-lag-rootcause.md`). Re-add it WITH the election logic,
+> throttled (rotate one guest per beat, idle channel only, or shop-phase only).
 
 **Verify determinism before relying on this**: two engines built from the same serialized
 state and stepped with the same inputs must produce identical snapshots. If they diverge,
