@@ -3266,12 +3266,28 @@ function ccPinned(target, delay) {
     (target.slowMultHit || 1) <= BOT_CC_CAST.METEOR_SLOW_MAX;
 }
 
-// Drop point for a telegraphed cast on a held target: the body itself, unless
-// that would land on our own head too (both spells hit the caster's zone).
+// Drop point for a telegraphed cast on a held target — null when the cast is
+// doomed. Issue #7 reopen (three whiffs, measured 0/40 on a slider): a held
+// body still SLIDES (the stun stops the legs, not the physics) so the point is
+// the END of the slide, friction-only drift being exact for it; a hold shorter
+// than the spell's own delay wakes the victim before impact; and a gold statue
+// eats the zone for zero. The self-splash refusal is checked at the DRIFTED
+// point (both spells hit the caster's zone too).
 function heldAim(pl, target, spec) {
-  const d = Math.hypot(target.x - pl.x, target.y - pl.y);
+  if ((target.statueT || 0) > 0) return null;
+  let p = { x: target.x, y: target.y };
+  if ((target.stunT || 0) > 0) {
+    // held NOW: the hold must outlast the delay (a shorter one wakes them
+    // before impact), and a stunned body still SLIDES — friction-only drift
+    // is exact for it, so the drop point is the end of the slide.
+    if (!ccPinned(target, spec.delay)) return null;
+    p = driftTo(target, spec.delay);
+  }
+  // A freeze-INCOMING target (the round-20 two-stack bet) keeps the on-body
+  // drop: the ball freezes them where they stand, a beat after this cast.
+  const d = Math.hypot(p.x - pl.x, p.y - pl.y);
   if (d < spec.radius + pl.radius + 1) return null;
-  return { x: target.x, y: target.y };
+  return p;
 }
 
 // ---- Faker (issue #7) ------------------------------------------------------
@@ -3306,7 +3322,9 @@ function comboStep(state, pl) {
   // a body still travelling is the one whose landing spot is worth a rock
   const scored = seen.map((t) => {
     const speed = Math.hypot(t.vx || 0, t.vy || 0);
-    return { t, speed, held: (t.stunT || 0) > 0 };
+    // a NOPE statue is stationary but INVULNERABLE — any telegraphed cast on
+    // it is a wasted cooldown, so gold bodies never score as combo targets
+    return { t, speed, held: (t.stunT || 0) > 0 && (t.statueT || 0) <= 0 };
   }).sort((a, b) => (b.speed + (b.held ? 100 : 0)) - (a.speed + (a.held ? 100 : 0)));
 
   // Minefield: the trap this bot is STANDING ON, if any; with a hook loaded it
@@ -3332,11 +3350,14 @@ function comboStep(state, pl) {
     if (!trap && ready('nova') && ready('swap') && !held && dist <= hookRange + 8 &&
         castSpell(state, id, 'nova', pl.x, pl.y)) return true;
 
-    // 1. HELD (frost freeze, or the stun a Switcheroo leaves behind): the body
-    //    cannot move, so the telegraphed cast goes straight onto it, and the
-    //    fireball rides behind the bolt for free.
+    // 1. HELD (frost freeze, or the stun a Switcheroo leaves behind). Two
+    //    whiffs lived here (issue #7 reopen, measured 0/40 on a slider):
+    //    a stunned body still SLIDES — the stun stops the legs, not the
+    //    physics — so the drop point is the END of the slide (friction-only
+    //    drift is EXACT for a held body); and the hold must outlast the
+    //    spell's own delay (lightning had no ccPinned guard; meteor did).
     if (held) {
-      if (ready('meteor') && ccPinned(mark, SPELLS.meteor.delay)) {
+      if (ready('meteor')) {
         const aim = heldAim(pl, mark, SPELLS.meteor);
         if (aim && castSpell(state, id, 'meteor', aim.x, aim.y)) return true;
       }
@@ -3344,8 +3365,11 @@ function comboStep(state, pl) {
         const aim = heldAim(pl, mark, SPELLS.lightning);
         if (aim && castSpell(state, id, 'lightning', aim.x, aim.y)) return true;
       }
-      if ((pl.cooldowns.fireball || 0) <= 0 && dist < 40 &&
-          castSpell(state, id, 'fireball', mark.x, mark.y)) return true;
+      // the fireball rides behind the bolt — interceptPoint leads the slide
+      if ((pl.cooldowns.fireball || 0) <= 0 && dist < 40) {
+        const aim = interceptPoint(pl, mark, SPELLS.fireball.speed);
+        if (castSpell(state, id, 'fireball', aim.x, aim.y)) return true;
+      }
     }
 
     // Minefield discipline: with the trap set and the hook loaded (or nearly),
