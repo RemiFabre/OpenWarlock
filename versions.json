@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 4,
+  "serial": 5,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Adds Ricochet, a ball that bounces off the pillars and off an invisible wall at the lava’s edge, and the Guardian Angel, a secret item that refuses your death and stands you back up on half health.",
-      "issue": 3,
-      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/3",
+      "summary": "Ju's arsenal, v2: Ricochet (bounces off the shrinking lava wall and pillars, trick shots at 65%), the secret Guardian Angel (unlimited +25%-compounding purchases), a sprint on maxed boots, the Dark Ball (third hit blacks out your screen), and the Storm Ball (arcs to everyone near the victim — or near the pillar it pops on).",
+      "issue": 9,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/9",
       "branch": "issue-3-ricochet-angel",
-      "commit": "d3c5ff1c533c6548b798225aa2162fb7386604ef"
+      "commit": "e96a221aca94251cbe8823f02bd888dc74ba3d4a"
     },
     {
       "slug": "trash-talk",
