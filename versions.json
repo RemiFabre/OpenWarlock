@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 10,
+  "serial": 11,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v4: Ricochet, Dark Ball and Storm Ball are now exclusive fireball MUTATIONS (one ball identity per player), plus the Humiliating Vomit Puddle, craters, the pillar grapple and the secret Guardian Angel.",
+      "summary": "Ju's arsenal, v5: stacking ball mutations (one fireball that bounces, arcs AND blinds), the instant Vomit Puddle (one retch per player per round — the infinite-vomit bug is dead), a chain arc that actually reaches (5x the victim), a one-revive-per-round Guardian Angel, craters and the pillar grapple.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "8865f8b355d871aa90c674e7a7c19aae15d62077"
+      "commit": "b3d53861da794eb363402cc84fb379a87138f492"
     },
     {
       "slug": "trash-talk",
