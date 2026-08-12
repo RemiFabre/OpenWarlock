@@ -8,6 +8,7 @@ import { itemFxAt } from '../shared/items.js';
 import { rankTeams } from '../shared/sim.js';
 import { VERSION } from '../shared/version.js';
 import { makeView, draw } from './render.js';
+import { createChatter } from './chatter.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
 import {
@@ -281,8 +282,15 @@ function pushFloater(e, type, dur, now) {
   });
 }
 
+// Trash Talk (issue #4): the same event stream the FX run on, turned into
+// speech bubbles. Cosmetic, client-only, and it never reads or writes game state.
+const chatter = createChatter();
+let chatterPlayers = [];
+let lastFrameAt = 0;
+
 function onEvent(e) {
   const now = performance.now();
+  try { chatter.onEvent(e, chatterPlayers, now); } catch { /* never break the fx */ }
   switch (e.t) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
     // lightning sky-bolt landing (round 17 — the hitscan 'beam' died with it)
@@ -2214,7 +2222,12 @@ function frame(now) {
   window.__hb = (window.__hb || 0) + 1; // heartbeat, used by tests
   try {
     const vs = interpolated(now);
-    draw(view, vs, fx, myId, moveMark, now);
+    const prevPlayers = chatterPlayers;
+    chatterPlayers = (vs && Array.isArray(vs.players)) ? vs.players : [];
+    if (vs && vs.phase !== 'battle') chatter.clear();
+    else chatter.onFrame(chatterPlayers, prevPlayers, (now - lastFrameAt) / 1000, now);
+    lastFrameAt = now;
+    draw(view, vs, fx, myId, moveMark, now, chatter.bubbles);
     // prune stale fx
     for (let i = fx.length - 1; i >= 0; i--)
       if ((now - fx[i].at) / 1000 > fx[i].dur) fx.splice(i, 1);
