@@ -545,6 +545,13 @@ export const ITEM_FX = {
 // mults multiplied. Round 16: elements ARE the fireball's progression, one axis
 // each: ember=damage · gale=push · arcane=cadence · terra=size · ghost=speed.
 // history: docs/history/2026-08-08-constants-sweeps.md#elements
+
+// Round 22.4 (Remi: "the new ice is too strong"): the three victim-side stack
+// piles FADE. A pile untouched for `seconds` loses 1 stack, and the timer
+// restarts (reapplying that kind resets it). Midas marks and anger claims are
+// different rhythms by design and never fade.
+export const STACK_DECAY = { seconds: 9, kinds: ['frost', 'gale', 'malady'] };
+
 export const ELEMENTS = {
   // Round 17 §8: [2,4,6] → [1,2,4]; ember was the best 6 g in the game
   // (+39.8 isolated). Linear cost↔gain with the premium last step (the

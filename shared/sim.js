@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, itemCost,
+  DRAFT, TEAMS, STACK_DECAY, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -397,14 +397,19 @@ function efxV(v, level) {
 function stackCount(target, kind, byId) {
   if (byId == null) return 0;
   const s = target.stacks && target.stacks[kind];
-  return (s && s[byId]) || 0;
+  return (s && s[byId] && s[byId].n) || 0;
 }
 
 function addStack(target, kind, byId, n = 1) {
   if (byId == null) return 0;
   const store = target.stacks || (target.stacks = {});
   const s = store[kind] || (store[kind] = {});
-  return (s[byId] = (s[byId] || 0) + n);
+  const e = s[byId] || (s[byId] = { n: 0, t: 0 });
+  e.n += n;
+  // round 22.4: (re)applying a kind resets its fade clock (STACK_DECAY);
+  // non-fading kinds carry the field unused
+  e.t = STACK_DECAY.seconds;
+  return e.n;
 }
 
 function clearStacks(target, kind, byId) {
@@ -419,7 +424,7 @@ function worstStack(target, kind) {
   const s = target.stacks && target.stacks[kind];
   if (!s) return 0;
   let max = 0;
-  for (const n of Object.values(s)) if (n > max) max = n;
+  for (const e of Object.values(s)) if (e.n > max) max = e.n;
   return max;
 }
 
@@ -2079,6 +2084,21 @@ function stepBattle(state, dt) {
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
     if (pl.vanishT > 0) pl.vanishT = Math.max(0, pl.vanishT - dt);
     if (pl.fireWalkT > 0) pl.fireWalkT = Math.max(0, pl.fireWalkT - dt);
+    // Stack fade (round 22.4, Remi): an unfed frost/gale/malady pile loses one
+    // stack per STACK_DECAY.seconds; the clock restarts after each loss and
+    // resets whenever that kind lands again (addStack).
+    if (pl.stacks) {
+      for (const kind of STACK_DECAY.kinds) {
+        const s = pl.stacks[kind];
+        if (!s) continue;
+        for (const [by, e] of Object.entries(s)) {
+          e.t -= dt;
+          if (e.t > 0) continue;
+          e.n--; e.t = STACK_DECAY.seconds;
+          if (e.n <= 0) delete s[by];
+        }
+      }
+    }
     // Statue (round 21.4): rooted and unpushable. stats() already zeroed the
     // walk speed for this tick; zeroing the velocity keeps any impulse that
     // landed on the same frame as the cast from carrying over when it ends.
@@ -2442,6 +2462,7 @@ function stepProjectiles(state, dt) {
       if (segSegDist(px0, py0, pr.x, pr.y, w.x1, w.y1, w.x2, w.y2) > prRadius + 0.4) continue;
       pr.vx -= 2 * vn * w.nx;
       pr.vy -= 2 * vn * w.ny;
+      if (pr.elemOwner == null) pr.elemOwner = pr.owner; // riders stay the caster's (22.4)
       pr.owner = w.owner;
       pr.hit = {};
       pr.pierced = 0;   // ghost: a mirrored ball is a fresh ball, first victim again
@@ -2488,6 +2509,7 @@ function stepProjectiles(state, dt) {
       if (other.shieldT > 0) {
         // reflect: reverse velocity, transfer ownership
         pr.vx = -pr.vx; pr.vy = -pr.vy;
+        if (pr.elemOwner == null) pr.elemOwner = pr.owner; // riders stay the caster's (22.4)
         pr.owner = other.id;
         pr.hit = {};
         pr.pierced = 0;  // ghost: reflected back at you as a fresh, un-pierced ball
@@ -2681,18 +2703,22 @@ function turnBoomerangHome(state, pr) {
 // can neither place nor spend a stack: there is nobody to own the counter.
 function galeHit(state, pr, target, level) {
   const f = ELEMENTS.gale.fx;
-  if (pr.owner == null) return 0;
-  const n = addStack(target, 'gale', pr.owner);
+  // riders belong to whoever OWNS the element, which a reflection never
+  // changes (pr.elemOwner, round 22.4) — else a shield or wall lets the
+  // reflector feed their own pile with someone else's element
+  const eo = pr.elemOwner != null ? pr.elemOwner : pr.owner;
+  if (eo == null) return 0;
+  const n = addStack(target, 'gale', eo);
   // every landing is an event, exactly like frost's pips: the player has to be
   // able to watch the gust winding up or this reads as a random shove
   state.events.push({
-    t: 'gale', id: target.id, stacks: n, by: pr.owner,
+    t: 'gale', id: target.id, stacks: n, by: eo,
     of: f.stacksToTrigger, x: target.x, y: target.y,
   });
   if (n < f.stacksToTrigger) return 0;
-  clearStacks(target, 'gale', pr.owner);
+  clearStacks(target, 'gale', eo);
   state.events.push({
-    t: 'galeBurst', id: target.id, by: pr.owner, x: target.x, y: target.y,
+    t: 'galeBurst', id: target.id, by: eo, x: target.x, y: target.y,
   });
   return efxV(f.burstKbAdd, level);
 }
@@ -2726,6 +2752,8 @@ function infectMalady(state, target, inst, byId) {
 // level. Ember is a pure number tweak handled at the damage/knockback
 // computation above; gale is resolved there too, by galeHit().
 function applyElementsHit(state, pr, target) {
+  // same rule as galeHit: element identity survives reflections (22.4)
+  const eo = pr.elemOwner != null ? pr.elemOwner : pr.owner;
   for (const [ek, el] of Object.entries(pr.elements)) {
     const f = ELEMENTS[ek].fx;
     // frost: stacks build on the VICTIM but are PRIVATE to each attacker
@@ -2740,13 +2768,13 @@ function applyElementsHit(state, pr, target) {
     // frost/frostBreak events); gale's twin lives in galeHit(), because its
     // payload is knockback and that is resolved before the riders run.
     if (ek === 'frost' && f.stacksToTrigger) {
-      const n = addStack(target, 'frost', pr.owner);
+      const n = addStack(target, 'frost', eo);
       state.events.push({
-        t: 'frost', id: target.id, stacks: n, by: pr.owner,
+        t: 'frost', id: target.id, stacks: n, by: eo,
         of: f.stacksToTrigger, x: target.x, y: target.y,
       });
       if (n >= f.stacksToTrigger) {
-        clearStacks(target, 'frost', pr.owner);
+        clearStacks(target, 'frost', eo);
         const stun = efxV(f.stunT, el);
         const slowT = efxV(f.slowT, el);
         if (stun > 0) {
@@ -2766,38 +2794,38 @@ function applyElementsHit(state, pr, target) {
         });
       }
     }
-    if (ek === 'malady' && pr.owner != null) {
+    if (ek === 'malady' && eo != null) {
       // Round 19 (ex-venom): a two-hit rhythm on the private-stack store, like
       // midas. First hit plants the 🦠 stack; the second by the same owner
       // spends it and INFECTS; contagion and kill credit live in
       // infectMalady() and the stepBattle aura loop.
-      if (stackCount(target, 'malady', pr.owner) > 0) {
-        clearStacks(target, 'malady', pr.owner);
+      if (stackCount(target, 'malady', eo) > 0) {
+        clearStacks(target, 'malady', eo);
         // round 20.3: the creator is seeded immune to their OWN instance
         infectMalady(state, target,
-          { creator: pr.owner, level: el, immune: { [pr.owner]: 1 } }, pr.owner);
+          { creator: eo, level: el, immune: { [eo]: 1 } }, eo);
       } else {
-        addStack(target, 'malady', pr.owner);
+        addStack(target, 'malady', eo);
       }
     }
-    if (f.goldOnHit && pr.owner != null) {
-      const owner = state.players[pr.owner];
+    if (f.goldOnHit && eo != null) {
+      const owner = state.players[eo];
       if (owner) {
         // Round 17 §5: a two-hit rhythm on the private-stack store. First hit
         // plants a 🪙 mark on THIS target; the next hit on the same target
         // cashes +1 g (still capped there forever) and clears it. Halves the
         // income RATE, the midas-cdr engine (question J). Mosquito's pair is
         // two real fireballs here: lead plants, trailing cashes.
-        if (stackCount(target, 'midas', pr.owner) > 0) {
-          clearStacks(target, 'midas', pr.owner);
+        if (stackCount(target, 'midas', eo) > 0) {
+          clearStacks(target, 'midas', eo);
           const pay = efxV(f.goldOnHit, el);
           owner.gold += pay;
           owner.goldEarned += pay;
           owner.roundGold += pay;
-          state.events.push({ t: 'gold', id: pr.owner, amount: pay, x: pr.x, y: pr.y });
+          state.events.push({ t: 'gold', id: eo, amount: pay, x: pr.x, y: pr.y });
         } else {
-          addStack(target, 'midas', pr.owner);
-          state.events.push({ t: 'midasMark', id: target.id, by: pr.owner,
+          addStack(target, 'midas', eo);
+          state.events.push({ t: 'midasMark', id: target.id, by: eo,
             x: target.x, y: target.y });
         }
       }
@@ -2806,24 +2834,24 @@ function applyElementsHit(state, pr, target) {
     // permanent bank (never reset in startRound), and the next mark waits
     // markEvery s from NOW. FIREBALLS ONLY (the round-12 ruling that stopped
     // "lightning claims the mark" from being the whole meta).
-    if (f.markDmg && pr.owner != null && pr.type === 'fireball' &&
-        stackCount(target, 'anger', pr.owner) > 0) {
-      const owner = state.players[pr.owner];
+    if (f.markDmg && eo != null && pr.type === 'fireball' &&
+        stackCount(target, 'anger', eo) > 0) {
+      const owner = state.players[eo];
       if (owner) {
-        clearStacks(target, 'anger', pr.owner);
+        clearStacks(target, 'anger', eo);
         owner.angerMarks = (owner.angerMarks || 0) + 1;
         owner._angerTarget = null;
         owner._angerNext = state.time + efxV(f.markEvery, el);
-        state.events.push({ t: 'angerClaim', id: target.id, by: pr.owner,
+        state.events.push({ t: 'angerClaim', id: target.id, by: eo,
           x: target.x, y: target.y });
       }
     }
     // arcane lv3 (round 16): a landed FIREBALL refunds seconds off every
     // cooldown the owner has running, per enemy hit. hitRefund is 0 below the
     // unlock level, so this line prices lv1/2 at nothing by construction.
-    if (f.hitRefund && pr.owner != null) {
+    if (f.hitRefund && eo != null) {
       const refund = efxV(f.hitRefund, el);
-      const owner = refund > 0 ? state.players[pr.owner] : null;
+      const owner = refund > 0 ? state.players[eo] : null;
       // only an enemy's blood buys you time (friendly fire heals no cooldowns)
       if (owner && owner.alive && hostile(owner, target))
         arcaneRefund(state, owner, refund, f.cdFloor);

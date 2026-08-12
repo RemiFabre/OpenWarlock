@@ -9,7 +9,7 @@ import {
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { createEngine } from '../shared/engine.js';
@@ -1084,7 +1084,7 @@ describe('elemental mode', () => {
   // Stacks are PRIVATE to whoever applied them (round 12): read one attacker's
   // pile out of the generic per-attacker store.
   const stacksOf = (pl, kind, by) =>
-    ((pl.stacks && pl.stacks[kind] && pl.stacks[kind][by]) || 0);
+    ((pl.stacks && pl.stacks[kind] && pl.stacks[kind][by] && pl.stacks[kind][by].n) || 0);
   const frostOn = (pl, by) => stacksOf(pl, 'frost', by);
 
   it('setMode works only in the lobby, validates values, and ships in snapshot', () => {
@@ -1181,6 +1181,59 @@ describe('elemental mode', () => {
     return state;
   }
 
+  it('stacks FADE: an unfed pile loses one stack every STACK_DECAY.seconds (22.4)', () => {
+    const state = frostHits(1, 2);
+    expect(frostOn(state.players.p1, 'p0')).toBe(2);
+    run(state, STACK_DECAY.seconds + 0.2);
+    expect(frostOn(state.players.p1, 'p0')).toBe(1);   // one bled off
+    run(state, STACK_DECAY.seconds + 0.2);
+    expect(frostOn(state.players.p1, 'p0')).toBe(0);   // the pile is gone
+  });
+
+  it('reapplying the kind RESETS the fade clock (22.4)', () => {
+    const state = frostHits(1, 1);
+    run(state, STACK_DECAY.seconds - 1);               // one second from fading
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+    castSpell(state, 'p0', 'fireball', 20, 0);         // feed the pile: clock restarts
+    run(state, STACK_DECAY.seconds - 1);
+    expect(frostOn(b, 'p0')).toBe(2);                  // without the reset this would be 1
+  });
+
+  it('each attacker\'s pile fades on its OWN clock, and midas/anger never fade (22.4)', () => {
+    const state = elementalBattle(3);
+    const b = state.players.p1;
+    b.stacks = {
+      frost: { p0: { n: 2, t: 9 }, p2: { n: 1, t: 1 } },
+      midas: { p0: { n: 1, t: 0.5 } },
+      anger: { p0: { n: 1, t: 0.5 } },
+    };
+    run(state, 3);
+    expect(frostOn(b, 'p0')).toBe(2);                  // 9 s clock: untouched at 3 s
+    expect(frostOn(b, 'p2')).toBe(0);                  // 1 s clock: bled
+    expect(b.stacks.midas.p0.n).toBe(1);               // marks are a rhythm, not a pile
+    expect(b.stacks.anger.p0.n).toBe(1);
+  });
+
+  it('a REFLECTED ball plants its stacks for the element\'s owner, not the reflector (22.4)', () => {
+    // The game-night bug: a shield or wall flipped pr.owner, so the reflector
+    // was credited with stacks from an element they may not even own — and
+    // their own pile got fed by somebody else's frost.
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { frost: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.shieldT = 5;                                     // the ball comes straight back
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 1.2);                                   // out, reflected, home again
+    expect(frostOn(a, 'p0')).toBe(1);                  // a's element, a's pile (on a's own body)
+    expect(frostOn(a, 'p1')).toBe(0);                  // the reflector owns NOTHING here
+  });
+
   it('frost: the first two hits only stack; the THIRD detonates', () => {
     const two = frostHits(1, 2);
     expect(frostOn(two.players.p1, 'p0')).toBe(2);
@@ -1255,7 +1308,7 @@ describe('elemental mode', () => {
     state.players.p0.elements = { frost: 1 };
     state.players.p2.elements = { frost: 1 };
     // hand-place stacks: this test is about the wire, not about aiming
-    b.stacks = { frost: { p0: 2, p2: 1 }, midas: { p2: 1 } };
+    b.stacks = { frost: { p0: { n: 2, t: 9 }, p2: { n: 1, t: 9 } }, midas: { p2: { n: 1, t: 9 } } };
     const asP0 = snapshot(state, 'p0').players;
     expect(asP0.p1.myStacks).toEqual({ frost: 2 });     // mine only
     const asP2 = snapshot(state, 'p2').players;
@@ -1641,7 +1694,7 @@ describe('elemental mode', () => {
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
     a.elements = { anger: 1 };
-    b.stacks = { anger: { p0: 1 } };   // hand-place the mark: this test is the claim
+    b.stacks = { anger: { p0: { n: 1, t: 9 } } };   // hand-place the mark: this test is the claim
     a._angerTarget = 'p1';
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     state.events = [];
@@ -1683,7 +1736,7 @@ describe('elemental mode', () => {
     state.players.p2.x = -10; state.players.p2.y = 5;
     state.pillars = [];
     a.elements = { anger: 3 };
-    b.stacks = { anger: { p0: 1 } };
+    b.stacks = { anger: { p0: { n: 1, t: 9 } } };
     a._angerTarget = 'p1';
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
@@ -1733,7 +1786,7 @@ describe('elemental mode', () => {
     const a = state.players.p0;
     a.elements = { anger: 1 };
     a.angerMarks = 3;                            // hand-banked: the claim path is covered above
-    state.players.p2.stacks = { anger: { p0: 1 } };
+    state.players.p2.stacks = { anger: { p0: { n: 1, t: 9 } } };
     a._angerTarget = 'p2';
     // kill everyone else -> round ends -> next round starts, bank intact
     state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
@@ -1903,7 +1956,7 @@ describe('elemental mode', () => {
     // SHOVE (base kb, kbAdd and the gust alike) and nothing else.
     a.elements = { mosquito: 1, gale: 3, malady: 1 };
     a.mosqN = f.doubleEvery[0] - 1;        // the next cast is the pair's lead
-    b.stacks = { gale: { p0: gf.stacksToTrigger - 1 } };
+    b.stacks = { gale: { p0: { n: gf.stacksToTrigger - 1, t: 9 } } };
     a.x = 0; a.y = 0; a.cooldowns = {};
     b.x = 6; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 9999; b.hp = 9999;
@@ -3326,7 +3379,7 @@ describe('power spells & pillar', () => {
     const gold0 = a.gold;
     castSpell(state, 'p0', 'swap', 20, 0);
     expect(stepToSwap(state)).toBeTruthy();
-    expect((b.stacks && b.stacks.malady && b.stacks.malady.p0) || 0).toBe(0); // no malady
+    expect((b.stacks && b.stacks.malady && b.stacks.malady.p0 && b.stacks.malady.p0.n) || 0).toBe(0); // no malady
     expect(a.gold).toBe(gold0);            // no midas
     expect(Math.abs(b.vx)).toBeLessThan(1); // no knockback: b got a's rest state
   });
@@ -3668,7 +3721,7 @@ describe('Chainer build & CC-gated casts (round 20)', () => {
       a.bot = true; a.kind = 'berserker'; a.spells = { fireball: 1, lightning: 1 };
       a.x = 0; a.y = 0; v.x = 12; v.y = 0;
       v.moveTarget = { x: 12, y: 40 };            // walking straight north
-      if (stacks) v.stacks = { frost: { p0: stacks } };
+      if (stacks) v.stacks = { frost: { p0: { n: stacks, t: 9 } } };
       for (let i = 0; i < 60 && !state.bolts.length; i++) stepBot(state, 'p0', DT);
       return state.bolts[0];
     };
@@ -5223,14 +5276,14 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
     expect(edge).toBeGreaterThan(0);
 
     const mine = duelBattle();
-    mine.players.lead.stacks = { frost: { bot: marks } };
+    mine.players.lead.stacks = { frost: { bot: { n: marks, t: 9 } } };
     expect(preyShare(mine, 'lead')).toBeCloseTo(pick(edge), 1);
 
     // the same marks placed by SOMEBODY ELSE are invisible to this bot: they
     // are not its investment, and knowing about them would be a free read on
     // another player's setup
     const theirs = duelBattle();
-    theirs.players.lead.stacks = { frost: { near: marks } };
+    theirs.players.lead.stacks = { frost: { near: { n: marks, t: 9 } } };
     expect(preyShare(theirs, 'near')).toBeCloseTo(pick(DIST_GAP), 1);
   });
 
@@ -5810,7 +5863,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     const fb = SPELLS.fireball.damage[0] + ELEMENTS.ember.fx.dmgAdd[0];
     expect(hp0 - b.hp).toBeCloseTo(spec.damage[0] + fb, 3);
     // and malady's first sting planted its stack (two hits infect)
-    expect(b.stacks && b.stacks.malady && b.stacks.malady.p0).toBe(1);
+    expect(b.stacks && b.stacks.malady && b.stacks.malady.p0 && b.stacks.malady.p0.n).toBe(1);
   });
 
   it('a Shield reflects the stored balls but NEVER the mine\'s own damage', () => {
@@ -5925,7 +5978,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     run(state, 0.4);
     expect(b.hp).toBeLessThan(hp0);               // ground hit + the stored ball
     for (const el of ['midas', 'frost', 'malady'])
-      expect(b.stacks[el] && b.stacks[el].p0).toBe(1);
+      expect(b.stacks[el] && b.stacks[el].p0 && b.stacks[el].p0.n).toBe(1);
     expect(a.dmgDealt).toBeGreaterThan(0);        // the damage column is theirs
   });
 
@@ -6433,7 +6486,7 @@ describe('statue 🗿 (the golden pillar)', () => {
     run(state, 0.5);
     expect(a.poisonT).toBe(0);
     expect(a.malady).toBe(null);
-    expect((a.stacks.frost && a.stacks.frost.p1) || 0).toBe(0);
+    expect((a.stacks.frost && a.stacks.frost.p1 && a.stacks.frost.p1.n) || 0).toBe(0);
     // an infected body standing on top of it cannot pass the plague either
     b.malady = { inst: { level: 3, creator: 'p1', immune: { p1: 1 } }, by: 'p1' };
     b.poisonT = 5; b.poisonTick = 1; b.poisonBy = 'p1';

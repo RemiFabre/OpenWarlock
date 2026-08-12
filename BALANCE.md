@@ -349,6 +349,16 @@ softmax bots AND the venom/hourglass retunes. Re-run before quoting it.
   34.9% → 26.1% at TEMPERATURE 6 (the metric itself reads ~13% and is a feel
   gauge, not the verdict; see the softmax history file).
 
+## Round 22.4: stack fade (untabled)
+
+Remi's game-night call ("the new ice is too strong"): frost/gale/malady piles
+now lose 1 stack per 9 unfed seconds (`STACK_DECAY` in constants.js; reapply
+resets the clock; midas/anger exempt). Also fixed: a reflected ball used to
+plant stacks under the REFLECTOR's name, so shields fed your freeze counter
+with other players' frost (`pr.elemOwner` pins riders to the element's owner
+now). ⚠ Every stacking-element number above and the r249 ELO table predate the
+fade; re-run before quoting them for frost/gale/malady strategies.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*

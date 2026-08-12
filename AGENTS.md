@@ -185,6 +185,10 @@ build step, Node ESM, only dep is `ws`.
   aura r [5,7,9]; round 20.3, once-per-instance immunity, creator IMMUNE to
   their own instance (still catches other players');
   lethal tick credits creator/spreader), frost=stacks-to-CC,
+  ⚠ STACK FADE (22.4): frost/gale/malady piles lose 1 stack per unfed
+  `STACK_DECAY.seconds` (9), reapply resets; midas/anger never fade. A
+  REFLECTED ball's riders stay keyed to the element's owner (`pr.elemOwner`),
+  never the reflector (the game-night shared-ice bug),
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
   **[20,15,10] s**, a round 20 nerf; claim = +0.5 fireball dmg forever),
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th

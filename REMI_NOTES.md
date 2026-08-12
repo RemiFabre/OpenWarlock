@@ -1,7 +1,31 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Round 22.2, 2026-08-12 (your first-game feedback). Round 22.1 is archived at
+*Round 22.2 → 22.4, 2026-08-12 (your first-game feedback, then the shop/Tab
+pass, then the ice rework). Round 22.1 is archived at
 `docs/history/2026-08-12-remi-notes-round-22.1.md`.*
+
+## 22.4: the ice
+
+- **The shared-stacks bug was real, and it was the shield.** Stacks were
+  always private per attacker, but a reflected ball (Shield or Mirror Wall)
+  changed hands entirely, so its frost rider planted stacks under the
+  REFLECTOR's name. Reflect a frost player's balls and their element fed your
+  own freeze counter. Now a ball's riders stay keyed to whoever owns the
+  element (damage and kill credit still go to the reflector, per your
+  round-21.0 "reflect the ball as it was" ruling). Test-locked.
+- **Stack fade, exactly as you specced**: frost, gale and malady piles lose
+  one stack after 9 unfed seconds, the clock restarts after each loss, and
+  landing that element again resets it. Each attacker's pile fades on its own
+  clock. Midas marks and anger claims don't fade (different rhythms). The
+  knob is `STACK_DECAY` in constants.js if 9 s needs tuning after play.
+- ⚠ The old frost/gale/malady lab numbers and the ELO table predate the fade.
+
+## 22.3: shop fits one screen, scoreboard on Tab
+
+The top stats table is gone; hold **Tab** (shop, countdown or battle) for the
+live standings. The whole shop now fits with zero scrolling at normal window
+sizes. Level pips replace the grey "lv N" text, names hold one line
+(Hourglass and Health Amulet got shorter), tooltips no longer flicker.
 
 ## The invisible-purchase bug: found, and it was a good one
 
