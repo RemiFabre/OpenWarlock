@@ -57,11 +57,11 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **the 10 levels** — CAMPAIGN
 - **retuned 2026-08-07 (item-cap repair)** — MAX_LEVEL, levelFor, waveUnits, levelRoster
 
-## shared/snapdelta.js (83 lines)
+## shared/snapdelta.js (98 lines)
 
 - diff, patch, createSnapEncoder, createSnapDecoder
 
-## shared/snapwire.js (189 lines)
+## shared/snapwire.js (199 lines)
 
 - QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
 
@@ -90,7 +90,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - makeView, drawEngorged, draw
 - **fx** — drawBackdrop, drawWorldDone, drawBanners, drawRoundEndBanner, drawFx
 
-## client/transport.js (473 lines)
+## client/transport.js (504 lines)
 
 - createWsTransport, createInTabEngine, createLocalTransport, ensureEngine
 - **WebRTC hosting (docs/BRIEF-browser-hosting.md §B)** — SIGNAL_URL, signalUrl, roomCodeFromHash, createRtcHostTransport, ensureEngine, sendTo, dropPeer, onPeer, onSig, dialSignal, createRtcGuestTransport, dropped, wireCtrl, dial, onSig, selectTransport

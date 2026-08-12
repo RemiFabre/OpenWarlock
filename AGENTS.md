@@ -1,7 +1,8 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-12 (round 21.10). Read this first, then
-REMI_NOTES.md (latest round only) — that is the whole entry set.*
+*Last updated 2026-08-12 (round 21.11, branch `rtc-lag` — merge is Remi's call
+after tonight's session). Read this first, then REMI_NOTES.md (latest round
+only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
 
@@ -122,8 +123,8 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | the bulk of the 428 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
-| `test/snapwire.test.js` | 30 tests on the wire rules — a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, and a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss |
+| `test/sim.test.js` | the bulk of the 436 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/snapwire.test.js` | 38 tests on the wire rules — a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss, and echo keyframes (21.11) ride beside the delta |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`) — read it before grepping `sim.js` |
@@ -138,7 +139,8 @@ build step, Node ESM, only dep is `ws`.
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
-| `tools/slowlink.js` | **the netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). Answers "what does a player on a thin link actually get". ⚠ bandwidth only — no jitter, no loss, no RTC path |
+| `tools/slowlink.js` | **the ws netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). ⚠ bandwidth only — no jitter, no loss, no RTC path |
+| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link — per-guest bandwidth/RTT/bursty loss, shared host uplink, the spare cadence. Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
 | `BALANCE.md` | current balance truths + open questions + repro commands. Full reports: `docs/history/` |
 | `STRATEGIES.md` | bot tiers × builds chart, the 25-strategy ranking, how to read arena reports |
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
@@ -264,16 +266,19 @@ build step, Node ESM, only dep is `ws`.
   restores progress by normalized name within 10 min (e2e test-locked).
 - Per-player ping (round 18): a SECOND 2 s ws ping stream (timestamp payload)
   → `pings` beside snap → ms badge. NEVER fold its cadence into the reaper.
-- **"A friend lags late-game" is a wire question first** (round 21.10):
-  `/health` reports per-player `queued` / `behind` / `skipped`, and the ms badge
-  says the same from the client end. Repro with `tools/slowlink.js`.
+- **"A friend lags late-game" is a wire question first** (21.10/21.11):
+  `/health` reports per-player `queued` / `behind` / `skipped`; the ms badge
+  works on BOTH paths (RTC guests self-measure via getStats since 21.11), and
+  the RTC host journal logs a per-guest `wire` line. Repro: `tools/slowlink.js`
+  (ws, bandwidth) or `tools/rtclab.js` (RTC, loss/jitter/bandwidth). Root-cause
+  record: `docs/history/2026-08-12-rtc-lag-rootcause.md`.
 - Final standings wait for every human (45 s grace). After pulling: restart
   the server AND hard-refresh clients.
 
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 428 green
+npx vitest run                                   # 436 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
@@ -320,6 +325,9 @@ first that Remi isn't hosting a live game.**
 - A test that exercises rate-limited logic needs a VIRTUAL clock: 300 frames run
   inside one real millisecond, so a 500 ms limiter suppressed every recovery and
   the loss numbers read 3× worse than truth (hence `createSnapSink({now})`).
+- A big message on the reliable ordered channel sits IN FRONT of every small
+  fresh one — the two late-game RTC killers (spare blob, keyframe race) were
+  both "big blob ahead of the delta stream", not packet loss (round 21.11).
 - Stale server/browser after pulling ships mixed-version games; tunnel sockets
   die silently (hence the heartbeat); audio must start from a user gesture;
   emoji icons are load-bearing UI; voice transcriptions garble numbers —
