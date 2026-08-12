@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prepare a fresh clone to run the issue-agent session (docs/VERSIONING.md).
 #
-# Everything here is idempotent — run it again any time. It does NOT touch
+# Everything here is idempotent; run it again any time. It does NOT touch
 # credentials: the scoped GitHub token is the one thing that cannot live in the
 # repo, and the last section tells you what is still missing.
 #
@@ -20,7 +20,7 @@ if ! command -v node >/dev/null; then
 else
   major="$(node -p 'process.versions.node.split(".")[0]')"
   printf '   node %s, npm %s\n' "$(node -v)" "$(npm -v 2>/dev/null || echo '?')"
-  [ "$major" -ge 20 ] || warn "node $major is too old — 20+ (tests use modern ESM)"
+  [ "$major" -ge 20 ] || warn "node $major is too old; 20+ (tests use modern ESM)"
 fi
 
 step "dependencies"
@@ -45,7 +45,7 @@ branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" = "main" ]; then
   git pull --ff-only --quiet && printf '   main is up to date\n' || warn "main is not fast-forwardable"
 else
-  printf '   on branch %s (not main — resume it, or switch before taking new work)\n' "$branch"
+  printf '   on branch %s (not main; resume it, or switch before taking new work)\n' "$branch"
 fi
 
 step "github credential"
@@ -55,11 +55,11 @@ step "github credential"
 # switched over first: `source scripts/agent-env.sh` (reads GITHUB_TOKEN_WARLOCK
 # from ~/.bashrc, unsets the wide token for this terminal only).
 if ! command -v gh >/dev/null; then
-  warn "gh is not installed — the agent needs it to read and close issues"
+  warn "gh is not installed; the agent needs it to read and close issues"
 elif [ -z "${GITHUB_TOKEN_WARLOCK:-}" ]; then
-  warn "GITHUB_TOKEN_WARLOCK is not set — add 'export GITHUB_TOKEN_WARLOCK=github_pat_...' to ~/.bashrc"
+  warn "GITHUB_TOKEN_WARLOCK is not set; add 'export GITHUB_TOKEN_WARLOCK=github_pat_...' to ~/.bashrc"
 elif [ "${GH_TOKEN:-}" != "$GITHUB_TOKEN_WARLOCK" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
-  warn "this shell is not on the scoped token — run: source scripts/agent-env.sh"
+  warn "this shell is not on the scoped token; run: source scripts/agent-env.sh"
 elif gh auth status >/dev/null 2>&1; then
   gh auth status 2>&1 | sed 's/^/   /'
   if gh issue list --repo RemiFabre/OpenWarlock --state open --limit 1 >/dev/null 2>&1; then
@@ -68,7 +68,7 @@ elif gh auth status >/dev/null 2>&1; then
     warn "authenticated, but cannot list issues on RemiFabre/OpenWarlock"
   fi
 else
-  warn "gh rejected the scoped token — check its scopes/expiry on github.com"
+  warn "gh rejected the scoped token; check its scopes/expiry on github.com"
 fi
 
 step "self-check"

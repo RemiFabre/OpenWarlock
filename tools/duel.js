@@ -4,7 +4,7 @@
 // the sharper question Remi wanted (2026-08-08): two identical Hard bots,
 // 1v1, SAME gold budget spent down two different priority lists, fight to
 // the first death. Repeated over seeds and both seat orders. No round
-// economy, no comeback machinery — pure "is this kit worth its gold".
+// economy, no comeback machinery; pure "is this kit worth its gold".
 //
 // How to read the output (report rule: defined AT the table):
 //   win% = share of that pair's duels this archetype won; 50% = the two kits
@@ -13,7 +13,7 @@
 //   the kill. Baseline vs FIELD = mean win% across all its pairings.
 //
 // What this lab CANNOT see: multi-enemy dynamics (malady's contagion, gale
-// ring-outs into a crowd), round-to-round economy, and human dodging — bot
+// ring-outs into a crowd), round-to-round economy, and human dodging; bot
 // duels overprice raw dps and underprice aim/utility. Anger's claimed marks
 // are an INPUT here (stated per stage), not earned in the duel.
 //
@@ -45,7 +45,7 @@ export const ARCHETYPES = {
 };
 
 // Stage = total gold ever earned by that point, plus anger's claimed marks
-// (untuned guesses off the mark cadence — a lv3 hunter claims a few per round;
+// (untuned guesses off the mark cadence; a lv3 hunter claims a few per round;
 // bonus-equivalent to the old momentum stages: +1 / +4 / +9 dmg).
 export const STAGES = {
   early: { gold: 20, angerMarks: 2 },
@@ -98,7 +98,7 @@ const stages = stageArg ? [stageArg] : Object.keys(STAGES);
 
 for (const stage of stages) {
   const { gold, angerMarks } = STAGES[stage];
-  console.log(`\n=== ${stage.toUpperCase()} — both duelists spend the SAME ${gold} g down different lists` +
+  console.log(`\n=== ${stage.toUpperCase()}: both duelists spend the SAME ${gold} g down different lists` +
     ` (anger enters with ${angerMarks} claimed marks, stage guess) ===`);
   console.log('win% = share of decided duels won (50 = equal kits); vs FIELD = mean across pairings');
   const wins = {}, ttks = {}, draws = { n: 0, total: 0 };
@@ -133,6 +133,6 @@ for (const stage of stages) {
   console.log(''.padEnd(11) + names.map(n => n.slice(0, 6).padStart(7)).join(''));
   for (const n of names)
     console.log(n.padEnd(11) + names.map(o =>
-      o === n ? '      —' : `${(wins[n][o] * 100).toFixed(0).padStart(6)}%`).join(''));
+      o === n ? '      ·' : `${(wins[n][o] * 100).toFixed(0).padStart(6)}%`).join(''));
   if (draws.n) console.log(`draws (no kill in 90 s): ${draws.n}/${draws.total}`);
 }

@@ -1,14 +1,14 @@
 // Transports: how the client reaches an authoritative room.
 // One interface, picked once at startup (docs/BRIEF-browser-hosting.md §A3+§B):
-//   t.connect({ name, avatar })  — (re)dial and join; may be called again to reconnect
-//   t.send(obj)                  — one wire message up
-//   t.onMessage(cb)              — welcome / snap / denied come back here
-//   t.onClose(cb)                — the connection dropped (solo/host never close)
+//   t.connect({ name, avatar })  = (re)dial and join; may be called again to reconnect
+//   t.send(obj)                  = one wire message up
+//   t.onMessage(cb)              = welcome / snap / denied come back here
+//   t.onClose(cb)                = the connection dropped (solo/host never close)
 //
 //  - ws:       today's WebSocket to the Node server, moved verbatim from main.js.
-//  - solo:     a full engine living in this tab — same rules, same lobby, no server.
+//  - solo:     a full engine living in this tab; same rules, same lobby, no server.
 //  - rtc-host: the solo engine PLUS N guests over WebRTC data channels (phase B).
-//  - rtc:      guest side of the above — dials the host through the signalling relay.
+//  - rtc:      guest side of the above; dials the host through the signalling relay.
 
 import { createEngine } from '../shared/engine.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
@@ -61,9 +61,9 @@ export function createWsTransport() {
 // The clock lives here, not in the engine: same cadence as server/index.js.
 // It ticks from a WEB WORKER because hidden-tab throttling murders
 // main-thread timers (1 Hz at once, 1/min after 5 min) while worker timers
-// hold 30 Hz — measured 2026-08-09, tools/tabtest-run.js. Solo is usually a
+// hold 30 Hz (measured 2026-08-09, tools/tabtest-run.js). Solo is usually a
 // foreground tab, but alt-tabbing to Discord must not slow the round to a
-// crawl — and the phase-B host (whose tab IS everyone's server) leans on this
+// crawl, and the phase-B host (whose tab IS everyone's server) leans on this
 // same clock.
 function createInTabEngine(engineOpts) {
   const engine = createEngine({ seed: (Math.random() * 2 ** 31) | 0, ...engineOpts });
@@ -78,7 +78,7 @@ function createInTabEngine(engineOpts) {
     const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
     worker.onmessage = onTick;
   } catch {
-    setInterval(onTick, 1000 / TICK_RATE); // strict CSP etc. — solo still works
+    setInterval(onTick, 1000 / TICK_RATE); // strict CSP etc.; solo still works
   }
   window.__engine = engine; // test/debug hook (mirrors window.__fx et al.)
   return engine;
@@ -93,7 +93,7 @@ export function createLocalTransport() {
     if (engine) return;
     engine = createInTabEngine({
       // structuredClone both ways: the tab must never hand the client a live
-      // reference into authoritative state (or vice versa) — same isolation a
+      // reference into authoritative state (or vice versa); same isolation a
       // JSON wire gives the ws path, without the stringify cost.
       onSend: (connId, msg) => { if (connId === ID) handlers.msg(structuredClone(msg)); },
     });
@@ -116,12 +116,12 @@ export function createLocalTransport() {
 
 // ---- WebRTC hosting (docs/BRIEF-browser-hosting.md §B) ----------------------
 // A player's tab runs the engine and serves N friends over RTCDataChannels.
-// The signalling relay (server/signal.js) only brokers the introduction —
+// The signalling relay (server/signal.js) only brokers the introduction;
 // once connected, it can die mid-match with zero effect.
 
 // Where the signalling relay lives. Resolution order:
 //   1. ?signal=ws://... in the URL (tests, one-off relays)
-//   2. this constant — set it after deploying a relay (e.g. 'wss://signal.example.com')
+//   2. this constant; set it after deploying a relay (e.g. 'wss://signal.example.com')
 //   3. the page's own hostname on port 3001 (the local-dev default: `npm run signal`)
 // The deployed relay: HF Space (PRO), verified 2026-08-09 with a live
 // create/join/sig round-trip. Deploys via scripts/deploy-signal-hf.sh.
@@ -133,7 +133,7 @@ export function signalUrl() {
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:3001`;
 }
 
-// Public STUN only, no TURN — deliberate (§B2/§Why): desktop peers punch
+// Public STUN only, no TURN; deliberate (§B2/§Why): desktop peers punch
 // through fine, relay costs money+accounts, and the fallback for the rare
 // blocked pair is "let someone else host". Adding TURN later = one array entry.
 const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }] };
@@ -147,19 +147,19 @@ export function roomCodeFromHash() {
 
 // The host: the solo engine + a signalling room + one pair of data channels per
 // guest. ctrl = reliable/ordered (join, inputs, events, keyframes);
-// snap = unreliable/unordered (delta snapshots — a stale one is worthless, and
+// snap = unreliable/unordered (delta snapshots; a stale one is worthless, and
 // reliability there would head-of-line-block every fresh one behind it).
 export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} } = {}) {
   const handlers = { msg: () => {}, close: () => {} };
   const ID = 'p1';                // the host is a player, not a spectator
   const peers = new Map();        // connId -> peer record
   const byPeerId = new Map();     // signalling peer id -> peer record
-  const logBuf = [];              // in-memory journal — a tab has no filesystem,
+  const logBuf = [];              // in-memory journal; a tab has no filesystem,
                                   // so the debugging story is the ⬇ log button
   let engine = null;
   let sig = null;
   let code = null;                // survives signalling-relay restarts (re-registered)
-  let nextConn = 1;               // local conn ids; NEVER reuse signalling ids —
+  let nextConn = 1;               // local conn ids; NEVER reuse signalling ids:
                                   // those restart at g1 when the relay restarts
 
   const log = (k, data) => {
@@ -177,11 +177,11 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
     // The B4 hot spare (every guest holding a serialized room for host
     // migration) was DELETED in 21.11: migration isn't built, and the blob was
     // the single biggest late-game stream, drowning thin downlinks. The plan
-    // survives in docs/BRIEF-browser-hosting.md §B4 — re-add the spare WITH the
+    // survives in docs/BRIEF-browser-hosting.md §B4; re-add the spare WITH the
     // feature. history: docs/history/2026-08-12-rtc-lag-rootcause.md
     setInterval(() => {
       // one wire line per beat in the downloadable log: the RTC counterpart of
-      // the ws server's /health `wire[]` — behind/skipped per guest is THE
+      // the ws server's /health `wire[]`; behind/skipped per guest is THE
       // number to read when someone reports lag
       const joined = [...peers.values()].filter(p => p.joined);
       if (joined.length) log('wire', Object.fromEntries(joined.map(p => [p.connId, p.wire.stats()])));
@@ -203,7 +203,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
         //  - a cadence KEYFRAME -> ctrl, reliable, and since 21.11 it rides
         //    BESIDE the delta (f.key), not instead of it: a big keyframe
         //    arrives after the deltas that follow it, and a decoder that had
-        //    to wait for it threw those deltas away — the chain now never
+        //    to wait for it threw those deltas away; the chain now never
         //    routes through the slow channel. Forced keyframes (join, gap,
         //    phase change) still replace the delta and take ctrl.
         // history: docs/history/2026-08-12-rtc-lag-rootcause.md
@@ -290,13 +290,13 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
     if (sig && (sig.readyState === 0 || sig.readyState === 1)) return;
     let ws;
     try { ws = new WebSocket(signalUrl()); } catch (err) {
-      onError(`couldn't reach the signalling relay (${signalUrl()}) — friends can't join, but you can still play solo`);
+      onError(`couldn't reach the signalling relay (${signalUrl()}). Friends can't join, but you can still play solo`);
       return;
     }
     sig = ws;
     let opened = false;
     // re-register the SAME code after a relay restart, so the invite link
-    // keeps working — the relay is a weak dependency by design
+    // keeps working; the relay is a weak dependency by design
     ws.onopen = () => { opened = true; ws.send(JSON.stringify({ t: 'create', codeLength: ROOM_CODE_LENGTH, ...(code ? { code } : {}) })); };
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
@@ -306,7 +306,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       // 'gone' is signalling-level only; live RTC connections outlive it
     };
     ws.onclose = () => {
-      if (!opened) onError(`couldn't reach the signalling relay (${signalUrl()}) — friends can't join, but you can still play solo`);
+      if (!opened) onError(`couldn't reach the signalling relay (${signalUrl()}). Friends can't join, but you can still play solo`);
       setTimeout(dialSignal, 3000);
     };
     ws.onerror = () => { }; // close always follows
@@ -333,7 +333,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
 
 // The guest: reach the host through the relay, then talk pure WebRTC.
 // Reconnect story mirrors ws: any drop fires onClose once, main.js redials
-// via connect() — which builds a fresh peer connection through the relay
+// via connect(), which builds a fresh peer connection through the relay
 // (covers both a network blip and a B4 same-code re-host).
 export function createRtcGuestTransport(code) {
   const handlers = { msg: () => {}, close: () => {} };
@@ -350,7 +350,7 @@ export function createRtcGuestTransport(code) {
     { ack: (q) => up({ t: 'ack', q }) },
   );
 
-  // The guest measures its own link (21.11) — there was NO number for an RTC
+  // The guest measures its own link (21.11); there was NO number for an RTC
   // player's connection while the ws path had a ping badge. getStats() on a
   // data-only connection exposes RTT (no loss counter exists there); reported
   // over ctrl, fed to engine.setPing, rendered as the same ms badge.
@@ -405,7 +405,7 @@ export function createRtcGuestTransport(code) {
     // plain language on a dead end, not a hang (§B2)
     clearTimeout(dialTimer);
     dialTimer = setTimeout(() => {
-      if (down) dropped(new Error("couldn't reach the host — they may be offline, or the network blocks peer-to-peer; try again, or ask someone else to host"));
+      if (down) dropped(new Error("couldn't reach the host. They may be offline, or the network blocks peer-to-peer; try again, or ask someone else to host"));
     }, 20000);
     ws.onopen = () => ws.send(JSON.stringify({ t: 'join', code }));
     ws.onmessage = (ev) => {
@@ -415,7 +415,7 @@ export function createRtcGuestTransport(code) {
         handlers.msg({ t: 'denied', reason: m.reason || 'room not found' });
         return;
       }
-      if (m.t === 'hostgone') { dropped(new Error('the host closed their tab — the room is gone')); return; }
+      if (m.t === 'hostgone') { dropped(new Error('the host closed their tab. The room is gone')); return; }
       if (m.t !== 'sig' || !m.data) return;
       sigQ = sigQ.then(() => onSig(m.data)).catch(() => { });
     };
@@ -467,8 +467,8 @@ export function createRtcGuestTransport(code) {
 }
 
 // Which transport? Deterministic and testable:
-//   1. #r=CODE in the hash — this tab was invited to somebody's game (phase B).
-//   2. ?mode=solo / ?mode=server in the URL wins — tests use this.
+//   1. #r=CODE in the hash: this tab was invited to somebody's game (phase B).
+//   2. ?mode=solo / ?mode=server in the URL wins (tests use this).
 //   3. otherwise probe GET /health (~1 s): a live game server -> ws,
 //      anything else (static host, GitHub Pages, file://) -> solo.
 export async function selectTransport() {
@@ -489,6 +489,6 @@ export async function selectTransport() {
       const j = await res.json().catch(() => null);
       if (j && j.ok) return createWsTransport();
     }
-  } catch { /* no server — solo */ }
+  } catch { /* no server; solo */ }
   return createLocalTransport();
 }

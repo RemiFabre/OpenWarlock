@@ -1,4 +1,4 @@
-// Client robustness test — drives the real client in Chromium AND WebKit.
+// Client robustness test: drives the real client in Chromium AND WebKit.
 //
 // Per engine:
 //  (a) join with 3 bots, ready up, play 90+ s with active random casting;
@@ -108,11 +108,11 @@ async function runScenario(engineName, engine) {
     assertNoErrors('90s play');
     await assertHeartbeatTicking(page, 'after play');
     // A death always comes eventually (the arena shrinks to nothing), but short
-    // PLAY_MS smoke runs can end before the first one — wait instead of asserting.
+    // PLAY_MS smoke runs can end before the first one; wait instead of asserting.
     await page.waitForFunction(() => (window.__deaths || 0) >= 1, null, { timeout: 120_000 })
       .catch(() => { throw new Error('no death event was rendered'); });
     const deaths = await page.evaluate(() => window.__deaths || 0);
-    console.log(`  play OK — ${deaths} deaths rendered, heartbeat alive, no page errors`);
+    console.log(`  play OK: ${deaths} deaths rendered, heartbeat alive, no page errors`);
 
     // -- (b) kill the server mid-battle --------------------------------------
     // (if a bot already won the whole game, restart it and get back to battle)
@@ -120,7 +120,7 @@ async function runScenario(engineName, engine) {
       () => window.__phase === 'battle' || window.__phase === 'gameover',
       null, { timeout: 120_000 });
     if (await page.evaluate(() => window.__phase) === 'gameover') {
-      console.log('  game ended early — returning to lobby for round 2 of testing');
+      console.log('  game ended early; returning to lobby for round 2 of testing');
       await page.click('#againBtn');
       await page.waitForSelector('#lobby:not(.hidden)', { timeout: 8000 });
       await page.click('#readyBtn');
@@ -145,7 +145,7 @@ async function runScenario(engineName, engine) {
     await page.waitForSelector('#lobby:not(.hidden)', { timeout: 10_000 });
     await assertHeartbeatTicking(page, 'after reconnect');
     assertNoErrors('reconnect');
-    console.log('  reconnected — banner cleared, lobby reached, no page errors');
+    console.log('  reconnected: banner cleared, lobby reached, no page errors');
 
     console.log(`=== ${engineName} PASS ===`);
     return true;

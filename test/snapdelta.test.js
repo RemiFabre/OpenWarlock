@@ -1,7 +1,7 @@
-// shared/snapdelta.js — delta snapshots for the WebRTC host path
+// shared/snapdelta.js: delta snapshots for the WebRTC host path
 // (docs/BRIEF-browser-hosting.md §B3, verification 5: a client reconstructing
 // from full+deltas must match the host's authoritative snapshot EXACTLY, over a
-// full round — including packet loss and out-of-order delivery, since the snap
+// full round, including packet loss and out-of-order delivery, since the snap
 // data channel is unreliable+unordered by design).
 
 import { describe, it, expect } from 'vitest';

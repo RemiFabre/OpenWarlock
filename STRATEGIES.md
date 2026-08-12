@@ -1,12 +1,12 @@
-# Bot strategies — the chart
+# Bot strategies (the chart)
 
-*⚠ **STALE — do not quote the win-rate tables below.** Every number here
+*⚠ **STALE (do not quote the win-rate tables below).** Every number here
 predates round 17's haste rework and everything since, so the CDR rows measure
 the old *compounding* multipliers (haste sums now) and the mosquito rows
 measure the deleted arm/cash trap. **The current strategy ranking is the ELO
 tournament: `docs/history/2026-08-10-round21-elo.md`** (30 strategies × 8000
-games × 2 seeds at r219 — the standing baseline, at round-21 prices).
-The difficulty-tier descriptions below are still accurate — that half of the
+games × 2 seeds at r219, the standing baseline, at round-21 prices).
+The difficulty-tier descriptions below are still accurate. That half of the
 file is what to read.*
 
 *A bot is a **difficulty** (how it fights) × a **strategy** (what it buys).
@@ -16,24 +16,24 @@ seated. The same definitions drive the balance lab (`tools/arena.js`), so
 arena reports and live games measure the same thing. The in-game version of
 this chart is under "Bot difficulties & strategies explained" in the lobby.*
 
-## Difficulty — how the bot fights
+## Difficulty (how the bot fights)
 
 *Round 12: the tiers are **named**, not starred, and there are **four** of them.
-Each one is a `BOTS` entry in `shared/constants.js` — `brain` says which step
-function pilots it, `react`/`aimErr` are its numbers — so Normal is the Hard
+Each one is a `BOTS` entry in `shared/constants.js` (`brain` says which step
+function pilots it, `react`/`aimErr` are its numbers), so Normal is the Hard
 brain with a slower read and looser aim, not new AI.*
 
 | Tier | Name | How it plays |
 |---|---|---|
-| Easy | **Grunt** | Wanders the safe ring and fires at a **random bearing** — it does not aim at anybody at all. Never leaves a lightning mark. Cannon fodder, and the only instinct it keeps is not drowning. |
+| Easy | **Grunt** | Wanders the safe ring and fires at a **random bearing** (it does not aim at anybody at all). Never leaves a lightning mark. Cannon fodder, and the only instinct it keeps is not drowning. |
 | Normal | **Brawler** | The Hard brain with worse numbers: it decides every ~0.30–0.46 s (vs ~0.16–0.26 s) and carries a much bigger absolute aim error. It hunts you and trades, but it reads you slowly and sprays. Walks out of a lightning telegraph **35%** of the time. |
-| Hard | **Berserker** | Hunts wounded/isolated/rim-standing prey — since round 17 the pick is a **weighted draw**, not a lock-on, so four of them no longer pile onto one victim. Rushes in, never retreats (except from the lava's edge), aims from a slightly stale, human-ish (~0.2 s) picture of you. Dodges a lightning telegraph **50%** of the time — a committed coin flip per bolt (`boltDodge`, Remi's round-17 call). |
+| Hard | **Berserker** | Hunts wounded/isolated/rim-standing prey. Since round 17 the pick is a **weighted draw**, not a lock-on, so four of them no longer pile onto one victim. Rushes in, never retreats (except from the lava's edge), aims from a slightly stale, human-ish (~0.2 s) picture of you. Dodges a lightning telegraph **50%** of the time, a committed coin flip per bolt (`boltDodge`, Remi's round-17 call). |
 | Extreme | **Stalker** | Sidesteps incoming projectiles (or shields late ones), steps out of **85%** of lightning marks, leads its shots with a real intercept solve, drops its own lightning where you are ABOUT to be, teleports out of lava and point-blank pressure, kites harder when hurt. |
 
 Measured ladder (`tools/h2h.js`, 2 seats vs 2 seats, 400 games, bruiser, 50% =
 parity): Normal beats Easy **100%**, Hard beats Normal **99.5%**, Extreme beats
 Hard **100%**. Because Easy is pure chaos, every piloted tier crushes it, so the
-readable version is all four in ONE game (one seat each, 400 games) — average
+readable version is all four in ONE game (one seat each, 400 games): average
 place 3.92 / 2.82 / 2.26 / 1.00 and average kills 0.3 / 2.9 / 4.7 / 15.6 from
 Easy to Extreme. Extreme wins 100% of those games: it is a different animal.
 
@@ -42,7 +42,7 @@ layer in `shared/sim.js` → `pilotOwnedSpells`): a sniper-build grunt actually
 zaps, a boomer-build berserker actually throws. Native behavior always takes
 priority; the pilot layer only fires spells the kind logic doesn't use.
 
-## Strategy — what the bot buys
+## Strategy (what the bot buys)
 
 Each shop, the bot buys the **first affordable item on its list** it doesn't
 already own (then repeats until it can't afford anything). Reading a build =
@@ -57,10 +57,10 @@ reading its priorities: what it wants first is what the strategy is about.
 | **Rusher** | 💨 🔥 boots sword 🔥 💨 amulet cape | Rush to close, shove you off the platform, lifesteal to stay in the fight. |
 | **Boomer** | 🪃 🔥 boots 🪃 amulet 🪃 ring sword | Boomerang stacking: wide projectiles that hit on the way out **and** back. |
 
-(The arena additionally runs a **greedless** control that never buys anything
-— it exists only to calibrate the tables and is not offered in the lobby.)
+(The arena additionally runs a **greedless** control that never buys anything;
+it exists only to calibrate the tables and is not offered in the lobby.)
 
-## Player strategies — the round-16 study roster
+## Player strategies (the round-16 study roster)
 
 *Round 16 made elements the fireball's whole progression, and the strategy
 study (`node tools/strategy-study.js`; current findings in BALANCE.md, full round-16 report in `docs/history/2026-08-08-round15-16-balance-full.md`) ranks complete
@@ -69,11 +69,11 @@ an **exhaustive** ordered buy list: a core (its identity, below) plus a shared
 breadth tail over everything a bot can pilot, so there is always something to
 buy and no seat ever sits on dead gold. Final (wave-2) win rates, 25
 strategies in 4-seat mirrors, 10,000 games on Hard + 2,500 on Extreme,
-baseline 25% — the table is zero-sum, so read it as a ranking:*
+baseline 25%. The table is zero-sum, so read it as a ranking:*
 
 | strategy | Hard | Extreme | the idea |
 |---|---|---|---|
-| **midas-cdr** ⚠ | 86.2 | 95.2 | midas income funding the arcane×Hourglass CDR stack — **the one copyable auto-win; needs a ruling (BALANCE.md Finding 16A)** |
+| **midas-cdr** ⚠ | 86.2 | 95.2 | midas income funding the arcane×Hourglass CDR stack. **The one copyable auto-win; needs a ruling (BALANCE.md Finding 16A)** |
 | **mosquito-midas** ⚠ | 70.0 | 70.6 | gold machine: every cashed sting procs midas twice |
 | **double-cdr** | 49.1 | 30.5 | arcane (fireball CDR + lv3 kit refund) × Hourglass: a ~1.1 s fireball whose every hit hastens the lightning |
 | **venom-balanced** | 48.5 | 30.3 | venom alternated with amulet/sword every purchase |
@@ -90,7 +90,7 @@ baseline 25% — the table is zero-sum, so read it as a ranking:*
 | **frost-control** | 12.6 | 13.1 | frost to the lv3 freeze, lightning to punish it |
 | **vampire-brawler** | 10.6 | 7.9 | vampire + amulet + Blood Sword; wins long point-blank trades |
 | **ember-tank** | 8.0 | 11.9 | two cheap ember levels, then the full turtle |
-| **frost-gale** | 7.6 | 6.0 | gust them to the rim, freeze them there — the thematic combo, and it loses |
+| **frost-gale** | 7.6 | 6.0 | gust them to the rim, freeze them there (the thematic combo, and it loses) |
 | **all-cheap** | 5.7 | 38.7 | lv1-2 of every cheap element axis before anything expensive |
 | **ghost-sniper** | 4.9 | 19.6 | ghost speed into the lv3 passthrough, ember damage |
 | **tank-sustain** | 3.8 | 4.4 | amulet/ring/sword/treads before any element |
@@ -102,7 +102,7 @@ baseline 25% — the table is zero-sum, so read it as a ranking:*
 ### What each strategy opens with (first 8 buys, in order)
 
 *Remi's report rule: a strategy name means nothing undecoded. Each list below
-is the strategy's CORE — after it, every strategy walks the same shared
+is the strategy's CORE. After it, every strategy walks the same shared
 breadth tail (`EXHAUST_PASS` in `tools/strategy-study.js`: amulet, sword,
 boots, lightning, cape, treads, hourglass, then every element), so late-game
 contents converge and the measured difference is the OPENING. A repeated name
@@ -138,9 +138,9 @@ means "buy its next level". Regenerate this list with
 | vampire-cadence | vampire ×3 → arcane → hourglass, alternating to max |
 
 The headline reads: **the economy is the strongest axis** (all three midas
-builds at or above everything else — see BALANCE.md Finding 16A before
+builds at or above everything else; see BALANCE.md Finding 16A before
 copying midas-cdr into a lobby), **offense-first wins and defense-first
-collapses** (everyone owns the sustain items eventually — the losers bought
+collapses** (everyone owns the sustain items eventually; the losers bought
 them first), and **order is worth 25-35 points at equal contents**
 (`venom-dot` 22.9 → `venom-balanced` 48.5 by interleaving defense; the one
 exception is the CDR rush, which compounds with itself and hates
@@ -150,7 +150,7 @@ lifesteal reward bad ones.
 
 **Which strategy fits which difficulty**: see the build × tier mirror table in
 `docs/history/2026-08-08-round15-16-balance-full.md` §7 (1500 mirror games per tier). It used to be restated here, which
-meant every retune had to be typed into two files and the copies drifted — read
+meant every retune had to be typed into two files and the copies drifted. Read
 it there. (The pointer used to say "report #4"; that report is now in git history
 at `33b64ab:BALANCE.md` and the live table is the round-15 one.)
 
@@ -162,17 +162,17 @@ cooldown, so the lab over-rates the weapon and under-rates the skill in it.
 For the hardest fight, pick **boomer**; for a brawl, **berserker/bruiser**;
 for a war of attrition, **stalker/turtle**. Rusher and escape stay weak in
 bot hands (bots can't extract teleport/rush's reactive value the way a human
-can) — pick them for flavor, not challenge. Sniper on a berserker (6.4%) is
+can). Pick them for flavor, not challenge. Sniper on a berserker (6.4%) is
 a deliberate mismatch: a no-push mid-range finisher handed to the profile
 whose whole plan is to be in your face.
 
 ## How to read the arena reports
 
 Every table in `BALANCE.md` (and every `tools/arena.js` run) uses the same
-conventions — keep these in mind and the numbers stop being mysterious:
+conventions. Keep these in mind and the numbers stop being mysterious:
 
 - **Win rate**: fraction of its games this strategy finished **1st of 4**.
-  With 4 players the neutral baseline is **25%** — above 25% is strong,
+  With 4 players the neutral baseline is **25%**: above 25% is strong,
   below is weak. 30% ≈ mildly favored; 50% ≈ dominant; 5% ≈ a trap.
 - **Elo**: like chess ratings, computed from pairwise placements (finishing
   2nd still beats the two below you). Everyone starts at 1000; ±50 is a
@@ -182,18 +182,18 @@ conventions — keep these in mind and the numbers stop being mysterious:
 - **Mixed studies confound skill with shopping**: `stalker/anything` beats
   `grunt/anything` because piloting dwarfs purchases. To compare *builds*,
   read the **mirror** tables (`--mirror=stalker`: all seats the same
-  difficulty, only builds differ) — that isolates the shopping question.
+  difficulty, only builds differ). That isolates the shopping question.
 - **lava kill share**: fraction of deaths where the victim died in lava.
   Knockback into lava IS the game, but the share has fallen every single round:
   ~86% originally, ~68% after round 8/9, ~47% after round 10, ~38% after round
-  11, and **30.0% now** (round 15) — softer knockback plus 2× swim speed make the
+  11, and **30.0% now** (round 15). Softer knockback plus 2× swim speed make the
   lava escapable. It also depends heavily on who is playing: 20.9% in a Hard
   mirror, 45.2% in an Extreme one. Remi has still never ruled on the right value
-  (BALANCE.md open question C) — treat big moves as a signal, not a bug.
+  (BALANCE.md open question C). Treat big moves as a signal, not a bug.
 - **comeback rate**: fraction of games the winner was at some point ≥4
-  kills behind — a health check that games aren't decided in round 3.
+  kills behind (a health check that games aren't decided in round 3).
 
 *Report-writing rule (2026-08-03, from Remi): any future balance report must
 explain its metrics before using them, spell out the baseline (25% for 4
-players), and describe each strategy in build+playstyle terms — link here
+players), and describe each strategy in build+playstyle terms. Link here
 instead of assuming the reader remembers the codenames.*

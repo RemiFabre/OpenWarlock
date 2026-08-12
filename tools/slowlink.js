@@ -1,4 +1,4 @@
-// tools/slowlink.js — what a player on a thin link actually experiences.
+// tools/slowlink.js: what a player on a thin link actually experiences.
 //
 // The round-21.9 bug this was built for: one remote friend got progressively
 // jerkier as the rounds went on while another was fine. The snapshot stream
@@ -46,7 +46,7 @@ const CONFIGS = [
 
 // One client. `rateKBs` null = drain as fast as the socket delivers.
 // ⚠ The throttle counts TCP bytes (`_socket.bytesRead`), not decompressed
-// message bytes — throttling the latter would hide permessage-deflate entirely,
+// message bytes; throttling the latter would hide permessage-deflate entirely,
 // which is one of the four things this lab exists to compare. Leaky bucket at
 // 10 Hz: a tick that overruns its allowance carries the debt into the next one,
 // so the average really is `rateKBs`.
@@ -166,7 +166,7 @@ for (const cfg of CONFIGS) {
   rows.push(await run(cfg));
 }
 
-console.log(`\ntools/slowlink.js — ${SEATS + 1} seats, one of them throttled to ${RATE_KBS} KB/s,`);
+console.log(`\ntools/slowlink.js: ${SEATS + 1} seats, one of them throttled to ${RATE_KBS} KB/s,`);
 console.log(`${SECONDS}s per configuration, every seat spamming Stone Pillars (same cast order each run).`);
 console.log('\nEach row is ONE wire configuration. Columns:');
 console.log('  pillars   = on the map when the run ended (the payload driver)');
@@ -174,7 +174,7 @@ console.log(`  full seat = TCP KB/s down and applied snapshots/s for an UNTHROTT
 console.log(`              (${SNAPSHOT_RATE} Hz is the send rate, so ~${SNAPSHOT_RATE} Hz = keeping up)`);
 console.log(`  thin seat = the same two numbers for the ${RATE_KBS} KB/s seat`);
 console.log('  behind    = how far behind the live game its newest state was, avg / worst, in seconds');
-console.log('              — this is the number the player feels as jerkiness.');
+console.log('              (this is the number the player feels as jerkiness)');
 console.log('              "never" = it received no battle state at all, which is worse than any number');
 console.log('  skipped   = snapshots the server dropped for it on purpose rather than queueing\n');
 console.log('configuration                       pillars   full seat          thin seat          behind (avg/worst)  skipped');
@@ -188,6 +188,6 @@ for (const r of rows)
     String(r.skipped).padStart(8),
   );
 console.log('\n⚠ What this cannot see: it is one machine, so the only impairment is');
-console.log('  bandwidth — no jitter, no packet loss, and no WebRTC path (that one is');
+console.log('  bandwidth; no jitter, no packet loss, and no WebRTC path (that one is');
 console.log('  unreliable+unordered and fails differently). Absolute KB/s scales with the');
 console.log('  pillar count reached, so compare rows, not runs.');

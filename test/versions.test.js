@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 // The manifest IS the allowlist, so its shape and the rule that picks between
 // two copies of it are worth locking. version-sw.js is a service worker (it
 // touches `self`), so the pure helper is lifted out of the source text rather
-// than imported — which also means this test fails if the helper is renamed
+// than imported, which also means this test fails if the helper is renamed
 // away, instead of quietly testing nothing.
 const swSource = readFileSync(new URL('../version-sw.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(readFileSync(new URL('../versions.json', import.meta.url), 'utf8'));
@@ -42,7 +42,7 @@ describe('version manifest', () => {
   });
 
   // The reason `serial` exists: two CDN copies, each of which can be stale.
-  // "Higher serial wins" has to work in BOTH directions or it is a bug —
+  // "Higher serial wins" has to work in BOTH directions or it is a bug;
   // publishing fast while revoking slowly is exactly what it must not do.
   it('the fresher copy wins, whichever direction it moved', () => {
     const readManifest = loadHelper();

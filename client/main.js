@@ -25,24 +25,24 @@ view.resize();
 window.addEventListener('resize', () => view.resize());
 
 // ⚠ Every value here is injected as HTML (shop cards, spell bar, tooltips,
-// draft banner, kit strip) — never as textContent — which is what lets an icon
+// draft banner, kit strip), never as textContent, which is what lets an icon
 // carry a wrapper span. Keep it that way if you add a call site.
 const ICONS = {
   fireball: '🔥', lightning: '⚡', boomerang: '🪃',
   // Round 21.7 (Remi): the Stone Pillar has its 🗿 back, and NOPE (SPELLS.statue)
-  // wears the SAME moai tinted gold (.goldicon in index.html) — "a normal pillar
+  // wears the SAME moai tinted gold (.goldicon in index.html); "a normal pillar
   // icon and a gold one". Revert = drop the span / restore 🏛️.
   teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
   statue: '<span class="goldicon">🗿</span>',
-  // Decoy (round 21.6): the two silhouettes — "there are more of me than there
+  // Decoy (round 21.6): the two silhouettes; "there are more of me than there
   // should be". 👤/👥 were both free.
   decoy: '👥',
   meteor: '☄️', nova: '💣', swap: '🎭', repulse: '💥', wall: '🪞',
-  // Fire Walk (round 22): footprints, NOT 🥾 — that boot is already Lava Treads
+  // Fire Walk (round 22): footprints, NOT 🥾; that boot is already Lava Treads
   firewalk: '👣',
   boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣', sword: '🗡️',
   // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember.
-  // Slow Spoon (21.8): Remi's joke — the slowest murder in history.
+  // Slow Spoon (21.8): Remi's joke, the slowest murder in history.
   hourglass: '⏳', brazier: '🎩', spoon: '🥄',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
@@ -50,7 +50,7 @@ const ICONS = {
 // Defaults per Remi 2026-08-03: blink (teleport) on F, dash (rush) on E,
 // boomerang moves to R. Saved custom bindings in localStorage still win.
 // ⚠ THIS is the source of truth for hotkeys, not SPELLS[key].hotkey (which is
-// vestigial — its only other use is being excluded from tooltips). Every spell in
+// vestigial; its only other use is being excluded from tooltips). Every spell in
 // SPELLS needs an entry in BOTH presets: refreshKeyUi() walks Object.keys(SPELLS)
 // and calls keyLabel() on the binding, so a missing one throws on load and the
 // client comes up blank. Add the spell here in the same commit you add it there.
@@ -70,7 +70,7 @@ const KEY_PRESETS = {
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
 // spell. He plays AZERTY, so his saved bindings had fireball on `a` and
 // lightning on `z`; Statue and Decoy shipped later with the QWERTY defaults
-// `a`/`z`, and spellForKey() returns the FIRST match — so Statue never fired
+// `a`/`z`, and spellForKey() returns the FIRST match, so Statue never fired
 // (fireball ate the key) and Decoy did literally nothing. Load now resolves
 // every collision: your SAVED keys win, then a defaulted spell takes the first
 // free key from [its qwerty default, its azerty default, a-z, 0-9].
@@ -79,7 +79,7 @@ function loadKeys() {
   const b = { ...KEY_PRESETS.qwerty };
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('owKeys') || '{}') || {}; }
-  catch { /* corrupt storage — fall back to defaults */ }
+  catch { /* corrupt storage; fall back to defaults */ }
   const spells = Object.keys(b);
   const savedKey = (s) => (typeof saved[s] === 'string' && saved[s]) ? saved[s].toLowerCase() : null;
   const out = {};
@@ -105,7 +105,7 @@ function spellForKey(k) {
 const KEY_LABELS = { ' ': 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←',
   arrowright: '→', enter: '⏎', tab: '⇥', backspace: '⌫' };
 function keyLabel(k) {
-  if (!k) return '—';
+  if (!k) return '·';
   return KEY_LABELS[k] || (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1));
 }
 
@@ -172,7 +172,7 @@ function wireTransport(t) {
   t.onMessage(onMessage);
   t.onClose((err) => {
     if (err) reportError('socket', err);
-    setConnBanner('Connection lost — reconnecting…');
+    setConnBanner('Connection lost. Reconnecting…');
     scheduleReconnect();
   });
 }
@@ -180,7 +180,7 @@ function wireTransport(t) {
 const transportP = selectTransport().then((t) => {
   wireTransport(t);
   // anonymous visit counter, once per page load, tagged with the picked
-  // transport (client/analytics.js — counts only, never affects play)
+  // transport (client/analytics.js; counts only, never affects play)
   sendEvent('visit', { mode: modeName(t.kind) });
   // the Play button's label is HONEST about what the probed transport will do
   // (Remi, round 19.4: one big "Enter" hid the choice that was being made)
@@ -196,7 +196,7 @@ const transportP = selectTransport().then((t) => {
     // no extra step vs before
     $('joinBtn').textContent = '⚔ Join game';
     const el = $('netMode');
-    el.textContent = `🔗 Invited to room ${t.code} — you'll join the host's game, peer-to-peer.`;
+    el.textContent = `🔗 Invited to room ${t.code}. You'll join the host's game, peer-to-peer.`;
     el.classList.remove('hidden');
     $('hostBtn').classList.add('hidden'); // you can't host while joining someone
   }
@@ -235,9 +235,9 @@ function onMessage(m) {
     trackSnapshot(m.s, myId, transport && transport.kind); // anonymous game_start/_end beacons
   } else if (m.t === 'denied') {
     toast(m.reason);
-    // kicked, banned, or the RTC room is gone ("no such room" — the host
+    // kicked, banned, or the RTC room is gone ("no such room"; the host
     // closed their tab): stop the auto-reconnect loop and show the join
-    // screen again — otherwise this tab would hammer the server forever
+    // screen again; otherwise this tab would hammer the server forever
     if (/kicked|banned|room/.test(String(m.reason || ''))) {
       joinedName = null;
       clearTimeout(reconnectTimer); reconnectTimer = null;
@@ -293,16 +293,16 @@ function onEvent(e) {
   try { chatter.onEvent(e, chatterPlayers, now); } catch { /* never break the fx */ }
   switch (e.t) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
-    // lightning sky-bolt landing (round 17 — the hitscan 'beam' died with it)
+    // lightning sky-bolt landing (round 17; the hitscan 'beam' died with it)
     case 'boltHit': fx.push({ ...e, type: 'boltHit', at: now, dur: 0.45 }); playSfx('zap'); break;
     // DoT ticks are exempt from the ≥1 filter (malady ticks flat 1 today, but
-    // an invisible tick reads as a broken element — the mosquito scar)
+    // an invisible tick reads as a broken element; the mosquito scar)
     case 'hit': if (e.amount >= 1 || e.poison) pushFloater(e, 'hit', 0.8, now); break;
     case 'death':
       fx.push({ ...e, type: 'death', at: now, dur: 1.6 });
       playSfx('death');
       if (e.killer && myId && e.killer === myId) {
-        // that was YOUR kill — celebrate it
+        // that was YOUR kill; celebrate it
         fx.push({ ...e, type: 'kill', at: now, dur: 1.4 });
         playSfx('kill');
       }
@@ -324,13 +324,13 @@ function onEvent(e) {
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
     // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
-    // charge is a soft click, the spring is a boom — and every stored ball
+    // charge is a soft click, the spring is a boom, and every stored ball
     // erupting is its own whoosh, so a loaded trap SOUNDS like the payoff.
     case 'mineUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.35 }); if (e.id === myId) playSfx('buy'); break;
     case 'mineCharge': fx.push({ ...e, type: 'grow', at: now, dur: 0.3 }); if (e.id === myId) playSfx('catch'); break;
     case 'mineHit': fx.push({ ...e, type: 'mineHit', at: now, dur: 0.5 }); playSfx('boom'); break;
     case 'mineShot': playSfx('whoosh'); break;
-    // swap: one flash at EACH end of the trade, plus its own crossing sound —
+    // swap: one flash at EACH end of the trade, plus its own crossing sound;
     // "we traded places" must read instantly on both screens
     case 'swapped':
       fx.push({ x: e.x, y: e.y, type: 'teleport', at: now, dur: 0.45 });
@@ -344,7 +344,7 @@ function onEvent(e) {
       playSfx('teleport');
       break;
     // the blast ring is drawn at the event's OWN radius `e.r` (round 21.0):
-    // brief and punchy, 0.4 s. A vanished caster's repulse never gets here —
+    // brief and punchy, 0.4 s. A vanished caster's repulse never gets here;
     // viewEvents drops it, and that stays the design.
     case 'repulse': fx.push({ ...e, type: 'repulse', at: now, dur: 0.4 }); playSfx('boom'); break;
     case 'pillarUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('buy'); break;
@@ -353,13 +353,13 @@ function onEvent(e) {
     // ordinary players (see interpolated()), so these only punctuate.
     case 'decoyUp': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('teleport'); break;
     case 'decoyGone': fx.push({ ...e, type: 'teleport', at: now, dur: 0.3 }); break;
-    // Statue (round 21.4): a short transform pop at each end of the freeze —
+    // Statue (round 21.4): a short transform pop at each end of the freeze;
     // the body itself is drawn as a gold column for the whole duration
     // (render.js), these two just punctuate it: a bell going up (round 21.7,
     // Remi asked for a "ding"), a softer snap coming down.
     case 'statueUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('ding'); break;
     case 'statueDown': fx.push({ ...e, type: 'grow', at: now, dur: 0.4 }); playSfx('catch'); break;
-    // terra lv3 Demolisher: the pillar shatters — rubble that settles and fades
+    // terra lv3 Demolisher: the pillar shatters; rubble that settles and fades
     case 'pillarBroken': fx.push({ ...e, type: 'rubble', at: now, dur: 1.6 }); playSfx('boom'); break;
     case 'wallUp': fx.push({ ...e, type: 'reflect', at: now, dur: 0.5 }); playSfx('reflect'); break;
     case 'multikill': {
@@ -371,25 +371,25 @@ function onEvent(e) {
       break;
     }
     case 'frost': pushFloater(e, 'frost', 0.7, now); break;
-    // midas: the mark planted (quiet — the cash's +1 g popup is the loud half)
+    // midas: the mark planted (quiet; the cash's +1 g popup is the loud half)
     case 'midasMark': fx.push({ ...e, type: 'midasMark', at: now, dur: 0.5 }); break;
-    // gale: a gust stacked. Silent on purpose — it fires on every gale hit, and
+    // gale: a gust stacked. Silent on purpose; it fires on every gale hit, and
     // a sound on each one would drown the burst it is counting down to.
     case 'gale': pushFloater(e, 'gale', 0.7, now); break;
-    // anger: a red mark just got claimed — small red burst on the victim, and
+    // anger: a red mark just got claimed; small red burst on the victim, and
     // the claimant hears anger's OWN sound (round 21.7: it used to borrow the
     // kill jingle, which is why banking a stack never felt like an event)
     case 'angerClaim':
       fx.push({ ...e, type: 'angerClaim', at: now, dur: 0.6 });
       if (e.by === myId) playSfx('anger'); // round 21.7: its own low "ouu" (sfx.js)
       break;
-    // malady: somebody just caught the plague — one-shot burst + a sound cue
+    // malady: somebody just caught the plague; one-shot burst + a sound cue
     // (the drain slurp reused: sick and wet, and no new audio assets)
     case 'infected':
       fx.push({ ...e, type: 'infected', at: now, dur: 0.7 });
       playSfx('drain');
       break;
-    // vampire: the engorged ball just paid out. Loud on purpose — this element's
+    // vampire: the engorged ball just paid out. Loud on purpose; this element's
     // whole design goal is "an EVENT, not a passive trickle"
     case 'lifesteal':
       pushFloater(e, 'lifesteal', 1.1, now);
@@ -402,7 +402,7 @@ function onEvent(e) {
       break;
     // Vanish: the server only ever sends this to the player who cast it
     // (viewEvents strips events anchored on a hidden player), so this fx and its
-    // sound are self-only by construction — do NOT add a fallback that draws it
+    // sound are self-only by construction; do NOT add a fallback that draws it
     // for everyone, that is the leak the whole feature is about.
     case 'vanish':
       fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 });
@@ -456,7 +456,7 @@ function phaseMusic(s) {
   if (s.phase === musicPhase) return;
   musicPhase = s.phase;
   // co-op keys the level off the CAMPAIGN level, not the round (a wipe costs
-  // a round but not a level) — see client/coop.js
+  // a round but not a level); see client/coop.js
   if (s.phase === 'countdown' || s.phase === 'lobby' || s.phase === 'gameover')
     applyLevelMusic(s);
 }
@@ -469,7 +469,7 @@ const BASE_DELAY = 1000 / SNAPSHOT_RATE * 1.6 + 25;
 const MAX_DELAY = 600;     // past this, lag is worse than the stutter it hides
 // ...but the interval is not a constant any more: the server SKIPS states for a
 // link that is falling behind (shared/snapwire.js), so a struggling player gets
-// fewer, complete updates. The delay follows the gap it actually observes —
+// fewer, complete updates. The delay follows the gap it actually observes:
 // peak-hold with a slow decay, so one hiccup widens it and a recovered link
 // tightens it back. Without this, sparse snapshots read as freeze-then-jump;
 // with it, the same motion is simply sampled more coarsely.
@@ -505,14 +505,14 @@ function interpolated(now) {
     const pa = aPlayers[id];
     // `fin(pb.x)` is load-bearing for Vanish: an invisible player's snapshot
     // carries NO position, and lerp falls back to the older value when the newer
-    // one is missing — which would leave their last known body frozen on screen
+    // one is missing, which would leave their last known body frozen on screen
     // for the whole duration. No position in, nothing interpolated, nothing drawn.
     players.push(pa && pa.alive && pb.alive && fin(pb.x) && fin(pb.y)
       ? { ...pb, x: lerp(pa.x, pb.x, k), y: lerp(pa.y, pb.y, k) }
       : pb);
   }
   // Decoy (round 21.6): the mirages arrive in their own snapshot list and
-  // become player-shaped HERE and nowhere else — every HUD (scoreboard, kill
+  // become player-shaped HERE and nowhere else; every HUD (scoreboard, kill
   // feed, team banding, ranking) reads `s.players`, which never holds one.
   // The look is COPIED LIVE off the caster's own entry, so a clone is identical
   // by construction: colour, avatar, name, team ring, brazier aura, shield
@@ -557,7 +557,7 @@ function interpolated(now) {
     phaseT,
     round: s.round,
     arenaRadius: fin(arenaRadius) ? arenaRadius : ARENA.START_RADIUS,
-    // this game's un-shrunk arena — off the wire since round 21.2 (it scales
+    // this game's un-shrunk arena, off the wire since round 21.2 (it scales
     // with the seat count); older hosts don't send it, hence the fallback
     startRadius: fin(+s.startRadius) ? +s.startRadius : ARENA.START_RADIUS,
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
@@ -579,7 +579,7 @@ function toWorld(px, py) {
 }
 
 // Round 21.7 (Remi): right-click is a GAME button, so the browser menu is off
-// on the whole page — it used to pop over every overlay and background (lobby,
+// on the whole page; it used to pop over every overlay and background (lobby,
 // the dead-and-waiting screen), and a misclick on "Reload" ended his game.
 // Text inputs keep their menu (copy/paste on the name and room-code fields).
 document.addEventListener('contextmenu', (e) => {
@@ -653,18 +653,18 @@ function showHostbar(code) {
   $('lobbyInviteUrl').textContent = inviteLink(code);
   $('hostbar').classList.remove('hidden');
   $('lobbyHost').classList.remove('hidden');
-  toast('your online room is open — send friends the invite link');
+  toast('your online room is open. Send friends the invite link');
 }
 async function copyInviteLink() {
   if (!hostCode) return;
   const link = inviteLink(hostCode);
-  try { await navigator.clipboard.writeText(link); toast('invite link copied — send it to your friends'); }
+  try { await navigator.clipboard.writeText(link); toast('invite link copied. Send it to your friends'); }
   catch { prompt('Copy this invite link:', link); } // clipboard needs https/localhost
 }
 $('copyLinkBtn').addEventListener('click', copyInviteLink);
 $('copyLobbyLinkBtn').addEventListener('click', copyInviteLink);
 // the host tab has no filesystem, so the journal lives in memory (capped) and
-// leaves through this button — do not lose the debugging story silently (§B5)
+// leaves through this button; do not lose the debugging story silently (§B5)
 $('hostLogBtn').addEventListener('click', () => {
   if (!transport || !transport.journal) return;
   const lines = transport.journal().map((x) => JSON.stringify(x)).join('\n');
@@ -718,13 +718,13 @@ $('avatarBtn').addEventListener('click', () => {
 });
 $('avatarCloseBtn').addEventListener('click', () => $('avatarPanel').classList.add('hidden'));
 
-// The gold rules, spelled out — no hidden income.
+// The gold rules, spelled out (no hidden income).
 const goldRules =
   `Gold: +${GOLD.ROUND_BASE} g every round · +${GOLD.PER_KILL} g per kill · ` +
   `+${GOLD.ROUND_WIN} g for winning the round · +${GOLD.FIRST_DEATH} g if you die first · ` +
   `bounty up to +${GOLD.BOUNTY_MAX} g for slaying someone ahead of you.`;
 $('ver').textContent = VERSION; // bottom-left build stamp; red on mismatch
-// 📊 public usage counters (Remi: "visible from the game directly") — fetched
+// 📊 public usage counters (Remi: "visible from the game directly"), fetched
 // live from the relay's /stats on click, shown to everyone.
 $('statsBtn').addEventListener('click', async () => {
   $('statsOverlay').classList.remove('hidden');
@@ -752,7 +752,7 @@ $('ideaOverlay').addEventListener('click', (e) => {
   if (e.target === $('ideaOverlay')) $('ideaOverlay').classList.add('hidden');
 });
 // Update watcher (Remi: "do I have to wait 12 minutes?"): GitHub Pages caches
-// for 10 min, but a unique query string bypasses the CDN — so we can KNOW a
+// for 10 min, but a unique query string bypasses the CDN, so we can KNOW a
 // newer build exists even while we're still serving the old one. Check every
 // minute; on mismatch the corner stamp becomes a visible refresh prompt.
 setInterval(async () => {
@@ -763,7 +763,7 @@ setInterval(async () => {
       $('ver').textContent = `${VERSION} → ${m[1]} available: refresh`;
       $('ver').classList.add('bad');
     }
-  } catch { /* offline or file:// — the stamp just stays quiet */ }
+  } catch { /* offline or file://; the stamp just stays quiet */ }
 }, 60_000);
 // teams (round 21.3): one sentence, because the selector on your row is the
 // only place the feature is discoverable and "same number = allies" is the rule
@@ -771,10 +771,10 @@ $('lobbyFormat').textContent = `First to ${ROUND.KILLS_TO_WIN} kills wins.`;
 $('shopIncome').textContent = goldRules;
 // the long-form rules live behind the 📜 Rules fold (round 22 declutter)
 $('lobbyRulesBody').innerHTML = [
-  `Pick the same team number as a friend and you fight as one — your spells ` +
+  `Pick the same team number as a friend and you fight as one: your spells ` +
   `pass through each other, and a team of N races to ${ROUND.KILLS_TO_WIN} × N kills.`,
   goldRules,
-  `You start with ${GOLD.START} gold — the shop opens after round 1. ` +
+  `You start with ${GOLD.START} gold. The shop opens after round 1. ` +
   'Hover anything in the shop for its full per-level numbers.',
 ].map((t) => `<p>${esc(t)}</p>`).join('');
 
@@ -841,7 +841,7 @@ $('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remov
 // Round 21.7 (Remi): "any key just works". Esc or a click outside cancels;
 // ANY other key takes the binding, and if that key was another spell's, the two
 // SWAP and a toast says so. No key is ever defended (the round-20 owned-spell
-// veto is gone — it made the popup refuse and say nothing useful).
+// veto is gone; it made the popup refuse and say nothing useful).
 const MODIFIER_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
 function bindKey(spell, k) {
   if (!spell || !k || keyBindings[spell] === k) return;
@@ -944,7 +944,7 @@ function setShopPreview(on) {
   $('shopGold').textContent = '';
   $('shopTimer').textContent = '';
   $('shopStats').innerHTML = '';
-  $('shopSub').textContent = 'Browsing the shelves — buying happens between rounds.';
+  $('shopSub').textContent = 'Browsing the shelves. Buying happens between rounds.';
   setVisible('shopGrid', true);
   setVisible('shopReadyBtn', false);
   setVisible('shop', true);
@@ -968,7 +968,7 @@ $('specFoldBtn').addEventListener('click', () => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = '★';
-    b.title = 'Rate this version — the average shows in the version list';
+    b.title = 'Rate this version (the average shows in the version list)';
     b.addEventListener('click', () => {
       const all = saved();
       const prev = all[slug] || null;
@@ -976,7 +976,7 @@ $('specFoldBtn').addEventListener('click', () => {
       try { localStorage.owRatings = JSON.stringify(all); } catch { }
       analytics.rateVersion?.(slug, i, prev);
       paint(i);
-      toast(prev ? 'rating updated — thanks' : 'thanks for rating ★');
+      toast(prev ? 'rating updated, thanks' : 'thanks for rating ★');
     });
     box.appendChild(b);
   }
@@ -1042,7 +1042,7 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
   $('botHelpBody').innerHTML = `
     <p><b>Difficulty</b> is how the bot fights:</p>
     <table class="helptable">${rowsKinds}</table>
-    <p><b>Strategy</b> is what it buys — each shop it grabs the first thing on its list it can afford:</p>
+    <p><b>Strategy</b> is what it buys. Each shop it grabs the first thing on its list it can afford:</p>
     <table class="helptable">${rowsBuilds}</table>
     <p>🎲 random rolls one of the six strategies when the bot is added.</p>`;
 }
@@ -1052,7 +1052,7 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
   const btn = $('muteBtn');
   const paint = () => { btn.textContent = isMuted() ? '🔇' : '🔊'; };
   btn.addEventListener('click', () => {
-    initSfx(); // a gesture too — lets sound start here if join predates audio
+    initSfx(); // a gesture too; lets sound start here if join predates audio
     setMuted(!isMuted());
     paint();
   });
@@ -1067,7 +1067,7 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
     btn.title = isMusicMuted() ? 'Music off' : 'Music on';
   };
   btn.addEventListener('click', () => {
-    initMusic(); // a gesture too — lets the soundtrack start here
+    initMusic(); // a gesture too; lets the soundtrack start here
     setMusicMuted(!isMusicMuted());
     paint();
   });
@@ -1085,7 +1085,7 @@ function toast(msg) {
 // ---- shop numbers -------------------------------------------------------------
 // EVERY number the shop shows is read out of shared/constants.js at runtime.
 // The balance pass that changes SPELLS/ELEMENTS/ITEMS/ITEM_FX changes the UI in
-// the same commit — a hardcoded tooltip would be a lie within a week.
+// the same commit; a hardcoded tooltip would be a lie within a week.
 
 function fmtNum(v) {
   if (v === Infinity) return '∞';
@@ -1093,12 +1093,12 @@ function fmtNum(v) {
   if (!fin(+v)) return String(v);
   return String(Math.round(+v * 100) / 100);
 }
-const fmtSec = (v) => (+v ? `${fmtNum(v)} s` : '—');
+const fmtSec = (v) => (+v ? `${fmtNum(v)} s` : '·');
 // Multipliers read as the change they make: 0.85 is "−15%", 1 is "no effect".
 function fmtMult(v) {
   const n = +v;
   if (!fin(n)) return String(v);
-  if (Math.abs(n - 1) < 1e-9) return '—';
+  if (Math.abs(n - 1) < 1e-9) return '·';
   const d = Math.round((n - 1) * 1000) / 10;
   return `${d > 0 ? '+' : '−'}${fmtNum(Math.abs(d))}%`;
 }
@@ -1126,13 +1126,13 @@ const SPELL_FIELDS = {
   ballDelay: ['stored balls fire', (v) => `${fmtSec(v)} apart`],
 };
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
-// sim evaluates at resolution ({pad, min}) — spellTip prints the two readings a
+// sim evaluates at resolution ({pad, min}); spellTip prints the two readings a
 // player can act on instead (round 20.5).
 const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun']);
-// element fx whose array is NOT per-level (tierHits columns are tiers) —
+// element fx whose array is NOT per-level (tierHits columns are tiers);
 // their reading lives in another row's label instead. markDelay and
 // rampPermanent are display-only trims (Remi, round 19.4: those anger rows
-// "don't add information") — the sim still reads them from the spec.
+// "don't add information"); the sim still reads them from the spec.
 const ELEM_FX_SKIP = new Set(['tierHits', 'markDelay', 'rampPermanent']);
 
 const FX_FIELDS = {
@@ -1147,7 +1147,7 @@ const FX_FIELDS = {
   stacksToTrigger: ['stacks to detonate', fmtNum],
   burstKbMult: ['the gust pushes', fmtMult],   // dormant: pre-round-19 revert path
   burstKbAdd: ['the gust adds', (v) => `+${fmtNum(v)} push`],
-  hitRefund: ['fireball hit refunds', (v) => (+v > 0 ? `−${fmtSec(v)} off every cooldown` : '—')],
+  hitRefund: ['fireball hit refunds', (v) => (+v > 0 ? `−${fmtSec(v)} off every cooldown` : '·')],
   pierceAtLevel: ['passthrough unlocks at', (v) => `lv ${fmtNum(v)}`],
   slowMult: ['victim speed', fmtMult],
   slowT: ['slow lasts', fmtSec],
@@ -1167,7 +1167,7 @@ const FX_FIELDS = {
   trailDelay: ['the second ball leaves', (v) => `${fmtSec(v)} later`],
 };
 
-// Item fx fields — same shape as SPELL_FIELDS/FX_FIELDS. There is no
+// Item fx fields, same shape as SPELL_FIELDS/FX_FIELDS. There is no
 // "how do copies compound" column any more: ITEM_FX holds ABSOLUTE CUMULATIVE
 // totals per level, so the array IS the row (see shared/items.js).
 const ITEM_FIELDS = {
@@ -1201,7 +1201,7 @@ const ITEM_LIVE = {
   spoon: (lv) => `every enemy you damage heals you ${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp, and ${fmtNum(itemFxAt('spoon', 'healOnHit', lv) * ITEM_FX.spoon.tickFrac)} per burn or sickness tick`,
 };
 
-// The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
+// The card's stat tag (round 20.1, Remi): ONE short value, not a sentence;
 // the totals at the level you'd buy (ITEM_FX arrays are cumulative), repainted
 // by refresh(); at max level it reads as the totals you own.
 const ITEM_TAG = {
@@ -1216,7 +1216,7 @@ const ITEM_TAG = {
 };
 
 // One row of the per-level table. A scalar REPEATS in every level column
-// (round 20, Remi: half-empty columns read as "level 1 has no stats") — 0 is
+// (round 20, Remi: half-empty columns read as "level 1 has no stats"); 0 is
 // a value too (the bomb's knockback: 0 must print), never a blank cell.
 function tipRow(label, value, cols, fmt, cur, cls = '') {
   let cells = '';
@@ -1229,7 +1229,7 @@ function tipRow(label, value, cols, fmt, cur, cls = '') {
 
 // Known fields first, in the order the dictionary declares them (damage before
 // hit radius); anything the dictionary hasn't heard of trails behind, unlabelled
-// but visible — a new constant must never silently vanish from the tooltip.
+// but visible; a new constant must never silently vanish from the tooltip.
 function orderedFields(obj, dict, skip) {
   const keys = Object.keys(obj).filter(k => !(skip && skip.has(k)));
   const known = Object.keys(dict).filter(k => keys.includes(k));
@@ -1242,9 +1242,9 @@ function tipHead(cols, cur, label = 'lv') {
   return `<thead><tr>${th}</tr></thead>`;
 }
 
-// The card only shows icon + name + cost (round 20, Remi) — the tooltip is
+// The card only shows icon + name + cost (round 20, Remi); the tooltip is
 // where EVERYTHING lives: the one-line desc, the long mechanism sentence and
-// the per-level table (no "Next:" foot since round 19.4 — the table already
+// the per-level table (no "Next:" foot since round 19.4; the table already
 // says it, Remi).
 function tipShell(icon, name, desc, long, body, foot) {
   const both = long && long !== desc;
@@ -1260,13 +1260,13 @@ function spellTip(key, spec, level, maxLevel) {
     const [label, fmt] = SPELL_FIELDS[field] || [field, fmtNum];
     rows += tipRow(label, spec[field], maxLevel, fmt, level);
     // the return leg (boomerang) flies back through the launch point and
-    // onward until caught — no spec field carries that, but the table must
+    // onward until caught; no spec field carries that, but the table must
     // not imply the flight ends where the throw does (Remi, round 19.4)
     if (field === 'outDistance') rows += tipRow('return distance', Infinity, maxLevel, fmt, level);
   }
   // Switcheroo's stun scales with how far you actually swapped (round 20.5), so
   // there is no single number: show the floor and what a full-range swap buys,
-  // both recomputed from the spec exactly like the sim does it — min floor,
+  // both recomputed from the spec exactly like the sim does it; min floor,
   // pad + d/fireball speed, and the round-21.0 `max` ceiling.
   if (spec.stun) {
     const rng = Array.isArray(spec.range) ? spec.range : [spec.range];
@@ -1280,7 +1280,7 @@ function spellTip(key, spec, level, maxLevel) {
     level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
   ].filter(Boolean).join(' ');
-  // one message per hover (Remi, round 19.6): spells carry everything in desc —
+  // one message per hover (Remi, round 19.6): spells carry everything in desc;
   // unless one needs a longer mechanism sentence, and then `long` wins (the
   // element shape; round 21.0, shield's "not physical" caveat)
   return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
@@ -1301,7 +1301,7 @@ function elementTip(key, spec, level) {
     // the one boilerplate line that earns its place: what haste MEANS
     spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  // the card already wears the short tag — the hover shows ONLY the long
+  // the card already wears the short tag; the hover shows ONLY the long
   // explanation (Remi, round 19.6: say it once)
   return tipShell(spec.icon, spec.name, spec.long || spec.desc, null,
     `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
@@ -1309,7 +1309,7 @@ function elementTip(key, spec, level) {
 
 // Items are LEVELLED like spells (round 12): the columns are levels 1..maxLevel
 // and the ITEM_FX arrays are absolute totals, so each cell is read straight out
-// of the spec — no per-copy arithmetic, and nothing here can drift from what
+// of the spec: no per-copy arithmetic, and nothing here can drift from what
 // stats() computes on the server. Cost is flat at every level for most items;
 // the hourglass carries a per-level costs array (itemCost reads both).
 function itemTip(key, spec, level) {
@@ -1395,7 +1395,7 @@ window.addEventListener('resize', hideTip);
 // 1-based level either way.
 const statAt = (v, level) => Array.isArray(v) ? v[Math.min(level, v.length) - 1] : v;
 
-// Round 17 §10: the elements sit in two labeled shop rows — PRESENTATIONAL
+// Round 17 §10: the elements sit in two labeled shop rows. PRESENTATIONAL
 // only, every one of them is still 3 levels and buys exactly what it did.
 // Elements = the ball's stat axes; Mutations = the ones that change what the
 // ball does.
@@ -1408,8 +1408,8 @@ const ELEMENT_ROWS = [
 const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 
 // Round 20 (Remi): the spells sit in three quiet groups, labelled on the edge
-// of each row — PRESENTATIONAL only, nothing about a spell changes.
-// Round 21.7/21.8 (Remi): the Stone Pillar and the Mine both sit in Special —
+// of each row. PRESENTATIONAL only, nothing about a spell changes.
+// Round 21.7/21.8 (Remi): the Stone Pillar and the Mine both sit in Special;
 // they are things you LEAVE somewhere, not things you throw at a face.
 const SPELL_ROWS = [
   ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'repulse', 'nova']], // Mine is a weapon (Remi, round 22)
@@ -1435,7 +1435,7 @@ function buildShop(container, mode = 'classic') {
   let draftShown = '';   // signature of what the banner currently renders
   // section headings, each remembering its own wares so a section emptied by the
   // draft pool can hide its heading too. Cards are MINIMAL (round 20, Remi):
-  // icon + name + cost (+ the key chip on spells) — everything else is the
+  // icon + name + cost (+ the key chip on spells); everything else is the
   // hover tooltip's job. Each section is a flex ROW so a whole category fits
   // one line; rows hide with their wares like labels do.
   const labels = [];
@@ -1472,11 +1472,11 @@ function buildShop(container, mode = 'classic') {
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
-      if (shopPreview) { toast('browsing only — buying happens between rounds'); return; }
+      if (shopPreview) { toast('browsing only. Buying happens between rounds'); return; }
       playSfx('buy'); send({ t: 'buy', id: key });
     });
     // key chip (spells only): sits OUTSIDE the buy button in a relative wrapper
-    // — a disabled button (max level / can't afford) eats clicks on its
+    // because a disabled button (max level / can't afford) eats clicks on its
     // children, and the chip must stay clickable to open the rebind popup.
     const wrap = document.createElement('div');
     wrap.className = 'warewrap';
@@ -1493,7 +1493,7 @@ function buildShop(container, mode = 'classic') {
     attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
     wares.push(w); inSection(w);
   };
-  // Round 17 (Remi): no separate "Powerful" category — every spell is just a
+  // Round 17 (Remi): no separate "Powerful" category; every spell is just a
   // spell in the shop. `tier: 'power'` lives on in the SPEC as the bot guard
   // and the draft-offer filter, never as a shelf. Round 20: three quiet
   // Offense / Defense / Special rows; a spell missing from SPELL_ROWS lands in
@@ -1508,7 +1508,7 @@ function buildShop(container, mode = 'classic') {
         if (!SPELL_ROW_KEYS.has(key)) mkSpell(key, spec);
   }
   // elements carry their 2-4 word tag ON the card (round 20.1, Remi: the
-  // no-text doctrine went one step too far here — a tag is parseable at a
+  // no-text doctrine went one step too far here; a tag is parseable at a
   // glance; spells stay text-free because theirs are not)
   const mkElement = (key, spec) => {
     const b = document.createElement('button');
@@ -1519,7 +1519,7 @@ function buildShop(container, mode = 'classic') {
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
-      if (shopPreview) { toast('browsing only — buying happens between rounds'); return; }
+      if (shopPreview) { toast('browsing only. Buying happens between rounds'); return; }
       playSfx('buy'); send({ t: 'buy', id: key });
     });
     curRow.appendChild(b);
@@ -1547,14 +1547,14 @@ function buildShop(container, mode = 'classic') {
     const b = document.createElement('button');
     b.className = 'ware';
     // items carry a one-value stat tag (round 20.1, Remi: "a very short
-    // description of the stats it gives") — refresh() repaints it per level
+    // description of the stats it gives"); refresh() repaints it per level
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
       <span class="info"><span class="name">${spec.name} <span class="lv"></span></span>
       <span class="tag"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
-      if (shopPreview) { toast('browsing only — buying happens between rounds'); return; }
+      if (shopPreview) { toast('browsing only. Buying happens between rounds'); return; }
       playSfx('buy'); send({ t: 'buy', id: key });
     });
     curRow.appendChild(b);
@@ -1568,7 +1568,7 @@ function buildShop(container, mode = 'classic') {
     const spells = m.spells || {};
     // draft mode: this game's pool is not for sale. A pool thing you have
     // DRAFTED goes back on the shelf (that is how levels 2-3 are bought), which
-    // is exactly "do I own any level of it" — the same rule the server uses.
+    // is exactly "do I own any level of it", the same rule the server uses.
     const pool = new Set((s && s.draftPool) || []);
     drawDraftBanner(m, s);
     // {key: level} since round 12; a stale snapshot (or an old array) reads as
@@ -1579,7 +1579,7 @@ function buildShop(container, mode = 'classic') {
       : (items[w.key] || 0);
     for (const w of wares) {
       // pooled and not yet drafted → this shelf is empty in this game
-      // (spells hide their wrapper — the key chip must vanish with the ware)
+      // (spells hide their wrapper; the key chip must vanish with the ware)
       const locked = pool.has(w.key) && ownedOf(w) < 1;
       (w.wrap || w.el).classList.toggle('hidden', locked);
       if (locked) { w.el.disabled = true; continue; }
@@ -1592,7 +1592,7 @@ function buildShop(container, mode = 'classic') {
           continue;
         }
         const level = spells[w.key] || 0;
-        // round 16: in elemental mode the fireball never levels — the elements
+        // round 16: in elemental mode the fireball never levels; the elements
         // are its progression (same rule as buy() in shared/sim.js)
         const maxLevel = elemental && w.key === 'fireball' ? 1 : w.spec.maxLevel;
         w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
@@ -1620,7 +1620,7 @@ function buildShop(container, mode = 'classic') {
         }
       } else {
         // items are levelled like spells: the level you own sits next to the
-        // name, the price is flat (the hourglass carries a per-level array —
+        // name, the price is flat (the hourglass carries a per-level array;
         // itemCost handles both), and maxLevel is the wall.
         const level = Math.min(items[w.key] || 0, w.spec.maxLevel);
         w.level = level;
@@ -1650,7 +1650,7 @@ function buildShop(container, mode = 'classic') {
       for (let i = 0; i < pmax; i++) w.pips.children[i].classList.toggle('on', i < (w.level || 0));
     }
     // a section whose whole stock is in the draft pool would leave a dangling
-    // heading, so a label lives or dies with its wares — and so does each row
+    // heading, so a label lives or dies with its wares, and so does each row
     // (its edge category label with it)
     for (const lab of labels)
       lab.el.classList.toggle('hidden', lab.wares.length > 0 &&
@@ -1674,8 +1674,8 @@ function buildShop(container, mode = 'classic') {
     const head = document.createElement('div');
     head.className = 'drafthead';
     head.innerHTML = off.picked
-      ? `🎴 <b>Drafted for free:</b> ${esc(thingName(off.picked))} — it is yours at level 1, and its next levels are on sale below.`
-      : `🎴 <b>Free draft pick</b> — pick one of these ${off.options.length}. ` +
+      ? `🎴 <b>Drafted for free:</b> ${esc(thingName(off.picked))}. It is yours at level 1, and its next levels are on sale below.`
+      : `🎴 <b>Free draft pick</b>: pick one of these ${off.options.length}. ` +
         `<span class="draftnote">The first is already chosen for you: click nothing and you still get it.</span>`;
     draftBox.appendChild(head);
     const row = document.createElement('div');
@@ -1747,12 +1747,12 @@ const byRank = (a, b) =>
 // ---- versus teams (round 21.3) ---------------------------------------------
 // A team is just a number every player carries; the default is their own, so a
 // lobby nobody touched has N teams of one and every view below falls back to
-// the flat scoreboard it always was. One quiet hue per number — the number is
+// the flat scoreboard it always was. One quiet hue per number; the number is
 // the truth, the colour is only there to find your side at a glance.
 const teamNum = (t) =>
   `<span class="tnum" style="color:${teamTint(t)}">T${+t || 1}</span>`;
 
-// Fighters grouped by team, best first — the ENGINE's own ranking function
+// Fighters grouped by team, best first (the ENGINE's own ranking function
 // (shared/sim.js rankTeams), so the HUD can never disagree with the win rule.
 const teamStandings = (list) => rankTeams(list);
 // Teams only become a UI thing once somebody actually shares a number.
@@ -1765,7 +1765,7 @@ function kitIcons(p) {
   const parts = [];
   for (const [k, lv] of Object.entries(p.spells || {}))
     if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
-  // ONE icon per item with its level on it — never N identical icons in a row
+  // ONE icon per item with its level on it, never N identical icons in a row
   // (that is what freely-stackable items used to render, and five pairs of boots
   // made the inventory unreadable). Same treatment as spells and elements.
   for (const [k, lv] of Object.entries(p.items || {}))
@@ -1773,7 +1773,7 @@ function kitIcons(p) {
   for (const [k, v] of Object.entries(p.elements || {}))
     if (v > 0 && ELEMENTS[k]) {
       if (k === 'anger') {
-        // anger wears ONLY its earned bonus — 🔴+12, no level superscript
+        // anger wears ONLY its earned bonus (🔴+12, no level superscript)
         // (round 20.1, Remi: "3 +12" read as unparseable noise; the level is
         // visible in the shop, the bonus is the number that matters)
         const bonus = +p.angerMarks > 0
@@ -1789,17 +1789,17 @@ function kitIcons(p) {
 // One scoreboard for the shop, the LIVE spectator panel and the end-of-game
 // screen: same columns in the same order, so it only has to be learned once. A
 // field the snapshot doesn't carry (classic mode, an older snapshot still in the
-// ring buffer) prints as a dash rather than a zero — zero would be a claim.
+// ring buffer) prints as a placeholder dot rather than a zero; zero would be a claim.
 //
 // `showRound` adds the two per-ROUND columns (kills and gold) next to their
 // per-GAME twins. Everything else in this table is a game total, always: the
 // end screen never shows the round columns, and the two live views (shop, dead
 // spectator) always do, with the word "round" in the header and the tooltip.
 // Nothing here reads a position, an HP or a cooldown, which is why it is safe
-// to show live to a dead player — see the spectator block in updateUi().
+// to show live to a dead player; see the spectator block in updateUi().
 // Per-player RTT badge (round 18, Remi: "a friend had a lot of lag"). The
 // number is server-measured over the ws socket, so it prices the NETWORK path
-// only — a janky tab can show a green ping and still stutter. Bots have no
+// only; a janky tab can show a green ping and still stutter. Bots have no
 // socket and therefore no badge.
 let lastPings = {};
 function pingBadge(id) {
@@ -1823,8 +1823,8 @@ function statsTable(fighters, specs, opts = {}) {
       <th class="g" colspan="${goldCols}">Gold</th>
       <th class="c-kit"></th></tr>
     <tr><th></th><th>Warlock</th>
-      ${th('❤️ HP', `current / max HP. Everyone starts the game with ${PLAYER.MAX_HP} max HP — the Amulet of Health raises yours`)}
-      ${th('⚔️ Kills', `enemies you killed — GAME TOTAL, the number that wins the match (first to ${ROUND.KILLS_TO_WIN})`)}
+      ${th('❤️ HP', `current / max HP. Everyone starts the game with ${PLAYER.MAX_HP} max HP; the Amulet of Health raises yours`)}
+      ${th('⚔️ Kills', `enemies you killed. GAME TOTAL, the number that wins the match (first to ${ROUND.KILLS_TO_WIN})`)}
       ${showRound ? th('⚔️ Round', 'kills you have scored in the CURRENT round') : ''}
       ${th('💀 Deaths', 'times you died, all game')}
       ${th('Streak', 'best multi-kill this game (×2 = double kill)')}
@@ -1832,7 +1832,7 @@ function statsTable(fighters, specs, opts = {}) {
       ${th('Lava', 'lava burn credited to you for shoving someone in')}
       ${th('Total', 'direct + lava')}
       ${th('Lifesteal', 'HP the Blood Sword clawed back')}
-      ${showRound ? th('Round', 'gold earned since the last shop — the CURRENT round only') : ''}
+      ${showRound ? th('Round', 'gold earned since the last shop (the CURRENT round only)') : ''}
       ${th('Wallet', 'gold you can spend right now')}
       ${th('Earned', 'gold earned all game, spent or not')}
       <th class="c-kit">Kit</th></tr></thead>`;
@@ -1899,12 +1899,12 @@ function updateUi(s) {
   // this line used to kill every hover tip 15 times a second while browsing
   if (s.phase !== 'shop' && !shopPreview) hideTip();
   // Dead and watching the rest of the round: the same scoreboard the end screen
-  // prints, live (Remi, 2026-08-07). Battle phase only — the shop is a different
+  // prints, live (Remi, 2026-08-07). Battle phase only; the shop is a different
   // phase and already carries this table, and roundEnd belongs to the art
   // reveal, so the live panel never has to share the screen with either.
   const watchingLive = !!myId && s.phase === 'battle' && !!m && !m.alive;
   // a spell bar you cannot use: castSpell() refuses while !alive, so while you
-  // are dead it is decoration — and it is exactly where the live panel sits
+  // are dead it is decoration, and it is exactly where the live panel sits
   setVisible('spellbar', !!myId && inGame && !(m && (m.spectator || !m.alive)));
   setVisible('specpanel', watchingLive);
   // the shop and the final standings carry the same numbers in full, so the
@@ -1913,7 +1913,7 @@ function updateUi(s) {
     s.phase !== 'gameover' && !goPinned);
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
   // round 20.4 (Remi: "the banner to invite should not be present in game as it
-  // takes space away"): the host banner is a LOBBY thing — friends only join
+  // takes space away"): the host banner is a LOBBY thing; friends only join
   // there, and the copy-link button comes back with it. Revert = drop this line.
   if (hostCode) {
     setVisible('hostbar', s.phase === 'lobby');
@@ -1935,7 +1935,7 @@ function updateUi(s) {
         div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
           <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
           <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
-        // Team number (round 21.3). You set your OWN — plus the bots', so one
+        // Team number (round 21.3). You set your OWN, plus the bots', so one
         // person can arrange a 2v2 without everybody clicking. Other humans show
         // a read-only chip: their side is theirs to pick.
         if (s.mode !== 'coop') {
@@ -2005,7 +2005,7 @@ function updateUi(s) {
     if (s.testing && document.activeElement !== testGold)
       testGold.value = s.testing.gold;
     // a button that lifts bans is noise until a ban exists (Remi: "I didn't
-    // know we could ban people" — you ban from the player list, mid-game)
+    // know we could ban people"; you ban from the player list, mid-game)
     $('unbanBtn').classList.toggle('hidden', !(+s.bans > 0));
   }
 
@@ -2024,7 +2024,7 @@ function updateUi(s) {
       { showRound: true });
     const timer = $('shopTimer');
     const pausedBy = shopPausedBy;
-    // testing: the shop clock never runs — only readying up moves the game on
+    // testing: the shop clock never runs; only readying up moves the game on
     timer.textContent = pausedBy ? '⏸ paused'
       : s.testing ? '🧪 ∞' : `${Math.ceil(phaseT)} s`;
     timer.classList.toggle('low', !pausedBy && !s.testing && phaseT <= 5);
@@ -2034,9 +2034,9 @@ function updateUi(s) {
     pauseBtn.classList.toggle('on', !!pausedBy);
     $('shopUndoBtn').disabled = !(m && m.undoN); // only THIS shop's buys refund
     $('shopSub').textContent = pausedBy
-      ? `⏸ Clock frozen by ${pausedBy} — take your time. Everyone hitting Ready still starts the round.`
+      ? `⏸ Clock frozen by ${pausedBy}. Take your time. Everyone hitting Ready still starts the round.`
       : watching
-        ? "You're spectating — no shopping" : '';
+        ? "You're spectating (no shopping)" : '';
     setVisible('shopGrid', !watching);
     setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
     if (!watching) {
@@ -2054,7 +2054,7 @@ function updateUi(s) {
         btn.disabled = false;
         btn.classList.add('primary');
         btn.textContent = humans.length > 1
-          ? `Ready — next round (${readyN}/${humans.length} ready)` : 'Ready — next round';
+          ? `Ready: next round (${readyN}/${humans.length} ready)` : 'Ready: next round';
       }
     }
   }
@@ -2071,12 +2071,12 @@ function updateUi(s) {
   } else if (s.phase === 'shop') {
     $('phasebar').textContent = shopPausedBy
       ? `⏸ shop paused by ${shopPausedBy}`
-      : s.testing ? '🧪 testing — ready up to start the round'
+      : s.testing ? '🧪 testing: ready up to start the round'
       : `next round in ${Math.ceil(phaseT)} s`;
   }
 
   // Live standings for the dead. Deliberately the SAME statsTable() the shop and
-  // the end screen build — one scoreboard, not a second implementation — with
+  // the end screen build (one scoreboard, not a second implementation), with
   // the per-round columns on, since the owner asked for "the current round AND
   // the game total". Nothing here is privileged information: every field it
   // reads (kills, deaths, streak, damage, heals, gold, kit) is already in every
@@ -2084,7 +2084,7 @@ function updateUi(s) {
   // deliberately shows NO position, NO hp and NO cooldowns, so a Vanished player
   // is exposed by exactly as much as before: nothing.
   if (watchingLive) {
-    $('specSub').textContent = `round ${s.round} · game totals — the two “round” ` +
+    $('specSub').textContent = `round ${s.round} · game totals; the two “round” ` +
       `columns are this round only`;
     $('specStats').innerHTML = statsTable(
       playerList.filter(p => !p.spectator).sort(byRank),
@@ -2099,14 +2099,14 @@ function updateUi(s) {
     const wt = s.winTeam != null && teamsInPlay(fightersL)
       ? teamStandings(fightersL).find(t => t.team === s.winTeam) : null;
     $('goWinner').textContent = wt
-      ? `Team ${wt.team} rules the ashes with ${wt.kills} kills — ` +
+      ? `Team ${wt.team} rules the ashes with ${wt.kills} kills: ` +
         `${wt.members.map(p => p.name).join(', ')}.`
       : w ? `${w.name} rules the ashes with ${w.kills || 0} kills.` : '';
     $('standings').innerHTML = statsTable(fightersL, playerList.filter(p => p.spectator),
       { winnerId: w ? w.id : null });
   }
 
-  // topbar scoreboard — fighters ranked by kills, spectators last and dimmed
+  // topbar scoreboard: fighters ranked by kills, spectators last and dimmed
   if (s.phase !== 'lobby') {
     const fightersL = playerList.filter(p => !p.spectator).sort(byRank);
     const specs = playerList.filter(p => p.spectator);
@@ -2130,7 +2130,7 @@ function updateUi(s) {
     $('topbar').innerHTML = hdr + ordered.map(p => {
       const band = teamHdr(p, prevTeam); prevTeam = p.team;
       // "purse" is what's left to spend, "round" is what this round has paid
-      // so far — the second is the one that tells you who is pulling ahead
+      // so far; the second is the one that tells you who is pulling ahead
       const rg = fin(+p.roundGold) ? +p.roundGold : null;
       return band + `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
@@ -2155,7 +2155,7 @@ function updateUi(s) {
       const level = spells[key] || 0;
       el.classList.toggle('owned', level > 0);
       el.querySelector('.lv').textContent = level > 1 ? 'lv' + level : '';
-      // your owned elements ride on the fireball slot (elemental mode) — since
+      // your owned elements ride on the fireball slot (elemental mode); since
       // round 16 EVERY element is a fireball rider, so they all badge there.
       // The Hourglass of Haste (global CDR) is an item and shows in the shop.
       const riders = key === 'fireball' && m.elements
@@ -2178,12 +2178,12 @@ function updateUi(s) {
     const angLv = (m.elements && m.elements.anger) || 0;
     if (angLv > 0) {
       // anger: the earned damage bank, plus whether your mark is out right now
-      // (the red pip on the enemy's body is the real UI — this just confirms it)
+      // (the red pip on the enemy's body is the real UI; this just confirms it)
       const f = ELEMENTS.anger.fx;
       const marks = Math.max(0, +m.angerMarks || 0);
       const markUp = playerList.some(p => p.myStacks && p.myStacks.anger > 0);
       buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg` +
-        (markUp ? ' · mark is OUT — hunt it' : '') + '</span>');
+        (markUp ? ' · mark is OUT: hunt it' : '') + '</span>');
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)
@@ -2192,7 +2192,7 @@ function updateUi(s) {
       buffs.push(`<span class="buff frost">${ELEMENTS.frost.icon} ` +
         `${onMe.frost}/${ELEMENTS.frost.fx.stacksToTrigger}</span>`);
     // gale rides the same countdown as frost, and the thing it is counting down
-    // to is being launched off the platform — so it gets the same chip
+    // to is being launched off the platform, so it gets the same chip
     if (onMe && onMe.gale > 0)
       buffs.push(`<span class="buff frost">${ELEMENTS.gale.icon} ` +
         `${onMe.gale}/${ELEMENTS.gale.fx.stacksToTrigger}</span>`);
@@ -2212,7 +2212,7 @@ function updateUi(s) {
     if (fin(+m.vanishT) && +m.vanishT > 0)
       buffs.push(`<span class="buff vanish">${ICONS.vanish} invisible · ${(+m.vanishT).toFixed(1)}s</span>`);
     // Statue: the freeze is short and total, so the countdown is the whole HUD
-    // story — how long until you can act again.
+    // story: how long until you can act again.
     if (fin(+m.statueT) && +m.statueT > 0)
       buffs.push(`<span class="buff vanish">${ICONS.statue} invincible · ${(+m.statueT).toFixed(1)}s</span>`);
     if (m.stun) buffs.push('<span class="buff frost">🥶 frozen</span>');

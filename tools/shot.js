@@ -41,7 +41,7 @@ export async function arena(opts = {}) {
   } = opts;
   mkdirSync(out, { recursive: true });
 
-  // reuse a server if one is already up (Remi may be hosting — never kill it)
+  // reuse a server if one is already up (Remi may be hosting; never kill it)
   let child = null;
   if (!await serverUp(BASE)) {
     child = spawn(process.execPath, ['server/index.js'],
@@ -78,7 +78,7 @@ export async function arena(opts = {}) {
     p, errors, out,
     // Ready everyone up. With `gold` the game opens in the untimed sandbox shop
     // (call start() when you are done buying); without it, this waits out the
-    // countdown too, so it returns with the round ACTUALLY live — casting during
+    // countdown too, so it returns with the round ACTUALLY live; casting during
     // the countdown is silently refused, which reads as "my feature is broken".
     async ready() {
       for (const page of p) await page.click('#readyBtn');
@@ -115,7 +115,7 @@ export async function arena(opts = {}) {
     },
     // Count canvas pixels inside the rgb ranges, and report where they are.
     // `range` is {r:[lo,hi], g:[lo,hi], b:[lo,hi]}; omit a channel to ignore it.
-    // `rect` narrows the search (do use one — it is both faster and the only way
+    // `rect` narrows the search (do use one; it is both faster and the only way
     // to keep scenery out of the signature). `pad` is the margin around the hit
     // that `box` reports.
     async probe(page, range, { rect = null, pad = 45 } = {}) {
@@ -149,12 +149,12 @@ export async function arena(opts = {}) {
       }, { range, rect, pad });
     },
     // Poll until at least `min` matching pixels appear. Returns the probe hit,
-    // or null on timeout — a null is a real answer ("it never drew"), not a
+    // or null on timeout; a null is a real answer ("it never drew"), not a
     // crash, so a caller can assert on it.
     // ⚠ For anything that MOVES FAST (a projectile), trust the count and skip
     // the picture: a screenshot lands ~200 ms after the probe, which is far
     // enough for a ball to leave a tight crop. Use a big `pad`, or just assert
-    // on `hit.n`. For static tells — bars, rings, halos, shop cards — the
+    // on `hit.n`. For static tells (bars, rings, halos, shop cards) the
     // cropped shot is exact.
     async waitFor(page, range, { min = 25, timeout = 6000, every = 120, rect = null, pad = 45 } = {}) {
       const until = Date.now() + timeout;
@@ -166,7 +166,7 @@ export async function arena(opts = {}) {
       }
       return null;
     },
-    // One screenshot, optionally cropped to a probe's box — read THIS, not a burst
+    // One screenshot, optionally cropped to a probe's box; read THIS, not a burst
     async snap(page, name, { crop = null } = {}) {
       const path = `${out}/${name}.png`;
       await page.screenshot({ path, ...(crop ? { clip: crop } : {}) });
@@ -192,7 +192,7 @@ if (process.argv.includes('--self-test')) {
   for (let i = 0; i < 6 && !seen; i++) {
     await A.tap(A.p[0], 'q', { x: 900, y: 380 });
     // Calibrated, not guessed: this band reads 0 on the idle arena inside this
-    // rect, and ~35 when a ball crosses it. Do the same for any new signature —
+    // rect, and ~35 when a ball crosses it. Do the same for any new signature;
     // sample the scene WITHOUT the effect first, or you are measuring scenery.
     seen = await A.waitFor(A.p[0], { r: [250, 255], g: [150, 200], b: [60, 120] },
       { min: 12, timeout: 1600, rect: { x: 500, y: 300, w: 300, h: 200 }, pad: 150 });
@@ -201,7 +201,7 @@ if (process.argv.includes('--self-test')) {
   console.log(seen ? `probe saw the ball: ${seen.n} px at ${JSON.stringify(seen.box)}`
     : 'probe never saw a ball');
   // The PASS is the count. The picture is written for a human, and for a ball
-  // this fast it may well be empty by the time the shutter closes — which is
+  // this fast it may well be empty by the time the shutter closes, which is
   // the whole reason the probe exists.
   if (seen) console.log('cropped shot (may lag a fast ball):',
     await A.snap(A.p[0], 'ball', { crop: seen.box }));

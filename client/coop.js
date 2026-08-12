@@ -1,4 +1,4 @@
-// Co-op campaign — client side.
+// Co-op campaign, client side.
 //
 // Deliberately self-contained: this module owns its own DOM node and its own
 // inline styling, so adding the campaign costs main.js four small hooks and
@@ -7,12 +7,12 @@
 // needs no changes to tell friend from foe.
 //
 // What it draws:
-//   · lobby   — what the co-op ruleset is, in one line
-//   · countdown — the LEVEL CARD: number, name, and the brief ("here is what
+//   · lobby   = what the co-op ruleset is, in one line
+//   · countdown = the LEVEL CARD: number, name, and the brief ("here is what
 //     is about to happen", which is exactly what Remi asked for)
-//   · battle  — a thin status strip: level, monsters left, party standing,
+//   · battle  = a thin status strip: level, monsters left, party standing,
 //     reinforcements still to come, rounds left in the run
-//   · roundEnd — CLEARED / WIPED, and what that means for the campaign
+//   · roundEnd = CLEARED / WIPED, and what that means for the campaign
 
 import { setLevel } from './music.js';
 
@@ -21,7 +21,7 @@ import { setLevel } from './music.js';
 
 // Elemental leads the cycle since 2026-08-08: it is the DEFAULT ruleset now and
 // is no longer called experimental. Classic still exists, unchanged.
-// ⚠ 'coop' is UNDER CONSTRUCTION (ROUND17 §1) — mothballed, so it is off the
+// ⚠ 'coop' is UNDER CONSTRUCTION (ROUND17 §1): mothballed, so it is off the
 // button and unreachable from the UI. The server still accepts it and all the
 // campaign code below stays live; put it back in this array to re-offer it.
 export const MODES = ['elemental', 'classic'];
@@ -32,7 +32,7 @@ export function nextMode(mode) {
 }
 
 export function modeLabel(mode) {
-  // no emoji, no accent color — a quiet config toggle since round 22 (Remi)
+  // no emoji, no accent color; a quiet config toggle since round 22 (Remi)
   if (mode === 'elemental') return 'Rules: Elemental';
   if (mode === 'coop') return 'Rules: Co-op campaign';
   return 'Rules: Classic';
@@ -42,14 +42,14 @@ export function modeTitle(mode) {
   if (mode === 'elemental')
     return 'Elemental (the default): after Fireball lv1 the shop offers twelve elements that transform your fireball. They have three levels each and they stack. Applies to everyone.';
   if (mode === 'coop')
-    return 'Co-op campaign: the whole lobby is ONE team against 10 levels of AI waves. FRIENDLY FIRE IS ON — allies take full damage and knockback, lava included, though a team kill pays nothing. Clear a level to advance, wipe and you retry it; the run has a limited number of rounds. Scales with party size; playable solo.';
+    return 'Co-op campaign: the whole lobby is ONE team against 10 levels of AI waves. FRIENDLY FIRE IS ON: allies take full damage and knockback, lava included, though a team kill pays nothing. Clear a level to advance, wipe and you retry it; the run has a limited number of rounds. Scales with party size; playable solo.';
   return 'Classic: free-for-all, no elements, first to 15 kills.';
 }
 
 // ---- level art + music ------------------------------------------------------
 // Round n normally means level n. In co-op the LEVEL is what matters (a wipe
 // costs you a round but not a level), and the finale plays the intro theme
-// over its own artwork — the one special case Remi asked for.
+// over its own artwork; the one special case Remi asked for.
 
 export function applyLevelMusic(s) {
   const fin = Number.isFinite;
@@ -100,7 +100,7 @@ export function updateCoopHud(s) {
     if (n.style.display !== 'none') { n.style.display = 'none'; n.innerHTML = ''; lastHtml = ''; }
     return;
   }
-  const title = `Level ${c.level}/${c.maxLevel} — ${esc(c.name)}`;
+  const title = `Level ${c.level}/${c.maxLevel} · ${esc(c.name)}`;
   let html;
   if (s.phase === 'countdown') {
     html = box(
@@ -112,9 +112,9 @@ export function updateCoopHud(s) {
   } else if (s.phase === 'roundEnd') {
     const done = c.cleared
       ? (c.level >= c.maxLevel
-        ? '<span style="color:#8fe08f">THE CAMPAIGN IS OVER — you are free.</span>'
-        : `<span style="color:#8fe08f">LEVEL CLEARED</span> — on to level ${c.level + 1}`)
-      : `<span style="color:#e05a5a">PARTY WIPED</span> — level ${c.level} again, ${Math.max(0, c.roundsLeft)} round(s) left`;
+        ? '<span style="color:#8fe08f">THE CAMPAIGN IS OVER. You are free.</span>'
+        : `<span style="color:#8fe08f">LEVEL CLEARED</span>: on to level ${c.level + 1}`)
+      : `<span style="color:#e05a5a">PARTY WIPED</span>: level ${c.level} again, ${Math.max(0, c.roundsLeft)} round(s) left`;
     html = box(`<div style="font-size:17px">${done}</div>`, c.cleared ? '#8fe08f' : '#e05a5a');
   } else {
     const pend = c.pending ? ` · <span style="opacity:.75">+${c.pending} incoming</span>` : '';

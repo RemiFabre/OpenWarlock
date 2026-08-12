@@ -9,7 +9,7 @@
 //      SHOTS=/dir node test/rtc-host.js   (also saves screenshots there)
 //
 // Headless WebRTC note: chromium is launched with
-// --disable-features=WebRtcHideLocalIpsWithMdns — headless Chrome has no mDNS
+// --disable-features=WebRtcHideLocalIpsWithMdns; headless Chrome has no mDNS
 // responder, so the default .local ICE candidate obfuscation would break
 // loopback connectivity. Plain RTCDataChannels need no fake-media flags.
 
@@ -161,16 +161,16 @@ try {
   }
   const endPhase = await guest.evaluate(() => window.__phase);
   if (!['shop', 'gameover'].includes(endPhase)) fail(`round never resolved (phase ${endPhase})`);
-  console.log(`round resolved: phase ${endPhase} — a real round was played over RTC`);
+  console.log(`round resolved: phase ${endPhase} (a real round was played over RTC)`);
   await shot(host, 'hosting-b-shop-host.png');
   await shot(guest, 'hosting-b-shop-guest.png');
 
-  // (the B4 hot-spare assertion lived here until 21.11 — the spare is deleted
+  // (the B4 hot-spare assertion lived here until 21.11; the spare is deleted
   // until host migration is actually built; plan in docs/BRIEF-browser-hosting.md §B4)
 
   if (host.errors.length) fail(`host page errors:\n${host.errors.join('\n')}`);
   if (guest.errors.length) fail(`guest page errors:\n${guest.errors.join('\n')}`);
-  console.log('\nRTC HOSTING OK — hosted from a static tab, joined by link, round played, relay death ignored');
+  console.log('\nRTC HOSTING OK: hosted from a static tab, joined by link, round played, relay death ignored');
 } finally {
   await browser.close();
   if (signal) signal.kill('SIGKILL');

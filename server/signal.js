@@ -1,10 +1,10 @@
 // OpenWarlock signalling relay (docs/BRIEF-browser-hosting.md §B1).
 // A standalone WebSocket rendezvous for browser-hosted games: a host opens a
 // room and gets an invite code, guests join by code, and SDP/ICE blobs are
-// relayed VERBATIM between them ({t:'sig'} `data` is opaque — never parsed).
+// relayed VERBATIM between them ({t:'sig'} `data` is opaque, never parsed).
 // It carries NO game traffic: once WebRTC connects, this process can die or
 // restart mid-match with zero effect (hosts re-register their code, see
-// client/transport.js). Optional and separate — `npm start`/`npm run host`
+// client/transport.js). Optional and separate: `npm start`/`npm run host`
 // never touch it. Run: node server/signal.js [--port=3001]   (or PORT env)
 // It also hosts the anonymous usage counters (/beacon + /stats) and the
 // per-version play stats + star ratings (/rate + /versions), see below.
@@ -18,7 +18,7 @@ import { WebSocketServer } from 'ws';
 // ---- anonymous usage counters (2026-08-09) ----------------------------------
 // The relay doubles as the analytics sink because it is the one always-on
 // process we run. client/analytics.js POSTs tiny anonymous beacons to /beacon
-// (visit / game_start / game_end — counts only, no names/ids/IPs); they are
+// (visit / game_start / game_end: counts only, no names/ids/IPs); they are
 // aggregated in memory per UTC day + all-time, and GET /stats dumps the whole
 // aggregate as public JSON. This stays a COUNTER, not a tracker.
 
@@ -125,7 +125,7 @@ export function createSignalServer({
   };
 
   // POST /rate body: { slug, stars 1..5, prev 1..5|null }. A re-rate replaces
-  // (prev = what this browser sent before) — trust-based, it's a friends game.
+  // (prev = what this browser sent before); trust-based, it's a friends game.
   function recordRating(m) {
     if (!m || typeof m !== 'object') return;
     const stars = m.stars;
@@ -184,7 +184,7 @@ export function createSignalServer({
   };
 
   // dirty clears BEFORE the await: beacons landing mid-save re-mark the day and
-  // the next flush rewrites the (cumulative) bucket — nothing is ever lost, at
+  // the next flush rewrites the (cumulative) bucket; nothing is ever lost, at
   // worst re-uploaded. A failed save re-marks so the next tick retries.
   async function flushStats() {
     if (!statsStore || (!dirty.size && !versionsDirty)) return;
@@ -197,7 +197,7 @@ export function createSignalServer({
     for (const k of keys) files[`days/${k}.json`] = days.get(k);
     try { await statsStore.save(files); }
     catch { for (const k of keys) dirty.add(k); versionsDirty ||= hadVersions; }
-    // memory bound: day buckets older than ~60 days are flushed history — drop them
+    // memory bound: day buckets older than ~60 days are flushed history; drop them
     for (const k of days.keys()) if (!dirty.has(k) && days.size > 60) days.delete(k);
   }
 
@@ -258,7 +258,7 @@ export function createSignalServer({
       if (m.t === 'create') {
         if (room || rejected) return;
         // an explicit free code is honored (host re-registering after a relay
-        // restart, or B4 migration re-opening the room) — a LIVE one is never stolen
+        // restart, or B4 migration re-opening the room); a LIVE one is never stolen
         let code = typeof m.code === 'string' ? m.code.toUpperCase() : '';
         const length = m.codeLength === CODE_LENGTH ? CODE_LENGTH : LEGACY_CODE_LENGTH;
         if (!CODE_RE.test(code) || rooms.has(code)) code = newCode(length);
@@ -272,7 +272,7 @@ export function createSignalServer({
         const r = rooms.get(String(m.code || '').toUpperCase());
         if (!r) {
           rejected = true;
-          ws.send(JSON.stringify({ t: 'error', reason: 'room unavailable — ask the host for a fresh link' }),
+          ws.send(JSON.stringify({ t: 'error', reason: 'room unavailable. Ask the host for a fresh link' }),
             () => ws.close(1008, 'room unavailable'));
           return;
         }
@@ -338,7 +338,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const arg = process.argv.find(a => a.startsWith('--port='))?.split('=')[1];
   const port = Number(process.env.PORT || arg || 3001);
   // Persistence is opt-in outside the Space: dev shells often export HF_TOKEN
-  // (Remi's does — verified live 2026-08-09 when a local test relay clobbered
+  // (Remi's does; verified live 2026-08-09 when a local test relay clobbered
   // the production day file), and `npm run signal` must never fight the Space
   // over days/YYYY-MM-DD.json. Spaces always set SPACE_ID; elsewhere, set
   // STATS_PERSIST=1 to persist on purpose.
@@ -346,5 +346,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const store = persist ? createHfStatsStore() : null;
   const s = await createSignalServer({ port, statsStore: store });
   console.log(`OpenWarlock signalling relay on ws://localhost:${s.port} (rooms only, no game traffic)`
-    + ` — /beacon counters ${store ? 'persist to the HF dataset' : 'in memory only'}`);
+    + `; /beacon counters ${store ? 'persist to the HF dataset' : 'in memory only'}`);
 }

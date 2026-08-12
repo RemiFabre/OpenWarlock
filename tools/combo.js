@@ -28,12 +28,12 @@ const attacker = argOf('attacker', 'faker');
 const victim = argOf('victim', 'runner');
 const oneBuild = argOf('build', null);
 // Funded start (testing sandbox): both seats shop this gold BEFORE round 1, so
-// the lab measures the DEVELOPED build's combos instead of the poverty phase —
+// the lab measures the DEVELOPED build's combos instead of the poverty phase;
 // a 120 s lab game only ever reaches round ~3, where nobody owns their kit yet.
 // --gold=0 restores the earn-as-you-go economy.
 const gold = Number(argOf('gold', 60));
 // Ablation (Remi: "how does he win if not by combos?"): strip the combo layer
-// and the Faker is its reflexes alone — same react/aim/dodge tuning, stalker
+// and the Faker is its reflexes alone (same react/aim/dodge tuning, stalker
 // brain every tick. The delta to the full Faker is what the combos are worth.
 const noCombo = process.argv.includes('--no-combo');
 if (noCombo) delete BOTS.faker.combo;
@@ -60,12 +60,12 @@ const AIRBORNE = 14;
 const OPENER_WINDOW = 1.2;
 // PRACTICAL combo (Remi, 2026-08-12): the victim never got control back for
 // longer than a human reaction between hits. A 2-tick window of control is not
-// an escape — you still have to SEE it and move. True combos (zero free ticks)
+// an escape; you still have to SEE it and move. True combos (zero free ticks)
 // are reported beside it as the strict tier.
 const REACTION_TICKS = 8;   // 8 ticks at 30 Hz ≈ 0.27 s
 
 // event type -> combo piece name, with the field naming whose it is (a live
-// victim casts back — its bolts must not tag the attacker's chains)
+// victim casts back; its bolts must not tag the attacker's chains)
 const PIECE = {
   swapped: ['a', 'hook'], mineHit: ['id', 'mine'], boltHit: ['by', 'bolt'],
   meteorHit: ['by', 'meteor'], galeBurst: ['by', 'gust'],
@@ -183,8 +183,8 @@ function report(build, r) {
   console.log(`  damage per chain     ${avg(c => c.dmg).toFixed(1)}  of ${PLAYER.MAX_HP} max HP`);
   console.log(`  hits per chain       ${avg(c => c.hits).toFixed(2)}`);
   console.log(`  push per chain       ${avg(c => c.push || 0).toFixed(1)} units`);
-  console.log(`PRACTICAL combos       ${practical.length}  (${(100 * practical.length / n).toFixed(1)}% of chains — control gaps < a human reaction, ${REACTION_TICKS} ticks)`);
-  console.log(`TRUE combos            ${trueCombos.length}  (${(100 * trueCombos.length / n).toFixed(1)}% of chains — zero free ticks)`);
+  console.log(`PRACTICAL combos       ${practical.length}  (${(100 * practical.length / n).toFixed(1)}% of chains; control gaps < a human reaction, ${REACTION_TICKS} ticks)`);
+  console.log(`TRUE combos            ${trueCombos.length}  (${(100 * trueCombos.length / n).toFixed(1)}% of chains; zero free ticks)`);
   console.log(`biggest single chain   ${best.dmg.toFixed(1)} damage over ${best.hits} hits`);
   // the SHAPE of the chains: which pieces appeared together, most common first
   const sig = {};
@@ -205,7 +205,7 @@ them; only chains of 2+ hits are counted, links must be ${MIN_HIT}+ damage outsi
 the lava. A chain is a TRUE COMBO when the victim was stunned or airborne
 (>${AIRBORNE} u/s) on every tick between its hits. PUSH is first hit -> last hit
 displacement in units. The victim is a stand-still dummy until first hit, then
-it flees, castless — so chains here are the attacker's doing, not the victim's
+it flees, castless, so chains here are the attacker's doing, not the victim's
 cooperation.
 ⚠ Cannot see intent: independent shots inside ${LINK}s read as one chain.`);
 

@@ -57,7 +57,7 @@ export function checkJournal(lines) {
           // In the co-op campaign a round ends when the WAVE is dead, so the
           // whole party can (and should) be standing. The free-for-all law
           // "one survivor" simply does not apply there.
-          // Round 21.3: the versus law is now "the survivors are ONE TEAM" —
+          // Round 21.3: the versus law is now "the survivors are ONE TEAM";
           // identical to "one survivor" in a lobby of solo teams (the default),
           // and the only correct statement of it in a 2v2.
           const teamsLeft = new Set([...alive].map(id => teamOf.get(id) ?? id));
@@ -106,7 +106,7 @@ export function checkJournal(lines) {
           // nobody pressed a key and no cooldown was paid, so it is not a cast
           // for the cooldown invariant. The tolerance below stays as it is.
           // `phantom` = a Decoy clone miming its caster (round 21.6): the event
-          // is anchored on the CLONE and produces nothing but pixels — no
+          // is anchored on the CLONE and produces nothing but pixels; no
           // cooldown, no projectile that can hit, no counter.
           const key = `${ev.id}/${ev.spell}`;
           const spec = SPELLS[ev.spell];
@@ -134,7 +134,7 @@ export function checkJournal(lines) {
           if (Math.abs(p.x) > 500 || Math.abs(p.y) > 500) v(`position blowup for ${id}: (${p.x}, ${p.y})`, e);
           if (!Number.isFinite(p.hp) || p.hp < 0 || p.hp > PLAYER.MAX_HP + 100) v(`hp out of bounds for ${id}: ${p.hp}`, e);
           if (!Number.isFinite(p.gold) || p.gold < 0) v(`negative/invalid gold for ${id}: ${p.gold}`, e);
-          // gold can only grow during battle (kills) — buying is shop/lobby only
+          // gold can only grow during battle (kills); buying is shop/lobby only
           if (lastDigest && lastDigest.phase === 'battle' && e.phase === 'battle' && lastDigest.players[id]) {
             if (p.gold < lastDigest.players[id].gold)
               v(`gold decreased during battle for ${id}: ${lastDigest.players[id].gold} -> ${p.gold}`, e);
@@ -159,7 +159,7 @@ if (process.argv[1] && process.argv[1].endsWith('check.js')) {
   if (!file) { console.error('usage: node check.js <journal.jsonl>'); process.exit(2); }
   const violations = checkJournal(fs.readFileSync(file, 'utf8').split('\n'));
   if (violations.length) {
-    console.error(`FAIL — ${violations.length} violation(s):`);
+    console.error(`FAIL: ${violations.length} violation(s):`);
     for (const x of violations) console.error('  -', x);
     process.exit(1);
   }

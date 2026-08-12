@@ -1,4 +1,4 @@
-// The CO-OP CAMPAIGN — 10 levels of pure data.
+// The CO-OP CAMPAIGN: 10 levels of pure data.
 //
 // Design rule (deliberate, enforce it when you edit this file): a campaign
 // enemy is an EXISTING bot kind (grunt ★ / berserker ★★ / stalker ★★★) running
@@ -11,21 +11,21 @@
 // the campaign LEVEL (assets/manifest.json has exactly ten of each), so the
 // whole audiovisual layer comes for free. Level 10 is the finale and plays the
 // intro track (see client/coop.js). Level != round: clearing advances the
-// level, wiping costs a round and you retry — ROUND.COOP_MAX_ROUNDS is the
+// level, wiping costs a round and you retry; ROUND.COOP_MAX_ROUNDS is the
 // budget for the whole run.
 //
 // ---- party scaling ---------------------------------------------------------
 // P = number of party members (humans and/or their bot stand-ins), 1..N.
 // The numbers in the table below are the SOLO numbers; the party makes them
 // grow. Every wave declares how:
-//   scale: 'count' (default) — the swarm brings MORE bodies:
+//   scale: 'count' (default) = the swarm brings MORE bodies:
 //        count' = max(1, round(count * (1 + COUNT_PER_PLAYER * (P-1))))
-//   scale: 'hp'             — a single elite/boss gets TOUGHER, never cloned:
+//   scale: 'hp'             = a single elite/boss gets TOUGHER, never cloned:
 //        maxHp' = round(maxHp * (1 + HP_PER_PLAYER * (P-1)))
-//   scale: 'both'           — half of each (a small pack of elites)
-//   scale: 'none'           — fixed, whatever the party size
-//   minParty: n             — the wave only exists at party size >= n
-//   perPlayer: f            — override COUNT_PER_PLAYER for this wave only
+//   scale: 'both'           = half of each (a small pack of elites)
+//   scale: 'none'           = fixed, whatever the party size
+//   minParty: n             = the wave only exists at party size >= n
+//   perPlayer: f            = override COUNT_PER_PLAYER for this wave only
 // Their spells, items and AI tier never scale: those are the level's signature
 // and stay identical at 1, 2 or 3 players.
 //
@@ -35,7 +35,7 @@
 // extra player.
 //
 // ---- what the retune of 2026-08-07 learned (friendly fire is ON) ------------
-// Allies — including monsters — now damage and shove each other. That rewrote
+// Allies (including monsters) now damage and shove each other. That rewrote
 // every rule of thumb this file used to carry, so the whole table was remeasured
 // with `node tools/coop.js --levels` (200 attempts per level per party size):
 //
@@ -48,14 +48,14 @@
 // * CHAFF EXPIRES. Imps and Cultists are level-1-to-5 units and nothing more:
 //   at level-8 gear, six imps, thirteen imps and five cultists all clear 100%
 //   at every party size. The back half is denominated in Shades and tanks.
-// * STAGGERING ARRIVALS IS A DIFFICULTY *REDUCTION*, not an increase — a wave
+// * STAGGERING ARRIVALS IS A DIFFICULTY *REDUCTION*, not an increase: a wave
 //   that trickles in fights the party one at a time and never crosses fire with
 //   itself, but also never surrounds anyone. Late `at` times are a softening
 //   lever now (level 9's hounds), not a pressure lever.
 // * A PARTY IS WORTH FAR MORE THAN ITS BODY COUNT. One Shade is a 71% clear
 //   solo and two are 10%; two Shades against a DUO are 95%. Threat counts have
 //   to roughly triple from 1p to 2p, which is more than any perPlayer value
-//   lands cleanly — hence the minParty/scale:'none' waves that count the real
+//   lands cleanly, hence the minParty/scale:'none' waves that count the real
 //   threats out by hand for each party size.
 //
 // ---- what the ITEM-CAP repair of 2026-08-07 (later) learned ------------------
@@ -74,7 +74,7 @@
 // party size, full campaign 37.0/55.5/41.0%.
 // Levels 8, 9 and 10 were retuned; 1-7 were left alone. L7 still reads on target
 // (69/75/73). ⚠ L4-L6 have drifted UP a few points (94/94/97, 98/96/91,
-// 91/97/97) and that is NOT the item cap — the party has barely shopped by then.
+// 91/97/97) and that is NOT the item cap; the party has barely shopped by then.
 // The untested hypothesis is round 12's constant knockback (S1): everyone is now
 // shoved as if permanently at 70% HP, which helps a full-HP party shove a fresh
 // Brute and stops a dying player from being launched. Left alone deliberately:
@@ -84,20 +84,20 @@
 //   level 9's single solo Shade and the level clears 100%; delete its Brute and
 //   it still clears 87%. At level 10, one Shade at 2p was worth ~45 clear points
 //   at every boss HP tried. Price a party in Shades and you cannot land between
-//   two numbers — hounds (~10 points each) are the fine grain.
+//   two numbers; hounds (~10 points each) are the fine grain.
 // * HP IS STILL A NO-OP FOR BERSERKER-KIND. Brute 210 -> 170 -> 140 moved level
 //   9 solo by 1 point per step and level 5 by 1-2. The boss is the exception and
 //   only because he carries shield + treads (his HP is level 10's main lever).
 // * STAGGERING REALLY DOES SOFTEN. Level 9's first Shade at 0/12/15/25 s reads
 //   35/39/53/72% solo. `at` is now doing real tuning work, not flavour.
-// Also tried and rejected: making the BRUTE a `brawler` (Normal tier) — it does
+// Also tried and rejected: making the BRUTE a `brawler` (Normal tier); it does
 // fix level 9 solo (35 -> 49%) but it takes level 5 to 99/99/99 and breaks the
 // L4->L5 step, so the arrival time did the job instead. The `brawler` tier
 // remains available and is the right tool the day a level needs a tank that is
 // *dumber* rather than weaker.
 //
 // What HP does (still true, refined): for a BERSERKER-kind enemy at LOW gear,
-// HP is nearly a no-op — it dies to the lava, not to damage. Against a
+// HP is nearly a no-op; it dies to the lava, not to damage. Against a
 // late-campaign party it stops being free: they out-damage the lava, so the
 // Golem's 380 (and lava treads, which is the same lever from the other side) is
 // what makes level 8 a siege. For a STALKER-kind enemy HP is the whole fight at
@@ -118,7 +118,7 @@ export const SCALE = {
 // Each is a normal bot with tuned stats. `spells` bypasses the shop's minRound
 // gate on purpose (that is how the finale gets "every upgrade").
 
-const IMP = {           // dies to a single fireball — the chaff
+const IMP = {           // dies to a single fireball; the chaff
   name: 'Imp', avatar: '👺', kind: 'grunt', maxHp: 6, sizeMult: 0.7,
   spells: { fireball: 1 },
 };
@@ -130,12 +130,12 @@ const CULTIST = {       // ranged chip damage from the back line
   name: 'Cultist', avatar: '🧟', kind: 'grunt', maxHp: 70, sizeMult: 0.95,
   spells: { fireball: 2, lightning: 1 },
 };
-const SHADE = {         // ★★★ skirmisher: dodges and blinks — but made of paper
+const SHADE = {         // ★★★ skirmisher: dodges and blinks, but made of paper
   // Measured 2026-08-06: two ★★★ Shades at 90 hp WITH a shield wiped every
-  // ★★ party at every size (the ★★★ > ★★ ladder is 100% in h2h — see
+  // ★★ party at every size (the ★★★ > ★★ ladder is 100% in h2h; see
   // AGENTS.md). A ★★★ enemy's job here is to be hard to HIT, not hard to kill.
   // 2026-08-07: 40 -> 34. Shades are the ONLY unit the late campaign can price
-  // in — imps, cultists and 45 hp hounds all read as 100% clears by level 8 —
+  // in: imps, cultists and 45 hp hounds all read as 100% clears by level 8,
   // so the whole back half is denominated in Shades, and one Shade has to be a
   // finer-grained unit of difficulty than it used to be.
   name: 'Shade', avatar: '👻', kind: 'stalker', maxHp: 34, sizeMult: 0.85,
@@ -147,14 +147,14 @@ const BRUTE = {         // a wall you shove into the lava, not one you burn down
 };
 // (There is deliberately no second ★★★ template. An early draft had a tankier
 // "Warden" with a lightning finisher: enemy LIGHTNING is hitscan, so a solo
-// player cannot dodge it and cannot out-trade it — it took the solo clear rate
+// player cannot dodge it and cannot out-trade it; it took the solo clear rate
 // from 70% to 4% on its own. If you want a nastier skirmisher, add bodies, not
 // hitscan.)
 const GOLEM = {         // the Brute's big brother: a siege engine, not a skirmisher
   // A second tank template exists because level 5's Brute and level 8's tank
   // need different weight classes, and a wave can only scale a template's HP,
   // never override it. Measured 2026-08-07: at level-8 gear a 210 hp Brute is a
-  // 97% clear — the tank has to start where the Brute's party-scaled HP ends.
+  // 97% clear; the tank has to start where the Brute's party-scaled HP ends.
   name: 'Golem', avatar: '🗿', kind: 'berserker', maxHp: 380, sizeMult: 1.6,
   spells: { fireball: 2, rush: 1 }, items: { cape: 1, treads: 1 },
 };
@@ -162,7 +162,7 @@ const CHAMPION = {
   // The finale, and the answer to Remi's "3 against one very strong player who
   // has every upgrade". A ★★ BERSERKER on purpose, not a ★★★ stalker: a ★★★
   // with boots kites forever and simply cannot be cornered (measured 0% clear
-  // at every party size — an unloseable enemy is not a boss, it's a wall).
+  // at every party size (an unloseable enemy is not a boss, it's a wall).
   // No boomerang either: bots over-perform with it for reasons that have
   // nothing to do with the fight being good (AGENTS.md, "nothing dodges or
   // catches a boomerang").
@@ -172,7 +172,7 @@ const CHAMPION = {
   // 130 -> 115 (2026-08-07, item-cap repair): capping items at 3 levels took
   // most of the party's late-game power (they used to arrive here with 8-13
   // copies of everything) while Sargeras, a fixed template, lost almost nothing
-  // — level 10 fell to 23/12/12 (1p/2p/3p, 200 attempts/cell, seed 7). His HP is
+  // so level 10 fell to 23/12/12 (1p/2p/3p, 200 attempts/cell, seed 7). His HP is
   // still the finest lever the level has. Swept at 200 attempts/cell WITH the
   // wave fix below already in place (so 130's 23/12/12 is the only cell measured
   // on the old waves):
@@ -183,11 +183,11 @@ const CHAMPION = {
   name: 'Sargeras', avatar: '😈', kind: 'berserker', maxHp: 115, sizeMult: 1.8,
   spells: { fireball: 3, lightning: 3, teleport: 2, shield: 2, rush: 2, pillar: 2 },
   // One LEVEL of each, which is the faithful translation of the old "one copy
-  // of each" — deliberately NOT lv 3. Raising the boss's GEAR was considered and
+  // of each", deliberately NOT lv 3. Raising the boss's GEAR was considered and
   // rejected in the 2026-08-07 repair: level 10 needed to get EASIER, not harder,
   // so the measured lever was his HP (above) and the size of his honour guard.
   // These stay at level 1; if a future pass needs him stronger, raise them and
-  // re-measure — the sweep above is the template.
+  // re-measure; the sweep above is the template.
   items: { boots: 1, cape: 1, sword: 1, treads: 1 }, // ring removed with regen (round 17)
 };
 
@@ -198,7 +198,7 @@ const CHAMPION = {
 export const CAMPAIGN = [
   {
     n: 1, name: 'What lies ahead?',
-    brief: 'A scouting party of imps. One fireball each — warm up, read the arena, find the lava.',
+    brief: 'A scouting party of imps. One fireball each. Warm up, read the arena, find the lava.',
     waves: [{ count: 3, unit: IMP }],
   },
   {
@@ -220,7 +220,7 @@ export const CAMPAIGN = [
   },
   {
     n: 4, name: 'Too much?',
-    brief: 'A tide in chains: imps and a cultist now, hounds at 14 s, a second pack at 24 s. Do not chase — hold the centre.',
+    brief: 'A tide in chains: imps and a cultist now, hounds at 14 s, a second pack at 24 s. Do not chase. Hold the centre.',
     waves: [
       { count: 2, unit: IMP },
       { count: 1, unit: CULTIST, scale: 'hp' },
@@ -231,7 +231,7 @@ export const CAMPAIGN = [
   },
   {
     n: 5, name: 'Too late.',
-    brief: 'A Brute. 210 HP of muscle you will not out-damage — shove it into the lava while the imps swarm you. Alone you get it to yourself; a duo also gets two hounds, a trio three.',
+    brief: 'A Brute. 210 HP of muscle you will not out-damage. Shove it into the lava while the imps swarm you. Alone you get it to yourself; a duo also gets two hounds, a trio three.',
     waves: [
       { count: 1, unit: BRUTE, scale: 'hp' },
       { count: 2, unit: IMP },
@@ -245,10 +245,10 @@ export const CAMPAIGN = [
   },
   {
     n: 6, name: 'The price.',
-    brief: 'A full hound pack, a cultist calling the shots, imps behind them. The pack grows AND toughens with the party — a bigger pack no longer trips over itself.',
+    brief: 'A full hound pack, a cultist calling the shots, imps behind them. The pack grows AND toughens with the party (a bigger pack no longer trips over itself).',
     waves: [
       // 'both' on purpose: a pack that only grows in NUMBERS gets weaker per
-      // extra player now that friendly fire is on — measured 2026-08-07, nine
+      // extra player now that friendly fire is on (measured 2026-08-07, nine
       // 45 hp hounds cleared 98% at 3p because they shredded each other.
       // Splitting the scaling into count+hp keeps the pack lethal at size.
       { count: 3, unit: HOUND, scale: 'both', perPlayer: 1.2 },
@@ -258,7 +258,7 @@ export const CAMPAIGN = [
   },
   {
     n: 7, name: 'Still standing.',
-    brief: 'Shades — one, then two more for every warlock who came, and a hound to herd a trio. They dodge, they blink, they will not stand still for you. Almost no chaff to hide behind: this one is pure aim.',
+    brief: 'Shades. One, then two more for every warlock who came, and a hound to herd a trio. They dodge, they blink, they will not stand still for you. Almost no chaff to hide behind: this one is pure aim.',
     // Deliberately near escort-free. Measured 2026-08-07: chaff around the
     // Shades makes the level swingy without making it harder (imps die to the
     // Shades' own fire now); the clean version reads 69/67/70 across party
@@ -268,13 +268,13 @@ export const CAMPAIGN = [
       { count: 2, unit: SHADE, minParty: 2, scale: 'none' },
       { count: 2, unit: SHADE, minParty: 3, scale: 'none' },
       // A sixth Shade at 3p overshot (57% vs the 70% a hound lands on), and a
-      // Shade is the coarsest unit in the game — one hound is the fine tuning.
+      // Shade is the coarsest unit in the game; one hound is the fine tuning.
       { count: 1, unit: HOUND, minParty: 3, scale: 'none' },
     ],
   },
   {
     n: 8, name: 'Of course.',
-    brief: 'A Golem — 380 HP in lava treads, so the lava will not do your work for you — behind a hound pack that grows and toughens with the party. Imps at 16 s. The arena will be small by then.',
+    brief: 'A Golem (380 HP in lava treads, so the lava will not do your work for you) behind a hound pack that grows and toughens with the party. Imps at 16 s. The arena will be small by then.',
     waves: [
       { count: 1, unit: GOLEM, scale: 'hp' },
       { count: 2, unit: HOUND, scale: 'both', perPlayer: 1.8 },
@@ -284,16 +284,16 @@ export const CAMPAIGN = [
       // capped at 3 levels level 8 read 68/66*/57 with a star-shaped 2p outlier:
       // 85% at 2p against 75% at level 7, the one real non-monotonicity in the
       // curve. Handing the same pair to a duo lands 68/66/58 (seed 7), 64/65/57
-      // (seed 23), 68/68/58 (seed 41) — flat, and back under level 7.
+      // (seed 23), 68/68/58 (seed 41): flat, and back under level 7.
       // (GOLEM.maxHp was the obvious alternative and it is the wrong lever here:
-      // it scales with 'hp', so 380 -> 440 fixed 2p but took 3p to 46% — below
+      // it scales with 'hp', so 380 -> 440 fixed 2p but took 3p to 46%, below
       // level 9. Measured, 200 attempts/cell.)
       { count: 2, unit: HOUND, minParty: 2, scale: 'none' },
     ],
   },
   {
     n: 9, name: 'Endure.',
-    brief: 'A Brute you cannot ignore and a Shade coven you cannot pin down — one of them holds back twelve seconds, and hounds arrive past 22 s to close the net. The coven grows with the party. Nothing here dies quickly. Combo, or be surrounded.',
+    brief: 'A Brute you cannot ignore and a Shade coven you cannot pin down. One of them holds back twelve seconds, and hounds arrive past 22 s to close the net. The coven grows with the party. Nothing here dies quickly. Combo, or be surrounded.',
     // ---- retuned 2026-08-07 (item-cap repair) --------------------------------
     // Items went from freely-stackable copies to a hard cap of 3 levels, so a
     // party that used to reach this level carrying 8-13 copies of every item now
@@ -309,14 +309,14 @@ export const CAMPAIGN = [
     //   * The Shade's ARRIVAL TIME is the strong solo lever, because staggering
     //     softens: at 0 s -> 35%, at 12 s -> 39%, at 15 s -> 53%, at 25 s -> 72%.
     // Final shape at 200 attempts/cell: 39/46/44 (seed 7), 43/48/38 (seed 23),
-    // 42/46/44 (seed 41) — mean 41/47/42 against the 44/53/42 it used to be.
+    // 42/46/44 (seed 41): mean 41/47/42 against the 44/53/42 it used to be.
     waves: [
       // Shades are counted out by hand per party size instead of scaled: the
       // step from three to four of them is worth ~30 clear points at 2p
       // (measured 2026-08-07), which no perPlayer value can land between.
       // The counts were 1/3/7 and are now 1/2/4: at 3p, seven Shades was an 8%
       // clear, five is 38%, four is 54% (before the extra hounds below).
-      // `at: 12` on the first one is the fine lever the coven does not have —
+      // `at: 12` on the first one is the fine lever the coven does not have;
       // one Shade held back is worth ~4 points to a party of any size, and ~17
       // to a solo player who otherwise fights it and the Brute simultaneously.
       { count: 1, unit: SHADE, at: 12, scale: 'none' },
@@ -347,7 +347,7 @@ export const CAMPAIGN = [
       // at 81%). Shades survive standing next to him, so the honour guard is
       // ghosts, and hounds ride along as the fine adjustment.
       // 2026-08-07: the Shades used to start at 2p (1 at 2p, 3 at 3p) and that
-      // one Shade WAS the 2p fight — with the capped-item party it read 12-18%
+      // one Shade WAS the 2p fight; with the capped-item party it read 12-18%
       // at every boss HP down to 95 (a Shade is the coarsest unit in the game,
       // and here it is worth ~45 clear points). The guard is a 3p-only pair now,
       // and the duo is priced in hounds instead, which land in ~10-point steps:
@@ -370,7 +370,7 @@ export function levelFor(n) {
 
 // Expand a level into the flat list of units to spawn, applying the party
 // scaling rule above. Returns [{at, name, avatar, kind, build, maxHp, spells,
-// items, sizeMult}] — `at` is battle time in seconds (0 = at round start).
+// items, sizeMult}]: `at` is battle time in seconds (0 = at round start).
 export function waveUnits(level, partySize) {
   const p = Math.max(1, partySize | 0);
   const out = [];

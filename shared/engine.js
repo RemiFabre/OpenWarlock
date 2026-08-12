@@ -1,14 +1,14 @@
-// OpenWarlock — transport-agnostic authoritative game room.
+// OpenWarlock: transport-agnostic authoritative game room.
 // Extracted verbatim from server/index.js (2026-08-09) so the same room can run
 // behind the Node ws server, inside a browser tab (solo vs bots), or behind a
 // WebRTC host later. docs/BRIEF-browser-hosting.md is the spec.
 //
 // The line this module holds: the engine knows CONNECTION IDS and NAMES.
-// It never sees sockets, IPs, files, or the game-loop clock — the caller owns
+// It never sees sockets, IPs, files, or the game-loop clock; the caller owns
 // the 30 Hz tick / 15 Hz snapshot cadence and all I/O:
 //   - name-bans, ghosts/reconnect, kick, seating -> here (they are game state)
 //   - IP-bans, journal, crash dumps, /health, static serving -> the adapter
-// setTimeout IS used, but only for the lobby-reset grace window — it exists
+// setTimeout IS used, but only for the lobby-reset grace window; it exists
 // in browsers and Node alike and survives a paused caller.
 
 import {
@@ -37,7 +37,7 @@ export const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16)
 
 // Reconnect persistence (2026-08-05): a human who drops mid-game keeps their
 // progress. Stash under normalized NAME, restore on the next join with that
-// name within the TTL. Stashes die with the game — names are trusted within a
+// name within the TTL. Stashes die with the game; names are trusted within a
 // friends lobby, same as bans.
 const GHOST_TTL_MS = 10 * 60 * 1000;
 
@@ -46,22 +46,22 @@ export function createEngine({
   maxPlayers = 10,
   mode,
   state = null,                 // a blob from serialize(); resumes that game
-  onSend = () => {},            // (connId, msgObject) — the only way out
-  onKick = () => {},            // (connId, {ban}) — adapter closes the pipe / records the IP
+  onSend = () => {},            // (connId, msgObject): the only way out
+  onKick = () => {},            // (connId, {ban}): adapter closes the pipe / records the IP
   onUnbanAll = () => {},        // adapter clears its IP bans
-  onLog = () => {},             // (k, data) — journal hook; adapter decides where it goes
+  onLog = () => {},             // (k, data): journal hook; adapter decides where it goes
   externalBans = () => 0,       // adapter's IP-ban count (folded into the snap `bans` field)
   // Humans-all-gone mid-game: wait this long for a reconnect before resetting.
   resetGraceMs = 60000,
   // Faker (issue #7): a fresh lobby opens with a Faker already seated. True on
-  // the issue-7-faker demo version; on MAIN it defaults off — bots are added
+  // the issue-7-faker demo version; on MAIN it defaults off (bots are added
   // by choice (round 22 port).
   demoBot = false,
 } = {}) {
   if (state && state.seed != null) seed = state.seed;
   let game = state ? state.game : createGame({ seed, mode });
   let nextBotId = state ? state.nextBotId : 1;
-  // Faker (issue #7): the version opens SHOWING its tier — a Faker with a
+  // Faker (issue #7): the version opens SHOWING its tier; a Faker with a
   // random combo arsenal is already seated in every fresh lobby. Remove it
   // like any bot; "play again" carries it like any bot.
   if (demoBot && !state && mode !== 'coop') {
@@ -136,7 +136,7 @@ export function createEngine({
       if (p.bot || conns.has(id)) {
         const np = addPlayer(game, id, p.name, {
           bot: p.bot, color: p.color, avatar: p.avatar, kind: p.kind, build: p.build,
-          // the versus team survives "play again" like the colour and avatar —
+          // the versus team survives "play again" like the colour and avatar;
           // a lobby arrangement, not a per-game one. A co-op team is a STRING
           // set by the campaign each round, so it is deliberately not carried.
           team: typeof p.team === 'number' ? p.team : undefined,
@@ -179,7 +179,7 @@ export function createEngine({
       const pickedOwn = typeof avatar === 'string' && avatar.trim() !== '';
       const pl = addPlayer(game, connId, name || 'warlock', { avatar: freeAvatar(avatar) });
       if (game.phase === 'countdown') {
-        // the fight hasn't started yet — seat them straight into this round
+        // the fight hasn't started yet; seat them straight into this round
         pl.alive = true;
         const n = Object.keys(game.players).length;
         const a = n * 2.39996; // golden angle: spreads any number of joiners
@@ -201,7 +201,7 @@ export function createEngine({
         pl.gold = ghost.gold; pl.goldEarned = ghost.goldEarned;
         pl.kills = ghost.kills; pl.deaths = ghost.deaths;
         pl.dmgDealt = ghost.dmgDealt;
-        pl.maxHp = ghost.maxHp; // amulet hp travels here — never re-apply items
+        pl.maxHp = ghost.maxHp; // amulet hp travels here; never re-apply items
         pl.hp = Math.min(pl.hp, pl.maxHp);
         pl.spells = ghost.spells; pl.items = ghost.items; pl.elements = ghost.elements;
         pl.angerMarks = ghost.angerMarks || 0; // the permanent anger bank survives
@@ -294,7 +294,7 @@ export function createEngine({
           const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
           // build strategy: explicit lobby pick, or a random one ('random'/absent).
           // Issue #7: a `kinds` build is restricted to those tiers (the Faker's
-          // combo arsenals), and those tiers get ONLY their own builds — a
+          // combo arsenals), and those tiers get ONLY their own builds; a
           // combo bot with a generic build is just Extreme, which defeats it.
           const buildKeys = Object.keys(BUILDS).filter(k =>
             BUILDS[k].kinds ? BUILDS[k].kinds.includes(kind)
@@ -311,7 +311,7 @@ export function createEngine({
         }
         case 'removeBot': {
           // round 22 (per-row remove buttons): an optional m.id names WHICH bot
-          // goes — a bot only, never a human (kick owns those). No id keeps the
+          // goes: a bot only, never a human (kick owns those). No id keeps the
           // old behavior: the last-added bot leaves.
           if (game.phase !== 'lobby') break;
           const bots = Object.values(game.players).filter(p => p.bot);
@@ -323,7 +323,7 @@ export function createEngine({
         case 'kick': {
           // lobby-only: boot a HUMAN player (ghost seats, AFK friends). With
           // ban:true their name stays blocked (the adapter adds the IP) until
-          // the room dies — else an abandoned tab auto-reconnects 2 s later.
+          // the room dies; else an abandoned tab auto-reconnects 2 s later.
           if (game.phase !== 'lobby' || typeof m.id !== 'string') break;
           const target = game.players[m.id];
           if (!target || target.bot || m.id === id) break;
@@ -377,7 +377,7 @@ export function createEngine({
       }
       removePlayer(game, connId);
       if (playerCount() === 0 || Object.values(game.players).every(p => p.bot)) {
-        // don't let bot-only games spin forever — but if a game is RUNNING,
+        // don't let bot-only games spin forever; but if a game is RUNNING,
         // give the vanished humans a grace window to reconnect first (a tunnel
         // hiccup must not wipe a solo-vs-bots game; see the ghost stash above)
         if (game.phase === 'lobby' || game.phase === 'gameover') resetToLobby();
@@ -386,7 +386,7 @@ export function createEngine({
     },
 
     // one simulation step: physics + bots + shop entry. The CALLER owns the
-    // clock — call at TICK_RATE with dt = 1/TICK_RATE.
+    // clock; call at TICK_RATE with dt = 1/TICK_RATE.
     tick(dt) {
       step(game, dt);
       for (const p of Object.values(game.players)) {
@@ -405,7 +405,7 @@ export function createEngine({
       if (conns.size === 0) { game.events = []; return; }
       const events = game.events;
       game.events = [];
-      // per-player RTT (adapter-fed, ws only): one shared blob — a ping is not
+      // per-player RTT (adapter-fed, ws only): one shared blob; a ping is not
       // a secret, and every viewer wants to see who is lagging. Absent when no
       // adapter reports one (solo/RTC), which the client renders as "no badge".
       const pingBlob = {};
@@ -430,7 +430,7 @@ export function createEngine({
 
     // B4 prep (host migration): the full room state as a JSON-safe blob.
     // The rng cursor is a plain field on the game (sim.js rng()), so a restored
-    // engine replays step-for-step identically — test-locked in engine.test.js.
+    // engine replays step-for-step identically; test-locked in engine.test.js.
     serialize() {
       return JSON.parse(JSON.stringify({ game, nextBotId, seed }));
     },

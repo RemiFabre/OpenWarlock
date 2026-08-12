@@ -1,4 +1,4 @@
-# Round 10 Implementation Plan — reconnect, power-spell combos, poison rework, Critical element, bot reaction time, balance campaign
+# Round 10 Implementation Plan: reconnect, power-spell combos, poison rework, Critical element, bot reaction time, balance campaign
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,7 +12,7 @@
 
 - `npx vitest run` must stay green (92 tests + new ones) before every commit.
 - Classic-mode wire format must stay byte-identical (elemental fields only under `mode === 'elemental'`).
-- DoT ticks must NOT stamp `lastHitBy` (round-9 scar) — tick kills credit via direct `sourceId` instead.
+- DoT ticks must NOT stamp `lastHitBy` (round-9 scar); tick kills credit via direct `sourceId` instead.
 - Knockback must keep zero size/radius term.
 - Economy invariant `ROUND_BASE >= 3*PER_KILL + ROUND_WIN` untouched.
 - Bots stay rebindable-keyboard-agnostic; no image assets for game objects (emoji ok).
@@ -25,8 +25,8 @@
 **Files:** Modify `shared/constants.js:41` (KB_HP_FACTOR), `:49` (LAVA.SPEED_MULT). Test: `test/sim.test.js`.
 
 - [ ] Step 1: `KB_HP_FACTOR: 0.55` → `0.385` (comment: `was 0.55: −30% 2026-08-05, low-HP launches still too wild`).
-- [ ] Step 2: `SPEED_MULT: 1.3` → `2.0` (comment: lava swimming is a real dodge route — you sprint at 2× while burning).
-- [ ] Step 3: `npx vitest run` — knockback regression tests use the constant, must stay green.
+- [ ] Step 2: `SPEED_MULT: 1.3` → `2.0` (comment: lava swimming is a real dodge route; you sprint at 2× while burning).
+- [ ] Step 3: `npx vitest run` (knockback regression tests use the constant, must stay green).
 - [ ] Step 4: Commit `retune: low-HP knockback -30%, lava speed x2`.
 
 ### Task 2: Repulse + Teleport/Rush combos
@@ -38,17 +38,17 @@
 - [ ] Step 1: Failing tests: (a) start repulse charge, cast teleport → position blinks, charge still fires after 2 s and hits an adjacent enemy; (b) charge + rush → dash executes, burst still fires; (c) charge + fireball → still refused; (d) mid-dash repulse → accepted.
 - [ ] Step 2: Replace `if (pl.dash || pl.charging) return false;` with:
 ```js
-  // power combos (2026-08-05): a charging repulse may still reposition —
-  // teleport/rush into the pack and let the burst land. Everything else
+  // power combos (2026-08-05): a charging repulse may still reposition.
+  // Teleport/rush into the pack and let the burst land. Everything else
   // stays locked, and a dash only allows starting the charge.
   if (pl.dash && key !== 'repulse') return false;
   if (pl.charging && key !== 'teleport' && key !== 'rush') return false;
 ```
-- [ ] Step 3: `setMoveTarget` still blocks during dash only — unchanged. Run tests → green.
-- [ ] Step 4: Update repulse desc: `'💥 Charge 2 s (visibly — Teleport/Rush still work), then blast everyone around you away. From round 6.'`
+- [ ] Step 3: `setMoveTarget` still blocks during dash only (unchanged). Run tests → green.
+- [ ] Step 4: Update repulse desc: `'💥 Charge 2 s (visibly; Teleport/Rush still work), then blast everyone around you away. From round 6.'`
 - [ ] Step 5: Commit `repulse combos: teleport/rush usable while charging`.
 
-### Task 3: Poison rework — discrete ticks, stacking on re-hit, tick kills
+### Task 3: Poison rework (discrete ticks, stacking on re-hit, tick kills)
 
 **Files:** Modify `shared/constants.js:207-210` (venom fx), `shared/sim.js` (addPlayer fields, startRound reset, stepBattle DoT block, applyElementsHit, hazard tint guard). Test: `test/sim.test.js`.
 
@@ -62,7 +62,7 @@
                  dotTime: 5, tickEvery: 1,
                  trailT: [1.4, 1.9, 2.4], trailDps: 2, trailStep: 2.5, trailR: 1.3 } },
 ```
-- [ ] Step 2: Failing tests: (a) one venom lv1 hit → exactly 5 ticks of 1 dmg over ~5 s (hp drops by 5 beyond impact, in 1-dmg steps); (b) re-hit at t=2 s → duration back to 5 s and tick dmg 1.5; (c) lethal tick credits the poisoner with the kill (victim parked in lava at 1 hp: whoever's tick lands the killing blow gets it — poison tick kill → poisoner credited even though lastHitBy is stale); (d) poison does NOT stamp lastHitBy (lava killing blow after window → environment kill, not poisoner).
+- [ ] Step 2: Failing tests: (a) one venom lv1 hit → exactly 5 ticks of 1 dmg over ~5 s (hp drops by 5 beyond impact, in 1-dmg steps); (b) re-hit at t=2 s → duration back to 5 s and tick dmg 1.5; (c) lethal tick credits the poisoner with the kill (victim parked in lava at 1 hp: whoever's tick lands the killing blow gets it; poison tick kill → poisoner credited even though lastHitBy is stale); (d) poison does NOT stamp lastHitBy (lava killing blow after window → environment kill, not poisoner).
 - [ ] Step 3: In `applyElementsHit` replace the dotDamage branch:
 ```js
     if (f.tickDmg) {
@@ -84,7 +84,7 @@
         if (pl._poisonNext <= 0) {
           pl._poisonNext += ELEMENTS.venom.fx.tickEvery;
           // a discrete tick CAN land the killing blow (kill credit goes to the
-          // poisoner via sourceId) but never stamps lastHitBy — the round-9 rule
+          // poisoner via sourceId) but never stamps lastHitBy (the round-9 rule)
           applyDamage(state, pl, pl.poisonTick, pl.poisonBy, { silent: true, stamp: false });
           if (state.players[pl.poisonBy] || pl.poisonBy == null)
             state.events.push({ t: 'hit', id: pl.id, amount: pl.poisonTick, x: pl.x, y: pl.y, poison: true });
@@ -92,10 +92,10 @@
       }
     }
 ```
-- [ ] Step 5: Rename fields everywhere: `poisonDps`/`_poisonAcc` → `poisonTick`/`_poisonNext` in addPlayer + startRound reset. Hazard tint line stays `pl.poisonT = Math.max(pl.poisonT, 0.3)` — guard the tick block with `pl.poisonTick > 0` (done above) so trail tint alone deals no tick damage.
+- [ ] Step 5: Rename fields everywhere: `poisonDps`/`_poisonAcc` → `poisonTick`/`_poisonNext` in addPlayer + startRound reset. Hazard tint line stays `pl.poisonT = Math.max(pl.poisonT, 0.3)`; guard the tick block with `pl.poisonTick > 0` (done above) so trail tint alone deals no tick damage.
 - [ ] Step 6: Run tests, fix, commit `poison rework: 1 tick/s for 5s, re-hits refresh+stack, ticks can last-hit`.
 
-### Task 4: New element — Critical 💢 (per-hit ramp)
+### Task 4: New element, Critical 💢 (per-hit ramp)
 
 **Files:** Modify `shared/constants.js` (ELEMENTS.critical), `shared/sim.js` (addPlayer/startRound `critHits`, projectile damage calc, applyElementsHit increment), `client/render.js:47` (ELEM_CORE color). Test: `test/sim.test.js`.
 
@@ -117,7 +117,7 @@
             kb += hits * efxV(f.rampKb, el);
           }
 ```
-  (order note: the loop applies adds and mults per element as it goes — put ramp in the same add slot; document that element iteration order = ownership insertion order, same as today.)
+  (order note: the loop applies adds and mults per element as it goes; put ramp in the same add slot; document that element iteration order = ownership insertion order, same as today.)
 - [ ] Step 4: In `applyElementsHit` add `if (f.rampDmg && pr.owner != null) { const o = state.players[pr.owner]; if (o) o.critHits = (o.critHits || 0) + 1; }`. Reset `critHits = 0` in startRound + addPlayer.
 - [ ] Step 5: `ELEM_CORE` add `critical: '#ff5d5d'`. Run tests, commit `new element: Critical (per-hit dmg/kb ramp, resets each round)`.
 
@@ -156,7 +156,7 @@
 **Files:** Modify `shared/constants.js:220-222`, `client/main.js` (spell-bar elem badges), maybe `client/index.html`/CSS. Test: numbers only (constants), UI eyeballed via robustness test.
 
 - [ ] Step 1: `cdrMult: [0.9, 0.82, 0.75]` → `[0.88, 0.78, 0.68]`, desc `'ALL your cooldowns run faster: −12% / −22% / −32%.'` (final numbers may move after the campaign).
-- [ ] Step 2: Visibility: in `updateUi` spell bar, show owned arcane on EVERY owned spell slot (not just fireball): if `m.elements.arcane`, append `🔮` to each slot's `.elem` badge — arcane is global, so every cooldown it touches shows it.
+- [ ] Step 2: Visibility: in `updateUi` spell bar, show owned arcane on EVERY owned spell slot (not just fireball): if `m.elements.arcane`, append `🔮` to each slot's `.elem` badge (arcane is global, so every cooldown it touches shows it).
 - [ ] Step 3: Run robustness test to confirm no client crash. Commit `arcane: -12/-22/-32% CDR, visible on every spell slot`.
 
 ### Task 7: Lifesteal audit (test-lock the rule)
@@ -168,16 +168,16 @@
 - [ ] Step 3: Item desc → `'Heal 25% of the damage you deal (lava burn excluded)'`.
 - [ ] Step 4: Run tests, commit `lifesteal: works on all dealt damage incl. DoT, capped at real damage`.
 
-### Task 8: Hook — visible chain + verified yank-behind
+### Task 8: Hook (visible chain + verified yank-behind)
 
 **Files:** Modify `client/render.js` (projectile loop: hook rendering), `shared/sim.js:1039-1040` (yank distance), `shared/constants.js:146` (desc clarity). Test: `test/sim.test.js`.
 
 - [ ] Step 1: Failing test: hook cast east at a victim 10 u away yanks the victim to WEST of the caster (behind, opposite the throw), momentum zeroed. And: victim killed by hook damage is NOT yanked.
 - [ ] Step 2: Yank lands the victim a full body further out so the swap reads clearly: `owner.radius + other.radius + 0.6` → `+ 1.4` (both axes).
-- [ ] Step 3: render.js — in the projectile loop add:
+- [ ] Step 3: render.js, in the projectile loop add:
 ```js
     } else if (pr.type === 'hook') {
-      // taut chain from the caster to the hook head — you SEE the range
+      // taut chain from the caster to the hook head; you SEE the range
       const owner = players.find(p => p && p.id === pr.owner);
       if (owner && fin(owner.x) && fin(owner.y)) {
         ctx.strokeStyle = 'rgba(215, 205, 180, 0.85)';
@@ -231,23 +231,23 @@
         journal('reconnect-restore', { id, name: pl.name });
       }
 ```
-  (amulet maxHp travels via ghost.maxHp — do NOT re-apply item effects.)
+  (amulet maxHp travels via ghost.maxHp; do NOT re-apply item effects.)
 - [ ] Step 3: Clear `ghosts` in `resetToLobby`.
-- [ ] Step 4: Scratchpad script: start server, ws-join "remi", play into round 1, buy nothing, force kills via second client? — simpler: join 1 human + bots via messages, wait for battle, set kills by playing is impractical → instead verify gold/spells survive: join, reach shop, buy fireball lv2, disconnect, rejoin same name, assert snapshot shows fireball lv2 + reduced gold. Assert a DIFFERENT name does not inherit.
+- [ ] Step 4: Scratchpad script: start server, ws-join "remi", play into round 1, buy nothing, force kills via second client? Simpler: join 1 human + bots via messages, wait for battle, set kills by playing is impractical → instead verify gold/spells survive: join, reach shop, buy fireball lv2, disconnect, rejoin same name, assert snapshot shows fireball lv2 + reduced gold. Assert a DIFFERENT name does not inherit.
 - [ ] Step 5: Run robustness test (its reconnects must not double-restore). Commit `reconnect keeps your progress: name-keyed ghost stash on the server`.
 
 ### Task 10: Berserker reaction time + close-range aim error floor
 
 **Files:** Modify `shared/sim.js` (stepBerserker: stale-observation aim, decision tick, error floor), `shared/constants.js` (BOTS.berserker desc/reaction doc). Test: `test/sim.test.js` (deterministic: berserker no longer point-blank-perfect) + arena win-rate check in campaign.
 
-**Interfaces:** Produces per-bot `pl._obs = {id, x, y, vx, vy}` — last decision-tick's observation of its mark; aim uses the PREVIOUS observation (one decision tick stale ≈ its reaction time).
+**Interfaces:** Produces per-bot `pl._obs = {id, x, y, vx, vy}`, last decision-tick's observation of its mark; aim uses the PREVIOUS observation (one decision tick stale ≈ its reaction time).
 
-- [ ] Step 1: `pl._botT = 0.14 + rng*0.1` → `0.22 + rng*0.12` (avg ≈ 0.28 s — human-ish reaction; stalker keeps 0.12, grunt keeps 0.25).
+- [ ] Step 1: `pl._botT = 0.14 + rng*0.1` → `0.22 + rng*0.12` (avg ≈ 0.28 s, human-ish reaction; stalker keeps 0.12, grunt keeps 0.25).
 - [ ] Step 2: Fireball aim block: intercept from the STALE observation of the mark, and an absolute error floor so point-blank is no longer pixel-perfect:
 ```js
   if (mark && (pl.cooldowns.fireball || 0) <= 0) {
     // reaction emulation (2026-08-05): aim with LAST tick's observation of
-    // the mark (≈0.28 s stale) — direction changes inside that window are
+    // the mark (≈0.28 s stale): direction changes inside that window are
     // invisible to the bot, exactly like a human's reaction time
     const seen = pl._obs && pl._obs.id === mark.id ? pl._obs : null;
     const v = estVel(mark);
@@ -278,8 +278,8 @@
   - elemental studies: `--mode=elemental --kind=grunt|berserker|stalker --games=1500` each (now 8 elements incl. critical)
   - item probe `--probe=berserker --games=1400` (lifesteal + KB change may shift sustain)
 - [ ] Step 2: Analyze vs report #3 + round 8/9 addenda. Red lines: any element > 40% or < 12% in 4-seat studies (baseline 25%); venom must NOT regain lava-kill dominance (lava share sanity + venom win rate); critical between 20–35%; berserker mixed-study Elo above grunt, below stalker; lava share reported (Remi hasn't ruled on target).
-- [ ] Step 3: Iterate numbers (tickDmg/stackAdd, ramp, midas, cdr, error floor) — one variable per iteration, re-run the affected study at ≥1000 games, document every iteration.
-- [ ] Step 4: Write BALANCE.md report #4 per the explain-everything rule (define metrics, state 25% baseline, builds as build+playstyle, link STRATEGIES.md, flag bot artifacts — esp. midas & critical with saturated bots, and that bots don't pilot power spells/hook so those verdicts stay human).
+- [ ] Step 3: Iterate numbers (tickDmg/stackAdd, ramp, midas, cdr, error floor): one variable per iteration, re-run the affected study at ≥1000 games, document every iteration.
+- [ ] Step 4: Write BALANCE.md report #4 per the explain-everything rule (define metrics, state 25% baseline, builds as build+playstyle, link STRATEGIES.md, flag bot artifacts: esp. midas & critical with saturated bots, and that bots don't pilot power spells/hook so those verdicts stay human).
 - [ ] Step 5: REMI_NOTES.md round-10 entry (player-facing, interpretation of each voice note stated, one-line reverts). AGENTS.md handoff refresh. Final verification ritual. Commit + final summary.
 
 ## Self-Review

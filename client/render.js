@@ -6,7 +6,7 @@ import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
 
 // Sky-bolt tint per spell level (round 17 §2: the color shift IS the level
-// read) — pale electric blue, deeper blue, storm violet. "r, g, b" strings.
+// read): pale electric blue, deeper blue, storm violet. "r, g, b" strings.
 const BOLT_TINTS = ['165, 220, 255', '110, 190, 255', '195, 160, 255'];
 
 // Precomputed drifting lava blobs (deterministic, just for looks).
@@ -43,10 +43,10 @@ export function makeView(canvas) {
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.cx = this.w / 2; this.cy = this.h / 2;
       this.scale = Math.min(this.w, this.h) / (2 * (this.arenaR + 9));
-      // backdrop renders at ~1/3 resolution and is stretched up — the image,
+      // backdrop renders at ~1/3 resolution and is stretched up; the image,
       // wash and lava-blob gradients are by far the most expensive paints
       // the back layer only carries the lava-blob gradients now (the level
-      // art is drawn full-res on the main canvas — one cheap drawImage)
+      // art is drawn full-res on the main canvas; one cheap drawImage)
       back.width = Math.max(160, Math.round(this.w / 3));
       back.height = Math.max(100, Math.round(this.h / 3));
     },
@@ -61,21 +61,21 @@ const TAU = Math.PI * 2;
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
   frost: '#8fd8ff', malady: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
-  // anger: the red ball IS the brand — the core shifts hard toward red
+  // anger: the red ball IS the brand; the core shifts hard toward red
   anger: '#ff5040',
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
   // arterial red (and it also gets the engorged halo below)
   ghost: '#dcd6ff', vampire: '#e0405a',
 };
 
-// Round 17 §12 — the fireball is ONE additive stack of layers, in draw order:
+// Round 17 §12: the fireball is ONE additive stack of layers, in draw order:
 //   base ball (terra sizes it, the strongest rider tints it)
 //   → element accents (one per element the ball carries, they compose)
 //   → event overlay (engorged, which also owns the BASE color).
-// (The old momentum tier wings are GONE — Remi: the giant tier balls LOOKED
+// (The old momentum tier wings are GONE. Remi: the giant tier balls LOOKED
 // like they hit but didn't. Every accent stays near the true hitbox radius.)
 // Both readings matter: the owner sees the build they bought fly, a defender
-// reads what is coming at them. Accents are cheap strokes on purpose — this
+// reads what is coming at them. Accents are cheap strokes on purpose; this
 // runs per projectile per frame, so no gradients and no allocations here.
 const ACCENTS = {
   // damage axis: hot sparks shedding off the back
@@ -177,7 +177,7 @@ const ACCENTS = {
     }
   },
   // lifesteal: an arterial crescent. Every chargeEvery'th cast the ball also
-  // goes engorged, and that overlay is the loud one — this is the "I own
+  // goes engorged, and that overlay is the loud one; this is the "I own
   // vampire" tell on the ordinary balls between charges.
   vampire: (ctx, x, y, r, lv, ang) => {
     ctx.strokeStyle = 'rgba(224, 64, 90, 0.8)';
@@ -199,8 +199,8 @@ const ACCENTS = {
   },
 };
 
-// Vampire's engorged ball (every chargeEvery'th cast — 5 since round 16): an
-// halo with a 🧛 rider. It keeps every other layer — only the base color is
+// Vampire's engorged ball (every chargeEvery'th cast; 5 since round 16): an
+// halo with a 🧛 rider. It keeps every other layer; only the base color is
 // taken over, because "this one heals them for a lot" outranks any tint.
 function drawEngorged(ctx, x, y, r, t) {
   ctx.save();   // this block sets textAlign/baseline; the fx pass draws damage
@@ -236,7 +236,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
 
   // --- backdrop: base + level art at FULL resolution on the main canvas
   // (the art used to live on the 1/3-res layer and came out visibly blurry;
-  // a single full-res drawImage is cheap — the gradients were the expensive
+  // a single full-res drawImage is cheap; the gradients were the expensive
   // part, and those stay on the low-res layer below) ---
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#2b0800';
@@ -397,7 +397,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     // the rock itself, streaking down at the zone (round 20, Remi: "it would
     // be cool if we could see something falling"): position/size lerped from
     // a high offset to the impact point over the telegraph's delay, with a
-    // short fiery trail behind it — the impact reads instead of popping.
+    // short fiery trail behind it; the impact reads instead of popping.
     const p = Math.min(Math.max(1 - tt / (SPELLS.meteor.delay || 1), 0), 1);
     const fall = 1 - p;                       // 1 = just cast, 0 = impact
     const rx = x + 9 * scale * fall;          // comes in from the upper right
@@ -419,7 +419,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   }
 
   // --- Mines (round 21.8, SPELLS.nova): a trap on the ground, deliberately
-  // READABLE BUT QUIET (Remi: "a bit of a circle — not a red glowing thing").
+  // READABLE BUT QUIET (Remi: "a bit of a circle, not a red glowing thing").
   // A thin dashed ring at the TRUE trigger radius, a dark stud in the middle,
   // and one ember pip per stored fireball, so "that one is loaded" is visible
   // from across the arena. Tinted with the planter's colour: whose trap it is
@@ -458,7 +458,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   }
 
   // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
-  // Same blink language as the meteor's, but in the bolt's per-level tint —
+  // Same blink language as the meteor's, but in the bolt's per-level tint;
   // the zone appears the INSTANT of the cast; the dodge window IS the spell.
   const bolts = Array.isArray(vs.bolts) ? vs.bolts : [];
   for (const m of bolts) {
@@ -509,9 +509,9 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     if (!pr || !fin(pr.x) || !fin(pr.y)) continue;
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
-      // §12: the layered stack — base → element accents → evolution → event.
+      // §12: the layered stack; base → element accents → evolution → event.
       // A mosquito owner's ball is a NORMAL fireball; the element's feedback is
-      // the PAIR itself — two balls on the same line, a heartbeat apart.
+      // the PAIR itself: two balls on the same line, a heartbeat apart.
       const el = pr.elements || null;
       const terraMult = el && el.terra
         ? ELEMENTS.terra.fx.projRadiusMult[Math.min(el.terra, 3) - 1] : 1;
@@ -522,7 +522,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
       if (pr.engorged) core = '#ff2340';
       // base ball: trail + core glow, both tinted (anger's red core comes from
-      // ELEM_CORE — the earned bank never inflates the ball's apparent size)
+      // ELEM_CORE; the earned bank never inflates the ball's apparent size)
       const tail = 4;
       const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
       g.addColorStop(0, 'rgba(255, 120, 30, 0)');
@@ -544,7 +544,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       }
       if (pr.engorged) drawEngorged(ctx, x, y, r, t);
     } else if (pr.type === 'swap') {
-      // dashed tether from the caster to the swap bolt — the link the trade
+      // dashed tether from the caster to the swap bolt; the link the trade
       // will travel is VISIBLE (the hook's chain, recolored arcane violet)
       const owner = players.find(p => p && p.id === pr.owner);
       if (owner && fin(owner.x) && fin(owner.y)) {
@@ -585,14 +585,14 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     // drawn slightly larger than the hitbox for readability
     const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
 
-    // Vanish (SPELLS.vanish): this can only ever be YOUR OWN body — an invisible
+    // Vanish (SPELLS.vanish): this can only ever be YOUR OWN body; an invisible
     // player has no x/y in anybody else's snapshot, so no other client reaches
     // this line for them. You still need to see yourself to play, so the body
     // goes ghostly and wears a dashed ring plus a countdown; both flash once it
     // is nearly over, which is the "when is it ending" half of the feedback.
     const hidden = fin(pl.vanishT) && pl.vanishT > 0;
     // Statue (SPELLS.statue, round 21.4): for these 2 s the player IS a golden
-    // pillar — same column shape as the obsidian ones above, gold palette and a
+    // pillar; same column shape as the obsidian ones above, gold palette and a
     // shine, so "that one cannot be hurt and blocks balls" reads at a glance.
     // Name and HP bar stay above it: the pillar is still a player.
     const statue = fin(pl.statueT) && pl.statueT > 0;
@@ -615,11 +615,11 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     }
 
     // Coal Brazier aura (ITEMS.brazier, round 21.5): a radius-TRUE ring at the
-    // exact distance that burns — read straight off the owner's item level, so
+    // exact distance that burns, read straight off the owner's item level, so
     // the client needs no extra wire field. Deliberately faint (a warm fill +
     // a slow breath on the edge): it is on screen for the whole round, so it
     // must never clutter the fight. Drawn UNDER the body, and skipped while
-    // vanished — for other clients there is no position to draw at anyway
+    // vanished; for other clients there is no position to draw at anyway
     // (snapshot strips it), this is the "not even on your own screen" half of
     // Remi's ruling that passive damage must not give stealth away.
     const brazLv = pl.items && pl.items.brazier;
@@ -637,7 +637,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(x, y + r * 0.6, r * 1.05, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
 
-    // body — or, mid-Statue, a gold column in its place
+    // body, or, mid-Statue, a gold column in its place
     if (statue) {
       const sr = r * 1.15;
       // warm halo: gold catching the lava light, and the one cue that this
@@ -684,7 +684,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
     }
-    // hood highlight + avatar emoji — a statue has neither: it is stone now,
+    // hood highlight + avatar emoji; a statue has neither: it is stone now,
     // and the status rings below are all things it is immune to anyway
     if (!statue) {
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
@@ -704,7 +704,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
     }
-    // Fire Walk (SPELLS.firewalk, round 22): the immunity is running — a warm
+    // Fire Walk (SPELLS.firewalk, round 22): the immunity is running; a warm
     // double flame-gold ring on EVERYONE's screen (`fw` is public wire, seconds
     // left, present only while active), so "the lava is free for them right
     // now" reads at a glance and chasing them into it is an informed mistake.
@@ -717,7 +717,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.62, 0, Math.PI * 2); ctx.stroke();
     }
-    // Hat of Aura burn (round 21.8): the victim smoulders — a thin ember ring
+    // Hat of Aura burn (round 21.8): the victim smoulders; a thin ember ring
     // that survives leaving the owner's circle, which is the whole point of the
     // linger. Never drawn on the owner: `burning` only ever marks a victim.
     if (pl.burning && !statue) {
@@ -733,14 +733,14 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
     }
     if (pl.stun && !statue) {
-      // frozen solid: a thick ice shell, unmistakable — you cannot act
+      // frozen solid: a thick ice shell, unmistakable; you cannot act
       ctx.strokeStyle = 'rgba(200, 240, 255, 0.95)';
       ctx.fillStyle = 'rgba(150, 215, 255, 0.22)';
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     // Malady contagion aura (elemental): the plague's catch radius drawn on
-    // the PATIENT — step inside this circle and it is yours. maladyR arrives
+    // the PATIENT: step inside this circle and it is yours. maladyR arrives
     // in world units from the snapshot (the instance's level sizes it).
     if (fin(pl.maladyR) && pl.maladyR > 0) {
       const ar = pl.maladyR * scale;
@@ -753,7 +753,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     }
     // Stack pips. Stacks are PRIVATE (round 12), so the snapshot only ever
     // carries YOUR count on an enemy (`myStacks`) and the worst incoming pile on
-    // your own body (`stacksOnMe`) — exactly one of the two is ever present,
+    // your own body (`stacksOnMe`); exactly one of the two is ever present,
     // which is why one expression covers both. Frost pips arc over the head,
     // gale's dashes under it, midas right, malady left, anger upper-right.
     const mine = pl.myStacks || pl.stacksOnMe || null;
@@ -769,11 +769,11 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     }
     // Gale pips: the same "N of 3 and then it pops" reading as frost, drawn as
     // short radial DASHES so a body carrying both is still legible (frost+gale
-    // is a legal build — every element stacks with every other).
+    // is a legal build; every element stacks with every other).
     //
     // ⚠ They arc BELOW the body, not above with frost's. The band from
     // ~1.65r to ~2.15r above the centre is where the HP bar is (`y - r - 12`,
-    // 5 px tall — an ABSOLUTE offset, so it covers that band at every zoom), and
+    // 5 px tall (an ABSOLUTE offset, so it covers that band at every zoom), and
     // the first version of these pips was drawn at 1.9-2.2r and was completely
     // hidden behind it. That is the mosquito scar exactly: computed, on the
     // wire, never visible. Verified by screenshot, not by reading the code.
@@ -790,7 +790,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         ctx.stroke();
       }
     }
-    // Midas mark (round 17 §5): this body owes you gold — your next hit
+    // Midas mark (round 17 §5): this body owes you gold; your next hit
     // cashes it. One gold pip on the RIGHT side: frost owns the top arc and
     // gale the bottom dashes.
     if (mine && mine.midas > 0) {
@@ -801,7 +801,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.arc(x + r * 1.75, y, 3.2, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
-    // Malady mark (round 19): your first hit planted the 🦠 — your next one
+    // Malady mark (round 19): your first hit planted the 🦠; your next one
     // infects. One sickly-green pip on the LEFT: midas owns the right, frost
     // the top arc, gale the bottom dashes.
     if (mine && mine.malady > 0) {
@@ -812,7 +812,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.arc(x - r * 1.75, y, 3.2, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
-    // Anger mark: the hunt is on — this body wears the red orb. Upper-right
+    // Anger mark: the hunt is on; this body wears the red orb. Upper-right
     // diagonal (a free slot: frost owns the top arc, gale the bottom dashes,
     // midas the right, malady the left). Shown to the owner (myStacks) and the
     // marked victim (stacksOnMe) alike.
@@ -831,7 +831,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.fill();
     }
     if (pl.charging) {
-      // repulse wind-up: hard-blinking double ring — VERY visible on purpose
+      // repulse wind-up: hard-blinking double ring; VERY visible on purpose
       const on = Math.sin(now / 70) > 0;
       ctx.strokeStyle = on ? 'rgba(255, 230, 120, 0.95)' : 'rgba(255, 120, 40, 0.55)';
       ctx.lineWidth = 3;
@@ -876,10 +876,10 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
     const x = view.sx(pl.x);
     const y = view.sy(pl.y) - r - 30 - age * 8;   // drifts up as it fades
-    // Remi (issue #4, second pass): "too visible and takes too much space —
+    // Remi (issue #4, second pass): "too visible and takes too much space";
     // a bit smaller and just white letters with no background". So: no box, no
     // border, no tail, no colour. The only thing left carrying the intensity is
-    // the WEIGHT — a shout is bold, an ordinary line is not — which is the same
+    // the WEIGHT (a shout is bold, an ordinary line is not), which is the same
     // signal the upper/lower case already gives.
     const shout = b.text === b.text.toUpperCase();
     ctx.save();
@@ -946,7 +946,7 @@ function drawBanners(view, vs, players, myId) {
     ctx.shadowColor = '#ff5d1f'; ctx.shadowBlur = 30;
     ctx.fillText(String(n), view.cx, view.cy + 20);
     ctx.shadowBlur = 0;
-    // the level's title, small under the count — quotes included
+    // the level's title, small under the count; quotes included
     const lv = currentLevel();
     if (lv && lv.title) {
       ctx.font = 'italic 16px Georgia, serif';
@@ -962,13 +962,13 @@ function drawBanners(view, vs, players, myId) {
     ctx.fillStyle = 'rgba(232, 217, 176, 0.85)';
     // A player who has never died is a mid-game joiner waiting to be seated.
     const text = vs.me.spectator ? 'Spectating'
-      : vs.me.deaths > 0 ? 'You are ash — spectating' : 'You join next round';
+      : vs.me.deaths > 0 ? 'You are ash (spectating)' : 'You join next round';
     ctx.fillText(text, view.cx, 64);
   }
 }
 
-// Round-end banner: "{winner} takes round n" — or, on the final summary, the
-// game champion's "{name} wins the game" — plus a personal VICTORY/DEFEAT
+// Round-end banner: "{winner} takes round n", or, on the final summary, the
+// game champion's "{name} wins the game", plus a personal VICTORY/DEFEAT
 // verdict and the gold earned this round (fighters only; spectators get a
 // neutral note). Fades in fast, then holds for the rest of the summary.
 function drawRoundEndBanner(view, vs, players, myId) {
@@ -979,12 +979,12 @@ function drawRoundEndBanner(view, vs, players, myId) {
   const winner = rs.winner != null ? players.find(p => p && p.id === rs.winner) : null;
   let title;
   if (rs.final) {
-    // The game is decided on kills, not on who took the last round — and since
+    // The game is decided on kills, not on who took the last round, and since
     // round 21.3 on TEAM kills against 15 x size, which is rankTeams()' order
     // (a lobby of solo teams ranks identically to the old per-player sort).
     // `!p.clone`: Decoy mirages are drawn from this same list (client/main.js
     // builds them out of their caster's entry), and a mirage must never count
-    // as a body in the standings. The sim already clears them at round end —
+    // as a body in the standings. The sim already clears them at round end;
     // this is the belt-and-braces half.
     const fs = players.filter(p => p && !p.spectator && !p.clone);
     const top = rankTeams(fs)[0];
@@ -1025,7 +1025,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.fillText(title, view.cx, view.cy - 34);
   ctx.shadowBlur = 0;
 
-  // my verdict + income — fighters only; a spectator gets a neutral note
+  // my verdict + income (fighters only; a spectator gets a neutral note)
   const income = rs.income && typeof rs.income === 'object' ? rs.income : null;
   if (vs.me && vs.me.spectator) {
     if (rs.final) {
@@ -1034,7 +1034,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
       ctx.fillText('Game over', view.cx, view.cy + 24);
     }
   } else if (myId && income && fin(+income[myId])) {
-    // a surviving TEAMMATE won it too — `winners` is every survivor paid the
+    // a surviving TEAMMATE won it too; `winners` is every survivor paid the
     // round-win gold, so the verdict never says "defeat" to a winner
     const won = Array.isArray(rs.winners) ? rs.winners.includes(myId) : rs.winner === myId;
     ctx.font = 'small-caps 700 30px Georgia, serif';
@@ -1117,7 +1117,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       case 'hit': {
         const x = view.sx(f.x), y = view.sy(f.y) - 18 - 26 * k;
         // Momentum: the earned ramp is split off the total and printed ABOVE the
-        // damage in white. AGENTS.md scar — this element ramped correctly for
+        // damage in white. AGENTS.md scar: this element ramped correctly for
         // weeks and still read as broken, because a bigger red number is not a
         // number you can see growing. The white one is the feedback.
         const bonus = +f.bonus || 0;
@@ -1136,14 +1136,14 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       case 'lifesteal': {
         // lifesteal payout, on the HEALER's body: a big green "+N hp" and a
         // rising blood ring. Round 16 (Remi): EVERY lifesteal heal >= 1 hp gets
-        // this — Blood Sword included — not just vampire's engorged ball. The
+        // this (Blood Sword included, not just vampire's engorged ball). The
         // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
         const amt = Math.round(+f.amount || 0);
         // round 18.1 (Remi): the SIZE carries the magnitude. Round 21.8 (Remi:
         // "everyone has some lifesteal, so 1s and 2s are all over the screen"):
         // the FLOOR dropped 10px → 6px and the curve is now concave, so the
-        // crumbs whisper while everything that matters keeps its old presence —
+        // crumbs whisper while everything that matters keeps its old presence;
         // +1 6px, +2 9px, +5 12px, +10 15px (was 13), +20 18px, +50 and up 26px,
         // the ceiling unchanged. Revert = the old linear `10 + 16 * amt/50`.
         const px = Math.round(6 + 20 * Math.sqrt(
@@ -1164,7 +1164,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'refund': {
-        // arcane lv3: a landed fireball just refunded every cooldown — an
+        // arcane lv3: a landed fireball just refunded every cooldown; an
         // hourglass over the caster and a ring winding INWARD (time coming back)
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
@@ -1314,7 +1314,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'gale': {
         // one more gust stacked: a thin pale ring and the count toward the burst.
-        // Deliberately quieter than frost's — this one fires on EVERY gale hit
+        // Deliberately quieter than frost's; this one fires on EVERY gale hit
         // and the loud cue belongs to the detonation.
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
@@ -1332,7 +1332,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'galeBurst': {
         // the 3rd stack spent: a hard expanding shockwave with swept streaks
-        // curling off it, plus the word. This is the whole point of the rework —
+        // curling off it, plus the word. This is the whole point of the rework;
         // an enormous shove must never arrive without an explanation on screen.
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
@@ -1356,7 +1356,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'midasMark': {
-        // a mark just landed: one quiet gold ring — the LOUD cue is the +1 g
+        // a mark just landed: one quiet gold ring; the LOUD cue is the +1 g
         // popup when it cashes (the existing 'gold' floater)
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.strokeStyle = `rgba(255, 208, 70, ${a * 0.9})`;
@@ -1365,7 +1365,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'infected': {
-        // malady just took a body: one sick green burst + the germ itself —
+        // malady just took a body: one sick green burst + the germ itself;
         // the ongoing state is the aura circle and green tint, this is the
         // one-shot "you caught it" moment
         const x = view.sx(f.x), y = view.sy(f.y);
@@ -1381,7 +1381,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'angerClaim': {
         // a red mark just got claimed: one hard little red burst + the brand.
-        // Small on purpose — the permanent reward lives on the scoreboard tag.
+        // Small on purpose; the permanent reward lives on the scoreboard tag.
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
         ctx.strokeStyle = `rgba(255, 80, 60, ${a})`;
@@ -1394,7 +1394,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'frostBreak': {
-        // the 3rd stack detonating — shards, and the verdict in words
+        // the 3rd stack detonating: shards, and the verdict in words
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
         ctx.strokeStyle = `rgba(200, 240, 255, ${a})`;
@@ -1456,7 +1456,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         // straight off the event: the ring eases out to it in the first third
         // of its life and then HOLDS there, so the circle you see is exactly
         // the circle that got shoved. Short and loud on purpose (0.4 s, set in
-        // main.js) — the old ring only reached full size as it faded to zero,
+        // main.js); the old ring only reached full size as it faded to zero,
         // so nobody could read the real reach.
         const x = view.sx(f.x), y = view.sy(f.y);
         const R4 = (fin(+f.r) ? +f.r : 9) * scale;

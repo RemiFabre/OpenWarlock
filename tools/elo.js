@@ -1,6 +1,6 @@
 // The ELO tournament (Remi, 2026-08-09): every strategy in tools/roster.js,
 // random 4-strategy Hard-berserker lobbies, Bradley-Terry strengths fitted
-// from ALL pairwise placements (order-free — unlike an online Elo, the result
+// from ALL pairwise placements (order-free; unlike an online Elo, the result
 // does not depend on game order), reported on the familiar Elo scale
 // (1500 = the roster's average; +173 ≈ a 73% pairwise favourite).
 //
@@ -86,7 +86,7 @@ for (let it = 0; it < 800; it++) {
 }
 const elo = Object.fromEntries(ids.map(id => [id, Math.round(1500 + 173.717 * Math.log(s[id]))]));
 
-console.log(`\n=== strategy ELO — ${GAMES} games, seed ${SEED}, 4 random ${KIND} seats/game, elemental ===`);
+console.log(`\n=== strategy ELO: ${GAMES} games, seed ${SEED}, 4 random ${KIND} seats/game, elemental ===`);
 console.log(`Elo from Bradley-Terry over pairwise placements; 1500 = roster average,`);
 console.log(`+173 = 73% favourite in a pair. games = seats played. place = mean of 1-4.`);
 console.log(`Bot read ONLY: no target-leading/CC-chaining; reactive tools + contagion at a floor.\n`);

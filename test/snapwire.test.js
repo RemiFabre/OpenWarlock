@@ -1,4 +1,4 @@
-// shared/snapwire.js — one connection's snapshot wire (round 21.10).
+// shared/snapwire.js: one connection's snapshot wire (round 21.10).
 // The rules under test are the ones that make a DELTA stream safe to drop
 // frames from: a delta needs its base, so whoever drops one must re-base.
 // history: docs/history/2026-08-12-snapshot-bandwidth.md
@@ -42,7 +42,7 @@ describe('snapwire: events', () => {
     expect(JSON.parse(f.state).t).toBe('snap');
   });
 
-  it('is still sent when the state is skipped — a lost death is a lost kill cue', () => {
+  it('is still sent when the state is skipped (a lost death is a lost kill cue)', () => {
     const w = createSnapWire();
     w.frame(snap('battle'));                                    // establishes lastBytes
     const f = w.frame({ ...snap('battle'), e: [{ t: 'death', id: 'p1' }] }, 10 * QUEUE_FLOOR_BYTES);
@@ -95,7 +95,7 @@ describe('snapwire: delta stream', () => {
 });
 
 describe('snapwire: skipping a backed-up socket stays decodable', () => {
-  it('the next delta SPANS the skipped state — no keyframe needed, nothing lost', () => {
+  it('the next delta SPANS the skipped state: no keyframe needed, nothing lost', () => {
     // 21.11: a skipped state never reaches the encoder, so the next delta is
     // based on the last state the client actually got. The old forced keyframe
     // dropped ~18 KB onto an already-full link, exactly when it hurt most.
@@ -104,7 +104,7 @@ describe('snapwire: skipping a backed-up socket stays decodable', () => {
     apply(dec, w.frame(snap('battle')).state);
     // the socket backs up: this state never reaches the client
     expect(w.frame(snap('battle', { time: 2 }), 10 * QUEUE_FLOOR_BYTES).skipped).toBe(true);
-    // the link recovers — the next message applies against what the client HAS
+    // the link recovers; the next message applies against what the client HAS
     const next = snap('battle', { time: 3 });
     next.s.players.p1.x = 42;
     const f = w.frame(next, 0);
@@ -229,7 +229,7 @@ describe('snapwire: `full` tells a two-channel caller which state is precious', 
     expect(fulls).toBeGreaterThan(1);   // the periodic ones really did happen
   });
 
-  it('flags every state for a pre-21.10 client — all of them are self-contained', () => {
+  it('flags every state for a pre-21.10 client (all of them are self-contained)', () => {
     const w = createSnapWire({ delta: false });
     expect(w.frame(snap('battle')).full).toBe(true);
     expect(w.frame(snap('battle', { time: 2 })).full).toBe(true);
@@ -267,7 +267,7 @@ describe('snapwire: falling behind is detected by ACKS, not by the socket', () =
     expect(w.stats().behind).toBeGreaterThan(6);
   });
 
-  it('leaves a DISTANT but healthy link alone — high RTT is a constant backlog, not congestion', () => {
+  it('leaves a DISTANT but healthy link alone (high RTT is a constant backlog, not congestion)', () => {
     // a friend 300 ms away acks 5 states late, forever, and never falls further
     const w = createSnapWire({ ackLimitSnaps: 6 });
     const inFlight = [];
@@ -309,10 +309,10 @@ describe('snapwire: falling behind is detected by ACKS, not by the socket', () =
     expect(r.payload.s.time).toBe(100);
   });
 
-  it('a REQUESTED keyframe goes out even while the client is behind — else deadlock', () => {
+  it('a REQUESTED keyframe goes out even while the client is behind (else deadlock)', () => {
     // The scar (found by tools/rtclab.js): a gapped client applies nothing, so
     // it acks nothing, so the backlog test skipped the very keyframe it was
-    // waiting for — a stall that only ended when the floor crept up, ~10 s.
+    // waiting for; a stall that only ended when the floor crept up, ~10 s.
     const w = createSnapWire({ ackLimitSnaps: 2 });
     w.frame(snap('battle'), 0);
     w.ack(1);
@@ -325,7 +325,7 @@ describe('snapwire: falling behind is detected by ACKS, not by the socket', () =
   });
 });
 
-describe('snapwire: echo mode — cadence keyframes ride BESIDE the delta', () => {
+describe('snapwire: echo mode (cadence keyframes ride BESIDE the delta)', () => {
   // The 21.11 fix for the keyframe race: a big cadence keyframe on the slow
   // reliable channel used to REPLACE the delta, so every delta behind it was
   // orphaned until it landed. In echo mode the delta chain never routes
@@ -391,7 +391,7 @@ describe('snapwire: echo mode — cadence keyframes ride BESIDE the delta', () =
 // (maxRetransmits: 0) losing ANY chunk discards the WHOLE message. So a 15 KB
 // keyframe is ~13× more exposed than a 250-byte delta.
 // ⚠ This MODELS that arithmetic; it is not SCTP. It cannot prove anything about
-// real WebRTC — it tests that our framing recovers from loss, which is where the
+// real WebRTC; it tests that our framing recovers from loss, which is where the
 // round-21.10 bug actually lived. Seeded, so a failure is reproducible.
 const MTU = 1200;
 function lossyRun({ pktLoss, frames = 300, protectKeyframes, pillars = 300, seed = 7 }) {
@@ -401,7 +401,7 @@ function lossyRun({ pktLoss, frames = 300, protectKeyframes, pillars = 300, seed
   const w = createSnapWire();
   let clock = 0, applied = 0, lost = 0, last = null;
   // no acks on purpose: this isolates loss recovery from the backpressure logic.
-  // The VIRTUAL clock is load-bearing — with the real one, 300 frames land in the
+  // The VIRTUAL clock is load-bearing; with the real one, 300 frames land in the
   // same millisecond and the 500 ms keyframe-request limit suppresses every
   // recovery, which made the first version of this test read 3× worse than truth.
   const sink = createSnapSink(
@@ -425,7 +425,7 @@ function lossyRun({ pktLoss, frames = 300, protectKeyframes, pillars = 300, seed
 }
 
 describe('snapwire: recovery under packet loss (the reason keyframes went reliable)', () => {
-  it('an ordinary 1% link is fine either way — this fix is not what carries it', () => {
+  it('an ordinary 1% link is fine either way (this fix is not what carries it)', () => {
     expect(lossyRun({ pktLoss: 0.01, protectKeyframes: true }).applied).toBeGreaterThan(290);
     expect(lossyRun({ pktLoss: 0.01, protectKeyframes: false }).applied).toBeGreaterThan(290);
   });
@@ -434,7 +434,7 @@ describe('snapwire: recovery under packet loss (the reason keyframes went reliab
     const good = lossyRun({ pktLoss: 0.10, protectKeyframes: true });
     const bad = lossyRun({ pktLoss: 0.10, protectKeyframes: false });
     // an ~11 KB keyframe is all-or-nothing across 10 chunks, and every delta
-    // after a lost one is orphaned until the next keyframe — so it compounds
+    // after a lost one is orphaned until the next keyframe, so it compounds
     expect(good.applied).toBeGreaterThan(200);
     expect(bad.applied).toBeLessThan(good.applied / 2);
   });
@@ -460,7 +460,7 @@ describe('snapwire: a client that never asked for deltas', () => {
     expect(JSON.parse(w.frame(snap('battle', { time: 2 })).state).s.time).toBe(2);
   });
 
-  it('is still skipped when its socket backs up — a whole snapshot is free to drop', () => {
+  it('is still skipped when its socket backs up (a whole snapshot is free to drop)', () => {
     const w = createSnapWire({ delta: false });
     w.frame(snap('battle'));
     expect(w.frame(snap('battle'), 10 * QUEUE_FLOOR_BYTES).skipped).toBe(true);

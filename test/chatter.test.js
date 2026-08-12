@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createChatter } from '../client/chatter.js';
 
 // Trash Talk (issue #4). The module is pure: an event stream and a roster in,
-// a list of bubbles out. `rng` is injected, so "stochastic" is testable —
+// a list of bubbles out. `rng` is injected, so "stochastic" is testable;
 // rng()=0 accepts every probability roll, rng()=0.99 rejects all but the
 // guaranteed ones.
 const always = () => 0;
@@ -43,7 +43,7 @@ describe('Trash Talk (issue #4)', () => {
     expect(c.bubbles.filter(b => b.id === 'p0').length).toBe(1); // never stacks
   });
 
-  it('never speaks for an attacker it cannot see — that would reveal a Vanish', () => {
+  it('never speaks for an attacker it cannot see (that would reveal a Vanish)', () => {
     const c = createChatter(always);
     const hidden = roster();
     delete hidden[1].x;                      // exactly what snapshot() strips
