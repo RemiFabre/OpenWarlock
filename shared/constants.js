@@ -129,6 +129,19 @@ export const ROUND = {
   MULTIKILL_WINDOW: 6,
 };
 
+// One round (issue #8, FabienDanieau): a lobby FLAG like draft/testing, versus
+// only. One endless round: kills absorb a victim spell, items drop as ground
+// tokens, the dead shop while a respawn timer runs, lava closes SHRINK_MULT
+// slower, and the game ends on the kill target or when the arena is gone.
+export const ONE_ROUND = {
+  RESPAWN_TIME: 6,        // seconds dead before auto-respawn (shop is open meanwhile)
+  RESPAWN_MIN: 1.5,       // "Respawn now" can't cut the corpse time below this
+  SHRINK_MULT: 6,         // lava takes this x SHRINK_TIME to close ("way more slowly")
+  MINROUND_SECONDS: 60,   // power-tier unlock: one virtual round per minute of battle
+  DROP_RING: 2.2,         // dropped item tokens sit on this ring around the body
+  PICKUP_R: 1.1,          // walk this close to a token to collect it
+};
+
 // Versus TEAMS (round 21.3, Remi): a LOBBY PROPERTY, never a mode. Every player
 // owns a team number and the default is their own unique one — a lobby where
 // nobody touches the selector is bit-for-bit the old free-for-all. Any shape

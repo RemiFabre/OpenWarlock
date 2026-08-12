@@ -2,7 +2,7 @@
 
 import {
   SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS,
-  SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, teamTint, itemCost,
+  SNAPSHOT_RATE, ARENA, ROUND, ONE_ROUND, GOLD, PLAYER, LAVA, TEAMS, teamTint, itemCost,
 } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
 import { rankTeams } from '../shared/sim.js';
@@ -313,6 +313,26 @@ function onEvent(e) {
     // criterion for mosquito's pair, and two identical popups on one pixel is
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
+    // one-round mode (issue #8): a kill absorbs a victim spell — the glyph
+    // flies from the corpse to the killer (render.js tracks the killer live)
+    case 'soul':
+      fx.push({ ...e, type: 'soul', at: now, dur: 1.1 });
+      if (e.to === myId) {
+        const spec = (SPELLS[e.key] || ELEMENTS[e.key] || {});
+        toast(`✨ Absorbed ${spec.name || e.key} from the fallen`);
+        playSfx('ding');
+      }
+      break;
+    // one-round mode: a dropped item token collected off the ground
+    case 'pickup':
+      fx.push({ ...e, type: 'catch', at: now, dur: 0.35 });
+      if (e.id === myId) playSfx('buy');
+      break;
+    // one-round mode: back into the fight
+    case 'respawn':
+      fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 });
+      if (e.id === myId) playSfx('teleport');
+      break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
     // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
     // charge is a soft click, the spring is a boom — and every stored ball
@@ -556,6 +576,8 @@ function interpolated(now) {
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
     // mines never move: no interpolation, straight off the snapshot
     mines: Array.isArray(s.mines) ? s.mines : [],
+    // one-round mode: dropped item tokens — like mines, they sit still
+    groundItems: Array.isArray(s.groundItems) ? s.groundItems : [],
     bolts: Array.isArray(s.bolts) ? s.bolts : [],
     walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
@@ -902,6 +924,11 @@ $('testingGold').addEventListener('change', () => {
 $('draftBtn').addEventListener('click', () => {
   const s = latest();
   send({ t: 'draft', on: !(s && s.draft) });
+});
+// one-round mode (issue #8): a flag like draft/testing, versus only
+$('oneRoundBtn').addEventListener('click', () => {
+  const s = latest();
+  send({ t: 'oneRound', on: !(s && s.oneRound) });
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 // Shop pause: anyone may freeze or unfreeze the clock (friends-lobby trust, same
@@ -1789,15 +1816,19 @@ function updateUi(s) {
   // actually starting overrides you.
   if (s.phase === 'gameover') goPinned = true;
   else if (s.phase !== 'lobby') goPinned = false;
+  // one-round mode: dying opens YOUR shop while the fight runs — the respawn
+  // timer is the clock (issue #8)
+  const deadShop = !!myId && !!s.oneRound && s.phase === 'battle' &&
+    !!m && !m.alive && !m.spectator;
   setVisible('lobby', !!myId && s.phase === 'lobby' && !goPinned);
-  setVisible('shop', !!myId && s.phase === 'shop');
+  setVisible('shop', (!!myId && s.phase === 'shop') || deadShop);
   setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
-  if (s.phase !== 'shop') hideTip();
+  if (s.phase !== 'shop' && !deadShop) hideTip();
   // Dead and watching the rest of the round: the same scoreboard the end screen
   // prints, live (Remi, 2026-08-07). Battle phase only — the shop is a different
   // phase and already carries this table, and roundEnd belongs to the art
   // reveal, so the live panel never has to share the screen with either.
-  const watchingLive = !!myId && s.phase === 'battle' && !!m && !m.alive;
+  const watchingLive = !!myId && s.phase === 'battle' && !!m && !m.alive && !deadShop;
   // a spell bar you cannot use: castSpell() refuses while !alive, so while you
   // are dead it is decoration — and it is exactly where the live panel sits
   setVisible('spellbar', !!myId && inGame && !(m && (m.spectator || !m.alive)));
@@ -1805,7 +1836,7 @@ function updateUi(s) {
   // the shop and the final standings carry the same numbers in full, so the
   // corner scoreboard would only peek out from behind them
   setVisible('topbar', !!myId && s.phase !== 'lobby' && s.phase !== 'shop' &&
-    s.phase !== 'gameover' && !goPinned);
+    s.phase !== 'gameover' && !goPinned && !deadShop);
   setVisible('phasebar', !!myId && (s.phase === 'shop' || s.phase === 'battle' || s.phase === 'roundEnd'));
   // round 20.4 (Remi: "the banner to invite should not be present in game as it
   // takes space away"): the host banner is a LOBBY thing — friends only join
@@ -1902,12 +1933,19 @@ function updateUi(s) {
     $('testingGoldWrap').classList.toggle('hidden', !testOn);
     if (testOn && document.activeElement !== testGold)
       testGold.value = s.testing.gold;
+    // one-round toggle (issue #8) — versus only, so co-op hides it
+    const orBtn = $('oneRoundBtn');
+    const orOn = !!s.oneRound;
+    orBtn.textContent = orOn ? 'One round: ♾ on' : 'One round: off';
+    orBtn.classList.toggle('elemental', orOn);
+    orBtn.setAttribute('aria-pressed', orOn ? 'true' : 'false');
+    orBtn.classList.toggle('hidden', s.mode === 'coop');
     // a button that lifts bans is noise until a ban exists (Remi: "I didn't
     // know we could ban people" — you ban from the player list, mid-game)
     $('unbanBtn').classList.toggle('hidden', !(+s.bans > 0));
   }
 
-  if (s.phase === 'shop') {
+  if (s.phase === 'shop' || deadShop) {
     // rebuild the shop grid when the ruleset differs from what's on screen
     const shopMode = s.mode === 'elemental' ? 'elemental' : 'classic';
     if (shopMode !== shopModeBuilt) {
@@ -1922,36 +1960,53 @@ function updateUi(s) {
       { showRound: true });
     const timer = $('shopTimer');
     const pausedBy = shopPausedBy;
-    // testing: the shop clock never runs — only readying up moves the game on
-    timer.textContent = pausedBy ? '⏸ paused'
+    // testing: the shop clock never runs — only readying up moves the game on.
+    // dead shop (one-round): the clock is YOUR respawn timer.
+    timer.textContent = deadShop ? `⚰ ${Math.ceil(fin(+m.respawnT) ? +m.respawnT : 0)} s`
+      : pausedBy ? '⏸ paused'
       : s.testing ? '🧪 ∞' : `${Math.ceil(phaseT)} s`;
-    timer.classList.toggle('low', !pausedBy && !s.testing && phaseT <= 5);
-    timer.classList.toggle('paused', !!pausedBy);
+    timer.classList.toggle('low', deadShop || (!pausedBy && !s.testing && phaseT <= 5));
+    timer.classList.toggle('paused', !deadShop && !!pausedBy);
     const pauseBtn = $('shopPauseBtn');
+    setVisible('shopPauseBtn', !deadShop); // nobody pauses a respawn timer
     pauseBtn.textContent = pausedBy ? '▶ Resume' : '⏸ Pause';
     pauseBtn.classList.toggle('on', !!pausedBy);
-    $('shopSub').textContent = pausedBy
-      ? `⏸ Clock frozen by ${pausedBy} — take your time. Everyone hitting Ready still starts the round.`
-      : watching
-        ? "You're spectating — no shopping" : '';
+    $('shopSub').textContent = deadShop
+      ? '💀 You died — spend your catch-up gold, you respawn when the timer runs out.'
+      : pausedBy
+        ? `⏸ Clock frozen by ${pausedBy} — take your time. Everyone hitting Ready still starts the round.`
+        : watching
+          ? "You're spectating — no shopping" : '';
     setVisible('shopGrid', !watching);
     setVisible('shopReadyBtn', !watching); // spectator readiness isn't needed here
     if (!watching) {
-      refreshShop(m, fin(+s.round) ? +s.round : 0, s);
-      // ready button: bots are always ready and spectators don't gate the shop;
-      // only fighting humans are counted/shown
-      const humans = playerList.filter(p => !p.bot && !p.spectator);
-      const readyN = humans.filter(p => p.shopReady).length;
+      // one-round mode has a single endless round: the power-tier lock runs on
+      // game time instead (same virtual round as buy() in shared/sim.js)
+      const effRound = s.oneRound
+        ? 1 + Math.floor((fin(+s.time) ? +s.time : 0) / ONE_ROUND.MINROUND_SECONDS)
+        : (fin(+s.round) ? +s.round : 0);
+      refreshShop(m, effRound, s);
       const btn = $('shopReadyBtn');
-      if (m && m.shopReady) {
-        btn.disabled = true;
-        btn.classList.remove('primary');
-        btn.textContent = `Waiting for others… (${readyN}/${humans.length} ready)`;
-      } else {
+      if (deadShop) {
+        // the same button, but it means "cut the wait": requestRespawn caps it
         btn.disabled = false;
         btn.classList.add('primary');
-        btn.textContent = humans.length > 1
-          ? `Ready — next round (${readyN}/${humans.length} ready)` : 'Ready — next round';
+        btn.textContent = '⚔ Respawn now';
+      } else {
+        // ready button: bots are always ready and spectators don't gate the shop;
+        // only fighting humans are counted/shown
+        const humans = playerList.filter(p => !p.bot && !p.spectator);
+        const readyN = humans.filter(p => p.shopReady).length;
+        if (m && m.shopReady) {
+          btn.disabled = true;
+          btn.classList.remove('primary');
+          btn.textContent = `Waiting for others… (${readyN}/${humans.length} ready)`;
+        } else {
+          btn.disabled = false;
+          btn.classList.add('primary');
+          btn.textContent = humans.length > 1
+            ? `Ready — next round (${readyN}/${humans.length} ready)` : 'Ready — next round';
+        }
       }
     }
   }
@@ -1960,9 +2015,11 @@ function updateUi(s) {
     // teams race the same 15 kills PER MEMBER, so the line says whose race it is
     $('phasebar').textContent = s.coop
       ? `round ${s.round} · co-op campaign` // the kill race does not apply
-      : teamsInPlay(playerList.filter(p => !p.spectator))
-        ? `round ${s.round} · first team to ${ROUND.KILLS_TO_WIN} kills per warlock`
-        : `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
+      : s.oneRound
+        ? `♾ one round · first to ${ROUND.KILLS_TO_WIN} kills`
+        : teamsInPlay(playerList.filter(p => !p.spectator))
+          ? `round ${s.round} · first team to ${ROUND.KILLS_TO_WIN} kills per warlock`
+          : `round ${s.round} · first to ${ROUND.KILLS_TO_WIN} kills`;
   } else if (s.phase === 'roundEnd') {
     $('phasebar').textContent = `round ${s.round} over`;
   } else if (s.phase === 'shop') {
@@ -2132,6 +2189,14 @@ function frame(now) {
   window.__hb = (window.__hb || 0) + 1; // heartbeat, used by tests
   try {
     const vs = interpolated(now);
+    // soul fx chase their killer: refresh the destination from the live view
+    // every frame (a vanished killer keeps the last known fix)
+    for (const f of fx) {
+      if (f.type !== 'soul' || !vs || !vs.players) continue;
+      const tp = Array.isArray(vs.players)
+        ? vs.players.find(p => p && p.id === f.to) : vs.players[f.to];
+      if (tp && fin(+tp.x) && fin(+tp.y)) { f.tx = +tp.x; f.ty = +tp.y; }
+    }
     draw(view, vs, fx, myId, moveMark, now);
     // prune stale fx
     for (let i = fx.length - 1; i >= 0; i--)

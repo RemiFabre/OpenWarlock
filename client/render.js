@@ -9,6 +9,13 @@ import { currentLevel } from './music.js';
 // read) — pale electric blue, deeper blue, storm violet. "r, g, b" strings.
 const BOLT_TINTS = ['165, 220, 255', '110, 190, 255', '195, 160, 255'];
 
+// One-round mode: ground-token glyphs. Plain emoji only (canvas fillText) —
+// main.js's ICONS map can hold HTML, so it can't be reused here.
+const ITEM_GLYPHS = {
+  boots: '👢', treads: '🥾', amulet: '❤️', ring: '💍', cape: '🧣',
+  sword: '🗡️', hourglass: '⏳', brazier: '🎩', spoon: '🥄',
+};
+
 // Precomputed drifting lava blobs (deterministic, just for looks).
 const BLOBS = [];
 for (let i = 0; i < 14; i++) {
@@ -454,6 +461,30 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath(); ctx.arc(px, py, Math.max(1.5, Rm * 0.16), 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  // --- one-round mode (issue #8): dropped item tokens, free for whoever walks
+  // over them. A dark stud under the item's own emoji, with a soft gold halo
+  // and a slow bob so loot reads as loot from across the arena.
+  const groundItems = Array.isArray(vs.groundItems) ? vs.groundItems : [];
+  for (const g of groundItems) {
+    if (!g || !fin(g.x) || !fin(g.y)) continue;
+    const x = view.sx(g.x), y = view.sy(g.y) + Math.sin(now / 400 + (g.id || 0)) * 2;
+    const R = Math.max(6, scale * 0.75);
+    ctx.save();
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, R * 2);
+    halo.addColorStop(0, 'rgba(232, 178, 58, 0.30)');
+    halo.addColorStop(1, 'rgba(232, 178, 58, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(x, y, R * 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1114';
+    ctx.strokeStyle = 'rgba(232, 178, 58, 0.85)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.font = `${Math.round(R * 1.3)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ITEM_GLYPHS[g.key] || '❓', x, y);
     ctx.restore();
   }
 
@@ -1377,6 +1408,34 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         ctx.strokeStyle = `rgba(190, 140, 255, ${a})`;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(x, y, (1.6 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'soul': {
+        // one-round mode: the absorbed spell leaves the corpse and flies into
+        // the killer. (f.tx, f.ty) is refreshed every frame from the live view
+        // (main.js frame()), so the wisp chases a moving killer; without a fix
+        // on them it just rises from the body.
+        const hasT = fin(f.tx) && fin(f.ty);
+        const ease = k * k * (3 - 2 * k); // smoothstep: slow exit, fast arrival
+        const wx = hasT ? f.x + (f.tx - f.x) * ease : f.x;
+        const wy = hasT ? f.y + (f.ty - f.y) * ease : f.y - 2 * k;
+        const x = view.sx(wx), y = view.sy(wy);
+        const R = scale * (0.55 - 0.25 * k);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, R * 2.2);
+        g.addColorStop(0, `rgba(240, 230, 255, ${a})`);
+        g.addColorStop(0.5, `rgba(190, 140, 255, ${a * 0.7})`);
+        g.addColorStop(1, 'rgba(190, 140, 255, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, R * 2.2, 0, Math.PI * 2); ctx.fill();
+        // a short trail of fading motes back toward the corpse
+        for (let i = 1; i <= 3; i++) {
+          const kk = Math.max(0, k - i * 0.07);
+          const ee = kk * kk * (3 - 2 * kk);
+          const mx = view.sx(hasT ? f.x + (f.tx - f.x) * ee : f.x);
+          const my = view.sy(hasT ? f.y + (f.ty - f.y) * ee : f.y - 2 * kk);
+          ctx.fillStyle = `rgba(200, 160, 255, ${a * (0.5 - i * 0.12)})`;
+          ctx.beginPath(); ctx.arc(mx, my, R * (0.7 - i * 0.15), 0, Math.PI * 2); ctx.fill();
+        }
         break;
       }
       case 'meteorHit': {

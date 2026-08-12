@@ -14,7 +14,8 @@
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
-  setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
+  setSpectator, fighters, setMode, setDraft, setTesting, setOneRound, requestRespawn,
+  draftPick, setTeam,
 } from './sim.js';
 import { BOTS, BUILDS } from './constants.js';
 
@@ -81,11 +82,13 @@ export function createEngine({
     const old = game.players;
     const wasDraft = game.draft;
     const wasTesting = game.testing;
+    const wasOneRound = game.oneRound;
     // the ruleset (like avatars) survives "play again"
     game = createGame({ seed: seed + game.round + 1, mode: game.mode });
-    // ...and so do the draft and testing toggles (the pool is re-rolled per game)
+    // ...and so do the draft/testing/one-round toggles (pools re-rolled per game)
     game.draft = wasDraft;
     game.testing = wasTesting;
+    game.oneRound = wasOneRound;
     for (const [id, p] of Object.entries(old)) {
       if (p.wave) continue; // campaign monsters belong to the level, not the lobby
       if (p.bot || conns.has(id)) {
@@ -175,6 +178,8 @@ export function createEngine({
       switch (m.t) {
         case 'ready':
           if (game.phase === 'shop') { setShopReady(game, id, !!m.ready); break; }
+          // one-round mode: the dead shop's button means "respawn now"
+          if (game.oneRound && game.phase === 'battle') { requestRespawn(game, id); break; }
           pl.ready = !!m.ready;
           maybeAutoStart();
           break;
@@ -199,6 +204,10 @@ export function createEngine({
           // testing sandbox: chosen starting gold, game opens in an untimed
           // shop. A flag like draft, lobby only; setTesting validates.
           setTesting(game, !!m.on, m.gold);
+          break;
+        case 'oneRound':
+          // one-round mode (issue #8): a flag like draft, lobby only, versus only
+          setOneRound(game, !!m.on);
           break;
         case 'team':
           // Versus teams (round 21.3): you set your OWN number. `m.id` is

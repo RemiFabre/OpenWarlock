@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, itemCost,
+  DRAFT, TEAMS, ONE_ROUND, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -48,6 +48,10 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     // classic byte-identical.
     draft: false,
     draftPool: null,       // [key] pulled out of the shop; rolled once per game
+    // One round (issue #8): a lobby flag like draft/testing, versus only.
+    oneRound: false,
+    groundItems: [],       // dropped item tokens: {id, key, x, y}
+    nextItemId: 1,
     round: 0,
     time: 0,               // elapsed battle time this round
     arenaRadius: ARENA.START_RADIUS,
@@ -90,6 +94,16 @@ export function setMode(state, mode) {
   if (state.phase !== 'lobby') return false;
   if (!MODES.includes(mode)) return false;
   state.mode = mode;
+  // one-round is a versus flag; the campaign keeps its own round structure
+  if (mode === 'coop') state.oneRound = false;
+  return true;
+}
+
+// One-round toggle (issue #8) — lobby only, versus only, composes with
+// classic/elemental like draft and testing do.
+export function setOneRound(state, on) {
+  if (state.phase !== 'lobby' || state.mode === 'coop') return false;
+  state.oneRound = !!on;
   return true;
 }
 
@@ -920,7 +934,9 @@ function spawnStoredBall(state, sh, dx, dy) {
 export function buy(state, id, thing) {
   const pl = state.players[id];
   if (!pl) return { ok: false, err: 'no player' };
-  if (state.phase !== 'shop')
+  // one-round mode: the dead shop while their respawn timer runs (issue #8)
+  const deadShop = state.oneRound && state.phase === 'battle' && !pl.alive && !pl.spectator;
+  if (state.phase !== 'shop' && !deadShop)
     return { ok: false, err: 'shop is closed' };
   // draft mode: half the catalogue is not for sale in this game at all — until
   // you draft it, after which its remaining levels are bought normally
@@ -929,8 +945,11 @@ export function buy(state, id, thing) {
 
   if (Object.hasOwn(SPELLS, thing)) {
     const spec = SPELLS[thing];
-    // power tier: locked until enough rounds have been fought
-    if (spec.minRound && state.round < spec.minRound)
+    // power tier: locked until enough rounds have been fought. One-round mode
+    // has a single endless round, so time stands in: one virtual round per minute.
+    const effRound = state.oneRound
+      ? 1 + Math.floor(state.time / ONE_ROUND.MINROUND_SECONDS) : state.round;
+    if (spec.minRound && effRound < spec.minRound)
       return { ok: false, err: `unlocks after round ${spec.minRound}` };
     const level = pl.spells[thing] || 0;
     // Round 16 (Remi): in ELEMENTAL mode the fireball never levels — the
@@ -1351,6 +1370,100 @@ function kill(state, target, directSourceId) {
     target.diedFirstRound = state.round;
   }
   state.events.push({ t: 'death', id: target.id, killer: killerId, x: target.x, y: target.y });
+  if (state.oneRound) oneRoundDeath(state, target, killer, teamKill);
+}
+
+// One-round mode (issue #8): a death is not the end of the round — the killer
+// absorbs a spell, the body sheds its items, and the victim shops on a respawn
+// timer with catch-up gold.
+function oneRoundDeath(state, target, killer, teamKill) {
+  // spell absorb: one random victim spell/element the killer hasn't maxed —
+  // new at lv1, else +1 level. A copy, not a theft: the victim keeps their kit.
+  if (killer && killer !== target && !teamKill) {
+    const pool = [];
+    for (const [key, level] of Object.entries(target.spells)) {
+      if (!level || !Object.hasOwn(SPELLS, key)) continue;
+      const max = key === 'fireball' && state.mode === 'elemental' ? 1 : SPELLS[key].maxLevel;
+      if ((killer.spells[key] || 0) < max) pool.push({ key, kind: 'spell' });
+    }
+    if (state.mode === 'elemental') {
+      for (const [key, level] of Object.entries(target.elements || {})) {
+        if (!level || !Object.hasOwn(ELEMENTS, key)) continue;
+        if ((killer.elements[key] || 0) < ELEMENTS[key].maxLevel) pool.push({ key, kind: 'element' });
+      }
+    }
+    if (pool.length) {
+      const pick = pool[Math.floor(rng(state) * pool.length)];
+      if (pick.kind === 'spell') killer.spells[pick.key] = (killer.spells[pick.key] || 0) + 1;
+      else killer.elements[pick.key] = (killer.elements[pick.key] || 0) + 1;
+      state.events.push({
+        t: 'soul', key: pick.key, kind: pick.kind,
+        x: target.x, y: target.y, to: killer.id,
+      });
+    }
+  }
+  // items shed: one ground token PER LEVEL owned, on a ring around the body so
+  // they never overlap. The body loses everything (amulet hp included).
+  const tokens = [];
+  for (const [key, level] of Object.entries(target.items)) {
+    for (let l = 0; l < level; l++) tokens.push(key);
+    if (key === 'amulet') {
+      const lost = itemFxAt('amulet', 'maxHp', level);
+      target.maxHp -= lost;
+    }
+  }
+  if (tokens.length) {
+    const a0 = rng(state) * Math.PI * 2;
+    tokens.forEach((key, i) => {
+      const a = a0 + (i / tokens.length) * Math.PI * 2;
+      state.groundItems.push({
+        id: state.nextItemId++, key,
+        x: target.x + Math.cos(a) * ONE_ROUND.DROP_RING,
+        y: target.y + Math.sin(a) * ONE_ROUND.DROP_RING,
+      });
+    });
+    target.items = {};
+  }
+  // catch-up gold: 8 g x total deaths, spent in the dead shop before respawn
+  const dg = GOLD.ROUND_BASE * target.deaths;
+  target.gold += dg; target.goldEarned += dg; target.roundGold += dg;
+  state.events.push({ t: 'gold', id: target.id, amount: dg, x: target.x, y: target.y });
+  target.respawnT = ONE_ROUND.RESPAWN_TIME;
+}
+
+// One-round mode: the dead shop's Ready button — come back sooner, but never
+// below the minimum corpse time.
+export function requestRespawn(state, id) {
+  const pl = state.players[id];
+  if (!state.oneRound || state.phase !== 'battle') return;
+  if (!pl || pl.alive || pl.spectator || pl.respawnT == null) return;
+  pl.respawnT = Math.min(pl.respawnT, ONE_ROUND.RESPAWN_MIN);
+}
+
+// Respawn into the still-running fight: the same per-player reset a round
+// start does, at a fresh rim seat inside the current lava ring.
+function oneRoundRespawn(state, pl) {
+  const a = rng(state) * Math.PI * 2;
+  const r = Math.min(state.startRadius * ARENA.SPAWN_RADIUS_FRAC,
+    Math.max(3, state.arenaRadius - 3));
+  pl.x = Math.cos(a) * r; pl.y = Math.sin(a) * r;
+  pl.vx = 0; pl.vy = 0;
+  pl.moveTarget = null;
+  pl.hp = pl.maxHp;
+  pl.alive = true;
+  pl.respawnT = null;
+  pl.cooldowns = {};
+  pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
+  pl.vanishT = 0; pl.statueT = 0;
+  pl.slowT = 0; pl.slowMultHit = 1;
+  pl.stunT = 0; pl.regenLockT = 0;
+  pl.stacks = {};
+  pl.poisonT = 0; pl.poisonTick = 0; pl.poisonBy = null; pl._poisonNext = 0;
+  pl.malady = null;
+  pl._burns = {};
+  pl._spoonTick = {};
+  pl.lastHitBy = null;
+  state.events.push({ t: 'respawn', id: pl.id, x: pl.x, y: pl.y });
 }
 
 // ---- round flow ---------------------------------------------------------
@@ -1574,14 +1687,22 @@ function endRound(state) {
   const alive = fighters(state).filter(p => p.alive);
   // co-op has no single survivor: the whole surviving party "wins" the round
   // (and a 3-survivor clear must not render as "nobody survives round n")
-  const winner = coop ? null : (alive.length === 1 ? alive[0] : null);
+  // One-round mode: the single round only ever ends WITH the game (kill target
+  // met, or the arena is gone) — the winner is the tally's top team, not
+  // whoever happens to be off their respawn timer.
+  const oneTop = state.oneRound ? teamTally(state)[0] : null;
+  const winner = coop ? null
+    : oneTop ? (fighters(state).filter(p => p.team === oneTop.team)
+        .sort((a, b) => b.kills - a.kills)[0] || null)
+      : (alive.length === 1 ? alive[0] : null);
   // Round 21.3: the round is called when one TEAM is all that is left, and
   // EVERY surviving member is paid the round-win gold. Solo teams make this
   // the single survivor again, so the old payout is unchanged.
-  const winTeam = coop || !alive.length ? null : alive[0].team;
+  const winTeam = coop ? null : oneTop ? oneTop.team : (!alive.length ? null : alive[0].team);
   const won = coop
     ? new Set(state.coop.cleared ? partyOf(state).map(p => p.id) : [])
-    : new Set(alive.map(p => p.id));
+    : oneTop ? new Set(fighters(state).filter(p => p.team === oneTop.team).map(p => p.id))
+      : new Set(alive.map(p => p.id));
   const income = {};
   const detail = {};
   for (const pl of coop ? partyOf(state) : fighters(state)) {
@@ -1618,7 +1739,7 @@ function endRound(state) {
     final: coop
       ? ((state.coop.cleared && state.coop.level >= MAX_LEVEL) ||
          state.round >= ROUND.COOP_MAX_ROUNDS)
-      : (tally.some(t => t.kills >= t.target) || state.round >= ROUND.MAX_ROUNDS),
+      : (state.oneRound || tally.some(t => t.kills >= t.target) || state.round >= ROUND.MAX_ROUNDS),
     ...(coop ? {
       coop: {
         level: state.coop.level, name: state.coop.name,
@@ -1745,7 +1866,9 @@ function stepBattle(state, dt) {
     // long fights (level 8 averages ~100 s) — under a ring that never stops it
     // collapsed from 68/66/57% clear to 80/46/6% (200 attempts/cell, seed 7).
     // Scoping the flag to PvP restored the documented curve exactly.
-    const baseRate = state.startRadius / ARENA.SHRINK_TIME;
+    // one-round mode: "the map still shrinks but way more slowly" (issue #8)
+    const shrinkT = ARENA.SHRINK_TIME * (state.oneRound ? ONE_ROUND.SHRINK_MULT : 1);
+    const baseRate = state.startRadius / shrinkT;
     state.arenaRadius = Math.max(0, state.arenaRadius - baseRate * speedMult * dt);
   } else if (state.arenaRadius > ARENA.MIN_RADIUS) {
     // co-op runs the campaign's own (faster) journey: SHRINK_TIME was retuned
@@ -2243,6 +2366,40 @@ function stepBattle(state, dt) {
     else if (!waveAlive && !state.coop.pending.length && state.coop.spawned) {
       state.coop.cleared = true; endRound(state);
     }
+    return;
+  }
+
+  // One-round mode (issue #8): deaths respawn instead of ending the round, the
+  // ground pays out its tokens, and the game ends on the kill target — or on
+  // "no more map", where most kills wins (endRound's tally settles it).
+  if (state.oneRound) {
+    if (state.groundItems.length) {
+      state.groundItems = state.groundItems.filter(g => {
+        for (const pl of fighters(state)) {
+          if (!pl.alive) continue;
+          if (Math.hypot(pl.x - g.x, pl.y - g.y) > pl.radius + ONE_ROUND.PICKUP_R) continue;
+          const level = pl.items[g.key] || 0;
+          if (level >= ITEMS[g.key].maxLevel) continue; // maxed: leave it for someone else
+          pl.items[g.key] = level + 1;
+          if (g.key === 'amulet') {
+            const gain = itemFxDelta('amulet', 'maxHp', level + 1);
+            pl.maxHp += gain; pl.hp += gain;
+          }
+          state.events.push({ t: 'pickup', id: pl.id, key: g.key, x: g.x, y: g.y });
+          return false;
+        }
+        return true;
+      });
+    }
+    for (const pl of fighters(state)) {
+      if (pl.alive || pl.respawnT == null) continue;
+      pl.respawnT -= dt;
+      if (pl.respawnT > 0) continue;
+      if (pl.bot) botShop(state, pl.id); // bots spend their death gold before standing up
+      oneRoundRespawn(state, pl);
+    }
+    const tally = teamTally(state);
+    if (tally.some(t => t.kills >= t.target) || state.arenaRadius <= 0) endRound(state);
     return;
   }
 
@@ -2904,6 +3061,9 @@ export function snapshot(state, viewerId = null) {
       // draft mode: your OWN free offer, nobody else's. Absent entirely when the
       // toggle is off (and when it is on but this shop carries no offer).
       ...(p.draftOffer && p.id === viewerId ? { draftOffer: p.draftOffer } : {}),
+      // one-round mode: your OWN respawn countdown, for the dead-shop timer
+      ...(state.oneRound && !p.alive && p.respawnT != null && p.id === viewerId
+        ? { respawnT: round2(p.respawnT) } : {}),
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,
@@ -2945,6 +3105,14 @@ export function snapshot(state, viewerId = null) {
     ...(state.draft ? { draft: true, draftPool: state.draftPool || [] } : {}),
     // testing sandbox flag (so the lobby toggle reads back and the shop shows ∞)
     ...(state.testing ? { testing: { gold: state.testing.gold } } : {}),
+    // one-round mode: the flag (lobby toggle + dead shop) and the dropped item
+    // tokens on the ground. Both absent while off, so other games are unchanged.
+    ...(state.oneRound ? {
+      oneRound: true,
+      groundItems: state.groundItems.map(g => ({
+        id: g.id, key: g.key, x: round2(g.x), y: round2(g.y),
+      })),
+    } : {}),
     round: state.round, time: round2(state.time),
     arenaRadius: round2(state.arenaRadius),
     // this game's un-shrunk arena (round 21.2): the client sizes its camera,
