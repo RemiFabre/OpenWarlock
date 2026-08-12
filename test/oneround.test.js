@@ -8,6 +8,7 @@ import {
 } from '../shared/sim.js';
 import { GOLD, ROUND, ONE_ROUND, ITEMS, SPELLS } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
+import { createEngine } from '../shared/engine.js';
 
 const DT = 1 / 30;
 const run = (state, seconds) => {
@@ -57,9 +58,16 @@ describe('one-round: the flag', () => {
     expect(state.oneRound).toBe(false);
   });
 
-  it('stays off the wire when off — other games are unchanged', () => {
+  it('is ON by default in every fresh lobby — the version opens showing its feature', () => {
+    expect(createEngine({ seed: 1 }).game.oneRound).toBe(true);
+    expect(createEngine({ seed: 1, mode: 'classic' }).game.oneRound).toBe(true);
+    expect(createEngine({ seed: 1, mode: 'coop' }).game.oneRound).toBeFalsy();
+  });
+
+  it('stays off the wire when toggled off — those games are unchanged', () => {
     const state = createGame({ seed: 1, mode: 'classic' });
     addPlayer(state, 'a', 'A');
+    setOneRound(state, false);
     const s = snapshot(state, 'a');
     expect('oneRound' in s).toBe(false);
     expect('groundItems' in s).toBe(false);

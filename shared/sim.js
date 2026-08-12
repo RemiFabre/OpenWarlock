@@ -49,6 +49,9 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     draft: false,
     draftPool: null,       // [key] pulled out of the shop; rolled once per game
     // One round (issue #8): a lobby flag like draft/testing, versus only.
+    // Every real lobby gets it ON by default (shared/engine.js) — this version
+    // exists to show it. The sim default stays off so the base rules and their
+    // tests are untouched.
     oneRound: false,
     groundItems: [],       // dropped item tokens: {id, key, x, y}
     nextItemId: 1,

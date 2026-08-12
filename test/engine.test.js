@@ -22,6 +22,9 @@ function tickUntil(engine, pred, maxSimSeconds = 3600) {
 function makeRoom(seed = 42) {
   const sent = []; // every onSend, for wire-shape assertions
   const engine = createEngine({ seed, onSend: (connId, msg) => sent.push({ connId, msg }) });
+  // these tests exercise the BASE round machinery; the Soul Harvest default
+  // (one-round ON in fresh lobbies) is covered by test/oneround.test.js
+  engine.game.oneRound = false;
   return { engine, sent };
 }
 

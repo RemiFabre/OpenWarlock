@@ -50,6 +50,7 @@ function playRound(onPayload, { seed = 5 } = {}) {
   const snapEvery = Math.round(TICK_RATE / SNAPSHOT_RATE);
   let out = [];
   const engine = createEngine({ seed, onSend: (id, m) => { if (id === 'h1' && m.t === 'snap') out.push(m); } });
+  engine.game.oneRound = false; // exercises the BASE round flow (see oneround.test.js for the default)
   engine.join('h1', { name: 'Guest' });
   engine.join('h2', { name: 'Other' });
   engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'glass' });

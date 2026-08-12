@@ -48,6 +48,10 @@ export function createEngine({
 } = {}) {
   if (state && state.seed != null) seed = state.seed;
   let game = state ? state.game : createGame({ seed, mode });
+  // Soul Harvest (issue #8): every fresh lobby in this version opens with the
+  // one-round flag ON — a version must show the thing it exists for (Remi).
+  // Toggleable off in the lobby; co-op clears it via setMode.
+  if (!state && game.mode !== 'coop') game.oneRound = true;
   let nextBotId = state ? state.nextBotId : 1;
   let lastPhase = game.phase;
 
