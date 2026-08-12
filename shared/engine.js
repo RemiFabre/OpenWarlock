@@ -44,10 +44,24 @@ export function createEngine({
   againGraceMs = 45000,
   // Humans-all-gone mid-game: wait this long for a reconnect before resetting.
   resetGraceMs = 60000,
+  // Faker (issue #7): fresh lobbies open with a Faker already seated — the
+  // version demonstrates itself. Tests of the base room machinery turn it off.
+  demoBot = true,
 } = {}) {
   if (state && state.seed != null) seed = state.seed;
   let game = state ? state.game : createGame({ seed, mode });
   let nextBotId = state ? state.nextBotId : 1;
+  // Faker (issue #7): the version opens SHOWING its tier — a Faker with a
+  // random combo arsenal is already seated in every fresh lobby. Remove it
+  // like any bot; "play again" carries it like any bot.
+  if (demoBot && !state && mode !== 'coop') {
+    const arsenals = Object.keys(BUILDS).filter(k => (BUILDS[k].kinds || []).includes('faker'));
+    const bp = addPlayer(game, 'bot' + nextBotId++, BOT_NAMES[0], {
+      bot: true, kind: 'faker',
+      build: arsenals[(Math.random() * arsenals.length) | 0], avatar: BOT_AVATARS[0],
+    });
+    bp.ready = true;
+  }
   let lastPhase = game.phase;
 
   const conns = new Set();      // connection ids currently attached (adapter's sockets mirror)

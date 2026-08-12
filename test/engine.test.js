@@ -21,7 +21,9 @@ function tickUntil(engine, pred, maxSimSeconds = 3600) {
 
 function makeRoom(seed = 42) {
   const sent = []; // every onSend, for wire-shape assertions
-  const engine = createEngine({ seed, onSend: (connId, msg) => sent.push({ connId, msg }) });
+  // demoBot off: these tests exercise the BASE room; the pre-seated Faker
+  // (issue #7, the version demonstrating itself) has its own tests
+  const engine = createEngine({ seed, demoBot: false, onSend: (connId, msg) => sent.push({ connId, msg }) });
   return { engine, sent };
 }
 
@@ -113,7 +115,7 @@ describe('engine: headless room (no sockets)', () => {
 
   it('kick bans by name through the engine; the adapter hook fires', () => {
     const kicked = [];
-    const engine = createEngine({ seed: 3, onKick: (id, o) => kicked.push({ id, ...o }) });
+    const engine = createEngine({ seed: 3, demoBot: false, onKick: (id, o) => kicked.push({ id, ...o }) });
     engine.join('h1', { name: 'Host' });
     engine.join('h2', { name: 'Pest' });
     engine.message('h1', { t: 'kick', id: 'h2', ban: true });
@@ -128,7 +130,7 @@ describe('engine: headless room (no sockets)', () => {
   // Versus teams (round 21.3): the lobby wire — you move yourself, the host may
   // move a BOT, nobody may move another human, and a drop keeps your side.
   it('team numbers: own row + bots, never another human, and they survive a reconnect', () => {
-    const engine = createEngine({ seed: 4 });
+    const engine = createEngine({ seed: 4, demoBot: false });
     engine.join('h1', { name: 'Host' });
     engine.join('h2', { name: 'Friend' });
     engine.message('h1', { t: 'addBot', kind: 'grunt' });

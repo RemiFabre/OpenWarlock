@@ -7254,9 +7254,24 @@ describe('Faker & Runner (issue #7)', () => {
     // and a non-Faker can never take a combo build
     engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'minefield' });
     const bots = Object.values(engine.game.players).filter(p => p.bot);
-    expect(fakerBuilds).toContain(bots[0].build);
-    expect(fakerBuilds).toContain(bots[1].build);
-    expect(fakerBuilds).not.toContain(bots[2].build);
+    const fakers = bots.filter(p => p.kind === 'faker');
+    const others = bots.filter(p => p.kind !== 'faker');
+    expect(fakers.length).toBe(3); // the pre-seated demo Faker + the two added
+    for (const b of fakers) expect(fakerBuilds).toContain(b.build);
+    expect(others.length).toBe(1);
+    expect(fakerBuilds).not.toContain(others[0].build);
     engine.destroy();
+  });
+
+  it('a fresh lobby opens with a Faker already seated — the version demonstrates itself', () => {
+    const engine = createEngine({ seed: 6 });
+    const seated = Object.values(engine.game.players).filter(p => p.bot);
+    expect(seated.length).toBe(1);
+    expect(seated[0].kind).toBe('faker');
+    expect((BUILDS[seated[0].build].kinds || [])).toContain('faker');
+    engine.destroy();
+    const coop = createEngine({ seed: 6, mode: 'coop' });
+    expect(Object.values(coop.game.players).length).toBe(0); // the campaign is exempt
+    coop.destroy();
   });
 });
