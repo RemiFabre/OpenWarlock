@@ -1159,7 +1159,7 @@ const FX_FIELDS = {
   markEvery: ['a mark appears every', fmtSec],
   markDmg: ['each claimed mark', (v) => `+${fmtNum(v)} dmg, forever`],
   chargeEvery: ['engorged ball', (v) => `every ${fmtNum(v)}th cast`],
-  chargeLifesteal: ['engorged ball heals', (v) => `${fmtNum(Math.round(v * 1000) / 10)}% of damage dealt`],
+  chargeHeal: ['engorged ball heals', (v) => `${fmtNum(v)} hp on landing`],
   cdFloor: ['a refund never goes below', fmtSec],
   pierce: ['your fireball (at lv 3)', (v) => (v ? 'passes THROUGH bodies' : 'pops on the first body')],
   doubleEvery: ['your fireball fires as a pair', (v) => `every ${fmtNum(v)}th cast`],
@@ -2219,9 +2219,9 @@ function updateUi(s) {
     if (vampLv > 0) {
       const every = ELEMENTS.vampire.fx.chargeEvery;
       const n = Math.max(0, +m.vampN || 0) % every;
-      const pct = Math.round(statAt(ELEMENTS.vampire.fx.chargeLifesteal, vampLv) * 100);
+      const heal = statAt(ELEMENTS.vampire.fx.chargeHeal, vampLv);
       buffs.push(`<span class="buff vamp">${ELEMENTS.vampire.icon} ` +
-        (n === every - 1 ? `NEXT BALL · ${pct}% drain` : `${n}/${every}`) + '</span>');
+        (n === every - 1 ? `NEXT BALL · +${heal} hp` : `${n}/${every}`) + '</span>');
     }
     // Vanish: your own invisibility, counted down. `vanishT` is only ever on YOUR
     // player entry (snapshot() strips the whole position for everyone else), so

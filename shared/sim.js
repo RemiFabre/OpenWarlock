@@ -429,7 +429,7 @@ function worstStack(target, kind) {
 }
 
 // Vampire's cast counter: advance it and return this ball's engorged
-// lifesteal fraction (0 = plain). Shared by castSpell and mosquito's trailing
+// FLAT heal (0 = plain, 22.5). Shared by castSpell and mosquito's trailing
 // ball (round 20.1, Remi: every every-N counter counts the trailing ball).
 function vampireCharge(state, pl) {
   const vampLv = state.mode === 'elemental' && pl.elements
@@ -437,7 +437,7 @@ function vampireCharge(state, pl) {
   if (!vampLv) return 0;
   pl.vampN = (pl.vampN || 0) + 1;
   if (pl.vampN % ELEMENTS.vampire.fx.chargeEvery !== 0) return 0;
-  return efxV(ELEMENTS.vampire.fx.chargeLifesteal, vampLv);
+  return efxV(ELEMENTS.vampire.fx.chargeHeal, vampLv); // FLAT heal since 22.5
 }
 
 // Ability Haste (round 17, ex-CDR percentages): cd = base / (1 + haste/100),
@@ -869,8 +869,8 @@ function stepClones(state, dt) {
 // every element multiplier and after gale's gust, so it is a true kill switch.
 // One user today: mosquito's pair LEAD passes 0 (ELEMENTS.mosquito).
 //
-// opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
-// pays, resolved at cast time so the projectile carries everything it needs.
+// opts.engorged (ELEMENTS.vampire) is this ball's FLAT heal on landing
+// (22.5), resolved at cast time so the projectile carries everything it needs.
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
@@ -1222,7 +1222,7 @@ const HEAL_FLOAT_MIN = 1;
 
 function applyDamage(state, target, amount, sourceId,
   { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0,
-    procs = true } = {}) {
+    flatHeal = 0, procs = true } = {}) {
   if (!target.alive) return;
   // Statue (round 21.4): ZERO damage from everything while the gold holds:
   // spells, zones, hazards, lava, poison ticks. Every damage source in the game
@@ -1276,6 +1276,9 @@ function applyDamage(state, target, amount, sourceId,
       // proc per victim per hit, so a piercing ball through three bodies pays
       // three times; a DoT tick pays a tenth, rate-limited (see `procs`).
       let flat = 0;
+      // vampire's engorged ball (22.5): a FLAT heal, only if damage landed —
+      // it no longer scales with the damage that already wins games
+      if (flatHeal > 0 && effective > 0) flat += flatHeal;
       if (healOnHit > 0 && effective > 0) {
         if (procs === true) flat = healOnHit;
         else if (procs === 'tick' && spoonTickDue(state, src, target))
@@ -2577,7 +2580,7 @@ function stepProjectiles(state, dt) {
       if (pr.kbMin != null) kb = Math.max(kb, pr.kbMin);
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
       applyDamage(state, other, dmg + ramp, pr.owner,
-        { bonus: ramp, lifesteal: pr.engorged || 0 });
+        { bonus: ramp, flatHeal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 

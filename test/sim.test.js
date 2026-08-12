@@ -939,15 +939,16 @@ describe('round-3 mechanics', () => {
     expect(state.players.p0.shopReady).toBe(false);
   });
 
-  it('fireballs have unlimited range but are culled off-world', () => {
+  it('fireballs fizzle at SPELLS.fireball.range (22.5: no sniping from afar)', () => {
     const state = freshBattle(3);
     const a = state.players.p0;
     a.x = 0; a.y = 0;
     state.players.p1.y = 50; state.players.p2.y = -50;
     castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 2); // traveled ~68u, far beyond the old 45u cap
-    expect(state.projectiles.length).toBe(1);
-    run(state, 2); // now beyond 2× arena radius: culled
+    const justShort = (SPELLS.fireball.range - 3) / SPELLS.fireball.speed;
+    run(state, justShort);
+    expect(state.projectiles.length).toBe(1);      // still flying inside range
+    run(state, 8 / SPELLS.fireball.speed + 0.1);   // past the cap: gone
     expect(state.projectiles.length).toBe(0);
   });
 });
@@ -2067,8 +2068,7 @@ describe('elemental mode', () => {
     expect(!!state.projectiles[state.projectiles.length - 1].engorged).toBe(false);
     run(state, 1);
     expect(a.vampN).toBe(vf.chargeEvery);        // the trail advanced the counter
-    expect(a.healLifesteal).toBeCloseTo(
-      SPELLS.fireball.damage[0] * vf.chargeLifesteal[0], 1);
+    expect(a.healLifesteal).toBeCloseTo(vf.chargeHeal[0], 1); // FLAT since 22.5
   });
 
   // ⚠ Two ROUND 21.0 RULINGS (Remi: "reflect the ball as it was" / "part of the
@@ -2281,8 +2281,9 @@ describe('elemental mode', () => {
     expect(a.gold).toBe(GOLD.START);
     expect(stacksOf(b, 'midas', 'p0')).toBe(1);
     expect(state.events.some(e => e.t === 'midasMark' && e.id === 'p1')).toBe(true);
-    expect(b.maxHp - b.hp).toBeGreaterThan(3.3); // the −50% penalty still applies
-    expect(b.maxHp - b.hp).toBeLessThan(4.7);
+    const dealt = SPELLS.fireball.damage[0] * ELEMENTS.midas.fx.dmgMult[0];
+    expect(b.maxHp - b.hp).toBeGreaterThan(dealt - 0.7); // the softened penalty (22.5)
+    expect(b.maxHp - b.hp).toBeLessThan(dealt + 0.7);
     // hit 2 on the SAME target: cash, and the mark is spent
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
     a.cooldowns = {};
@@ -2478,7 +2479,7 @@ describe('elemental mode', () => {
 
   // ---- vampire 🧛 -----------------------------------------------------------
 
-  it('vampire 🧛: every Nth CAST is engorged and heals a multiple of the damage', () => {
+  it('vampire 🧛: every Nth CAST is engorged and heals a FLAT amount (22.5)', () => {
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2506,9 +2507,9 @@ describe('elemental mode', () => {
         expect(healed).toBeLessThan(1);
       }
     }
-    // the engorged one pays chargeLifesteal × the damage it dealt, on top of regen
-    expect(healed).toBeGreaterThan(dmg * f.chargeLifesteal[0] - 1);
-    expect(a.healLifesteal).toBeGreaterThan(dmg * f.chargeLifesteal[0] - 1);
+    // the engorged one pays the flat chargeHeal, however hard the ball hits
+    expect(healed).toBeCloseTo(f.chargeHeal[0], 1);
+    expect(a.healLifesteal).toBeCloseTo(f.chargeHeal[0], 1);
     expect(state.events.some(e => e.t === 'lifesteal' && e.id === 'p0')).toBe(true);
   });
 
@@ -2543,7 +2544,7 @@ describe('elemental mode', () => {
     expect(ev.amount).toBeCloseTo(SPELLS.fireball.damage[0] * steal, 1);
   });
 
-  it('vampire pays only on damage ACTUALLY DEALT: no overkill, and never from lava', () => {
+  it('vampire pays its flat heal only when damage LANDS, and never from lava (22.5)', () => {
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2560,12 +2561,12 @@ describe('elemental mode', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     expect(b.alive).toBe(false);
-    // 1 point of damage was DEALT, so at most 1 × the multiplier is paid, not
-    // the full fireball's worth. This is the rule that bounds every-N lifesteal.
+    // FLAT by design since 22.5: a 1-hp overkill still pays the full heal —
+    // the payout no longer scales with damage at all. Some damage must land,
+    // which the lava half below is the negative case for.
     const paid = a.healLifesteal;
-    expect(paid).toBeGreaterThan(0);
-    expect(paid).toBeLessThan(1 * f.chargeLifesteal[2] + 0.01);
-    expect(before + paid).toBeGreaterThan(a.hp - 1); // the rest is just regen
+    expect(paid).toBeCloseTo(f.chargeHeal[2], 1);
+    expect(before + paid).toBeGreaterThan(a.hp - 1);
     // ...and the lava pays nothing at all, however engorged you are
     const hpNow = a.hp;
     a.healLifesteal = 0;

@@ -195,7 +195,13 @@ export const SPELLS = {
     // buy the old cadence back
     // lv1 damage 5 → 7 (2026-08-06): at 5 a lv1 fireball could not out-damage
     // passive regen, which is what made round 1 a 52-second stalemate
-    cooldown: [2.1, 1.85, 1.6], speed: 41, radius: 0.8, range: Infinity,
+    // Round 22.5 (Remi): NOT infinite anymore. You must step toward the
+    // danger to play; no spamming from across the arena. 50 = the 5-player
+    // spawn-neighbor distance (2 x 56 x 0.6 x sin(36) = 39.5) + ~27%, inside
+    // his "+20-50%" bracket: the opening shot on your neighbor still lands.
+    // Distance-based (pr.traveled), so ghost speed does not extend it, and a
+    // reflected ball starts a fresh 50 (traveled resets, round 21.0 ruling).
+    cooldown: [2.1, 1.85, 1.6], speed: 41, radius: 0.8, range: 50,
     damage: [7, 10, 14], knockback: [65, 70, 76],
     desc: 'Your bread and butter: a medium projectile with strong knockback.',
   },
@@ -615,7 +621,9 @@ export const ELEMENTS = {
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
            long: 'Your first hit marks a target, the next hit on them cashes +1 g. The price: a weaker fireball, until lv3 lifts the penalty.',
-           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.5, 0.75, 1], kbMult: [0.5, 0.75, 1] } },
+           // Round 22.5 (Remi): the damage penalty was too extreme; -30/-15/-0%
+           // now (push penalty untouched, lv3 still lifts both)
+           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.7, 0.85, 1], kbMult: [0.5, 0.75, 1] } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else; the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -638,7 +646,8 @@ export const ELEMENTS = {
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Infinite scaling.',
            long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
-           fx: { markEvery: [20, 15, 10], markDmg: 0.5, markDelay: 0.5,
+           // Round 22.5 (Remi): still too strong; marks slowed [20,15,10] -> [30,25,20]
+           fx: { markEvery: [30, 25, 20], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead
@@ -673,15 +682,17 @@ export const ELEMENTS = {
            long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns (never the fireball\'s own).',
            fx: { haste: [18, 32, 32], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
-  // Every 5th fireball engorged: heals >100% of damage dealt; an EVENT, not a
+  // Every 5th fireball engorged: a flat heal on landing (22.5); an EVENT, not a
   // trickle. As specced it won 74.7%; retuned across BOTH knobs (every 5 × 0.7).
   // ⚠ Lifesteal pays only on damage ACTUALLY dealt (no lava/overkill); test it.
-  // ⚠ Probably bot-over-measured; chargeEvery/chargeLifesteal are one-line levers.
+  // ⚠ Probably bot-over-measured; chargeEvery/chargeHeal are one-line levers.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Burst lifesteal.',
-           long: 'Every 5th fireball is engorged: it heals you for more than the damage it deals.',
-           fx: { chargeEvery: 5, chargeLifesteal: [1.4, 1.92, 2.45] } },
+           // Round 22.5 (Remi): the % of damage scaled too well with the
+           // high-damage builds that already dominate. FLAT heal now.
+           long: 'Every 5th fireball is engorged: landing it heals you a flat amount.',
+           fx: { chargeEvery: 5, chargeHeal: [10, 20, 30] } },
   // (Chronos, refund on ANY landed spell, was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
   // c38730f:shared/constants.js.)
