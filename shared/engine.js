@@ -18,7 +18,18 @@ import {
 } from './sim.js';
 import { BOTS, BUILDS } from './constants.js';
 
-const BOT_NAMES = ['Gul\'dan', 'Kil\'jaeden', 'Cho\'gall', 'Teron', 'Nerzhul', 'Archimonde'];
+// Per-kind name pools (round 22, Remi: switching difficulty should feel like
+// meeting new bots). The classic six stayed on Hard. A lobby never repeats a
+// name while any is unused: own pool first, then borrow (see botName below).
+const TARGET_NAMES = ['Sandbag', 'Piñata', 'Bullseye', 'Tin Can', 'Scarecrow'];
+export const BOT_NAMES = {
+  grunt:     ['Zug-Zug', 'Grubnub', 'Snotbog', 'Wobbla', 'Peon Pip'],
+  brawler:   ['Grommash', 'Durotan', 'Orgrim', 'Nazgrel', 'Broxigar'],
+  berserker: ['Gul\'dan', 'Kil\'jaeden', 'Cho\'gall', 'Teron', 'Nerzhul', 'Archimonde'],
+  stalker:   ['Mannoroth', 'Tichondrius', 'Magtheridon', 'Mal\'Ganis', 'Sargeras'],
+  faker:     ['Loki', 'Anansi', 'Puck', 'Kitsune', 'Coyote'],
+  runner:    TARGET_NAMES,
+};
 const BOT_AVATARS = ['👹', '💀', '👺', '🧟', '🐉', '😈'];
 
 export const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16);
@@ -57,7 +68,7 @@ export function createEngine({
   // like any bot; "play again" carries it like any bot.
   if (demoBot && !state && mode !== 'coop') {
     const arsenals = Object.keys(BUILDS).filter(k => (BUILDS[k].kinds || []).includes('faker'));
-    const bp = addPlayer(game, 'bot' + nextBotId++, BOT_NAMES[0], {
+    const bp = addPlayer(game, 'bot' + nextBotId++, botName('faker'), {
       bot: true, kind: 'faker',
       build: arsenals[(Math.random() * arsenals.length) | 0], avatar: BOT_AVATARS[0],
     });
@@ -76,6 +87,19 @@ export function createEngine({
   // the simulation and must never keep a human out of their own game.
   function playerCount() {
     return Object.values(game.players).filter(p => !p.wave).length;
+  }
+
+  // An unused name from the kind's own pool, else borrowed from the others.
+  // "Unused" is per LOBBY (humans included), so names never repeat while any
+  // pool name is free; "play again" carries names on the player, not here.
+  function botName(kind) {
+    const used = new Set(Object.values(game.players).map(p => p.name));
+    const own = BOT_NAMES[kind] || [];
+    for (const pool of [own, ...Object.values(BOT_NAMES).filter(p => p !== own)]) {
+      const free = pool.filter(n => !used.has(n));
+      if (free.length) return free[(Math.random() * free.length) | 0];
+    }
+    return 'Bot ' + nextBotId; // every pool exhausted (cannot happen at 10 seats)
   }
 
   function maybeAutoStart() {
@@ -258,7 +282,7 @@ export function createEngine({
           const build = typeof m.build === 'string' && buildKeys.includes(m.build)
             ? m.build : buildKeys[(Math.random() * buildKeys.length) | 0];
           const bid = 'bot' + nextBotId++;
-          const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {
+          const bp = addPlayer(game, bid, botName(kind), {
             bot: true, kind, build, avatar: BOT_AVATARS[(nextBotId - 2) % BOT_AVATARS.length],
           });
           bp.ready = true;
