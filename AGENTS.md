@@ -1,6 +1,6 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-11 (round 21.8). Read this first, then
+*Last updated 2026-08-12 (round 21.10). Read this first, then
 REMI_NOTES.md (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -115,13 +115,15 @@ build step, Node ESM, only dep is `ws`.
 | `shared/sim.js` | pure simulation + bot brains (grunt random, berserker piloted, stalker dodging; Normal = berserker brain with worse params) + elements, hazards, Vanish wire-masking |
 | `shared/campaign.js` | co-op campaign: 10 levels as pure data. Levels are data, never code |
 | `shared/engine.js` | the authoritative ROOM behind a transport seam (round 19): seating, wire switch, ghosts, bans, snapshots. Node server AND the in-tab solo mode both run it |
-| `server/index.js` | now an ADAPTER over engine.js: http, `/health`, ws + heartbeat/RTT pings, JSONL journal, IP bans |
+| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING — events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it |
+| `server/index.js` | now an ADAPTER over engine.js: http, `/health` (+ per-player wire stats), ws + heartbeat/RTT pings + permessage-deflate, JSONL journal, IP bans |
 | `client/transport.js` | ws + solo + RTC transports behind one seam (`?mode=`, `#r=CODE`, else /health probe). Hosting record: `docs/history/2026-08-09-browser-hosting-phaseB.md` |
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | 395 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | the bulk of the 419 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/snapwire.test.js` | 24 tests on the wire rules: a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`) — read it before grepping `sim.js` |
@@ -136,6 +138,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
+| `tools/slowlink.js` | **the netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). Answers "what does a player on a thin link actually get". ⚠ bandwidth only — no jitter, no loss, no RTC path |
 | `BALANCE.md` | current balance truths + open questions + repro commands. Full reports: `docs/history/` |
 | `STRATEGIES.md` | bot tiers × builds chart, the 25-strategy ranking, how to read arena reports |
 | `REMI_NOTES.md` | the changelog Remi reads — latest round only |
@@ -261,19 +264,23 @@ build step, Node ESM, only dep is `ws`.
   restores progress by normalized name within 10 min (e2e test-locked).
 - Per-player ping (round 18): a SECOND 2 s ws ping stream (timestamp payload)
   → `pings` beside snap → ms badge. NEVER fold its cadence into the reaper.
+- **"A friend lags late-game" is a wire question first** (round 21.10):
+  `/health` reports per-player `queued` / `behind` / `skipped`, and the ms badge
+  says the same from the client end. Repro with `tools/slowlink.js`.
 - Final standings wait for every human (45 s grace). After pulling: restart
   the server AND hard-refresh clients.
 
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 395 green
+npx vitest run                                   # 419 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/reconnect-test.js                     # progress survives a drop
 node tools/arena.js --games=60 --players=4       # games finish, sane kills
 node tools/arena.js --games=60 --players=8       # ditto at the scaled arena (21.2)
+node tools/slowlink.js --seconds=20              # WIRE changes only (~2 min)
 ```
 Kill stray servers when done (`pgrep -fl "server/index.js"`) — **but check
 first that Remi isn't hosting a live game.**
@@ -301,6 +308,15 @@ first that Remi isn't hosting a live game.**
 - A new spell's DEFAULT key landing on a returning player's SAVED binding is a
   silently dead spell (round 21.7: Statue and Decoy, both invisible to Remi).
   Never assume the presets describe what a real player's client is bound to.
+- A socket-level queue is invisible: `bufferedAmount` stayed 0 while a throttled
+  seat ran 19 s behind (a megabyte sat in the KERNEL send buffer). Falling behind
+  is only detectable with an application ack — and by its GROWTH, since the
+  absolute backlog is just RTT × snapshot rate on a healthy distant link
+  (round 21.10, full story in `docs/history/2026-08-12-snapshot-bandwidth.md`).
+- A delta stream's base is load-bearing: only the SENDER may drop a state, and
+  only if it re-bases immediately; a reconnect must reset the decoder, or a new
+  socket's sequence-1 keyframe reads as ancient forever.
+- A lab that prints "no data" as `0.00` makes the worst row look like the best.
 - Stale server/browser after pulling ships mixed-version games; tunnel sockets
   die silently (hence the heartbeat); audio must start from a user gesture;
   emoji icons are load-bearing UI; voice transcriptions garble numbers —
