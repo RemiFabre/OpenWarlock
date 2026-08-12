@@ -695,11 +695,17 @@ export const BOTS = {
   // boltDodge (round 17, Remi: "Hard dodging 100% of lightnings is a bit
   // tough"): the chance a bot bothers stepping out of a sky-bolt telegraph,
   // committed ONCE per bolt. Missing = always dodges.
+  // Round 22 `standoff` (Remi: less point-blank oppression): the preferred
+  // MINIMUM engagement distance the berserker brain keeps when the arena has
+  // room — it floors the prowl ring, wounded-prey dive included. Normal holds
+  // a real gap (the melee chase is gone); Hard only refuses melee (its 8.5
+  // prowl ring is untouched, the 1.5 finish dive stops at 5). Extreme/Faker
+  // kite on their own brain and take no knob. Revert = delete the fields.
   brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
-               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35,
-               desc: 'Hunts you and trades, but it reads you slowly and its aim is loose. Walks out of a lightning mark only a third of the time. A fair fight.' },
+               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35, standoff: 13,
+               desc: 'Hunts you and trades, but it reads you slowly, its aim is loose, and it keeps a respectful distance. Walks out of a lightning mark only a third of the time. A fair fight.' },
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
-               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5,
+               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5, standoff: 5,
                desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well. Dodges your lightning half the time — a coin flip, not an oracle.' },
   // ⚠ stalker aimErr is [0.4, 0.05] on purpose (bigger floor, much flatter
   // distance term = accurate at range) — NOT the berserker's pair; 65f5597

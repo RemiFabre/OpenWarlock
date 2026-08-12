@@ -4139,6 +4139,37 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
     expect(ranks).toEqual(ranks.map((_, i) => i + 1));
   });
 
+  // Round 22 standoff: BOTS[kind].standoff floors the prowl ring (wounded-prey
+  // dive included) — a Normal bot never WANTS to stand in your face, and Hard
+  // refuses melee. The values are read off the spec, never pinned here.
+  it('standoff floors the prowl ring, even over the old wounded-prey dive', () => {
+    for (const kind of ['brawler', 'berserker']) {
+      const state = tierBattle(kind);
+      const bot = state.players.b, h = state.players.h;
+      h.hp = 20;                        // the bait that used to pull ring -> 1.5
+      bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+      h.x = 4; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+      bot._botT = 0; bot.cooldowns.fireball = 99;
+      stepBot(state, 'b', DT);
+      expect(bot.moveTarget, kind).toBeTruthy();
+      const d = Math.hypot(bot.moveTarget.x - h.x, bot.moveTarget.y - h.y);
+      expect(d, kind).toBeGreaterThanOrEqual(BOTS[kind].standoff);
+    }
+  });
+
+  it('standoff never backs a bot into the lava: no room = the point comes inside', () => {
+    const state = tierBattle('brawler');
+    state.arenaRadius = 8;              // a late-game ring with no room for 13 units
+    const bot = state.players.b, h = state.players.h;
+    bot.x = 3; bot.y = 0; bot.vx = bot.vy = 0;
+    h.x = 0; h.y = 0; h.vx = h.vy = 0; h.hp = 20; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 99;
+    stepBot(state, 'b', DT);
+    expect(bot.moveTarget).toBeTruthy();
+    expect(Math.hypot(bot.moveTarget.x, bot.moveTarget.y))
+      .toBeLessThanOrEqual(state.arenaRadius - 2.5);
+  });
+
   it('brawler (Normal) runs the BERSERKER brain, not the grunt brain', () => {
     // the berserker hunts: it walks toward its prey and fires at it. The grunt
     // wanders and fires at a uniformly random bearing. One decision tick tells

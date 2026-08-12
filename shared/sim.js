@@ -3894,7 +3894,12 @@ function stepBerserker(state, pl, dt) {
   if (!fleeing) {
     if (!pl._strafe) pl._strafe = rng(state) < 0.5 ? 1 : -1;
     else if (rng(state) < 0.14) pl._strafe = -pl._strafe;
-    const ring = target.hp <= 30 ? 1.5 : 8.5; // wounded prey gets no breathing room
+    // Round 22 standoff (Remi: "less point-blank oppression"): BOTS[kind]
+    // .standoff is a preferred MINIMUM engagement distance — it floors the
+    // ring, wounded-prey dive included, so the bot backs off between casts
+    // instead of camping a face nobody can out-react. Revert = drop the knob.
+    let ring = target.hp <= 30 ? 1.5 : 8.5; // wounded prey gets no breathing room
+    ring = Math.max(ring, (BOTS[pl.kind] || {}).standoff || 0);
     const tCenter = Math.hypot(target.x, target.y) || 1;
     // blend "our side of the prey" with "the center side of the prey"
     let dx = -(tdx / dist) * 0.5 - (target.x / tCenter) * 0.5;
@@ -3903,8 +3908,13 @@ function stepBerserker(state, pl, dt) {
     // strafe grows with distance: a straight-line charge is a shooting-range
     // target, a spiral approach walks between the incoming fireballs
     const sw = Math.min(10, 4 + dist * 0.3) * pl._strafe;
-    const cx = target.x + (dx / dn) * ring - (tdy / dist) * sw;
-    const cy = target.y + (dy / dn) * ring + (tdx / dist) * sw;
+    let cx = target.x + (dx / dn) * ring - (tdy / dist) * sw;
+    let cy = target.y + (dy / dn) * ring + (tdx / dist) * sw;
+    // keeping distance must never mean backing into the lava: when the ring
+    // point falls off the solid ground, pull it radially back inside — the
+    // bot closes in instead when the arena leaves no room.
+    const cd = Math.hypot(cx, cy);
+    if (cd > arena - 2.5) { cx *= (arena - 3) / cd; cy *= (arena - 3) / cd; }
     setMoveTarget(state, id, cx, cy);
   }
 
