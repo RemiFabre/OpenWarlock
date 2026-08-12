@@ -196,19 +196,27 @@ stated, every number a one-line revert)**:
   `tools/elo.js` (the 30-strategy roster ranking, the one that matters) has
   always run elemental off explicit roster cores and was never affected.
 
-### The strategy ELO table: THE current ranking (r249, 37 strategies, 8000 games × 2 seeds)
+### The strategy ELO table: THE current ranking (r353, 41 strategies, 8000 games × 2 seeds)
 
-**`docs/history/2026-08-11-round21.9-elo.md`** is the STANDING baseline (drift
-mean 10.1). It measures the whole sustain pass + the credit rules at once, so no
-row is attributable to one change. Headlines: the **blade nerf landed on its
-target**: B3 anger+blade takes the biggest drop in the table (−94), with
-D2 −58 and D1 −50; the **sustain shelf rose as a class** (A1 +140, F1 +115,
-D11 +82, A2 +80, D8 +63, D6 +56, B5 +52) though the spoon builds are still 31st
-and 34th (playable, not strong); **D12-hatburner reached 3rd**, +50, while
-plague-without-the-Hat moved +17, so it is the AURA that gained, not the
-sickness; **100% of deaths now land on a name** (was: a full-hp lava swim
-outlived the old 5 s window and credited nobody); statue is dead-average and
-meteor last for the third table running.
+**`docs/history/2026-08-13-round22.5-elo.md`** is the STANDING baseline (drift
+mean 11.1, max 38, 0 unfinished). ⚠ The roster grew 37 → 41 (family K, the
+Faker's four arsenals, which run the FAKER brain and score 2444-2755), so every
+Δ in that file is **re-centred** on the 37 rows r249 also held, and because Elo
+is zero-sum the "nothing happened to me" line is **+19, not 0**. Headlines: the
+**22.5 anger slow is the whole table** and it landed monotonically on how much
+anger a core holds (B3 −267 and no longer 1st, D2 −205, B4 −104, A4 −90);
+**D4-leech +219**, the only big gain, because vampire's new FLAT heal is a buff
+for a deliberately low-damage vampire kit (the % it replaced only scaled for the
+ember/anger builds that never buy vampire); the **stack fade shows up on malady
+only** (D12 −64, D5 −37; frost/gale within churn); **midas's softened penalty
+and the fireball range cap are both invisible here**, with the mechanism
+measured (0.5% of connecting bot fireballs had flown 50+).
+
+The r249 table (37 strategies, the sustain pass + the credit rules):
+**`docs/history/2026-08-11-round21.9-elo.md`**. Headlines: the blade nerf landed
+on its target (B3 −94, D2 −58, D1 −50); the sustain shelf rose as a class
+(A1 +140, F1 +115, D11 +82, A2 +80); D12-hatburner reached 3rd on the aura, not
+the sickness; 100% of deaths now land on a name.
 
 The previous table (r232/r236, 33-35 strategies, pre-sustain-pass):
 **`docs/history/2026-08-11-round21.8-elo.md`**
@@ -349,15 +357,35 @@ softmax bots AND the venom/hourglass retunes. Re-run before quoting it.
   34.9% → 26.1% at TEMPERATURE 6 (the metric itself reads ~13% and is a feel
   gauge, not the verdict; see the softmax history file).
 
-## Round 22.4: stack fade (untabled)
+## Round 22.4 + 22.5: stack fade, range cap, anger/vampire/midas (TABLED)
 
 Remi's game-night call ("the new ice is too strong"): frost/gale/malady piles
 now lose 1 stack per 9 unfed seconds (`STACK_DECAY` in constants.js; reapply
 resets the clock; midas/anger exempt). Also fixed: a reflected ball used to
 plant stacks under the REFLECTOR's name, so shields fed your freeze counter
 with other players' frost (`pr.elemOwner` pins riders to the element's owner
-now). ⚠ Every stacking-element number above and the r249 ELO table predate the
-fade; re-run before quoting them for frost/gale/malady strategies.
+now). Then 22.5: fireball `range` 50 (was Infinity), anger `markEvery`
+[20,15,10] → [30,25,20], vampire's engorged ball heals a FLAT [10,20,30]
+instead of 1.4/1.92/2.45 × damage, midas `dmgMult` [0.5,0.75,1] → [0.7,0.85,1].
+
+**Measured: `docs/history/2026-08-13-round22.5-elo.md`** (r353, the standing
+table above). Per-change reads, all two-seed:
+- **anger**, elemental study win% vs a 25% baseline: **92.3/91.0 → 83.3/84.1**.
+  Real, and still 20 points clear of every other element. Question K stands:
+  flag it, do not number-nerf around it.
+- **stack fade**, same study, fade on vs off: **malady −4.9/−7.3**, frost and
+  gale inside the instrument's churn (~7 points). ⚠ The fade punishes poke-and-
+  leave, which bots never do (a Hard bot re-feeds a pile every ~2 s from a ring
+  of 8.5), so this is a FLOOR.
+- **fireball range 50**: invisible to bots and structurally so. With the cap
+  lifted, 38.7% of balls fly past 50 but **only 0.5% of the ones that CONNECT
+  had flown 50+** (60 lobbies, 61417 balls): the cap deletes misses. A paired
+  ablation (2500 games, identical lobbies, range 50 vs Infinity) sits at the
+  noise floor (mean |Δ| 19.9). `stepBot` has no range check at all.
+- **midas**: no measurable effect on either instrument (seeds disagree on sign).
+  Every core that buys midas reaches lv3, where `dmgMult` is 1.0 either way.
+- **vampire**: could NOT be ablated (the % path was deleted from sim.js in
+  22.5); the Elo table's D4-leech +219 is the only read.
 
 ## Open questions
 

@@ -51,8 +51,8 @@ Agent context usage on this project is **CRITICAL**. The rules:
   to the private HF dataset openwarlock-stats. A pre-commit hook stamps
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   and must NEVER be bypassed; Pages lags pushes by up to ~10 min (CDN).
-- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-21. Quote
-  `docs/history/2026-08-11-round21.9-elo.md` instead.
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-22. Quote
+  `docs/history/2026-08-13-round22.5-elo.md` instead (r353, 41 strategies).
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -147,7 +147,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 (every arena table printed before that date was classic) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
-| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-11-round21.9-elo.md` (37 strategies, r249) |
+| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~30 min). Latest table: `docs/history/2026-08-13-round22.5-elo.md` (41 strategies, r353; a roster that GROWS shifts the 1500, so re-centre before diffing tables) |
 | `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%), the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
 | `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots. Prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity). The Elo table hides tier gaps |
