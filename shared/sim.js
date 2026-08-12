@@ -1777,7 +1777,7 @@ function stepBattle(state, dt) {
       m.t -= dt;
       if (m.t > 0) { rest.push(m); continue; }
       const spec = SPELLS.meteor;
-      state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius });
+      state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius, by: m.owner });
       for (const pl of Object.values(state.players)) {
         // everyone under the rock eats it, the caster included — but never a
         // teammate (round 21.3: same team = spells ignore each other)
@@ -1873,7 +1873,9 @@ function stepBattle(state, dt) {
     for (const m of state.bolts) {
       m.t -= dt;
       if (m.t > 0) { rest.push(m); continue; }
-      state.events.push({ t: 'boltHit', x: m.x, y: m.y, r: spec.radius, level: m.level });
+      // `by` is for instruments (tools/combo.js separates whose bolt chained);
+      // the client ignores it
+      state.events.push({ t: 'boltHit', x: m.x, y: m.y, r: spec.radius, level: m.level, by: m.owner });
       for (const pl of Object.values(state.players)) {
         if (!pl.alive || alliedIds(state, m.owner, pl.id)) continue; // teammates: no bolt
         const ddx = pl.x - m.x, ddy = pl.y - m.y;
