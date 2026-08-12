@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 8,
+  "serial": 9,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v3: Ricochet, the secret Guardian Angel, the Dark Ball blackout and the Storm Ball — plus craters (mines and meteors destroy the ground; permanent once anyone hits 10 kills) and a Switcheroo that grapples you to pillars and refunds 2 s on every landed hook.",
-      "issue": 11,
-      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/11",
+      "summary": "Ju's arsenal, v4: Ricochet, Dark Ball and Storm Ball are now exclusive fireball MUTATIONS (one ball identity per player), plus the Humiliating Vomit Puddle, craters, the pillar grapple and the secret Guardian Angel.",
+      "issue": 13,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "0000e66d06f2b828be56de0b5275864c646352e4"
+      "commit": "8865f8b355d871aa90c674e7a7c19aae15d62077"
     },
     {
       "slug": "trash-talk",
