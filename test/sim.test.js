@@ -6488,6 +6488,75 @@ describe('statue 🗿 (the golden pillar)', () => {
 // Slow Spoon 🥄 (round 21.8, Remi): a FLAT heal per damaging hit — the sustain
 // item for wide, low-damage, utility builds that lifesteal ignores. The whole
 // balance of it is the exclusion: auras and sicknesses never pay.
+// ---------------------------------------------------------------------------
+// Fire Walk 🥾 (SPELLS.firewalk, round 22): active self-buff — zero lava
+// damage while the timer runs. Every number is read off the spec.
+// ---------------------------------------------------------------------------
+describe('Fire Walk 🥾 (lava immunity)', () => {
+  const spec = SPELLS.firewalk;
+
+  // two parked players, p0 owning firewalk at `level`, p0 dropped in the lava
+  function lavaBattle(level = 1) {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.spells.firewalk = level;
+    a.cooldowns = {};
+    a.x = state.arenaRadius + 4; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    return state;
+  }
+
+  it('spec shape: 2 levels priced like Blink, duration levels, cooldown does not', () => {
+    expect(spec.maxLevel).toBe(2);
+    expect(spec.costs).toEqual(SPELLS.teleport.costs);       // the [10, 5] tier
+    expect(Array.isArray(spec.cooldown)).toBe(false);        // flat by ruling
+    expect(spec.duration[1]).toBeGreaterThan(spec.duration[0]); // lv2 buys time
+  });
+
+  it('zeroes lava damage for exactly the duration, then the burn resumes', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    expect(castSpell(state, 'p0', 'firewalk', a.x, a.y)).toBe(true);
+    const hp0 = a.hp;
+    run(state, spec.duration[0] - 0.1);   // still inside the immunity window
+    expect(a.hp).toBe(hp0);
+    expect(a.inLava).toBe(true);          // it IS swimming — just not burning
+    run(state, 0.5);                      // ...and now the window has closed
+    expect(a.hp).toBeLessThan(hp0);
+  });
+
+  it('lv2 runs the lv2 duration, and only the CASTER is immune', () => {
+    const state = lavaBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    expect(a.fireWalkT).toBe(spec.duration[1]);
+    b.x = state.arenaRadius + 4; b.y = -8;   // no firewalk: the control burn
+    run(state, spec.duration[0] + 0.2);      // beyond lv1's window, inside lv2's
+    expect(a.hp).toBe(PLAYER.MAX_HP);        // lv2 window still open
+    expect(b.hp).toBeLessThan(PLAYER.MAX_HP); // the lava did not go soft
+  });
+
+  it('cooldown is enforced and read from the spec', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    expect(a.cooldowns.firewalk).toBeCloseTo(spec.cooldown, 5);
+    run(state, 1);
+    expect(castSpell(state, 'p0', 'firewalk', a.x, a.y)).toBe(false); // too soon
+  });
+
+  it('snapshot exposes `fw` to EVERYONE while active, and only while active', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    expect(snapshot(state, 'p1').players.p0.fw).toBeUndefined(); // inactive: absent
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    const seen = snapshot(state, 'p1').players.p0.fw;            // p1's view of p0
+    expect(seen).toBeGreaterThan(0);
+    expect(seen).toBeLessThanOrEqual(spec.duration[0]);
+    run(state, spec.duration[0] + 0.2);
+    expect(snapshot(state, 'p1').players.p0.fw).toBeUndefined(); // expired: absent
+  });
+});
+
 describe('Slow Spoon 🥄 (flat heal per hit)', () => {
   const spec = ITEMS.spoon;
   const at = (lv) => ITEM_FX.spoon.healOnHit[lv - 1];

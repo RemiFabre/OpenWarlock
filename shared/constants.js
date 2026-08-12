@@ -266,6 +266,18 @@ export const SPELLS = {
     desc: 'Become an invincible statue.',
     long: 'For 2 seconds you turn to solid gold: nothing damages you and nothing can push you, and your body blocks balls like a pillar — but you cannot move or cast.',
   },
+  firewalk: {
+    // Round 22 (Remi): active self-buff — ZERO lava damage while it runs.
+    // Only the lava tick reads the timer; the ×2 lava swim SPEED stays, so it
+    // buys crossings and rim escapes, not a new home. lv2 buys duration; the
+    // cooldown never levels. Price matches Blink/Mine. Public on the wire as
+    // `fw` (client draws a flame ring) — chasing them in must be an informed
+    // mistake. Default key h (free in both layouts; loadKeys de-conflicts).
+    name: 'Fire Walk', hotkey: 'H', maxLevel: 2, costs: [10, 5],
+    cooldown: 15, duration: [3, 5],
+    desc: 'Walk on lava.',
+    long: 'For a few seconds lava deals you no damage at all — you still swim it at double speed, so a burning shortcut becomes a free one.',
+  },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
   // BOT_CC_CAST + PILOTED_POWER in shared/sim.js). For the rest, omission from
