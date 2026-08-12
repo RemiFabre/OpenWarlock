@@ -149,6 +149,26 @@ describe('engine: headless room (no sockets)', () => {
     engine.destroy();
   });
 
+  // round 22: removeBot takes an optional id (per-row remove buttons). A bot
+  // id removes THAT bot; a human id is ignored; no id keeps last-bot behavior.
+  it('removeBot: by id for bots only, last-added without an id', () => {
+    const engine = createEngine({ seed: 8, demoBot: false });
+    engine.join('h1', { name: 'Host' });
+    engine.join('h2', { name: 'Friend' });
+    for (let i = 0; i < 3; i++) engine.message('h1', { t: 'addBot', kind: 'grunt' });
+    const [b1, b2, b3] = Object.values(engine.game.players).filter(p => p.bot).map(p => p.id);
+
+    engine.message('h1', { t: 'removeBot', id: b2 });        // a named bot goes
+    expect(engine.game.players[b2]).toBeUndefined();
+    engine.message('h1', { t: 'removeBot', id: 'h2' });      // a human never does
+    expect(engine.game.players.h2).toBeTruthy();
+    expect(Object.values(engine.game.players).filter(p => p.bot).length).toBe(2);
+    engine.message('h1', { t: 'removeBot' });                // no id = last added
+    expect(engine.game.players[b3]).toBeUndefined();
+    expect(engine.game.players[b1]).toBeTruthy();
+    engine.destroy();
+  });
+
   // Versus teams (round 21.3): the lobby wire — you move yourself, the host may
   // move a BOT, nobody may move another human, and a drop keeps your side.
   it('team numbers: own row + bots, never another human, and they survive a reconnect', () => {

@@ -290,8 +290,14 @@ export function createEngine({
           break;
         }
         case 'removeBot': {
+          // round 22 (per-row remove buttons): an optional m.id names WHICH bot
+          // goes — a bot only, never a human (kick owns those). No id keeps the
+          // old behavior: the last-added bot leaves.
+          if (game.phase !== 'lobby') break;
           const bots = Object.values(game.players).filter(p => p.bot);
-          if (bots.length && game.phase === 'lobby') removePlayer(game, bots[bots.length - 1].id);
+          const target = typeof m.id === 'string'
+            ? bots.find(p => p.id === m.id) : bots[bots.length - 1];
+          if (target) removePlayer(game, target.id);
           break;
         }
         case 'kick': {
