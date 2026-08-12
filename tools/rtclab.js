@@ -236,5 +236,5 @@ while (now < MINUTES * 60) {
   if (now - lastReport >= BUCKET_S) { lastReport = now; report(); }
   if (gm().phase === 'gameover' || gm().phase === 'final') break;
 }
-report();
+if (now - lastReport > 5) report(); // a near-empty final bucket prints as 0.00 = fake data
 console.log(`\nended after ${(now / 60).toFixed(1)} min: phase=${gm().phase} round=${gm().round} pillars=${(gm().pillars || []).length}`);
