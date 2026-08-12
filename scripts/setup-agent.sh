@@ -51,8 +51,15 @@ fi
 step "github credential"
 # Scope required by the runbook: THIS repo only, Contents + Issues write,
 # Actions read. No Workflows, no Admin, no org access.
+# This machine also carries a wide-access token, so the shell must have been
+# switched over first: `source scripts/agent-env.sh` (reads GITHUB_TOKEN_WARLOCK
+# from ~/.bashrc, unsets the wide token for this terminal only).
 if ! command -v gh >/dev/null; then
   warn "gh is not installed — the agent needs it to read and close issues"
+elif [ -z "${GITHUB_TOKEN_WARLOCK:-}" ]; then
+  warn "GITHUB_TOKEN_WARLOCK is not set — add 'export GITHUB_TOKEN_WARLOCK=github_pat_...' to ~/.bashrc"
+elif [ "${GH_TOKEN:-}" != "$GITHUB_TOKEN_WARLOCK" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
+  warn "this shell is not on the scoped token — run: source scripts/agent-env.sh"
 elif gh auth status >/dev/null 2>&1; then
   gh auth status 2>&1 | sed 's/^/   /'
   if gh issue list --repo RemiFabre/OpenWarlock --state open --limit 1 >/dev/null 2>&1; then
@@ -61,7 +68,7 @@ elif gh auth status >/dev/null 2>&1; then
     warn "authenticated, but cannot list issues on RemiFabre/OpenWarlock"
   fi
 else
-  warn "gh is not authenticated — export GH_TOKEN with the scoped fine-grained PAT"
+  warn "gh rejected the scoped token — check its scopes/expiry on github.com"
 fi
 
 step "self-check"
