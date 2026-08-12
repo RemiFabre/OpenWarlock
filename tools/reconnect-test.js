@@ -1,6 +1,6 @@
 // E2E check for reconnect persistence: a human joins a bot game, plays a
 // round, buys an upgrade, drops the socket mid-game, rejoins under the same
-// name — and must get their gold/score/build back. A different name must NOT
+// name, and must get their gold/score/build back. A different name must NOT
 // inherit. Run: node tools/reconnect-test.js
 import WebSocket from 'ws';
 import { spawn } from 'node:child_process';
@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 const PORT = Number(process.env.PORT || 3987);
 // stderr is 'ignore', not 'inherit': an inherited pipe that outlives us keeps
 // a piped stdout (`node tools/reconnect-test.js | tail`) open forever. Paired
-// with the 'exit' hook below — process.exit() skips finally blocks, so that
+// with the 'exit' hook below; process.exit() skips finally blocks, so that
 // hook is the only reliable place to reap the server.
 const srv = spawn('node', ['server/index.js', `--port=${PORT}`, '--seed=7'],
   { stdio: ['ignore', 'ignore', 'ignore'] });

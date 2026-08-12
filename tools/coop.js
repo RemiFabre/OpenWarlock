@@ -1,6 +1,6 @@
 // Co-op campaign lab: headless parties of bots against the 10 campaign levels.
 //
-// Same idea as tools/arena.js — pure simulation, no server, no network — but
+// Same idea as tools/arena.js (pure simulation, no server, no network) but
 // the question is different. The arena asks "which strategy wins a free-for-
 // all"; this asks "can a party of N clear level L, and how often". The answer
 // has to hold at party sizes 1, 2 and 3, and the curve has to rise.
@@ -83,8 +83,8 @@ export function playCampaign({
 // ---- isolated level runs ----------------------------------------------------
 // Tuning one level at a time through full campaigns is hopeless: you only ever
 // see level 7 in the runs that survived level 6. This drops a party straight
-// into level L with the gear it would plausibly own by then — `income` gold per
-// level already banked and spent through the normal bot shop — and plays that
+// into level L with the gear it would plausibly own by then (`income` gold per
+// level already banked and spent through the normal bot shop) and plays that
 // one round. Calibrate `income` against the full-campaign sweep (default 16 =
 // 8 round base + ~4 wave kills each) before trusting the absolute numbers; the
 // RELATIVE difficulty between levels is what this is for.
@@ -222,7 +222,7 @@ if (process.argv[1] && process.argv[1].endsWith('coop.js')) {
     console.error(`co-op lab (isolated levels): ${runs} attempts × ${parties.length} party sizes × ${MAX_LEVEL} levels, ${stars} ${kind}/${build}, income ${income == null ? 'per-level (derived)' : income + ' g/level'}`);
     const t = Date.now();
     const rows = levelTable({ runs, parties, kind, build, seed, income });
-    console.log(`\n=== isolated level clear rate — ${stars} ${kind}/${build}, ${runs} attempts each ===`);
+    console.log(`\n=== isolated level clear rate: ${stars} ${kind}/${build}, ${runs} attempts each ===`);
     console.log(`lvl  ${parties.map(p => `${p}p clear%  secs  dth`).join('   ')}   level`);
     for (const row of rows) {
       const cells = parties.map(p => {
@@ -240,7 +240,7 @@ if (process.argv[1] && process.argv[1].endsWith('coop.js')) {
   const res = sweep({ runs, parties, kind, build, seed });
 
   for (const r of res) {
-    console.log(`\n=== party of ${r.party} × ${stars} ${kind}/${build} — ${r.runs} campaign runs ===`);
+    console.log(`\n=== party of ${r.party} × ${stars} ${kind}/${build}: ${r.runs} campaign runs ===`);
     console.log('lvl  tries  clear%   secs  deaths  reach%  level');
     for (let i = 0; i < MAX_LEVEL; i++) {
       const s = r.per[i];

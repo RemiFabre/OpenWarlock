@@ -10,7 +10,7 @@
 //   node tools/codemap.js          # print
 //   node tools/codemap.js --doc    # write docs/CODEMAP.md
 //
-// It deliberately lists ONLY declarations and section banners — never line
+// It deliberately lists ONLY declarations and section banners, never line
 // numbers, which rot on every edit. Grep the name to land on it.
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -44,7 +44,7 @@ function scan(path) {
   return { path, lines: lines.length, sections: sections.filter(s => s.names.length) };
 }
 
-const parts = ['# Code map (generated — `node tools/codemap.js --doc`)',
+const parts = ['# Code map (generated: `node tools/codemap.js --doc`)',
   '',
   'Symbols by file and by the section banner they sit under. No line numbers on',
   'purpose: grep the name. Regenerate after any change that moves code around.',
@@ -55,7 +55,7 @@ for (const path of FILES) {
   parts.push(`## ${f.path} (${f.lines} lines)`, '');
   for (const s of f.sections) {
     const names = s.names.join(', ');
-    parts.push(s.title ? `- **${s.title}** — ${names}` : `- ${names}`);
+    parts.push(s.title ? `- **${s.title}**: ${names}` : `- ${names}`);
   }
   parts.push('');
 }

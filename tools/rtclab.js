@@ -1,27 +1,27 @@
-// tools/rtclab.js — what a Host-online guest actually experiences over a game.
+// tools/rtclab.js: what a Host-online guest actually experiences over a game.
 //
 // Built for the round-21.11 question: one friend degrades progressively on the
 // RTC path while another is fine, and tools/slowlink.js cannot see it (ws only,
 // bandwidth only). This lab runs the REAL engine, the real createSnapWire host
 // half and createSnapSink guest half, through a modeled two-channel link per
 // guest:
-//   ctrl  reliable + ORDERED  — a lost chunk stalls everything behind it one
+//   ctrl  reliable + ORDERED  = a lost chunk stalls everything behind it one
 //                               retransmit; big messages queue ahead of small
-//   snap  unreliable+unordered — losing ANY chunk of a message drops all of it
+//   snap  unreliable+unordered = losing ANY chunk of a message drops all of it
 // with a shared host uplink, per-guest downlink, RTT + jitter, and bursty
-// (Gilbert-Elliott) chunk loss. Sends mirror transport.js sendTo() — keep them
+// (Gilbert-Elliott) chunk loss. Sends mirror transport.js sendTo(); keep them
 // in sync by hand, there are ~6 lines of policy.
 //
 //   node tools/rtclab.js                     # 1 host + 3 profiled guests
 //   node tools/rtclab.js --guests=dsl:250/45/1 --minutes=8
 //
 // --guests = name:downKBs/rttMs/loss% per guest, comma-separated.
-// --up     = host uplink KB/s (shared by everyone — the host tab IS the server).
+// --up     = host uplink KB/s (shared by everyone; the host tab IS the server).
 // --echo   = 1|0: cadence keyframes ride beside the delta (shipped) vs
-//            replacing it (pre-21.11 — the keyframe race). The 21.10 hot-spare
+//            replacing it (pre-21.11: the keyframe race). The 21.10 hot-spare
 //            stream is gone from the game and from here; its cost is on record
 //            in docs/history/2026-08-12-rtc-lag-rootcause.md.
-// ⚠ What this cannot see: it is arithmetic, not SCTP — no congestion control
+// ⚠ What this cannot see: it is arithmetic, not SCTP; no congestion control
 // (real loss also collapses the send window, so real harm is WORSE), no browser
 // scheduling, and guest inputs reach the engine with zero delay. Trends and
 // mechanisms are trustworthy; absolute numbers are a floor on the harm.
@@ -46,7 +46,7 @@ const GUESTS = arg('guests', 'fiber:2500/12/0.3,cable:1000/25/1,dsl:250/45/1')
 const CHUNK = 1200;                            // ~one SCTP chunk on the wire
 const DT = 1 / TICK_RATE;
 
-// deterministic rng — same run every time, like every lab here
+// deterministic rng: same run every time, like every lab here
 let rngS = 21;
 const rng = () => (rngS = (rngS * 1664525 + 1013904223) >>> 0) / 2 ** 32;
 
