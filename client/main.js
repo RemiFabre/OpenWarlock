@@ -919,8 +919,13 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
     sel.className = 'botsel';
     sel.id = `botBuild-${kind}`;
     sel.title = 'Build strategy for the next added bot (see “strategies explained” below)';
+    // issue #7: a `kinds` build belongs to those tiers only (the Faker's combo
+    // arsenals), and a tier that has its own builds offers nothing else
+    const hasOwn = Object.values(BUILDS).some(b => b.kinds && b.kinds.includes(kind));
+    const offered = Object.entries(BUILDS).filter(([, bs]) =>
+      bs.kinds ? bs.kinds.includes(kind) : !hasOwn);
     sel.innerHTML = `<option value="random">🎲 random</option>` +
-      Object.entries(BUILDS).map(([k, bs]) =>
+      offered.map(([k, bs]) =>
         `<option value="${k}" title="${esc(bs.desc)}">${esc(bs.name.toLowerCase())}</option>`).join('');
     b.addEventListener('click', () => send({ t: 'addBot', kind, build: sel.value }));
     group.append(b, sel);

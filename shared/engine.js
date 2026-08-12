@@ -233,9 +233,14 @@ export function createEngine({
         case 'addBot': {
           if (game.phase !== 'lobby' || playerCount() >= maxPlayers) break;
           const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
-          // build strategy: explicit lobby pick, or a random one ('random'/absent)
-          const buildKeys = Object.keys(BUILDS);
-          const build = typeof m.build === 'string' && Object.hasOwn(BUILDS, m.build)
+          // build strategy: explicit lobby pick, or a random one ('random'/absent).
+          // Issue #7: a `kinds` build is restricted to those tiers (the Faker's
+          // combo arsenals), and those tiers get ONLY their own builds — a
+          // combo bot with a generic build is just Extreme, which defeats it.
+          const buildKeys = Object.keys(BUILDS).filter(k =>
+            BUILDS[k].kinds ? BUILDS[k].kinds.includes(kind)
+              : !Object.values(BUILDS).some(b => b.kinds && b.kinds.includes(kind)));
+          const build = typeof m.build === 'string' && buildKeys.includes(m.build)
             ? m.build : buildKeys[(Math.random() * buildKeys.length) | 0];
           const bid = 'bot' + nextBotId++;
           const bp = addPlayer(game, bid, BOT_NAMES[(nextBotId - 2) % BOT_NAMES.length], {

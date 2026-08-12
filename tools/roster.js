@@ -387,6 +387,35 @@ export const ROSTER = {
     core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['sword', 3], ['boots', 2], ['amulet', 2]],
   },
+
+  // ---- Family K (issue #7): the Faker's combo arsenals, ON THE FAKER BRAIN.
+  // `kind` overrides the tournament's per-seat bot (tools/elo.js) — these four
+  // rows answer Remi's question "do the combos PAY, or are they just
+  // impressive?" against whatever tier the rest of the lobby runs.
+  'K1-faker-hookstorm': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The hook: Switcheroo into the bolt, the rock onto the landing point.',
+    tests: 'does the combo layer out-earn raw value at equal cost',
+    core: [['lightning', 3], ['swap', 3], ['meteor', 2], ['ember', 2], ['boots', 2], ['cape', 1]],
+  },
+  'K2-faker-permafrost': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The freeze: the third stack is spent on purpose, with the bolt loaded.',
+    tests: 'frost-hold combos vs the chainer, on a brain that times them',
+    core: [['frost', 3], ['lightning', 3], ['hourglass', 3], ['boots', 2], ['sword', 1]],
+  },
+  'K3-faker-minefield': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The detonator: a loaded trap underfoot, Switcheroo drops you on it.',
+    tests: 'the trap-hook chain: the biggest measured true combos (tools/combo.js)',
+    core: [['lightning', 2], ['nova', 2], ['swap', 3], ['ember', 2], ['boots', 2]],
+  },
+  'K4-faker-galeforce': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The wind: every third ball shoves, the bolt is already falling there.',
+    tests: 'gust-into-bolt chains; the weakest combo identity in the lab, priced here',
+    core: [['gale', 3], ['lightning', 3], ['arcane', 2], ['boots', 2], ['sword', 1]],
+  },
 };
 
 // ---- cost check + doc generation -------------------------------------------

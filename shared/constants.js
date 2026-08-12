@@ -712,7 +712,7 @@ export const BOTS = {
   // it keeps every stalker behaviour and adds a layer that follows up on a body
   // it has just put in the air or on the floor. `combo` is that layer's own
   // clock and its windows; see stepFaker in shared/sim.js.
-  faker:     { name: 'Faker', label: 'Insane', difficulty: 5, brain: 'faker',
+  faker:     { name: 'Faker', label: 'Faker', difficulty: 5, brain: 'faker',
                react: [0.10, 0.06], aimErr: [0.25, 0.03], boltDodge: 0.95,
                combo: {
                  // how often the combo layer gets to look, in seconds
@@ -731,9 +731,9 @@ export const BOTS = {
   // casts a mobility or defensive spell, so a combo that lands on it landed
   // because it was a combo. Not in the lobby dropdown (see MODES/BOT list).
   runner:    { name: 'Runner', label: 'Runner', difficulty: 2, brain: 'runner',
-               react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0.3,
+               react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0,
                spar: true,
-               desc: 'A sparring dummy: it shoots back until it is hit, then it just runs. It never blinks, dashes, shields or vanishes.' },
+               desc: 'A sparring dummy (Remi\'s spec): it stands perfectly still until the first hit lands on it, then it just runs. It never casts anything — so whatever chains onto it was a real combo.' },
 };
 
 // Seconds a bot keeps aiming at an enemy's last SEEN position (Vanish masking,
@@ -830,4 +830,24 @@ export const BUILDS = {
     desc: "Never mind damage: you fly, it doesn't — and every shove heals it a little. Every 3rd hit is a gust, so stay off the rim. Elemental picks: gale.",
     order: ['fireball', 'gale', 'cape', 'gale', 'spoon', 'boots', 'gale', 'cape',
       'spoon', 'treads', 'cape', 'spoon', 'boots', 'treads', 'amulet', 'amulet'] },
+  // ---- Issue #7: the Faker's combo arsenals. `kinds` restricts a build to
+  // those bot tiers — a combo bot without its pieces is just Extreme, and no
+  // other tier can pilot these pieces, so the lobby offers them ONLY on Faker.
+  // Each desc opens with the chain the build exists to land (stepFaker).
+  hookstorm: { name: 'Hookstorm', kinds: ['faker'],
+    desc: 'Combo: Switcheroo hook (the stun scales with the distance) → lightning onto the held body → the shove → meteor where it lands. Elemental picks: ember.',
+    order: ['fireball', 'lightning', 'swap', 'boots', 'ember', 'lightning', 'meteor',
+      'swap', 'cape', 'lightning', 'meteor', 'swap', 'sword', 'amulet'] },
+  permafrost: { name: 'Permafrost', kinds: ['faker'],
+    desc: 'Combo: two frost balls bank the stacks, the third is spent ON PURPOSE with the bolt loaded — freeze, lightning, fireball, all on a body that cannot move. Elemental picks: frost.',
+    order: ['fireball', 'frost', 'lightning', 'frost', 'hourglass', 'frost', 'lightning',
+      'boots', 'hourglass', 'lightning', 'sword', 'amulet', 'hourglass'] },
+  minefield: { name: 'Minefield', kinds: ['faker'],
+    desc: 'Combo: a loaded trap at its own feet → Switcheroo drops you ON it → the burst launches you → lightning where you come down. Elemental picks: ember.',
+    order: ['fireball', 'lightning', 'nova', 'swap', 'boots', 'nova', 'ember',
+      'swap', 'lightning', 'cape', 'swap', 'sword', 'amulet'] },
+  galeforce: { name: 'Galeforce', kinds: ['faker'],
+    desc: 'Combo: every third ball is a gust — the wind is the setup, and the lightning is already falling where it puts you. Elemental picks: gale, arcane.',
+    order: ['fireball', 'gale', 'lightning', 'gale', 'arcane', 'gale', 'lightning',
+      'boots', 'arcane', 'lightning', 'arcane', 'sword', 'amulet'] },
 };

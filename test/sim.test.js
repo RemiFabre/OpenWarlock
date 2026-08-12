@@ -12,6 +12,7 @@ import {
   BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
+import { createEngine } from '../shared/engine.js';
 
 const DT = 1 / 30;
 
@@ -3063,12 +3064,13 @@ describe('power spells & pillar', () => {
       BUILDS.warlord.order = ['meteor', 'swap', 'repulse', 'wall', 'nova', 'fireball'];
       bot.build = 'warlord';
       botShop(state, 'p0');
-      for (const key of ['repulse', 'wall', 'nova'])
+      for (const key of ['repulse', 'wall'])
         expect(bot.spells[key] || 0).toBe(0);
-      // the piloted exceptions: meteor since round 20, and Switcheroo since
-      // issue #7 (the Faker opens its combos with it)
+      // the piloted exceptions: meteor since round 20, Switcheroo and the Mine
+      // since issue #7 (the Faker hooks with one and detonates the other)
       expect(bot.spells.meteor).toBe(1);
       expect(bot.spells.swap).toBe(1);
+      expect(bot.spells.nova).toBe(1);
       expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
     } finally {
       BUILDS.warlord.order = orig;
@@ -7195,5 +7197,66 @@ describe('Faker & Runner (issue #7)', () => {
     a.gold = 999;
     botShop(state, 'A');
     expect(a.spells.swap || 0).toBeGreaterThan(0);
+  });
+
+  it('the lobby label IS the name — Remi: "Faker, not Insane"', () => {
+    expect(BOTS.faker.label).toBe('Faker');
+  });
+
+  it('the dummy does not move and does not cast until the first hit lands', () => {
+    const state = duel('runner', 'runner');
+    const b = state.players.B;
+    b.spells = { fireball: 1, teleport: 1, lightning: 1 };
+    const x0 = b.x, y0 = b.y;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(b.x).toBe(x0); expect(b.y).toBe(y0);          // never stepped
+    expect(Object.keys(b.cooldowns).length).toBe(0);      // never cast
+    // first hit: now it runs — away from the attacker, still castless
+    b.lastHitBy = { id: 'A', t: state.time };
+    state.players.A.x = x0 - 10; state.players.A.y = y0;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(b.x).toBeGreaterThan(x0);                      // fled along +x
+    expect(Object.keys(b.cooldowns).length).toBe(0);      // STILL castless
+  });
+
+  it('the detonator: trap underfoot + hook ready -> the swap drops the victim on the mine', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.build = 'minefield';
+    a.spells = { fireball: 1, nova: 1, swap: 1, lightning: 1 };
+    think(state, 'A', 0.3);
+    // it plants at its own feet first (victim in hook range, no trap yet)
+    expect(state.mines.length).toBe(1);
+    expect(Math.hypot(state.mines[0].x - a.x, state.mines[0].y - a.y)).toBeLessThan(1);
+    // next thought: the hook — a travelling projectile (speed 50, 18 units
+    // out), so give the world the flight time. The stalker layer would shove
+    // the victim off the hook's line with an ordinary ball meanwhile — block
+    // everything but the hook so the chain itself is what's under test.
+    a.cooldowns.fireball = 9; a.cooldowns.teleport = 9; a.cooldowns.rush = 9;
+    const bx = b.x;
+    think(state, 'A', 0.2);
+    a.moveTarget = null; a.vx = 0; a.vy = 0;    // stay ON the trap for the trade
+    run(state, 0.8);
+    expect(b.x).not.toBe(bx);                              // swapped
+    expect(state.mines.length).toBe(0);                    // trap consumed
+    expect(state.events.some(e => e.t === 'mineHit')).toBe(true);
+  });
+
+  it('faker builds are Faker-only and the Faker gets nothing else (engine addBot)', () => {
+    const fakerBuilds = Object.keys(BUILDS).filter(k => (BUILDS[k].kinds || []).includes('faker'));
+    expect(fakerBuilds.length).toBeGreaterThanOrEqual(3);
+    const engine = createEngine({ seed: 5 });
+    engine.join('h1', { name: 'Host' });
+    // an explicit non-combo build on a Faker is refused -> rerolled into the pool
+    engine.message('h1', { t: 'addBot', kind: 'faker', build: 'tycoon' });
+    // random on a Faker also lands in the pool
+    engine.message('h1', { t: 'addBot', kind: 'faker', build: 'random' });
+    // and a non-Faker can never take a combo build
+    engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'minefield' });
+    const bots = Object.values(engine.game.players).filter(p => p.bot);
+    expect(fakerBuilds).toContain(bots[0].build);
+    expect(fakerBuilds).toContain(bots[1].build);
+    expect(fakerBuilds).not.toContain(bots[2].build);
+    engine.destroy();
   });
 });
