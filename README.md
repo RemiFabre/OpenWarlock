@@ -1,6 +1,6 @@
 # OpenWarlock 🔥
 
-## ▶ [Play it now — no install](https://remifabre.github.io/OpenWarlock/client/)
+## ▶ [Play it now, no install](https://remifabre.github.io/OpenWarlock/client/)
 
 ## 🧪 Player-made versions
 
@@ -20,18 +20,18 @@ and join over WebRTC. Nothing to install for anyone.
 
 ## How to play
 
-- **Right-click** — move (WC3 style). Letter keys cast at your cursor; every
+- **Right-click** moves (WC3 style). Letter keys cast at your cursor; every
   binding is rebindable (QWERTY and AZERTY presets ship).
 - Spells **knock enemies back**. The real killer is the lava ring closing in.
 - **First to 15 kills wins the game.** Between rounds you shop: 8 g per round,
-  +2 per kill, +2 for winning it. The economy is anti-snowball by design — the
+  +2 per kill, +2 for winning it. The economy is anti-snowball by design: the
   player with every kill can never out-earn a kill-less one by more than 2×.
 - **Elemental mode** (lobby toggle) replaces fireball levels with eleven
   elements that stack: more damage, more push, faster casts, contagion, a red
   mark that makes you stronger forever…
 - **Teams** are a lobby setting, not a mode: pick the same team number as a
   friend and your spells pass through each other. Any shape works (2v2, 3v2).
-- **Add bot** fills seats at four difficulties — they fight and they shop.
+- **Add bot** fills seats at four difficulties. They fight and they shop.
 
 ## Run it yourself
 
@@ -50,7 +50,7 @@ Vanilla JS, no build step, Node ESM, one dependency (`ws`).
 
 ```
 shared/constants.js   every game number (spells, elements, items, economy)
-shared/sim.js         the whole simulation — pure functions, no I/O
+shared/sim.js         the whole simulation (pure functions, no I/O)
 shared/engine.js      the authoritative room; the Node server and the in-tab
                       solo/host mode both run it behind one transport seam
 client/               canvas client, snapshot interpolation
@@ -59,7 +59,7 @@ tools/                headless balance labs (thousands of games, Elo ratings)
 ```
 
 Clients render ~130 ms in the past and interpolate; the server simulates at
-30 Hz and broadcasts 15 Hz snapshots. House rules are a fork away — the numbers
+30 Hz and broadcasts 15 Hz snapshots. House rules are a fork away; the numbers
 all live in one file.
 
 ## Tests and labs
