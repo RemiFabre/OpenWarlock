@@ -3070,6 +3070,10 @@ const BRAINS = {
   stalker: stepStalker,
   faker: stepFaker,
   runner: stepRunner,
+  // Dummy (round 22): the immobile training tier — no step, no cast, ever
+  // (contrast the Runner, which flees after the first hit). Knockback, lava
+  // and death still apply; `spar: true` on BOTS keeps pilotOwnedSpells silent.
+  dummy: () => {},
 };
 
 export function stepBot(state, id, dt) {
@@ -4095,6 +4099,9 @@ const BOT_BUILDS = {
   // A dummy never casts, so its gold goes to STAYING MEASURABLE: hp to survive
   // longer chains, then legs and lava-proofing for the flee phase.
   runner: ['amulet', 'amulet', 'boots', 'amulet', 'treads', 'cape', 'boots'],
+  // The Dummy never moves or casts: hp is the only purchase that keeps it a
+  // usable target for longer. Nothing else would ever be exercised.
+  dummy: ['amulet', 'amulet', 'amulet'],
 };
 
 // In elemental mode each bot kind commits to a fixed element (bought as soon

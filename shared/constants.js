@@ -734,6 +734,12 @@ export const BOTS = {
                react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0,
                spar: true,
                desc: 'A sparring dummy (Remi\'s spec): it stands perfectly still until the first hit lands on it, then it just runs. It never casts anything — so whatever chains onto it was a real combo.' },
+  // Round 22 (Remi): the immobile training tier. Unlike the Runner it never
+  // reacts AT ALL — no step, no cast, hit or not. It still takes knockback,
+  // burns in lava and dies normally. `spar` mutes the generic spell pilot.
+  dummy:     { name: 'Dummy', label: 'Dummy', difficulty: 0, brain: 'dummy',
+               boltDodge: 0, spar: true,
+               desc: 'A stationary target. It never moves and never casts, even under fire — pure aim and combo practice.' },
 };
 
 // Seconds a bot keeps aiming at an enemy's last SEEN position (Vanish masking,

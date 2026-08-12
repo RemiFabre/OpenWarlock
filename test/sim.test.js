@@ -4130,7 +4130,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       expect(typeof spec.brain).toBe('string');
       expect(typeof spec.label).toBe('string');
       // a tier whose brain does not exist would silently fall back to the grunt
-      expect(['grunt', 'berserker', 'stalker', 'faker', 'runner']).toContain(spec.brain);
+      expect(['grunt', 'berserker', 'stalker', 'faker', 'runner', 'dummy']).toContain(spec.brain);
     }
     // and the DIFFICULTY ladder ranks are unique and cover 1..N. `spar` bots
     // (issue #7's Runner) are measuring instruments, not a rung on it.
@@ -7217,6 +7217,28 @@ describe('Faker & Runner (issue #7)', () => {
     for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
     expect(b.x).toBeGreaterThan(x0);                      // fled along +x
     expect(Object.keys(b.cooldowns).length).toBe(0);      // STILL castless
+  });
+
+  // Round 22: the Dummy tier — even the Runner's one reaction (fleeing after
+  // the first hit) is gone. It must hold still and silent no matter what.
+  it('the Dummy never moves nor casts, hit or not — and it dies like anyone', () => {
+    const state = duel('faker', 'dummy');
+    const d = state.players.B;
+    d.spells = { fireball: 1, teleport: 2, rush: 2, shield: 2 };
+    d.cooldowns = {};
+    d.lastHitBy = { id: 'A', t: state.time };   // the hit that sends a Runner running
+    const x0 = d.x, y0 = d.y;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(d.moveTarget).toBe(null);                     // never even wants to move
+    expect(d.x).toBe(x0); expect(d.y).toBe(y0);
+    expect(Object.keys(d.cooldowns).length).toBe(0);     // no cast of any kind
+    // dies normally: drop it in lava it will never step out of
+    d.x = state.arenaRadius + 3; d.y = 0; d.vx = d.vy = 0;
+    for (let i = 0; i < Math.round(12 / DT) && d.alive; i++) {
+      stepBot(state, 'B', DT); step(state, DT);
+    }
+    expect(d.alive).toBe(false);
+    expect(d.deaths).toBe(1);
   });
 
   it('the detonator: trap underfoot + hook ready -> the swap drops the victim on the mine', () => {
