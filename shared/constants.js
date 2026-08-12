@@ -151,6 +151,19 @@ export const MULTIKILL_NAMES = [
 // with EVERY kill never out-earns a kill-less one by more than 2x (bounties
 // can't break the cap — the leader never collects one).
 // history: docs/history/2026-08-08-constants-sweeps.md#gold
+// Human avatar roster (round 22.1, Remi: bigger and cooler than the old 12).
+// SHARED because the engine assigns a random FREE one to a joiner who did not
+// pick, and refuses duplicates (one face per warlock in a lobby). The old 12
+// are all still here, so every saved owAvatar keeps working.
+export const AVATARS = [
+  '🧙', '🧙‍♀️', '🧝', '🧛', '🧞‍♂️', '🧜‍♀️', '🥷', '🦹', '🧚', '🧟',
+  '💀', '☠️', '👻', '🎃', '👹', '👺', '😈', '👿', '🤡', '🗿',
+  '🤖', '👽', '🐉', '🐲', '🦂', '🐍', '🦇', '🦉', '🦅', '🦊',
+  '🐺', '🐗', '🦈', '🐊', '🦖', '🦍', '🐙', '🕷️', '🐢', '🐸',
+  '⚡', '🔥', '❄️', '🌪️', '☄️', '🌑', '🔮', '🧿', '🎭', '👁️',
+  '⚔️', '🛡️', '🏹', '🪓', '🥶', '😱',
+];
+
 export const GOLD = {
   START: 12,
   PER_KILL: 2,

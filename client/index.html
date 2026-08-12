@@ -588,9 +588,12 @@
 
   /* config column (round 22): quiet vertical toggles — "I'm ready" is the only
      loud button in the lobby. A lit toggle brightens instead of changing hue. */
-  .cfgcol { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-width: 300px; }
-  .cfgcol button { text-align: left; }
-  .cfgcol button[aria-pressed="true"] { border-color: #699b54; color: #dfffd1; }
+  .cfgcol { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-width: 340px; }
+  .seg { display: flex; align-items: stretch; }
+  .seg .lbl { min-width: 64px; align-self: center; color: #9d9285; font-size: 13px; }
+  .seg button { flex: 1; padding: 6px 8px; color: #9d9285; }
+  .seg button + button { border-left: none; }
+  .seg button.on { border-color: #699b54; color: #dfffd1; background: rgba(105, 155, 84, .16); }
   #rateBox { position: absolute; top: 12px; right: 16px; font-size: 19px; letter-spacing: 2px; user-select: none; }
   #rateBox button { background: none; border: none; padding: 0 1px; cursor: pointer; color: #443728; font: inherit; text-shadow: none; }
   #rateBox button.lit { color: #e8b83a; }
@@ -657,11 +660,16 @@
         title="Open a room and get a link your friends can join over peer-to-peer — this tab becomes the game server, so keep it open">📡 Host online</button>
     </div>
     <p class="hint hidden" id="netMode"></p>
-    <!-- Round 22 (Remi): the first screen carries only the two doors — avatar,
-         keys and control hints moved to the lobby, where players actually
-         settle in. Joining a friend's game needs no button: it is a link. -->
-    <p class="hint">Joining friends? The host sends you their link — there are
-      no public servers, every game is hosted by a player.</p>
+    <!-- Round 22 (Remi): the first screen carries only the two doors. Avatar,
+         keys and control hints live in the lobby, where players settle in.
+         Joining a friend's game needs no button: it is a link. Exact wording
+         below is Remi's. -->
+    <p class="hint">No server here, by design! You either:</p>
+    <ul class="hint" style="margin:2px 0 0; padding-left:22px">
+      <li>Play solo</li>
+      <li>Host a game for your friends</li>
+      <li>Get invited by someone who hosts a game</li>
+    </ul>
     <div class="ideaPitch">
       <span class="experimental">experimental</span>
       <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
@@ -704,19 +712,30 @@
             <button id="readyBtn" class="primary">I am ready</button>
             <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
             <button id="shopBrowseBtn" class="mini" type="button"
-              title="Browse everything the shop sells — buying still happens between rounds">🗿 Shop</button>
+              title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Shop</button>
           </div>
-          <div class="avgrid" id="avatarGrid" aria-label="Choose your avatar"></div>
-          <!-- Config, not actions (round 22): a vertical stack of toggles, so
-               "I'm ready" is the only thing that looks like a button to press. -->
+          <div class="row" style="margin-top:10px; align-items:center">
+            <span id="myAvatar" style="font-size:26px" title="Your avatar (assigned free at join)"></span>
+            <button id="avatarBtn" class="mini" type="button">Choose your avatar</button>
+          </div>
+          <!-- Config, not actions (round 22.1): segmented toggles. Both values
+               visible, the active one lit, so nobody has to guess. -->
           <div class="cfgcol">
-            <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing</button>
-            <button id="modeBtn" type="button" aria-pressed="false"
-              title="Elemental (the default): the fireball itself never levels — eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…). Three levels each. Applies to everyone.">Rules: Elemental</button>
-            <button id="draftBtn" type="button" aria-pressed="false"
-              title="Draft (experimental): half of everything — spells, items and elements together — leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">Draft: off</button>
-            <button id="testingBtn" type="button" aria-pressed="false"
-              title="Testing sandbox: everyone starts with the gold you set and the game opens in an UNTIMED shop — inspect anything, build a combo, ready up to fight. Combines with elemental and classic.">Testing: off</button>
+            <div class="seg" id="specSeg" title="Spectators watch from the sidelines and never spawn.">
+              <button type="button" data-v="play">Playing</button><button type="button" data-v="watch">Watching</button>
+            </div>
+            <div class="seg" id="modeSeg"
+              title="Elemental (the default): the fireball itself never levels. Eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…), three levels each. Classic keeps the 3-level fireball. Applies to everyone.">
+              <span class="lbl">Rules</span><button type="button" data-v="elemental">Elemental</button><button type="button" data-v="classic">Classic</button>
+            </div>
+            <div class="seg" id="draftSeg"
+              title="Draft (experimental): half of everything (spells, items and elements together) leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">
+              <span class="lbl">Draft</span><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button>
+            </div>
+            <div class="seg" id="testSeg"
+              title="Testing sandbox: everyone starts with the gold you set and the game opens in an UNTIMED shop. Inspect anything, build a combo, ready up to fight.">
+              <span class="lbl">Testing</span><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button>
+            </div>
             <label id="testingGoldWrap" class="testinggold hidden">Everyone starts with
               <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
                 aria-label="Starting gold per player"> gold
@@ -773,6 +792,17 @@
     </div>
     <div class="row" style="margin-top:14px">
       <button id="shopReadyBtn" class="primary" style="flex:1">Ready — next round</button>
+    </div>
+  </div>
+</div>
+
+<div id="avatarPanel" class="overlay hidden">
+  <div class="slab" style="--w:640px">
+    <h1 class="display" style="font-size:24px">Your Avatar</h1>
+    <p class="sub">One face per warlock. Greyed ones are taken in this lobby.</p>
+    <div class="scroller"><div class="avgrid" id="avatarGrid"></div></div>
+    <div class="row" style="margin-top:16px">
+      <button id="avatarCloseBtn" type="button">Close</button>
     </div>
   </div>
 </div>

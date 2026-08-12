@@ -16,7 +16,7 @@ import {
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
   setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
 } from './sim.js';
-import { BOTS, BUILDS } from './constants.js';
+import { BOTS, BUILDS, AVATARS } from './constants.js';
 
 // Per-kind name pools (round 22, Remi: switching difficulty should feel like
 // meeting new bots). The classic six stayed on Hard. A lobby never repeats a
@@ -103,6 +103,16 @@ export function createEngine({
     return 'Bot ' + nextBotId; // every pool exhausted (cannot happen at 10 seats)
   }
 
+  // One face per warlock (round 22.1): a joiner who picked nothing (or picked
+  // a face already worn in this lobby) gets a random FREE one instead.
+  function freeAvatar(want) {
+    const taken = new Set(Object.values(game.players).map(p => p.avatar));
+    const w = typeof want === 'string' ? want.trim().slice(0, 8) : '';
+    if (w && !taken.has(w)) return w;
+    const free = AVATARS.filter(a => !taken.has(a));
+    return free.length ? free[(Math.random() * free.length) | 0] : (w || '🧙');
+  }
+
   function maybeAutoStart() {
     if (game.phase !== 'lobby') return;
     const humans = Object.values(game.players).filter(p => !p.bot);
@@ -171,9 +181,8 @@ export function createEngine({
       if (playerCount() >= maxPlayers) {
         return { ok: false, reason: 'game is full' };
       }
-      const pl = addPlayer(game, connId, name || 'warlock', {
-        avatar: typeof avatar === 'string' ? avatar : undefined,
-      });
+      const pickedOwn = typeof avatar === 'string' && avatar.trim() !== '';
+      const pl = addPlayer(game, connId, name || 'warlock', { avatar: freeAvatar(avatar) });
       if (game.phase === 'countdown') {
         // the fight hasn't started yet — seat them straight into this round
         pl.alive = true;
@@ -190,7 +199,7 @@ export function createEngine({
       const ghost = ghosts.get(normName(name));
       if (ghost && Date.now() - ghost.at < GHOST_TTL_MS && game.phase !== 'lobby') {
         pl.color = ghost.color;
-        if (pl.avatar === '🧙') pl.avatar = ghost.avatar;
+        if (!pickedOwn) pl.avatar = freeAvatar(ghost.avatar); // keep the ghost's face if it is still free
         // your side comes back with you: reconnecting onto the enemy team
         // mid-game would hand the other side a free ally (round 21.3)
         if (ghost.team != null) pl.team = ghost.team;
@@ -221,12 +230,14 @@ export function createEngine({
         case 'shopPause':
           setShopPause(game, id, !!m.on);
           break;
-        case 'avatar':
-          // the picker lives in the lobby since round 22 — same sanitization
-          // as addPlayer gives a join avatar
-          if (typeof m.avatar === 'string' && m.avatar.trim())
-            pl.avatar = m.avatar.trim().slice(0, 8);
+        case 'avatar': {
+          // the lobby picker (round 22.1): one avatar per face. A taken one is
+          // refused silently and the snapshot keeps your current look.
+          const want = typeof m.avatar === 'string' ? m.avatar.trim().slice(0, 8) : '';
+          if (want && !Object.values(game.players).some(p => p.id !== id && p.avatar === want))
+            pl.avatar = want;
           break;
+        }
         case 'spectate':
           setSpectator(game, id, !!m.on);
           maybeAutoStart();

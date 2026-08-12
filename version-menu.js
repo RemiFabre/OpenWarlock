@@ -147,7 +147,7 @@
     const current = [data.default, ...data.versions].find(isCurrent) || data.default;
     const row = document.createElement('div');
     row.id = 'owv-join';
-    row.innerHTML = `<span>Game version — official &amp; community ideas</span><button type="button">🧬 ${escapeHtml(current.name)} ▾</button>`;
+    row.innerHTML = `<span>Choose the game version</span><button type="button">🧬 ${escapeHtml(current.name)} ▾</button>`;
     row.querySelector('button').addEventListener('click', openOverlay);
     join.before(row);
   }

@@ -1,7 +1,7 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
 import {
-  SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS,
+  SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS, AVATARS,
   SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, teamTint, itemCost,
 } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
@@ -11,7 +11,7 @@ import { makeView, draw } from './render.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
 import {
-  nextMode, modeLabel, modeTitle, applyLevelMusic, updateCoopHud,
+  applyLevelMusic, updateCoopHud,
 } from './coop.js';
 import { selectTransport, createRtcHostTransport } from './transport.js';
 import * as analytics from './analytics.js';
@@ -110,9 +110,9 @@ function keyLabel(k) {
 
 // ---- avatar -----------------------------------------------------------------
 
-const AVATARS = ['🧙', '🧙‍♀️', '🧝', '🧛', '🧞‍♂️', '🦊', '🐸', '👻', '🎃', '🤖', '🦉', '🐢'];
-let myAvatar = localStorage.getItem('owAvatar') || AVATARS[0];
-if (!AVATARS.includes(myAvatar)) myAvatar = AVATARS[0];
+// null = no saved pick: the engine rolls a random FREE avatar at join (22.1)
+let myAvatar = localStorage.getItem('owAvatar') || null;
+if (myAvatar && !AVATARS.includes(myAvatar)) myAvatar = null;
 
 // ---- state ----------------------------------------------------------------
 
@@ -186,11 +186,9 @@ const transportP = selectTransport().then((t) => {
   if (t.kind === 'ws') $('joinBtn').textContent = '⚔ Join game';
   if (t.kind === 'solo') {
     // no server behind this page: Play starts a private solo room where bots
-    // are added from the lobby, all inside this tab
-    $('joinBtn').textContent = '🤖 Play solo vs bots';
-    const el = $('netMode');
-    el.textContent = '🤖 No server here — Play starts a solo arena in this tab. Add bots in the lobby.';
-    el.classList.remove('hidden');
+    // are added from the lobby, all inside this tab. The static three-line
+    // "No server here, by design!" hint in index.html covers this case.
+    $('joinBtn').textContent = 'Play solo vs bots';
   }
   if (t.kind === 'rtc') {
     // this tab was invited (#r=CODE): Play joins the host's lobby over WebRTC,
@@ -681,7 +679,9 @@ async function doHost() {
 }
 $('hostBtn').addEventListener('click', doHost);
 
-// avatar picker grid
+// Avatar panel (round 22.1): you join with a random free face; the panel shows
+// the full roster with this lobby's taken ones greyed. Picking sends the change
+// live; the server refuses duplicates and the snapshot is the truth on screen.
 {
   const grid = $('avatarGrid');
   for (const av of AVATARS) {
@@ -691,16 +691,24 @@ $('hostBtn').addEventListener('click', doHost);
     b.addEventListener('click', () => {
       myAvatar = av;
       try { localStorage.setItem('owAvatar', av); } catch { }
-      syncAvatarGrid();
-      send({ t: 'avatar', avatar: av }); // the grid lives in the lobby now — apply live
+      send({ t: 'avatar', avatar: av });
+      $('avatarPanel').classList.add('hidden');
     });
     grid.appendChild(b);
   }
 }
-function syncAvatarGrid() {
-  for (const b of $('avatarGrid').children) b.classList.toggle('sel', b.textContent === myAvatar);
-}
-syncAvatarGrid();
+$('avatarBtn').addEventListener('click', () => {
+  const s = latest();
+  const m = me(s);
+  const taken = new Set(Object.values((s && s.players) || {})
+    .filter((p) => p && p.id !== myId).map((p) => p.avatar));
+  for (const b of $('avatarGrid').children) {
+    b.disabled = taken.has(b.textContent);
+    b.classList.toggle('sel', !!m && b.textContent === m.avatar);
+  }
+  $('avatarPanel').classList.remove('hidden');
+});
+$('avatarCloseBtn').addEventListener('click', () => $('avatarPanel').classList.add('hidden'));
 
 // The gold rules, spelled out — no hidden income.
 const goldRules =
@@ -887,28 +895,22 @@ $('readyBtn').addEventListener('click', () => {
   const m = me(latest());
   send({ t: 'ready', ready: !(m && m.ready) });
 });
-$('spectateBtn').addEventListener('click', () => {
-  const m = me(latest());
-  send({ t: 'spectate', on: !(m && m.spectator) });
-});
-$('modeBtn').addEventListener('click', () => {
-  const s = latest();
-  send({ t: 'mode', mode: nextMode(s ? s.mode : 'classic') }); // elemental ⇄ classic (co-op: under construction, ROUND17 §1)
-});
+// Segmented config (round 22.1): each button names an ABSOLUTE value, so a
+// click is a choice, never a blind flip. Server-authoritative like before.
+const seg = (id, fn) => {
+  for (const b of document.querySelectorAll(`#${id} button`))
+    b.addEventListener('click', () => fn(b.dataset.v));
+};
+seg('specSeg', (v) => send({ t: 'spectate', on: v === 'watch' }));
+seg('modeSeg', (v) => send({ t: 'mode', mode: v }));
 // draft is an INDEPENDENT flag, not a fourth ruleset: it rides on top of
-// whichever of the three is selected (docs/ROUND12.md S7)
-$('testingBtn').addEventListener('click', () => {
-  const s = latest();
-  send({ t: 'testing', on: !(s && s.testing), gold: +$('testingGold').value || 0 });
-});
+// whichever ruleset is selected (docs/ROUND12.md S7)
+seg('draftSeg', (v) => send({ t: 'draft', on: v === 'on' }));
+seg('testSeg', (v) => send({ t: 'testing', on: v === 'on', gold: +$('testingGold').value || 0 }));
 $('testingGold').addEventListener('change', () => {
   const s = latest();
   if (s && s.testing)
     send({ t: 'testing', on: true, gold: +$('testingGold').value || 0 });
-});
-$('draftBtn').addEventListener('click', () => {
-  const s = latest();
-  send({ t: 'draft', on: !(s && s.draft) });
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 // Browse-only shop (round 22): the same grid straight from the lobby, no more
@@ -1873,7 +1875,9 @@ function updateUi(s) {
   if (shopPreview && s.phase !== 'lobby') setShopPreview(false); // browsing is a lobby thing
   setVisible('shop', (!!myId && s.phase === 'shop') || shopPreview);
   setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
-  if (s.phase !== 'shop') hideTip();
+  // ⚠ shopPreview guard (round 22.1): browsing happens in the LOBBY phase, and
+  // this line used to kill every hover tip 15 times a second while browsing
+  if (s.phase !== 'shop' && !shopPreview) hideTip();
   // Dead and watching the rest of the round: the same scoreboard the end screen
   // prints, live (Remi, 2026-08-07). Battle phase only — the shop is a different
   // phase and already carries this table, and roundEnd belongs to the art
@@ -1966,31 +1970,19 @@ function updateUi(s) {
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
-    const specBtn = $('spectateBtn');
-    const watching = !!(m && m.spectator);
-    specBtn.textContent = watching ? 'Watching 👁' : 'Playing ⚔';
-    specBtn.classList.toggle('watching', watching);
-    specBtn.setAttribute('aria-pressed', watching ? 'true' : 'false');
-    // ruleset toggle — server-authoritative, everyone sees the same value
-    const modeBtn = $('modeBtn');
-    const elemental = s.mode === 'elemental';
-    modeBtn.textContent = modeLabel(s.mode);
-    modeBtn.title = modeTitle(s.mode);
-    modeBtn.setAttribute('aria-pressed', s.mode !== 'classic' ? 'true' : 'false');
-    // draft toggle — also server-authoritative, and orthogonal to the ruleset
-    const draftBtn = $('draftBtn');
-    const draftOn = !!s.draft;
-    draftBtn.textContent = draftOn ? 'Draft: 🎴 on' : 'Draft: off';
-    draftBtn.classList.toggle('elemental', draftOn);
-    draftBtn.setAttribute('aria-pressed', draftOn ? 'true' : 'false');
-    // testing sandbox toggle + its gold field (a flag like draft)
-    const testBtn = $('testingBtn'), testGold = $('testingGold');
-    const testOn = !!s.testing;
-    testBtn.textContent = testOn ? 'Testing: 🧪 on' : 'Testing: off';
-    testBtn.classList.toggle('elemental', testOn);
-    testBtn.setAttribute('aria-pressed', testOn ? 'true' : 'false');
-    $('testingGoldWrap').classList.toggle('hidden', !testOn);
-    if (testOn && document.activeElement !== testGold)
+    $('myAvatar').textContent = (m && m.avatar) || '';
+    // segmented config: light the segment matching the server's state
+    const segOn = (id, val) => {
+      for (const b of document.querySelectorAll(`#${id} button`))
+        b.classList.toggle('on', b.dataset.v === val);
+    };
+    segOn('specSeg', m && m.spectator ? 'watch' : 'play');
+    segOn('modeSeg', s.mode === 'classic' ? 'classic' : 'elemental');
+    segOn('draftSeg', s.draft ? 'on' : 'off');
+    segOn('testSeg', s.testing ? 'on' : 'off');
+    const testGold = $('testingGold');
+    $('testingGoldWrap').classList.toggle('hidden', !s.testing);
+    if (s.testing && document.activeElement !== testGold)
       testGold.value = s.testing.gold;
     // a button that lifts bans is noise until a ban exists (Remi: "I didn't
     // know we could ban people" — you ban from the player list, mid-game)
