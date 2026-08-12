@@ -116,7 +116,7 @@
   .pl .state { color: var(--ash); }
   .pl .state.ready { color: var(--ok); }
   /* teams (round 21.3): your own row carries the selector, everyone else a
-     read-only chip — same width either way so the list never jitters */
+     read-only chip; same width either way so the list never jitters */
   .pl .teamsel, .pl .teamchip {
     font-size: 12px; color: var(--ash); display: inline-flex;
     align-items: center; gap: 4px; flex: none;
@@ -145,7 +145,7 @@
   }
   button.mini { padding: 4px 10px; font-size: 12px; color: var(--ash); }
   button.mini:hover { color: #fff; }
-  /* the manifesto: deliberately quiet — a folded line under the join card */
+  /* the manifesto: deliberately quiet, a folded line under the join card */
   #manifesto { margin-top: 14px; font-size: 12px; color: var(--ash); }
   #manifesto summary { cursor: pointer; opacity: .8; }
   #manifesto summary:hover { opacity: 1; }
@@ -243,7 +243,7 @@
   #shopReadyBtn:disabled { opacity: .8; color: var(--ash); }
   .botadd { padding: 6px 12px; font-size: 13px; }
   .botadd .stars, .pl .stars { color: var(--ash); font-size: 12px; }
-  /* per-player RTT badge (round 18) — green / amber / red by latency */
+  /* per-player RTT badge (round 18): green / amber / red by latency */
   .ping { font-size: 11px; opacity: 0.9; }
   .ping.good { color: #7fd47f; }
   /* build version, bottom-left whisper; turns red on client/server mismatch */
@@ -280,14 +280,14 @@
   #musicBtn { right: 52px; }
   #musicBtn.off { color: var(--ash); opacity: .5; }
 
-  /* round 20 (Remi): MINIMAL cards — icon + name + cost, one flex ROW per
+  /* round 20 (Remi): MINIMAL cards (icon + name + cost), one flex ROW per
      category so a whole shelf reads as one line; everything else is on hover */
   .shopgrid {
     display: flex; flex-direction: column; gap: 6px;
     margin-top: 4px; padding-bottom: 4px;
   }
   .shoprow { display: flex; flex-wrap: wrap; gap: 6px; }
-  /* round 20.1 (Remi): every card in every row is the SAME fixed tile —
+  /* round 20.1 (Remi): every card in every row is the SAME fixed tile;
      mixed widths "looked messy". Rows are grids of identical tiles. */
   .shoprow > .ware, .shoprow > .warewrap {
     flex: 0 0 200px; width: 200px; min-width: 0;
@@ -314,7 +314,7 @@
      keeps its corner to itself */
   .warewrap .ware .cost { align-self: flex-start; }
   /* quiet category label on the row's left edge (round 20: Offense / Defense /
-     Special) — sideways, tiny, muted: a whisper, not a header */
+     Special); sideways, tiny, muted: a whisper, not a header */
   .catlabel {
     flex: none; align-self: stretch; display: flex;
     align-items: center; justify-content: center; width: 15px;
@@ -323,7 +323,7 @@
     color: #6f6357;
   }
   /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
-     wrapper NEXT TO the buy button — inside a disabled button it'd be dead. */
+     wrapper NEXT TO the buy button; inside a disabled button it'd be dead. */
   .warewrap { position: relative; display: flex; }
   .keychip {
     position: absolute; right: 5px; bottom: 4px; cursor: pointer;
@@ -391,7 +391,7 @@
   table.stats .kit { letter-spacing: .05em; white-space: nowrap; }
   table.stats .kit .klv { color: var(--gold); font-size: 10px; }
   table.stats .mk { color: var(--blood); font-weight: 600; }
-  /* narrow windows: tighten the cells first, then drop the kit column — the
+  /* narrow windows: tighten the cells first, then drop the kit column; the
      numbers are the whole point of this table, the icon strip is a bonus */
   @media (max-width: 1200px) {
     table.stats { font-size: 11.5px; }
@@ -497,7 +497,7 @@
   @media (max-width: 720px) { #specpanel { right: 12px; max-height: 40vh; } }
   /* the panel is ~108px narrower than its viewport (margins + the audio
      buttons), so it must shed the kit strip earlier than the shop overlay does
-     — measured: at a 1024px window the numbers fit and only Kit was clipped */
+     (measured: at a 1024px window the numbers fit and only Kit was clipped) */
   @media (max-width: 1128px) { #specpanel table.stats .c-kit { display: none; } }
   /* the per-round columns, told apart from their per-game twins by colour too */
   table.stats .g-round { color: var(--ok); }
@@ -518,7 +518,7 @@
   #topbar .r.dead { opacity: .45; }
   #topbar .r.spec { opacity: .5; }
   /* px, not em: the header sits at a smaller font size and em widths there
-     would be narrower than the rows' — the columns must line up */
+     would be narrower than the rows'; the columns must line up */
   #topbar .score { color: var(--parchment); width: 30px; text-align: right; }
   #topbar .gold { color: var(--gold); width: 46px; text-align: right; }
   #topbar .rgold { color: var(--ok); width: 38px; text-align: right; }
@@ -531,7 +531,7 @@
   }
 
   #toast {
-    /* above every overlay (shop, rebind popup) — a rebind-conflict toast has
+    /* above every overlay (shop, rebind popup); a rebind-conflict toast has
        to be readable over the shop backdrop */
     position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%);
     z-index: 210; pointer-events: none;
@@ -568,7 +568,7 @@
     max-height: 30vh; overflow-y: auto;
   }
   #errbanner::before { content: '✖ '; color: var(--blood); }
-  /* hosting online: you ARE the server — the one limitation worth a permanent,
+  /* hosting online: you ARE the server; the one limitation worth a permanent,
      quiet reminder at the top of the screen (waived B0 gate, Remi 2026-08-09) */
   #hostbar {
     background: rgba(20, 24, 14, .92);
@@ -586,7 +586,7 @@
   /* spectate toggle: "pressed" while watching */
   #spectateBtn.watching { border-color: var(--ember); color: var(--ember); background: var(--obsidian); }
 
-  /* config column (round 22): quiet vertical toggles — "I'm ready" is the only
+  /* config column (round 22): quiet vertical toggles; "I'm ready" is the only
      loud button in the lobby. A lit toggle brightens instead of changing hue. */
   .cfgcol { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-width: 340px; }
   .seg { display: flex; align-items: stretch; }
@@ -620,7 +620,7 @@
   <div id="connbanner" class="banner hidden"></div>
   <div id="errbanner" class="banner hidden" title="Click to dismiss"></div>
   <div id="hostbar" class="banner hidden">
-    <span>📡 You are the server — <b>keep this tab open</b> (closing it ends the game for everyone)</span>
+    <span>📡 You are the server: <b>keep this tab open</b> (closing it ends the game for everyone)</span>
     <b id="hostCode" class="hidden"></b>
     <button id="copyLinkBtn" class="mini" type="button" title="Copy the link your friends open to join">🔗 Copy invite link</button>
     <button id="hostLogBtn" class="mini" type="button" title="Download this game's debug journal (kept in memory)">⬇ log</button>
@@ -636,7 +636,7 @@
     <div class="sphead">
       <span class="sptitle">👁 Live standings</span>
       <span class="spsub" id="specSub"></span>
-      <button id="specFoldBtn" class="mini" type="button" title="Collapse — watch the fight, reopen any time">▾</button>
+      <button id="specFoldBtn" class="mini" type="button" title="Collapse. Watch the fight, reopen any time">▾</button>
     </div>
     <div class="spbody"><table id="specStats" class="stats"></table></div>
   </div>
@@ -652,12 +652,12 @@
       <input id="name" type="text" maxlength="16" placeholder="Your warlock's name" autocomplete="off" style="flex:1">
     </div>
     <!-- Two equal-billing doors (Remi, round 19.4): one big Enter buried the
-         host flow — you clicked it and had already missed your chance to
+         host flow; you clicked it and had already missed your chance to
          host. joinBtn's label is set honestly per the probed transport. -->
     <div class="row" style="margin-top:10px">
       <button id="joinBtn" class="primary" style="flex:1">Play</button>
       <button id="hostBtn" class="primary" style="flex:1"
-        title="Open a room and get a link your friends can join over peer-to-peer — this tab becomes the game server, so keep it open">📡 Host online</button>
+        title="Open a room and get a link your friends can join over peer-to-peer. This tab becomes the game server, so keep it open">📡 Host online</button>
     </div>
     <p class="hint hidden" id="netMode"></p>
     <!-- Round 22 (Remi): the first screen carries only the two doors. Avatar,
@@ -693,7 +693,7 @@
 
 <div id="lobby" class="overlay hidden">
   <div class="slab" style="--w:960px; position:relative">
-    <div id="rateBox" title="Rate this version — the average shows in the version list"></div>
+    <div id="rateBox" title="Rate this version (the average shows in the version list)"></div>
     <h1 class="display" style="font-size:26px">The Gathering</h1>
     <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
       <span id="lobbyFormat"></span></p>
@@ -760,7 +760,7 @@
         </div>
       </div>
       <div id="lobbyHost" class="hostcard hidden">
-        <div>📡 You are the server — <b>keep this tab open</b> (closing it ends the game for everyone)</div>
+        <div>📡 You are the server: <b>keep this tab open</b> (closing it ends the game for everyone)</div>
         <div id="lobbyInviteUrl" class="hosturl"></div>
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
@@ -781,7 +781,7 @@
       <h1 class="display">The Shop</h1>
       <span id="shopGold" class="num">0 g</span>
       <span id="shopTimer" class="num"></span>
-      <button id="shopPauseBtn" title="Freeze the shop clock — you can still buy, and everyone readying up still starts the round">⏸ Pause</button>
+      <button id="shopPauseBtn" title="Freeze the shop clock. You can still buy, and everyone readying up still starts the round">⏸ Pause</button>
       <button id="shopCloseBtn" class="mini hidden" type="button">✕ Close</button>
     </div>
     <p class="sub" id="shopSub"></p>
@@ -791,7 +791,7 @@
       <div class="shopgrid" id="shopGrid"></div>
     </div>
     <div class="row" style="margin-top:14px">
-      <button id="shopReadyBtn" class="primary" style="flex:1">Ready — next round</button>
+      <button id="shopReadyBtn" class="primary" style="flex:1">Ready: next round</button>
     </div>
   </div>
 </div>
@@ -825,7 +825,7 @@
 <div id="rebind" class="overlay hidden">
   <div class="slab" style="--w:420px">
     <p id="rebindMsg" style="font-size:16px; margin:4px 0 10px"></p>
-    <p class="hint" style="margin-top:0">Any key works — if it is taken, the two spells swap.
+    <p class="hint" style="margin-top:0">Any key works. If it is taken, the two spells swap.
       <kbd>Esc</kbd> or a click outside cancels.</p>
   </div>
 </div>
@@ -836,7 +836,7 @@
     <p class="sub" id="goWinner"></p>
     <div class="scroller"><table id="standings" class="stats"></table></div>
     <div class="row" style="margin-top:16px">
-      <span class="hint" style="margin:0; flex:1">Take your time — this stays up until you click.</span>
+      <span class="hint" style="margin:0; flex:1">Take your time. This stays up until you click.</span>
       <button id="againBtn" class="primary" style="padding:12px 28px; font-size:16px">Continue</button>
     </div>
   </div>
@@ -871,7 +871,7 @@
 </div>
 
 <!-- relative on purpose: this page must load from the Node server AND from a
-     static subpath host (GitHub Pages) — see docs/BRIEF-browser-hosting.md §A4 -->
+     static subpath host (GitHub Pages); see docs/BRIEF-browser-hosting.md §A4 -->
 <script src="../version-menu.js" defer></script>
 <script type="module" src="./main.js"></script>
 </body>
