@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 5,
+  "serial": 6,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v2: Ricochet (bounces off the shrinking lava wall and pillars, trick shots at 65%), the secret Guardian Angel (unlimited +25%-compounding purchases), a sprint on maxed boots, the Dark Ball (third hit blacks out your screen), and the Storm Ball (arcs to everyone near the victim — or near the pillar it pops on).",
-      "issue": 9,
-      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/9",
+      "summary": "Ju's arsenal, v3: Ricochet, the secret Guardian Angel, the Dark Ball blackout and the Storm Ball — plus craters (mines and meteors destroy the ground; permanent once anyone hits 10 kills) and a Switcheroo that grapples you to pillars and refunds 2 s on every landed hook.",
+      "issue": 11,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/11",
       "branch": "issue-3-ricochet-angel",
-      "commit": "e96a221aca94251cbe8823f02bd888dc74ba3d4a"
+      "commit": "0000e66d06f2b828be56de0b5275864c646352e4"
     },
     {
       "slug": "trash-talk",
