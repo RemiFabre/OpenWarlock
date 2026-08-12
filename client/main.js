@@ -431,6 +431,12 @@ function onEvent(e) {
       fx.push({ ...e, type: 'boltHit', at: now, dur: 0.5 });
       playSfx('freeze');
       break;
+    // issue #11 (Ju v3): the hook found stone — the caster is yanked to it
+    case 'grapple':
+      fx.push({ x: e.fx, y: e.fy, type: 'teleport', at: now, dur: 0.4 });
+      fx.push({ ...e, type: 'teleport', at: now, dur: 0.4 });
+      if (e.id === myId) playSfx('teleport');
+      break;
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
       playSfx('freeze');
@@ -565,6 +571,8 @@ function interpolated(now) {
     // with the seat count); older hosts don't send it, hence the fallback
     startRadius: fin(+s.startRadius) ? +s.startRadius : ARENA.START_RADIUS,
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
+    // issue #11: destroyed ground — like pillars, it sits still
+    holes: Array.isArray(s.holes) ? s.holes : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
     // mines never move: no interpolation, straight off the snapshot

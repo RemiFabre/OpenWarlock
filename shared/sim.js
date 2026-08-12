@@ -67,6 +67,10 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     clones: [],            // mirages: {id, owner, x, y, vx, vy, hp, maxHp, r, speed, left, ...}
     phantoms: [],          // the balls those mirages "throw": motion + culling only
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
+    // Issue #11 (Ju v3): ground DESTROYED by mines/meteors — impassable holes.
+    // Cleared each round until anyone reaches 10 kills (holdHoles), then kept.
+    holes: [],             // [{x, y, r}]
+    holdHoles: false,
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     // Mine (round 21.8, SPELLS.nova — key unchanged, the artillery bomb is gone)
     mines: [],             // planted traps: {id,x,y,r,owner,level,charges:[ball payloads]}
@@ -643,6 +647,7 @@ export function castSpell(state, id, key, tx, ty) {
       const range = lvl(spec, 'range', level);
       const dist = Math.min(d, range);
       pl.x += dx * dist; pl.y += dy * dist;
+      clampOutOfHoles(state, pl);   // issue #11: never blink INTO missing floor
       pl.vx = 0; pl.vy = 0;
       pl.moveTarget = null;
       state.events.push({ t: 'teleport', id, x: pl.x, y: pl.y });
@@ -1379,6 +1384,9 @@ function kill(state, target, directSourceId) {
     const bounty = Math.min(GOLD.BOUNTY_MAX,
       Math.max(0, Math.floor(gap * GOLD.BOUNTY_PER_GAP)));
     killer.kills++;
+    // issue #11 (Ju v3): once anyone reaches 10 kills, destroyed ground stays
+    // destroyed for the rest of the game
+    if (killer.kills >= 10) state.holdHoles = true;
     killer.roundKills++;
     killer.gold += GOLD.PER_KILL + bounty;
     killer.goldEarned += GOLD.PER_KILL + bounty;
@@ -1458,6 +1466,9 @@ function startRound(state) {
   // raised in an earlier round — no cap, a long game fills up (counterplay:
   // lightning, nova, blink, portals, terra 3). Revert = `makePillars(state)`.
   state.pillars = [...state.pillars.filter(p => p.placedBy), ...makePillars(state)];
+  // Issue #11 (Ju v3): destroyed ground heals with the round — until anyone
+  // has 10 kills, after which the craters are forever (holdHoles, kill()).
+  if (!state.holdHoles) state.holes = [];
   state.projectiles = [];
   state.delayedShots = [];
   state.clones = [];       // decoy: no mirage outlives the round it was cast in
@@ -1535,6 +1546,12 @@ function startRound(state) {
     pl.roundBounty = 0;
     pl.shopReady = false;
   });
+  // issue #11 (Ju v3): a spawn point swallowed by a permanent crater is
+  // RESTORED — any hole overlapping a dealt seat is filled back in
+  if (state.holes.length) {
+    state.holes = state.holes.filter(h =>
+      !fs.some(pl => Math.hypot(pl.x - h.x, pl.y - h.y) < h.r + pl.radius + 2));
+  }
   for (const pl of Object.values(state.players)) {
     if (pl.spectator) { pl.alive = false; pl.shopReady = false; }
   }
@@ -1836,6 +1853,8 @@ function stepBattle(state, dt) {
       if (m.t > 0) { rest.push(m); continue; }
       const spec = SPELLS.meteor;
       state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius });
+      // issue #11 (Ju v3): the impact destroys the ground under it
+      state.holes.push({ x: round2(m.x), y: round2(m.y), r: spec.radius });
       for (const pl of Object.values(state.players)) {
         // everyone under the rock eats it, the caster included — but never a
         // teammate (round 21.3: same team = spells ignore each other)
@@ -1876,6 +1895,8 @@ function stepBattle(state, dt) {
       if (!victim) { rest.push(m); continue; }
       const n = m.charges.length;
       state.events.push({ t: 'mineHit', id: m.owner, x: m.x, y: m.y, r: m.r, n });
+      // issue #11 (Ju v3): the blast destroys the ground under the trap
+      state.holes.push({ x: round2(m.x), y: round2(m.y), r: Math.max(m.r, 2) });
       if (!n) {
         // bare trap: its own shove, radially out of the ring. ⚠ dead centre is
         // a real case (a blink or a swap can land you exactly on it) and a zero
@@ -2230,6 +2251,7 @@ function stepBattle(state, dt) {
         const px = Math.cos(a) * d, py = Math.sin(a) * d;
         if (Math.hypot(pl.x - px, pl.y - py) > P.RADIUS + pl.radius) continue;
         pl.x = 0; pl.y = 0;
+        clampOutOfHoles(state, pl);   // issue #11: the center may be a crater
         pl.vx = 0; pl.vy = 0;
         // a charging repulse SURVIVES the trip (round 21.0 ruling) and
         // detonates at the center — everything else stale is cleared
@@ -2325,9 +2347,23 @@ function stepBattle(state, dt) {
 
 // Push a player out of any live pillar it overlaps (along the surface normal).
 // Returns true if a hit was resolved. Position-only — used by the dash.
+// Issue #11 (Ju v3): instant repositions (blink, portals) must not land IN a
+// destroyed zone — the body is set down on the nearest edge instead.
+function clampOutOfHoles(state, pl) {
+  for (const h of state.holes || []) {
+    const dx = pl.x - h.x, dy = pl.y - h.y;
+    const d = Math.hypot(dx, dy);
+    const min = h.r + pl.radius;
+    if (d >= min) continue;
+    const nx = d > 1e-6 ? dx / d : 1, ny = d > 1e-6 ? dy / d : 0;
+    pl.x = h.x + nx * min;
+    pl.y = h.y + ny * min;
+  }
+}
+
 function resolvePillarHit(state, pl) {
   let hit = false;
-  for (const pil of state.pillars) {
+  for (const pil of [...state.pillars, ...(state.holes || [])]) {
     if (pil.sunk) continue;
     const dx = pl.x - pil.x, dy = pl.y - pil.y;
     const d = Math.hypot(dx, dy);
@@ -2342,8 +2378,11 @@ function resolvePillarHit(state, pl) {
 }
 
 // Full player-vs-pillar resolution: push out AND kill the inward velocity.
+// Issue #11 (Ju v3): destroyed-ground HOLES resolve exactly like pillars —
+// missing floor cannot be stood on or crossed (projectiles fly over; they
+// never reach this function).
 function collidePillars(state, pl) {
-  for (const pil of state.pillars) {
+  for (const pil of [...state.pillars, ...(state.holes || [])]) {
     if (pil.sunk) continue;
     const dx = pl.x - pil.x, dy = pl.y - pil.y;
     const d = Math.hypot(dx, dy);
@@ -2442,6 +2481,24 @@ function stepProjectiles(state, dt) {
       // the STONE get zapped, sized off the pillar itself.
       if (pr.type === 'chainball')
         chainZap(state, pr, null, lvl(spec, 'damage', pr.level), pil.r * 2, pil);
+      // Switcheroo grapple (issue #11): a hook that finds STONE pulls the
+      // CASTER to it — no exchange, no stun, just travel. Landing side = the
+      // side the caster is on. Any swap hit also refunds 2 s of cooldown
+      // (the player-hit refund lives in the exchange block).
+      if (pr.type === 'swap') {
+        const owner = state.players[pr.owner];
+        if (owner && owner.alive) {
+          const dg = Math.hypot(owner.x - pil.x, owner.y - pil.y) || 1;
+          owner.x = pil.x + ((owner.x - pil.x) / dg) * (pil.r + owner.radius);
+          owner.y = pil.y + ((owner.y - pil.y) / dg) * (pil.r + owner.radius);
+          owner.vx = 0; owner.vy = 0; owner.moveTarget = null; owner.dash = null;
+          owner.cooldowns.swap = Math.max(0, (owner.cooldowns.swap || 0) - 2);
+          state.events.push({ t: 'grapple', id: owner.id, x: owner.x, y: owner.y,
+            fx: pil.x, fy: pil.y });
+        }
+        blocked = true;
+        break;
+      }
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
       if (smashes) {
         state.pillars.splice(i, 1);
@@ -2645,6 +2702,8 @@ function stepProjectiles(state, dt) {
       // position — swapping a charger pulls the bomb onto yourself.
       if (pr.type === 'swap' && other.alive) {
         const owner = state.players[pr.owner];
+        // issue #11: a hook that lands refunds 2 s of its own cooldown
+        if (owner) owner.cooldowns.swap = Math.max(0, (owner.cooldowns.swap || 0) - 2);
         if (owner && owner.alive) {
           [owner.x, other.x] = [other.x, owner.x];
           [owner.y, other.y] = [other.y, owner.y];
@@ -3189,6 +3248,10 @@ export function snapshot(state, viewerId = null) {
     pillars: (state.pillars || []).map(p => ({
       x: round2(p.x), y: round2(p.y), r: round2(p.r), sunk: !!p.sunk,
     })),
+    // issue #11 (Ju v3): destroyed ground — absent while there is none
+    ...(state.holes && state.holes.length ? {
+      holes: state.holes.map(h => ({ x: h.x, y: h.y, r: h.r })),
+    } : {}),
     winner: state.winner,
     ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),
     roundSummary: state.roundSummary || null,
@@ -3587,7 +3650,8 @@ function pilotOwnedSpells(state, pl, dt) {
 // tangentially, so it walks around the column instead of grinding into it.
 function unwedgeFromPillars(state, pl, dt) {
   let near = null, nearGap = Infinity;
-  for (const pil of state.pillars) {
+  // issue #11: craters block a bot's path exactly like pillars — same unwedge
+  for (const pil of [...state.pillars, ...(state.holes || [])]) {
     if (pil.sunk) continue;
     const gap = Math.hypot(pl.x - pil.x, pl.y - pil.y) - pil.r - pl.radius;
     if (gap < nearGap) { nearGap = gap; near = pil; }

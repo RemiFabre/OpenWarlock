@@ -7418,3 +7418,118 @@ describe('Ju v2 (issue #9)', () => {
     expect(a.gold).toBe(500 - (12 + 15 + 19 + 23 + 29));
   });
 });
+
+// ---- Issue #11 (Ju, v3): craters and the grapple ----------------------------
+describe('Ju v3 (issue #11)', () => {
+  function ground(setup = () => {}) {
+    const state = freshBattle(2);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    setup(state, a, b);
+    return state;
+  }
+
+  it('a meteor impact destroys the ground under it', () => {
+    const state = ground((s, a) => { a.spells.meteor = 1; });
+    castSpell(state, 'p0', 'meteor', 10, 10);
+    run(state, SPELLS.meteor.delay + 0.1);
+    expect(state.holes.length).toBe(1);
+    expect(state.holes[0]).toMatchObject({ x: 10, y: 10, r: SPELLS.meteor.radius });
+  });
+
+  it('a mine blast destroys the ground under the trap', () => {
+    const state = ground((s, a, b) => { a.spells.nova = 1; });
+    castSpell(state, 'p0', 'nova', 0, 0);
+    const b = state.players.p1;
+    b.x = 0.5; b.y = 0;              // standing on the trigger ring
+    run(state, 0.2);
+    expect(state.holes.length).toBe(1);
+  });
+
+  it('a hole cannot be stood in or crossed: the body stops at the rim', () => {
+    const state = ground();
+    state.holes.push({ x: 10, y: 0, r: 3 });
+    const a = state.players.p0;
+    setMoveTarget(state, 'p0', 10, 0);   // walk INTO the crater
+    run(state, 3);
+    const d = Math.hypot(a.x - 10, a.y - 0);
+    expect(d).toBeGreaterThanOrEqual(3 + a.radius - 0.05);
+  });
+
+  it('a blink aimed into a crater lands on its edge', () => {
+    const state = ground((s, a) => { a.spells.teleport = 1; });
+    state.holes.push({ x: 15, y: 0, r: 4 });
+    castSpell(state, 'p0', 'teleport', 15, 0);
+    const a = state.players.p0;
+    expect(Math.hypot(a.x - 15, a.y)).toBeGreaterThanOrEqual(4 + a.radius - 0.05);
+  });
+
+  it('craters heal with the round — until anyone reaches 10 kills', () => {
+    const state = ground();
+    state.holes.push({ x: 10, y: 10, r: 3 });
+    // classic round cycle: kill p1, ride through roundEnd+shop into round 2
+    const b = state.players.p1;
+    b.x = 2; b.y = 0; b.hp = 1;
+    castSpell(state, 'p0', 'fireball', 5, 0);
+    run(state, 0.5);
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.phase).toBe('battle');
+    expect(state.holes.length).toBe(0);          // healed
+
+    // now with a 10-kill leader: the crater survives the round change
+    const s2 = ground();
+    s2.holes.push({ x: 10, y: 10, r: 3 });
+    s2.players.p0.kills = 9;
+    const b2 = s2.players.p1;
+    b2.x = 2; b2.y = 0; b2.hp = 1;
+    castSpell(s2, 'p0', 'fireball', 5, 0);
+    run(s2, 0.5);                                 // 10th kill -> holdHoles
+    expect(s2.holdHoles).toBe(true);
+    run(s2, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(s2.phase).toBe('battle');
+    expect(s2.holes.length).toBe(1);              // forever
+  });
+
+  it('a crater swallowing a spawn point is restored at round start', () => {
+    const state = ground();
+    state.holdHoles = true;
+    // one hole on a future spawn seat, one far out in the field
+    const r = state.startRadius * ARENA.SPAWN_RADIUS_FRAC;
+    // 2 seats are dealt at (0, -r) and (0, +r) — cover one of them
+    state.holes.push({ x: 0, y: r, r: 4 });       // on a spawn seat
+    state.holes.push({ x: 5, y: 5, r: 2 });       // mid-field
+    const b = state.players.p1;
+    b.x = 2; b.y = 0; b.hp = 1;
+    castSpell(state, 'p0', 'fireball', 5, 0);
+    run(state, 0.5 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.phase).toBe('battle');
+    // the seat hole must be gone, the mid-field one kept
+    expect(state.holes.length).toBe(1);
+    expect(state.holes[0].x).toBe(5);
+  });
+
+  it('the hook that finds stone is a grapple: the caster is pulled to the pillar', () => {
+    const state = ground((s, a) => {
+      a.spells.swap = 1;
+      s.pillars = [{ x: 12, y: 0, r: 2.5, sunk: false }];
+    });
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'swap', 12, 0);
+    run(state, 0.5);
+    expect(Math.hypot(a.x - 12, a.y)).toBeCloseTo(2.5 + a.radius, 1);
+    expect(state.events.some(e => e.t === 'grapple' && e.id === 'p0')).toBe(true);
+    // the landing refunded 2 s of the hook's cooldown
+    expect(a.cooldowns.swap).toBeLessThan(SPELLS.swap.cooldown[0] - 1.4);
+  });
+
+  it('a hook landing on a PLAYER also refunds 2 s', () => {
+    const state = ground((s, a, b) => { a.spells.swap = 1; b.x = 12; });
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'swap', 12, 0);
+    run(state, 0.5);
+    expect(a.x).toBeCloseTo(12, 0);   // swapped
+    expect(a.cooldowns.swap).toBeLessThan(SPELLS.swap.cooldown[0] - 1.4);
+  });
+});

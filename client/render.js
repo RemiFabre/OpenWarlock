@@ -329,6 +329,34 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   }
 
   // --- pillars: obsidian columns; sunken ones melt dimly under the lava ---
+  // issue #11 (Ju v3): destroyed ground — the floor is simply GONE. A void
+  // down to the lava's glow, with a cracked ember rim so the edge reads as
+  // a hard boundary (you cannot walk in or across).
+  const holes = Array.isArray(vs.holes) ? vs.holes : [];
+  for (const h of holes) {
+    if (!h || !fin(h.x) || !fin(h.y) || !fin(h.r)) continue;
+    const x = view.sx(h.x), y = view.sy(h.y);
+    const hr = h.r * scale;
+    ctx.save();
+    const pit = ctx.createRadialGradient(x, y, 0, x, y, hr);
+    pit.addColorStop(0, '#160503');
+    pit.addColorStop(0.75, '#2a0a04');
+    pit.addColorStop(1, '#57140a');
+    ctx.fillStyle = pit;
+    ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.fill();
+    // molten glow breathing at the bottom of the pit
+    const pulse = 0.35 + 0.2 * Math.abs(Math.sin(now / 700 + h.x));
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, hr * 0.8);
+    glow.addColorStop(0, `rgba(255, 93, 31, ${pulse})`);
+    glow.addColorStop(1, 'rgba(255, 93, 31, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(x, y, hr * 0.8, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 120, 50, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
   const pillars = Array.isArray(vs.pillars) ? vs.pillars : [];
   for (const pil of pillars) {
     if (!pil || !fin(pil.x) || !fin(pil.y) || !fin(pil.r)) continue;
