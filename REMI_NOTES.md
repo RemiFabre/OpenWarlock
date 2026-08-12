@@ -1,4 +1,4 @@
-# Notes for Remi — OpenWarlock & the open web MOBA
+# Notes for Remi (OpenWarlock & the open web MOBA)
 
 *Round 22.1, 2026-08-12 (your feedback pass, shipped minutes before game
 night). Round 22 is archived at

@@ -1,10 +1,10 @@
-# AGENTS.md — handoff for the next session
+# AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-12 (round 22 — Remi's request list, spec in
+*Last updated 2026-08-12, round 22 (Remi's request list, spec in
 docs/BRIEF-round22.md, all shipped). Read this first, then REMI_NOTES.md
-(latest round only) — that is the whole entry set.*
+(latest round only). That is the whole entry set.*
 
-## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
+## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 
 Agent context usage on this project is **CRITICAL**. The rules:
 
@@ -12,7 +12,7 @@ Agent context usage on this project is **CRITICAL**. The rules:
   Everything else is read on demand, and `docs/history/` is read on demand
   ONLY (grep for the specific value/finding, read the matching section, stop).
 - **`docs/history/` is the append-only archive** (see its README): full
-  reports, sweep tables, superseded designs, scar stories — date-prefixed
+  reports, sweep tables, superseded designs, scar stories. Date-prefixed
   files, never edited, never deleted, never read wholesale.
 - **Living docs are edited IN PLACE and stay lean**: AGENTS.md ≤ ~200 lines,
   BALANCE.md = current truths only, REMI_NOTES.md = latest round only (archive
@@ -24,22 +24,22 @@ Agent context usage on this project is **CRITICAL**. The rules:
   **Never paste a sweep table into code.**
 - **Work style**: prefer one-commit-sized briefs; delegate mechanical grinds
   (reference hunts, test fixes after a spec change, doc propagation, archive
-  moves) to clean-context subagents — **Opus-class or better, bound by the
-  same anti-bloat rules** — and review their diffs; the labs stay
-  quiet when stderr is not a TTY. Do not add a fourth living doc — extend
+  moves) to clean-context subagents (**Opus-class or better, bound by the
+  same anti-bloat rules**) and review their diffs; the labs stay
+  quiet when stderr is not a TTY. Do not add a fourth living doc. Extend
   these.
 
 ## State right now
 
 - **THE GAME IS PUBLIC** (2026-08-09): GitHub Pages serves it at
-  remifabre.github.io/OpenWarlock/client/ — solo play AND player hosting
+  remifabre.github.io/OpenWarlock/client/. Solo play AND player hosting
   (📡 Host online → room code/link over WebRTC; signalling relay = HF Space
   RemiFabre/openwarlock-signal, redeploy via scripts/deploy-signal-hf.sh).
   Anonymous usage beacons → relay /stats → in-game 📊 panel; history persists
   to the private HF dataset openwarlock-stats. A pre-commit hook stamps
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
-  — NEVER bypass it; Pages lags pushes by up to ~10 min (CDN).
-- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-21 — quote
+  and must NEVER be bypassed; Pages lags pushes by up to ~10 min (CDN).
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-21. Quote
   `docs/history/2026-08-11-round21.9-elo.md` instead.
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
@@ -48,23 +48,25 @@ Agent context usage on this project is **CRITICAL**. The rules:
 ## What this is
 
 **OpenWarlock** (`github.com/RemiFabre/OpenWarlock`, push directly to main,
-keep commits short) — an open-source web remake of the WC3 *Warlock* arena
+keep commits short) is an open-source web remake of the WC3 *Warlock* arena
 brawler, pathfinder for Remi's open player-hosted MOBA idea. Vanilla JS, no
 build step, Node ESM, only dep is `ws`.
 
 ## How Remi works
 
-- Voice-dictated feedback after playtests (often French, sometimes garbled —
+- Voice-dictated feedback after playtests (often French, sometimes garbled;
   **state your interpretation** and make changes one-line revertible). Ship a
   playable commit fast when he's waiting; polish after.
 - Everything in the project is written in **English**.
+- **No em dashes** in any project text; full stops or brackets instead
+  (Remi, 2026-08-12).
 - **Data-driven balance** (seeded headless games, sweeps, 2+ seeds, check
-  monotonicity) — but bots can't price reactive skill: **flag bot artifacts,
+  monotonicity). But bots can't price reactive skill: **flag bot artifacts,
   never number-buff around them**. His feel report outranks every table.
 - **Reports must explain themselves** (Remi, reinforced 2026-08-08 after
   three "what does this number mean" questions): EVERY section that shows
   numbers opens with 1-3 lines saying exactly what the number is, vs what
-  baseline, measured how — repeated AT the table, not in a block far above.
+  baseline, measured how (repeated AT the table, not in a block far above).
   Strategy/build names are decoded where used (composition + buy order).
   State what the instrument CANNOT see next to its results.
 - Non-QWERTY keyboard → keybindings stay rebindable. He supplies art/music
@@ -99,7 +101,7 @@ build step, Node ESM, only dep is `ws`.
   switch the clean dedicated clone back to the latest `origin/main`, add its
   immutable commit and player-facing metadata to `versions.json`; that list IS the loader's
   allowlist, so removing an entry revokes it. Push the manifest to `main`.
-  Bump its `serial` in the same edit — both loaders take the manifest copy with
+  Bump its `serial` in the same edit. Both loaders take the manifest copy with
   the HIGHER serial, which is what makes a publish AND a revocation land as soon
   as either CDN updates instead of waiting out the slower one.
   Verify `/v/COMMIT/client/`, then `@mention` the author with the version name,
@@ -110,48 +112,48 @@ build step, Node ESM, only dep is `ws`.
 
 | Path | What |
 |---|---|
-| `shared/constants.js` | ALL game numbers (spells, 3-level items, 11 elements, arena, gold, DRAFT, bots, BUILDS). Lean comments + pointers into `docs/history/` — grep there before re-deriving any value |
+| `shared/constants.js` | ALL game numbers (spells, 3-level items, 11 elements, arena, gold, DRAFT, bots, BUILDS). Lean comments + pointers into `docs/history/` (grep there before re-deriving any value) |
 | `shared/items.js` | the ONE place that knows `ITEM_FX`'s shape: `pl.items` is `{key: level}`, fx arrays are **absolute cumulative totals** |
 | `shared/catalogue.js` | one enumerable view over spells+elements+items per ruleset (draft pool, gold equivalence, shop gate read it). A VIEW, not a second truth |
 | `shared/sim.js` | pure simulation + bot brains (grunt random, berserker piloted, stalker dodging; Normal = berserker brain with worse params) + elements, hazards, Vanish wire-masking |
 | `shared/campaign.js` | co-op campaign: 10 levels as pure data. Levels are data, never code |
 | `shared/engine.js` | the authoritative ROOM behind a transport seam (round 19): seating, wire switch, ghosts, bans, snapshots. Node server AND the in-tab solo mode both run it |
-| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING — events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it |
+| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING: events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it |
 | `server/index.js` | now an ADAPTER over engine.js: http, `/health` (+ per-player wire stats), ws + heartbeat/RTT pings + permessage-deflate, JSONL journal, IP bans |
 | `client/transport.js` | ws + solo + RTC transports behind one seam (`?mode=`, `#r=CODE`, else /health probe). Hosting record: `docs/history/2026-08-09-browser-hosting-phaseB.md` |
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | the bulk of the 462 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
-| `test/snapwire.test.js` | 35 tests on the wire rules — a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss, and echo keyframes (21.11) ride beside the delta |
+| `test/sim.test.js` | the bulk of the 462 vitest tests (must stay green); balance tests read numbers FROM THE SPEC, never pinned |
+| `test/snapwire.test.js` | 35 tests on the wire rules: a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss, and echo keyframes (21.11) ride beside the delta |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
-| `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`) — read it before grepping `sim.js` |
+| `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`). Read it before grepping `sim.js` |
 | `tools/shot.js` | drives the real client and PROBES the canvas for a colour signature, so "did it render" costs one cropped screenshot instead of a burst (`--self-test`) |
 | `scripts/setup-agent.sh` | one idempotent command to make a fresh clone runnable (deps, browsers, hooks, main, token check) |
-| `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 — every arena table printed before that date was classic |
+| `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 (every arena table printed before that date was classic) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
 | `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies, Bradley-Terry over pairwise placements, Elo-scaled around 1500. `--games=8000 --seed=1` (~20 min). Latest table: `docs/history/2026-08-11-round21.9-elo.md` (37 strategies, r249) |
-| `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%) — the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
-| `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots — prices an UPGRADE PATH, blind to multi-target/economy |
-| `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
-| `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
+| `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%), the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
+| `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots. Prices an UPGRADE PATH, blind to multi-target/economy |
+| `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity). The Elo table hides tier gaps |
+| `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed. Re-run **only if its tests break** |
 | `tools/combo.js` | Faker combo lab (issue #7): Faker vs Runner, `--no-combo` ablates the combo layer |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
-| `tools/slowlink.js` | **the ws netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). ⚠ bandwidth only — no jitter, no loss, no RTC path |
-| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link — per-guest bandwidth/RTT/bursty loss, shared host uplink. Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
+| `tools/slowlink.js` | **the ws netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). ⚠ bandwidth only (no jitter, no loss, no RTC path) |
+| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link (per-guest bandwidth/RTT/bursty loss, shared host uplink). Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
 | `BALANCE.md` | current balance truths + open questions + repro commands. Full reports: `docs/history/` |
 | `STRATEGIES.md` | bot tiers × builds chart, the 25-strategy ranking, how to read arena reports |
-| `REMI_NOTES.md` | the changelog Remi reads — latest round only |
-| `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive — read on demand only)** |
+| `REMI_NOTES.md` | the changelog Remi reads (latest round only) |
+| `docs/` | design docs (`HOSTING.md`, `VERSIONING.md` rev 2, `ROUND12.md`, `NAMING.md`) + **`history/` (append-only archive, read on demand only)** |
 
-## Game rules snapshot (post-round-21, one line each — details in constants.js and BALANCE.md)
+## Game rules snapshot (post-round-21, one line each; details in constants.js and BALANCE.md)
 
-- First to **15 kills** (per TEAM: `15 × size`, and solo teams are the default —
-  round 21.3), 25-round cap; countdown → battle → roundEnd → shop.
-  Spawn seats are DEALT FRESH each round (seeded, versus only — round 18).
+- First to **15 kills** (per TEAM: `15 × size`, and solo teams are the default
+  since round 21.3), 25-round cap; countdown → battle → roundEnd → shop.
+  Spawn seats are DEALT FRESH each round (seeded, versus only; round 18).
   The 🧪 **testing sandbox** (lobby flag like draft): chosen gold, game opens
   in an UNTIMED shop, ready-up starts round 1.
 - **Teams are a lobby property, not a mode** (21.3): everyone has a team number,
@@ -159,7 +161,7 @@ build step, Node ESM, only dep is `ws`.
   Teammates' spells pass THROUGH each other (`allied()` on every damage/effect
   path); pillars still block everyone. Any shape works (2v2, 3v2, 2v1v1).
 - **Arena size is per-game** (21.2): `state.startRadius`, never `ARENA.START_RADIUS`,
-  is the un-shrunk arena — constant play area per player above 5 seats.
+  is the un-shrunk arena (constant play area per player above 5 seats).
 - **Pillars are permanent** (21.2): lava-proof, they persist across rounds and
   accumulate all game; terra lv3 is the only remover.
 - **Lava** 14 DPS, ×2 swim speed; versus ring **never stops** (`NEVER_STOPS`);
@@ -173,18 +175,18 @@ build step, Node ESM, only dep is `ws`.
 - **Anti-snowball economy**: 8 g/round + 2/kill + 2 win + 1 first death; 2×
   earn-spread cap test-enforced. Midas is a mark-then-cash rhythm (question J
   closed).
-- **Fireball locked at lv1 in elemental** (default ruleset) — 11 elements are
+- **Fireball locked at lv1 in elemental** (default ruleset). The 11 elements are
   its progression, all private-stacked riders: ember=damage [1,2,4],
-  terra=size (lv3 SMASHES pillars, ball consumed — round 20.2),
+  terra=size (lv3 SMASHES pillars, ball consumed; round 20.2),
   gale=push + flat gust every 3rd stack from LV1 (round 19), arcane=haste
-  [18,32,32] + lv3 kit refund 1 s/hit (NEVER its own fireball — 66-74%
+  [18,32,32] + lv3 kit refund 1 s/hit (NEVER its own fireball: 66-74%
   feedback loop, twice measured), ghost=speed (lv3 pierce, 10 g),
   malady=ex-venom two-hit CONTAGION (21.8: `tickDmg [1,1.5,2]`, `dotTime` FLAT 4,
-  aura r [5,7,9] — round 20.3, once-per-instance immunity, creator IMMUNE to
+  aura r [5,7,9]; round 20.3, once-per-instance immunity, creator IMMUNE to
   their own instance (still catches other players');
   lethal tick credits creator/spreader), frost=stacks-to-CC,
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
-  **[20,15,10] s** — round 20 nerf, claim = +0.5 fireball dmg forever),
+  **[20,15,10] s**, a round 20 nerf; claim = +0.5 fireball dmg forever),
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
   cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
   vampire=every-5th engorged heal, midas.
@@ -198,11 +200,11 @@ build step, Node ESM, only dep is `ws`.
   and since 21.8 the burn LINGERS `[3,4,5]` s after you leave the ring) and
   7 g `spoon` (**Slow Spoon 🥄**, 21.8: a FLAT `healOnHit [1,2,3]` per damaging
   hit, once per victim; DoT/aura ticks pay `tickFrac` = a TENTH of that, capped
-  at one proc per second per victim — `applyDamage`'s `procs: true|'tick'|false`
+  at one proc per second per victim; `applyDamage`'s `procs: true|'tick'|false`
   is the whole mechanism, and the cap is INSURANCE against a future
-  faster-ticking DoT, not balance) — so the WHOLE shelf is 147 g, and the cuts did NOT move items off the bottom of the
+  faster-ticking DoT, not balance). So the WHOLE shelf is 147 g, and the cuts did NOT move items off the bottom of the
   strategy table. Sword is mandatory by
-  structure (question L). Cape is pilot-sign-flipping — never buff it off
+  structure (question L). Cape is pilot-sign-flipping: never buff it off
   Hard-bot tables; Remi hand-set it to −25/−40/−50% in 21.7. Echo Stone is
   DELETED (merged into mosquito, round 20.1).
 - **Spells** (round 19): lightning = telegraphed sky-bolt (2.2 zone, 0.5 s,
@@ -212,38 +214,38 @@ build step, Node ESM, only dep is `ws`.
   positions at the switch (round 21.0: `stun {pad .55, min 1, max 3}`
   + d / fireball speed → 1.00/1.53/2.26/3.00 s at d = 10/40/70/120);
   **Blink**
-  [10,5] g flat range 22 (lv2 = cd); **Mine** 💣 (key `nova` — the round-19 Bomb was reworked away in 21.8)
+  [10,5] g flat range 22 (lv2 = cd); **Mine** 💣 (key `nova`; the round-19 Bomb was reworked away in 21.8)
   = a trap planted AT YOUR FEET, trigger ring 1.32 (= 1.65 × the fireball),
   [10,5] g, 2 levels. It SWALLOWS the owner's own fireballs (`stores` [1,2]);
   stepping on it costs the mine's damage [10,15] plus every stored ball fired
   point blank one TICK apart, all push-less but the last, which pushes at
   max(ball, mine) (`kbMin`). A Shield answers the balls, never the ground; a
-  trap OUTLIVES ITS TRAPPER — it still arms, triggers and credits (kill,
+  trap OUTLIVES ITS TRAPPER: it still arms, triggers and credits (kill,
   bounty, damage, stacks) after the planter dies, unlike Decoy's clones
   (both test-locked);
-  pillars unlimited; `statue` (DISPLAYS as **NOPE** since 21.7, gold-tinted 🗿 —
+  pillars unlimited; `statue` (DISPLAYS as **NOPE** since 21.7, gold-tinted 🗿;
   the Stone Pillar has the plain 🗿 back) = 2 s of golden-pillar total invulnerability,
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
   duration FLAT); **Decoy** 👥 = 4 s mirages (21.8) that ape your casts and have zero
   gameplay effect ([10,5], lv2 = a second clone, cd flat, power tier);
   **Fire Walk** 👣 (key `firewalk`, round 22) = lava immunity [3,5] s,
   [10,5] g, cd flat 15, public `fw` field → flame ring (the ×2 lava swim
-  SPEED stays); vanish 1/2/3 s at 10 g — ANY cast while invisible
+  SPEED stays); vanish 1/2/3 s at 10 g: ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
-  mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost — Remi reverted it); infinite ground-target
+  mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost; Remi reverted it); infinite ground-target
   range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
   REBINDABLE from the shop chips and the Keys panel (owKeys localStorage);
   since 21.7 `loadKeys()` DE-CONFLICTS on load (saved wins, a defaulted spell
   takes qwerty → azerty → first free key) and rebinding always swaps + toasts.
 - **Vanish**: position stripped in `snapshot()` AND masked from bot perception
-  (`BOT_MEMORY`) — both load-bearing, test-locked.
+  (`BOT_MEMORY`). Both load-bearing, test-locked.
 - **Credit rules**: the LAST player to damage you owns your death, with **no
-  time window** (round 21.8 — `KILL_CREDIT_WINDOW` is inert, the revert path;
+  time window** (round 21.8: `KILL_CREDIT_WINDOW` is inert, the revert path;
   `lastHitBy` is wiped each round start so a claim never crosses rounds). That
   is what makes a knockback-into-lava kill land: a full-hp victim burns ~7 s,
   which used to outlive the old 5 s window and credit NOBODY.
   **DoT stamps like everything else since 21.8** (Remi: taking kills is part of
-  a plague's identity) — a lethal tick credits its owner directly, and an
+  a plague's identity): a lethal tick credits its owner directly, and an
   ordinary tick claims the last-hitter slot, so a victim your sickness or burn
   chased into the lava dies as YOUR kill. ⚠ Accepted consequence: a DoT ticking
   every second usually out-claims whoever shoved the victim in, because it
@@ -252,17 +254,17 @@ build step, Node ESM, only dep is `ws`.
 - **Draft mode**: optional flag over any ruleset. Unmeasured by design.
 - **Bots**: Easy/Normal/Hard/Extreme/Faker (`grunt/brawler/berserker/stalker/
   faker` keys) + two sparring tiers (`runner` flees after first hit, `dummy`
-  never reacts — round 22). Faker (issue #7) = stalker brain + a combo layer;
+  never reacts; round 22). Faker (issue #7) = stalker brain + a combo layer;
   its four combo BUILDS (`kinds:['faker']`) are two-way exclusive. Per-kind
   NAME POOLS in engine.js `BOT_NAMES` (classic six = Hard; own pool first,
   then borrow). Round-22 `standoff` (Normal 13 / Hard 5) floors the prowl
-  ring so Normal never face-camps — ladder h2h now 100 / **66-69** / 100,
+  ring so Normal never face-camps. Ladder h2h now 100 / **66-69** / 100,
   ⚠ awaiting Remi's feel verdict. Targeting is a SOFTMAX draw
   (`BOT_TARGETING`, TEMPERATURE 6); sky-bolt dodge is a committed per-bolt
-  roll (`boltDodge` — Remi set Hard's 50%); bots pressure the kill leader
+  roll (`boltDodge`; Remi set Hard's 50%); bots pressure the kill leader
   (`LEADER_BIAS 2.5`).
 
-## Co-op campaign (mode `coop`) — MOTHBALLED
+## Co-op campaign (mode `coop`): MOTHBALLED
 
 - **Under construction (ROUND17 §1): do not tune it, do not balance around
   it.** The mode is off the lobby button (`MODES` in `client/coop.js`) and
@@ -296,24 +298,24 @@ node tools/arena.js --games=60 --players=4       # games finish, sane kills
 node tools/arena.js --games=60 --players=8       # ditto at the scaled arena (21.2)
 node tools/slowlink.js --seconds=20              # WIRE changes only (~2 min)
 ```
-Kill stray servers when done (`pgrep -fl "server/index.js"`) — **but check
+Kill stray servers when done (`pgrep -fl "server/index.js"`), **but check
 first that Remi isn't hosting a live game.**
 
-## Scars (one line each — full stories: `docs/history/2026-08-08-agents-full-pre-diet.md`)
+## Scars (one line each; full stories: `docs/history/2026-08-08-agents-full-pre-diet.md`)
 - Swept-collision side checks must use the PRE-move position (fast balls
   tunneled through Mirror Walls).
-- A feature that is never rendered — or renders under the HP bar, or moves by
-  imperceptible steps — reads as broken; screenshot the client, don't just
+- A feature that is never rendered (or renders under the HP bar, or moves by
+  imperceptible steps) reads as broken; screenshot the client, don't just
   read the code.
 - A single 400-game run is not a measurement: 2+ seeds, check monotonicity;
   the isolation self-test itself needs ≥1600 games.
 - h2h for tier questions (Elo hides gaps); h2h vs Easy is no signal.
-- Bot reaction time is a perception delay — extrapolate stale observations,
+- Bot reaction time is a perception delay: extrapolate stale observations,
   don't under-lead.
 - Balance tests read numbers from the spec, never pinned constants.
 - A lab that names a BUILD by string rots when builds are retired: `bruiser`
   killed the elemental study, h2h and coop for two rounds (round 21.8). An
-  unknown name must THROW — a silent empty build measures seats buying nothing.
+  unknown name must THROW (a silent empty build measures seats buying nothing).
 - A lab must play the ruleset the GAME defaults to (elemental), and print which
   one it played; arena.js quietly measured classic for months.
 - A one-variable A/B needs `caps: {rival: 0}` on BOTH cores: the shared
@@ -324,7 +326,7 @@ first that Remi isn't hosting a live game.**
   Never assume the presets describe what a real player's client is bound to.
 - A socket-level queue is invisible: `bufferedAmount` stayed 0 while a throttled
   seat ran 19 s behind (a megabyte sat in the KERNEL send buffer). Falling behind
-  is only detectable with an application ack — and by its GROWTH, since the
+  is only detectable with an application ack, and by its GROWTH, since the
   absolute backlog is just RTT × snapshot rate on a healthy distant link
   (round 21.10, full story in `docs/history/2026-08-12-snapshot-bandwidth.md`).
 - A delta stream's base is load-bearing: only the SENDER may drop a state, and
@@ -335,9 +337,9 @@ first that Remi isn't hosting a live game.**
   inside one real millisecond, so a 500 ms limiter suppressed every recovery and
   the loss numbers read 3× worse than truth (hence `createSnapSink({now})`).
 - A big message on the reliable ordered channel sits IN FRONT of every small
-  fresh one — the two late-game RTC killers (spare blob, keyframe race) were
+  fresh one. The two late-game RTC killers (spare blob, keyframe race) were
   both "big blob ahead of the delta stream", not packet loss (round 21.11).
 - Stale server/browser after pulling ships mixed-version games; tunnel sockets
   die silently (hence the heartbeat); audio must start from a user gesture;
-  emoji icons are load-bearing UI; voice transcriptions garble numbers —
+  emoji icons are load-bearing UI; voice transcriptions garble numbers:
   state your interpretation.
