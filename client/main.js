@@ -928,6 +928,7 @@ function setShopPreview(on) {
   shopPreview = on;
   $('shopCloseBtn').classList.toggle('hidden', !on);
   setVisible('shopPauseBtn', !on);
+  setVisible('shopUndoBtn', !on); // nothing to refund while just browsing
   if (!on) {
     const s = latest();
     setVisible('shop', !!(s && myId && s.phase === 'shop'));
@@ -987,6 +988,7 @@ $('specFoldBtn').addEventListener('click', () => {
 $('shopPauseBtn').addEventListener('click', () => {
   send({ t: 'shopPause', on: !shopPausedBy });
 });
+$('shopUndoBtn').addEventListener('click', () => send({ t: 'undo' }));
 $('unbanBtn').addEventListener('click', () => { send({ t: 'unbanAll' }); toast('bans cleared'); });
 $('againBtn').addEventListener('click', () => {
   goPinned = false;
@@ -1636,6 +1638,16 @@ function buildShop(container, mode = 'classic') {
           w.el.disabled = gold < c;
         }
       }
+      // level pips (round 22.2, Remi): a tiny bar at the bottom of every card
+      // says 0..max at a glance — one cell per level, owned cells lit
+      const pmax = w.kind === 'spell' ? (w.maxLevel || w.spec.maxLevel) : w.spec.maxLevel;
+      if (!w.pips) {
+        w.pips = document.createElement('span');
+        w.pips.className = 'pips';
+        w.el.appendChild(w.pips);
+      }
+      if (w.pips.children.length !== pmax) w.pips.innerHTML = '<i></i>'.repeat(pmax);
+      for (let i = 0; i < pmax; i++) w.pips.children[i].classList.toggle('on', i < (w.level || 0));
     }
     // a section whose whole stock is in the draft pool would leave a dangling
     // heading, so a label lives or dies with its wares — and so does each row
@@ -2020,6 +2032,7 @@ function updateUi(s) {
     const pauseBtn = $('shopPauseBtn');
     pauseBtn.textContent = pausedBy ? '▶ Resume' : '⏸ Pause';
     pauseBtn.classList.toggle('on', !!pausedBy);
+    $('shopUndoBtn').disabled = !(m && m.undoN); // only THIS shop's buys refund
     $('shopSub').textContent = pausedBy
       ? `⏸ Clock frozen by ${pausedBy} — take your time. Everyone hitting Ready still starts the round.`
       : watching

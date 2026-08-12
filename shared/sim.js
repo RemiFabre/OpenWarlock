@@ -933,6 +933,19 @@ export function buy(state, id, thing) {
   if (!pl) return { ok: false, err: 'no player' };
   if (state.phase !== 'shop')
     return { ok: false, err: 'shop is closed' };
+  // Misclick insurance (round 22.2, Remi): before every successful HUMAN buy,
+  // remember the whole purchasable state; undoBuy() restores the last memo.
+  // The stack dies when the round starts (startRound), so nothing bought in an
+  // earlier shop can ever be refunded. Restore-blob, not inverse logic: an
+  // undo can never miss a side effect a future item adds.
+  const memo = () => {
+    if (pl.bot) return;
+    (pl.shopUndo ||= []).push({
+      gold: pl.gold, maxHp: pl.maxHp, hp: pl.hp,
+      spells: { ...pl.spells }, items: { ...pl.items }, elements: { ...pl.elements },
+    });
+    if (pl.shopUndo.length > 32) pl.shopUndo.shift();
+  };
   // draft mode: half the catalogue is not for sale in this game at all — until
   // you draft it, after which its remaining levels are bought normally
   if (draftLocked(state, pl, thing))
@@ -952,6 +965,7 @@ export function buy(state, id, thing) {
     if (level >= maxLevel) return { ok: false, err: 'max level' };
     const cost = spec.costs[level];
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
+    memo();
     pl.gold -= cost;
     pl.spells[thing] = level + 1;
     return { ok: true };
@@ -969,6 +983,7 @@ export function buy(state, id, thing) {
     if (elevel >= espec.maxLevel) return { ok: false, err: 'max level' };
     const cost = espec.costs[elevel];
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
+    memo();
     pl.gold -= cost;
     pl.elements[thing] = elevel + 1;
     return { ok: true };
@@ -983,6 +998,7 @@ export function buy(state, id, thing) {
     if (level >= ITEMS[thing].maxLevel) return { ok: false, err: 'max level' };
     const cost = itemCost(thing, level);
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
+    memo();
     pl.gold -= cost;
     pl.items[thing] = level + 1;
     // max HP is a live field, not derived, so the upgrade grants the DIFFERENCE
@@ -994,6 +1010,18 @@ export function buy(state, id, thing) {
     return { ok: true };
   }
   return { ok: false, err: 'unknown' };
+}
+
+// Pop the last buy memo and restore it wholesale. Shop phase only, like buy().
+export function undoBuy(state, id) {
+  const pl = state.players[id];
+  if (!pl) return { ok: false, err: 'no player' };
+  if (state.phase !== 'shop') return { ok: false, err: 'shop is closed' };
+  const m = pl.shopUndo && pl.shopUndo.pop();
+  if (!m) return { ok: false, err: 'nothing to undo' };
+  pl.gold = m.gold; pl.maxHp = m.maxHp; pl.hp = m.hp;
+  pl.spells = m.spells; pl.items = m.items; pl.elements = m.elements;
+  return { ok: true };
 }
 
 // ---- draft mode (docs/ROUND12.md S7) -------------------------------------
@@ -1410,6 +1438,8 @@ function startRound(state) {
   resolveDraftOffers(state);
   state.round++;
   state.shopPaused = null;   // never let a pause leak into the next shop
+  // the shop is over: its buys are final (undo covers THIS shop's misclicks only)
+  for (const p of Object.values(state.players)) delete p.shopUndo;
   state.phase = 'countdown';
   state.phaseT = ROUND.COUNTDOWN;
   state.time = 0;
@@ -2930,6 +2960,8 @@ export function snapshot(state, viewerId = null) {
       // draft mode: your OWN free offer, nobody else's. Absent entirely when the
       // toggle is off (and when it is on but this shop carries no offer).
       ...(p.draftOffer && p.id === viewerId ? { draftOffer: p.draftOffer } : {}),
+      // how many of YOUR buys this shop can still be undone (drives the button)
+      ...(p.id === viewerId && p.shopUndo && p.shopUndo.length ? { undoN: p.shopUndo.length } : {}),
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,

@@ -294,10 +294,14 @@
   }
   .shoprow .ware { height: 56px; }
   .ware {
-    display: flex; gap: 8px; align-items: center;
-    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 9px;
+    display: flex; gap: 8px; align-items: center; position: relative;
+    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 11px 9px;
     text-align: left; width: 100%; min-height: 42px;
   }
+  /* level pips (round 22.2): one cell per level along the card's bottom edge */
+  .ware .pips { position: absolute; left: 8px; right: 8px; bottom: 3px; display: flex; gap: 3px; pointer-events: none; }
+  .ware .pips i { flex: 1; height: 3px; background: #33291f; }
+  .ware .pips i.on { background: #699b54; }
   .ware:hover:not(:disabled) { border-color: var(--ember); }
   .ware .icon { font-size: 19px; width: 24px; text-align: center; flex: none; }
   .ware .info { flex: 1; min-width: 0; }
@@ -782,6 +786,8 @@
       <span id="shopGold" class="num">0 g</span>
       <span id="shopTimer" class="num"></span>
       <button id="shopPauseBtn" title="Freeze the shop clock — you can still buy, and everyone readying up still starts the round">⏸ Pause</button>
+      <button id="shopUndoBtn" type="button" disabled
+        title="Refund your last purchase (misclick insurance — only buys from THIS shop can be undone)">↩ Undo</button>
       <button id="shopCloseBtn" class="mini hidden" type="button">✕ Close</button>
     </div>
     <p class="sub" id="shopSub"></p>

@@ -8,11 +8,11 @@
 // the 30 Hz tick / 15 Hz snapshot cadence and all I/O:
 //   - name-bans, ghosts/reconnect, kick, seating -> here (they are game state)
 //   - IP-bans, journal, crash dumps, /health, static serving -> the adapter
-// setTimeout IS used, but only for the two long grace windows (again/lobby
-// reset) — it exists in browsers and Node alike and survives a paused caller.
+// setTimeout IS used, but only for the lobby-reset grace window — it exists
+// in browsers and Node alike and survives a paused caller.
 
 import {
-  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
+  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy, undoBuy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
   setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
 } from './sim.js';
@@ -51,9 +51,6 @@ export function createEngine({
   onUnbanAll = () => {},        // adapter clears its IP bans
   onLog = () => {},             // (k, data) — journal hook; adapter decides where it goes
   externalBans = () => 0,       // adapter's IP-ban count (folded into the snap `bans` field)
-  // How long the final standings stay up for the stragglers once somebody has
-  // clicked Continue.
-  againGraceMs = 45000,
   // Humans-all-gone mid-game: wait this long for a reconnect before resetting.
   resetGraceMs = 60000,
   // Faker (issue #7): a fresh lobby opens with a Faker already seated. True on
@@ -81,7 +78,6 @@ export function createEngine({
   const pings = new Map();      // connId -> ms, fed by setPing (ws adapter only)
   const bannedNames = new Set();
   const ghosts = new Map();     // normName -> {at, ...progress}
-  let againTimer = null;
   let lobbyResetTimer = null;
 
   // Seats that count against maxPlayers: co-op campaign monsters are spawned by
@@ -126,7 +122,6 @@ export function createEngine({
 
   function resetToLobby() {
     onLog('reset', {});
-    clearTimeout(againTimer); againTimer = null;
     ghosts.clear(); // progress stashes never outlive the game they came from
     const old = game.players;
     const wasDraft = game.draft;
@@ -287,6 +282,13 @@ export function createEngine({
           if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
           break;
         }
+        case 'undo': {
+          // refund the last buy of THIS shop (misclick insurance, round 22.2)
+          const r = undoBuy(game, id);
+          onLog('undo', { id, ok: r.ok, err: r.err });
+          if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
+          break;
+        }
         case 'addBot': {
           if (game.phase !== 'lobby' || playerCount() >= maxPlayers) break;
           const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
@@ -341,22 +343,13 @@ export function createEngine({
           break;
         }
         case 'again':
-          // Everyone reads the final standings at their own pace, so one player
-          // hitting Continue must NOT yank the table off everybody else's
-          // screen. The lobby comes back when every connected human has
-          // acknowledged — but one AFK player must not hold it hostage forever.
+          // Round 22.2 (Remi): whoever clicks Continue gets the lobby NOW, no
+          // waiting on the others. Stragglers lose nothing: their client PINS
+          // the standings until they click too (goPinned in main.js), so the
+          // table is never yanked. The reset simply happens under it.
           if (game.phase !== 'gameover') break;
-          pl.againReady = true;
           onLog('again', { id });
-          if (Object.values(game.players).every(p => p.bot || !conns.has(p.id) || p.againReady)) {
-            clearTimeout(againTimer); againTimer = null;
-            resetToLobby();
-          } else if (!againTimer) {
-            againTimer = setTimeout(() => {
-              againTimer = null;
-              if (game.phase === 'gameover') resetToLobby();
-            }, againGraceMs);
-          }
+          resetToLobby();
           break;
       }
     },
@@ -442,9 +435,8 @@ export function createEngine({
       return JSON.parse(JSON.stringify({ game, nextBotId, seed }));
     },
 
-    // clears the grace timers; a discarded engine must not reset a dead game
+    // clears the grace timer; a discarded engine must not reset a dead game
     destroy() {
-      clearTimeout(againTimer); againTimer = null;
       clearTimeout(lobbyResetTimer); lobbyResetTimer = null;
     },
   };

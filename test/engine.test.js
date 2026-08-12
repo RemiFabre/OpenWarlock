@@ -70,6 +70,52 @@ describe('engine: headless room (no sockets)', () => {
     expect(engine.game.winner).toBeTruthy();
   });
 
+  it('undo refunds the last buy of THIS shop only, and Continue is instant (round 22.2)', () => {
+    const { engine, sent } = makeRoom(7);
+    engine.join('h1', { name: 'Idler' });
+    for (let i = 0; i < 3; i++) engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'random' });
+    engine.message('h1', { t: 'ready', ready: true });
+    expect(tickUntil(engine, () => engine.game.phase === 'shop', 300)).toBe(true);
+
+    // two buys, two undos: full round-trip back to the pre-shop state
+    const h1 = () => engine.game.players.h1;
+    const gold0 = h1().gold, hp0 = h1().hp, maxHp0 = h1().maxHp;
+    engine.message('h1', { t: 'buy', id: 'boots' });
+    engine.message('h1', { t: 'buy', id: 'amulet' });   // maxHp side effect
+    expect(h1().maxHp).toBeGreaterThan(maxHp0);
+    engine.message('h1', { t: 'undo' });                // amulet refunded
+    expect(h1().maxHp).toBe(maxHp0);
+    expect(h1().hp).toBe(hp0);
+    expect(h1().items.amulet || 0).toBe(0);
+    expect(h1().items.boots).toBe(1);
+    engine.message('h1', { t: 'undo' });                // boots refunded
+    expect(h1().items.boots || 0).toBe(0);
+    expect(h1().gold).toBe(gold0);
+    // an empty stack denies politely instead of inventing gold
+    engine.message('h1', { t: 'undo' });
+    expect(h1().gold).toBe(gold0);
+    expect(sent.some(x => x.connId === 'h1' && x.msg.t === 'denied'
+      && /nothing to undo/.test(x.msg.reason))).toBe(true);
+
+    // a buy that survives into the round is FINAL: no refunds next shop
+    engine.message('h1', { t: 'buy', id: 'boots' });
+    engine.message('h1', { t: 'ready', ready: true });
+    expect(tickUntil(engine, () => engine.game.phase !== 'shop', 60)).toBe(true);
+    expect(tickUntil(engine, () => ['shop', 'gameover'].includes(engine.game.phase), 3600)).toBe(true);
+    if (engine.game.phase === 'shop') {
+      const g = h1().gold;
+      engine.message('h1', { t: 'undo' });
+      expect(h1().items.boots).toBe(1);   // last round's purchase stands
+      expect(h1().gold).toBe(g);
+    }
+
+    // gameover: ONE click brings the lobby immediately, nobody waits
+    expect(tickUntil(engine, () => engine.game.phase === 'gameover', 3600)).toBe(true);
+    engine.message('h1', { t: 'again' });
+    expect(engine.game.phase).toBe('lobby');
+    engine.destroy();
+  });
+
   it('serialize() round-trips: a restored engine resumes the same game', () => {
     const { engine } = makeRoom(11);
     engine.join('h1', { name: 'Saver' });

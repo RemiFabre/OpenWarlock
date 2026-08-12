@@ -146,7 +146,6 @@ let journaledEvents = 0;
 const engine = createEngine({
   seed: SEED,
   maxPlayers: MAX_PLAYERS,
-  againGraceMs: Number(process.env.AGAIN_GRACE_MS || 45000),
   resetGraceMs: Number(process.env.RESET_GRACE_MS || 60_000),
   // Snapshots go through the per-connection wire (shared/snapwire.js): events
   // on their own message, state delta-coded, and SKIPPED rather than queued for
