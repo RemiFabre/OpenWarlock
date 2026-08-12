@@ -591,6 +591,40 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * (1 + 0.5 * frac), 0, TAU); ctx.stroke();
       ctx.restore();
+    } else if (pr.type === 'umbra') {
+      // issue #9: the Dark Ball — a hole in the light with a violet corona
+      const r = SPELLS.umbra.radius * scale;
+      ctx.save();
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4);
+      halo.addColorStop(0, 'rgba(30, 8, 50, 1)');
+      halo.addColorStop(0.55, 'rgba(90, 40, 160, 0.8)');
+      halo.addColorStop(1, 'rgba(90, 40, 160, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0b0313';
+      ctx.strokeStyle = 'rgba(180, 130, 255, 0.9)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    } else if (pr.type === 'chainball') {
+      // issue #9: the Storm Ball — small, fast, crackling white-gold
+      const r = SPELLS.chainball.radius * scale;
+      ctx.save();
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.4, 'rgba(255, 235, 140, 0.9)');
+      glow.addColorStop(1, 'rgba(255, 220, 90, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, y, r * 2.6, 0, TAU); ctx.fill();
+      // crackle: two short jitter sparks off the body, seeded by time
+      ctx.strokeStyle = 'rgba(255, 245, 200, 0.9)'; ctx.lineWidth = 1.5;
+      for (let i = 0; i < 2; i++) {
+        const a2 = now / 60 + i * 2.6 + (pr.id % 7);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(a2) * r * 2.2, y + Math.sin(a2) * r * 2.2);
+        ctx.stroke();
+      }
+      ctx.restore();
     } else if (pr.type === 'boomerang') {
       const r = SPELLS.boomerang.radius * 0.9 * scale; // drawn a hair inside the hitbox
       ctx.save();
@@ -880,6 +914,26 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   drawFx(view, fx, now, worldAlpha);
 
   ctx.globalAlpha = 1;
+  // Dark Ball blackout (issue #9): YOUR screen goes dark — the whole world,
+  // fx included, disappears behind the veil; only the countdown remains (the
+  // DOM HUD stays, per Ju's "il ne voit plus la map"). blindT rides only the
+  // viewer's own snapshot entry, so this can never darken a spectator.
+  const meBlind = vs.me && fin(+vs.me.blindT) ? +vs.me.blindT : 0;
+  if (meBlind > 0) {
+    ctx.save();
+    // a soft edge on the way out: the last 0.4 s fade the veil off
+    ctx.globalAlpha = Math.min(1, meBlind / 0.4) * 0.97;
+    ctx.fillStyle = '#020104';
+    ctx.fillRect(0, 0, view.w, view.h);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '48px sans-serif';
+    ctx.fillText('🌑', view.w / 2, view.h / 2 - 20);
+    ctx.font = '700 20px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = 'rgba(200, 160, 255, 0.9)';
+    ctx.fillText(`${meBlind.toFixed(1)} s`, view.w / 2, view.h / 2 + 24);
+    ctx.restore();
+  }
   drawBanners(view, vs, players, myId);
 }
 
@@ -1306,6 +1360,55 @@ function drawFx(view, fx, now, baseAlpha = 1) {
           ctx.fillText(label, view.sx(f.x), view.sy(f.y) - 46 - 22 * k);
           ctx.shadowBlur = 0;
         }
+        ctx.restore();
+        break;
+      }
+      case 'zap': {
+        // issue #9: the storm arc — a jagged 3-segment bolt between two points
+        const x1 = view.sx(f.x1), y1 = view.sy(f.y1);
+        const x2 = view.sx(f.x2), y2 = view.sy(f.y2);
+        ctx.save();
+        ctx.strokeStyle = `rgba(255, 240, 160, ${a})`;
+        ctx.lineWidth = 2.5;
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        const dx2 = x2 - x1, dy2 = y2 - y1, len = Math.hypot(dx2, dy2) || 1;
+        const jx = -dy2 / len * 7, jy = dx2 / len * 7;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(mx + jx, my + jy);
+        ctx.lineTo(mx - jx * 0.5, my - jy * 0.5);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'dark': {
+        // a dark mark landed: violet ring + the count toward the blackout
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(180, 130, 255, ${a})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, (2.4 - 1.2 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        if (fin(+f.stacks) && fin(+f.of)) {
+          ctx.textAlign = 'center';
+          ctx.font = '700 12px ui-monospace, Menlo, monospace';
+          ctx.fillStyle = `rgba(200, 160, 255, ${a})`;
+          ctx.fillText(`🌑 ${+f.stacks}/${+f.of}`, x, y - 30 - 14 * k);
+        }
+        ctx.restore();
+        break;
+      }
+      case 'blinded': {
+        // the blackout takes them: a collapsing dark iris on the body
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        const R = (4.5 - 3 * k) * scale;
+        const g2 = ctx.createRadialGradient(x, y, 0, x, y, R);
+        g2.addColorStop(0, `rgba(10, 2, 20, ${a})`);
+        g2.addColorStop(0.7, `rgba(60, 20, 110, ${a * 0.7})`);
+        g2.addColorStop(1, 'rgba(60, 20, 110, 0)');
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
         break;
       }

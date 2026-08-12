@@ -184,6 +184,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     spells: { fireball: 1 },
     items: {},           // owned item levels, e.g. {boots: 2, cape: 1}
     angelUsed: 0,        // Guardian Angel saves spent this round (issue #3)
+    blindT: 0,           // Dark Ball blackout seconds left (issue #9)
     // draft mode only: this shop's free offer, {round, options:[key], picked}.
     // Stays null for the whole game when the toggle is off.
     draftOffer: null,
@@ -353,6 +354,8 @@ function stats(pl) {
   // out of ITEM_FX (see shared/items.js) — no compounding happens here.
   const { mult, add } = itemBonuses(pl.items);
   if (mult.speedMult != null) speed *= mult.speedMult;
+  // maxed boots sprint (issue #9): +12% once unhurt long enough (see stepBattle)
+  if (pl._sprinting) speed *= 1 + ITEM_FX.boots.sprintPct / 100;
   if (mult.lavaMult != null) lavaMult *= mult.lavaMult;
   if (mult.kbMult != null) kbMult *= mult.kbMult;
   regen += add.regen || 0;
@@ -610,6 +613,19 @@ export function castSpell(state, id, key, tx, ty) {
         vx: dx * spec.speed, vy: dy * spec.speed,
         traveled: 0, hit: {}, pierce: false, pierced: 0,
         life: null,
+      });
+      break;
+    }
+    case 'umbra':
+    case 'chainball': {
+      // issue #9 (Ju, v2): both fly like ordinary balls — their identity is
+      // what happens ON the hit (see the projectile hit block)
+      state.projectiles.push({
+        id: state.nextId++, type: key, owner: id, level,
+        x: pl.x + dx * pl.radius * 0.5,
+        y: pl.y + dy * pl.radius * 0.5,
+        vx: dx * spec.speed, vy: dy * spec.speed,
+        traveled: 0, hit: {}, pierce: false, pierced: 0,
       });
       break;
     }
@@ -1200,6 +1216,8 @@ function applyDamage(state, target, amount, sourceId,
   // no hit floater, no regen lock and no lifesteal for the attacker, because
   // nothing happened.
   if (target.statueT > 0) return;
+  // issue #9: any real damage re-arms the boots-sprint clock
+  target._hurtT = state.time;
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
   // damage attribution: the direct source — or, for sourceless lava ticks,
@@ -1511,6 +1529,8 @@ function startRound(state) {
     pl.lastHitBy = null;
     // Guardian Angel (issue #3): its saves refresh with the round, like your HP
     pl.angelUsed = 0;
+    // Dark Ball marks/blind and the boots-sprint clock die with the round (issue #9)
+    pl.blindT = 0; pl._dark = {}; pl._hurtT = null;
     pl.roundKills = 0;
     pl.roundBounty = 0;
     pl.shopReady = false;
@@ -2083,6 +2103,12 @@ function stepBattle(state, dt) {
     // elemental timed effects (all timers stay 0 in classic mode)
     if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
     if (pl.stunT > 0) pl.stunT = Math.max(0, pl.stunT - dt);
+    // Dark Ball blind (issue #9) runs down like the other timed effects
+    if (pl.blindT > 0) pl.blindT = Math.max(0, pl.blindT - dt);
+    // maxed boots sprint (issue #9): armed after sprintAfter unhurt seconds —
+    // a flag, because stats() has no clock (applyDamage stamps _hurtT)
+    pl._sprinting = (pl.items.boots || 0) >= 3 &&
+      state.time - (pl._hurtT ?? -Infinity) >= ITEM_FX.boots.sprintAfter;
     if (pl.poisonT > 0) {
       // discrete ticks (2026-08-05 rework): one bite of poisonTick damage per
       // tickEvery seconds. The tick runs BEFORE the clock decrement so the
@@ -2412,6 +2438,10 @@ function stepProjectiles(state, dt) {
         keep.push(pr);
         break;
       }
+      // Storm Ball (issue #9): popping on a pillar still arcs — enemies near
+      // the STONE get zapped, sized off the pillar itself.
+      if (pr.type === 'chainball')
+        chainZap(state, pr, null, lvl(spec, 'damage', pr.level), pil.r * 2, pil);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
       if (smashes) {
         state.pillars.splice(i, 1);
@@ -2549,6 +2579,9 @@ function stepProjectiles(state, dt) {
       const v = Math.hypot(pr.vx, pr.vy) || 1;
       let dmg = lvl(spec, 'damage', pr.level);
       let kb = lvl(spec, 'knockback', pr.level);
+      // Ricochet (issue #9, Ju v2): a hit landed after ANY bounce is the trick
+      // shot at a discount — 65% of the sticker (flat, not per bounce).
+      if (pr.type === 'ricochet' && pr.bounced) dmg *= spec.bounceDmgMult;
       // Anger's earned bonus rides along in its own accumulator so the
       // floating damage number can show base and bonus separately (the white
       // number over the red one IS the feature — see ELEMENTS.anger). Every
@@ -2598,6 +2631,9 @@ function stepProjectiles(state, dt) {
       applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, lifesteal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
+      // issue #9 (Ju, v2): the on-hit identities of the two new balls
+      if (pr.type === 'umbra') umbraMark(state, pr, other);
+      if (pr.type === 'chainball') chainZap(state, pr, other, dmg, other.radius * 2);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // swap (round 17): full state exchange with the (surviving) victim —
@@ -2683,6 +2719,57 @@ function mosquitoPair(state, pl, trailing) {
   return !trailing;
 }
 
+// ---- dark ball & storm ball (issue #9, Ju v2) -------------------------------
+
+// Dark Ball: the third hit from the same attacker blacks the victim's screen
+// out. Marks are per attacker->victim (pl._dark) and a blinded victim cannot
+// be re-marked — the blind must be earned again from zero.
+function umbraMark(state, pr, victim) {
+  const spec = SPELLS.umbra;
+  if (victim.blindT > 0) return;
+  const marks = victim._dark = victim._dark || {};
+  const n = (marks[pr.owner] || 0) + 1;
+  if (n >= spec.marksToBlind) {
+    delete marks[pr.owner];
+    victim.blindT = lvl(spec, 'blind', pr.level);
+    state.events.push({ t: 'blinded', id: victim.id, x: victim.x, y: victim.y,
+      dur: round2(victim.blindT) });
+  } else {
+    marks[pr.owner] = n;
+    state.events.push({ t: 'dark', id: victim.id, by: pr.owner,
+      n, of: spec.marksToBlind, x: victim.x, y: victim.y });
+  }
+}
+
+// Storm Ball: the hit arcs to every enemy within chainRangeMult victim-widths
+// (`size` = the diameter of whatever was struck — a body, or a pillar when the
+// ball pops on one). A crowd of packCount+ in the arc is paralysed, the direct
+// victim included. Vanished players are skipped: an arc that found them would
+// print their position on the wire (the vanish scar).
+function chainZap(state, pr, victim, dmg, size, at = victim) {
+  const spec = SPELLS.chainball;
+  const range = spec.chainRangeMult * size;
+  const zapped = [];
+  for (const pl of Object.values(state.players)) {
+    if (!pl.alive || pl === victim || pl.id === pr.owner) continue;
+    if (alliedIds(state, pr.owner, pl.id)) continue;
+    if (pl.vanishT > 0) continue;
+    if (Math.hypot(pl.x - at.x, pl.y - at.y) > range + pl.radius) continue;
+    zapped.push(pl);
+  }
+  for (const pl of zapped) {
+    state.events.push({ t: 'zap', x1: at.x, y1: at.y, x2: pl.x, y2: pl.y });
+    applyDamage(state, pl, dmg * spec.chainFrac, pr.owner);
+  }
+  const crowd = victim ? [victim, ...zapped] : zapped;
+  if (crowd.length >= spec.packCount) {
+    const stun = lvl(spec, 'packStun', pr.level);
+    for (const pl of crowd) pl.stunT = Math.max(pl.stunT || 0, stun);
+    state.events.push({ t: 'paralysis', x: at.x, y: at.y, n: crowd.length,
+      dur: stun });
+  }
+}
+
 // ---- ricochet (issue #3) ---------------------------------------------------
 // Mirror the velocity about a unit surface normal and arm the ball's clock: its
 // `life` runs from the FIRST bounce, never from the cast, so a shot that has met
@@ -2691,6 +2778,7 @@ function bounceProjectile(state, pr, nx, ny) {
   const vn = pr.vx * nx + pr.vy * ny;
   pr.vx -= 2 * vn * nx;
   pr.vy -= 2 * vn * ny;
+  pr.bounced = true;   // issue #9: hits after any bounce are worth 65%
   if (pr.life == null) pr.life = lvl(SPELLS[pr.type], 'life', pr.level);
   state.events.push({ t: 'bounce', id: pr.owner, x: pr.x, y: pr.y });
 }
@@ -3046,6 +3134,9 @@ export function snapshot(state, viewerId = null) {
       // your OWN invisibility, so the client can show you that it is running and
       // when it is about to end. Never present on anybody else's entry.
       ...(p.vanishT > 0 && p.id === viewerId ? { vanishT: round2(p.vanishT) } : {}),
+      // Dark Ball (issue #9): your OWN blackout clock — the client draws the
+      // dark and counts it down. Never on anybody else's entry.
+      ...(p.blindT > 0 && p.id === viewerId ? { blindT: round2(p.blindT) } : {}),
       // draft mode: your OWN free offer, nobody else's. Absent entirely when the
       // toggle is off (and when it is on but this shop carries no offer).
       ...(p.draftOffer && p.id === viewerId ? { draftOffer: p.draftOffer } : {}),
@@ -3548,8 +3639,17 @@ function vanishInPlay(state) {
   return false;
 }
 
+// Dark Ball (issue #9): the memory system must also run while a blind is
+// possible, or a blinded bot would have no stale picture to play from.
+function umbraInPlay(state) {
+  for (const p of Object.values(state.players))
+    if (p.blindT > 0 || (p.spells && p.spells.umbra > 0)) return true;
+  return false;
+}
+
 function rememberEnemies(state, pl) {
-  if (!pl.bot || !vanishInPlay(state)) return;  // nothing to remember for
+  if (!pl.bot || (!vanishInPlay(state) && !umbraInPlay(state))) return;
+  if (pl.blindT > 0) return;   // eyes off: nothing new is recorded while blind
   const mem = pl._seen || (pl._seen = {});
   for (const other of Object.values(state.players)) {
     if (other === pl || !other.alive || !hostile(pl, other)) continue;
@@ -3571,9 +3671,14 @@ function enemiesSeen(state, pl) {
   const out = [];
   const hiding = anyHidden(state);
   const mem = pl._seen;
+  // Dark Ball (issue #9): a BLINDED bot plays from memory — stale positions
+  // until BOT_MEMORY runs out, then nothing — exactly what a human gets from
+  // their last glimpse of the arena. Without this the blind only punished
+  // human victims.
+  const blind = pl.blindT > 0;
   for (const other of Object.values(state.players)) {
     if (other === pl || !other.alive || !hostile(pl, other)) continue;
-    if (!hiding || !(other.vanishT > 0)) { out.push(other); continue; }
+    if (!blind && (!hiding || !(other.vanishT > 0))) { out.push(other); continue; }
     const m = mem && mem[other.id];
     if (!m || state.time - m.t > BOT_MEMORY) continue;  // lost them
     out.push({

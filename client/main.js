@@ -41,7 +41,8 @@ const ICONS = {
   // Slow Spoon (21.8): Remi's joke — the slowest murder in history.
   hourglass: '⏳', brazier: '🎩', spoon: '🥄',
   // Issue #3: a bouncing ball, and the wing that catches you.
-  ricochet: '🎾', angel: '🪽',
+  // Issue #9 (Ju v2): the blackout ball and the arcing storm orb.
+  ricochet: '🎾', angel: '🪽', umbra: '🌑', chainball: '🌩️',
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -59,10 +60,10 @@ const KEY_PRESETS = {
   // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a', decoy: 'z', ricochet: 'y' },
+            statue: 'a', decoy: 'z', ricochet: 'y', umbra: 'u', chainball: 'j' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q', decoy: 'w', ricochet: 'y' },
+            statue: 'q', decoy: 'w', ricochet: 'y', umbra: 'u', chainball: 'j' },
 };
 
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
@@ -409,6 +410,26 @@ function onEvent(e) {
     case 'angel':
       fx.push({ ...e, type: 'angel', at: now, dur: 0.9 });
       playSfx('catch');
+      break;
+    // Issue #9 (Ju v2): a dark mark landed (count toward the blackout)...
+    case 'dark':
+      fx.push({ ...e, stacks: e.n, type: 'dark', at: now, dur: 0.8 });
+      if (e.by === myId || e.id === myId) playSfx('catch');
+      break;
+    // ...the blackout itself (the victim's screen goes dark via their own
+    // snapshot blindT; this is the burst everyone else sees on the body)...
+    case 'blinded':
+      fx.push({ ...e, type: 'blinded', at: now, dur: 1.0 });
+      playSfx('freeze');
+      break;
+    // ...the storm ball's arcs, and the crowd paralysis
+    case 'zap':
+      fx.push({ ...e, type: 'zap', at: now, dur: 0.3 });
+      playSfx('zap');
+      break;
+    case 'paralysis':
+      fx.push({ ...e, type: 'boltHit', at: now, dur: 0.5 });
+      playSfx('freeze');
       break;
     case 'frostBreak':
       fx.push({ ...e, type: 'frostBreak', at: now, dur: 0.8 });
@@ -1034,6 +1055,14 @@ const SPELL_FIELDS = {
   stores: ['fireballs it stores', fmtNum],
   ballDelay: ['stored balls fire', (v) => `${fmtSec(v)} apart`],
   life: ['lives on, after its first bounce', fmtSec],
+  bounceDmgMult: ['hits after a bounce deal', (v) => `${fmtNum(Math.round(v * 100))}%`],
+  // issue #9 (Ju v2)
+  blind: ['blinds them for', fmtSec],
+  marksToBlind: ['hits to blind', fmtNum],
+  chainFrac: ['each arc deals', (v) => `${fmtNum(Math.round(v * 100))}% of the hit`],
+  chainRangeMult: ['arc reach', (v) => `${fmtNum(v)}× victim width`],
+  packCount: ['paralysis needs', (v) => `${fmtNum(v)}+ in the arc`],
+  packStun: ['crowd paralysis', fmtSec],
 };
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
 // sim evaluates at resolution ({pad, min}) — spellTip prints the two readings a
@@ -2107,6 +2136,9 @@ function updateUi(s) {
     // this chip is by construction self-only.
     if (fin(+m.vanishT) && +m.vanishT > 0)
       buffs.push(`<span class="buff vanish">${ICONS.vanish} invisible · ${(+m.vanishT).toFixed(1)}s</span>`);
+    // Dark Ball blackout (issue #9): the countdown is the whole HUD story
+    if (fin(+m.blindT) && +m.blindT > 0)
+      buffs.push(`<span class="buff vanish">🌑 blinded · ${(+m.blindT).toFixed(1)}s</span>`);
     // Statue: the freeze is short and total, so the countdown is the whole HUD
     // story — how long until you can act again.
     if (fin(+m.statueT) && +m.statueT > 0)

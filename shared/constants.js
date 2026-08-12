@@ -234,8 +234,38 @@ export const SPELLS = {
     cooldown: 2 * 2.1, speed: 41, radius: 0.8, range: Infinity,
     damage: [10, 13, 16], knockback: [60, 65, 70],
     life: [4, 8, 12], bounceAllAtLevel: 3,
+    // issue #9 (Ju, v2): a hit landed AFTER any bounce is worth 65% — the
+    // trick shot is the discount, the straight shot the full price.
+    bounceDmgMult: 0.65,
     desc: 'A ball that bounces off the world.',
-    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too.',
+    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches, and a hit landed after a bounce deals 35% less. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too.',
+  },
+  umbra: {
+    // Issue #9 (Ju, v2): the Dark Ball — its third hit on the same victim
+    // BLACKS OUT their screen. The mark count is per attacker->victim pair
+    // (pl._dark), a blinded victim cannot be re-marked while blind, and a bot
+    // victim's perception is cut for the duration (rememberEnemies) so the
+    // effect is not humans-only. Damage is deliberately light: the blind IS
+    // the payload. tier 'power' = the bot shopping guard, like Ricochet.
+    name: 'Dark Ball', hotkey: 'U', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
+    cooldown: 2.1, speed: 41, radius: 0.8, range: Infinity,
+    damage: [5, 6, 7], knockback: [40, 44, 48],
+    blind: [1.5, 2, 2.75], marksToBlind: 3,
+    desc: 'Third hit blinds them.',
+    long: 'A ball of darkness: the third hit on the same enemy blacks out their screen for 1.5 / 2 / 2.75 seconds — they see nothing but their own HUD. A blinded player cannot be marked again until they can see.',
+  },
+  chainball: {
+    // Issue #9 (Ju, v2): the Storm Ball — 70% of a fireball's size, 30%
+    // faster. The hit arcs to every enemy near the victim (or near a PILLAR it
+    // pops on) for chainFrac of the damage, and a crowd of packCount+ in the
+    // arc is paralysed. Flat 10 damage at every level: the levels buy the
+    // paralysis, exactly as asked.
+    name: 'Storm Ball', hotkey: 'J', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
+    cooldown: 2.1, speed: Math.round(41 * 1.3), radius: 0.56, range: Infinity,
+    damage: [10, 10, 10], knockback: [40, 44, 48],
+    chainFrac: 0.3, chainRangeMult: 1.5, packCount: 3, packStun: [0.75, 1, 1.25],
+    desc: 'Arcs to everyone nearby.',
+    long: 'A small, fast orb (70% of a fireball, 30% quicker). Its hit sends lightning to every enemy within 1.5 victim-widths for 30% of the damage — and if three or more players stand in the arc, all of them are paralysed. It chains off pillars it pops on, too.',
   },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range — lv2 buys cooldown only.
@@ -473,9 +503,14 @@ export const ITEMS = {
   // your HP). `costs` is the +25%-per-purchase escalation, rounded.
   // ⚠ SECRET: stripped from every other player's snapshot (see snapshot()) —
   // nobody may see it in your kit.
-  angel: { name: 'Guardian Angel', costs: [12, 15, 19], maxLevel: 3,
+  // Issue #9 (Ju, v2): "sans limite d'achat" — the +25%-compounding ladder now
+  // runs as deep as a game's economy can reach (9 rungs ≈ 268 g total; nobody
+  // has ever earned that, so it is unlimited in practice, stated honestly).
+  angel: { name: 'Guardian Angel',
+            costs: Array.from({ length: 9 }, (_, i) => Math.round(12 * 1.25 ** i)),
+            maxLevel: 9,
             desc: 'Cheat death, secretly.',
-            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. One save per level, per round. No other player can see that you own it.' },
+            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. One save per level, per round; each purchase costs 25% more, and there is no purchase limit. No other player can see that you own it.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -495,7 +530,9 @@ export function itemCost(key, owned = 0) {
 // ⚠ Boots lv3 re-cut over Remi's hand spec — one-line revert [1.15, 1.27, 1.35].
 // history: docs/history/2026-08-08-constants-sweeps.md#item_fx-level-curve-round-15
 export const ITEM_FX = {
-  boots: { speedMult: [1.15, 1.29, 1.42] },
+  // Issue #9 (Ju, v2): maxed boots add a SPRINT — +12% more speed once you
+  // have gone sprintAfter seconds without taking damage. Level 3 only.
+  boots: { speedMult: [1.15, 1.29, 1.42], sprintPct: 12, sprintAfter: 3.5 },
   // Round 19.6 (Remi): a 10 g full-counter to lava playstyles was too extreme
   // — was [0.50, 0.36, 0.28].
   treads: { lavaMult: [0.75, 0.50, 0.35] },
@@ -548,7 +585,7 @@ export const ITEM_FX = {
   spoon: { healOnHit: [1, 2, 3], tickFrac: 0.1 },
   // Guardian Angel (issue #3): saves per ROUND, and the fraction of max HP you
   // stand back up with. Neither is a passive stat, so items.js ignores both.
-  angel: { saves: [1, 2, 3], reviveFrac: 0.5 },
+  angel: { saves: [1, 2, 3, 4, 5, 6, 7, 8, 9], reviveFrac: 0.5 },
 };
 
 // ---- Elements (elemental mode only) --------------------------------------

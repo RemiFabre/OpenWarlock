@@ -12,6 +12,7 @@ import {
   BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
+import { itemFxAt } from '../shared/items.js';
 
 const DT = 1 / 30;
 
@@ -7216,9 +7217,15 @@ describe('Guardian Angel (issue #3)', () => {
     run(state, 0.5);
   }
 
-  it('is 12 g and 25% dearer per purchase', () => {
+  it('is 12 g, 25% dearer per purchase, with no practical purchase limit (issue #9)', () => {
     expect([0, 1, 2].map(owned => itemCost('angel', owned))).toEqual([12, 15, 19]);
-    expect(ITEMS.angel.maxLevel).toBe(3);
+    // Ju v2: "sans limite d'achat" — the ladder compounds as deep as any
+    // game's economy can reach, and every rung buys one more save per round
+    expect(ITEMS.angel.maxLevel).toBe(9);
+    for (let i = 0; i < 9; i++) {
+      expect(itemCost('angel', i)).toBe(Math.round(12 * 1.25 ** i));
+      expect(itemFxAt('angel', 'saves', i + 1)).toBe(i + 1);
+    }
   });
 
   it('refuses the death: half HP where you fell, and the attacker gets nothing', () => {
@@ -7274,5 +7281,140 @@ describe('Guardian Angel (issue #3)', () => {
     const ev = state.events.find(e => e.t === 'angel');
     expect(ev).toBeTruthy();
     expect(ev.id).toBeUndefined();   // the wire must not say whose item paid
+  });
+});
+
+// ---- Issue #9 (Ju, v2): the iteration on Ju's version -----------------------
+describe('Ju v2 (issue #9)', () => {
+  function duo(setup = () => {}) {
+    const state = freshBattle(2);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; b.x = 6; b.y = 0;
+    setup(state, a, b);
+    return state;
+  }
+
+  it('ricochet: a hit landed after a bounce deals 65%', () => {
+    const direct = duo((s, a) => { a.spells.ricochet = 1; });
+    const hp0 = direct.players.p1.hp;
+    castSpell(direct, 'p0', 'ricochet', 6, 0);
+    run(direct, 0.3);
+    expect(hp0 - direct.players.p1.hp).toBe(SPELLS.ricochet.damage[0]);
+
+    const trick = duo((s, a) => { a.spells.ricochet = 1; });
+    const hp1 = trick.players.p1.hp;
+    castSpell(trick, 'p0', 'ricochet', 6, 0);
+    trick.projectiles[0].bounced = true;   // as if it had already banked once
+    run(trick, 0.3);
+    expect(hp1 - trick.players.p1.hp)
+      .toBeCloseTo(SPELLS.ricochet.damage[0] * SPELLS.ricochet.bounceDmgMult, 5);
+  });
+
+  it('maxed boots sprint: +12% after 3.5 s unhurt, gone the moment you are hit', () => {
+    const state = duo((s, a, b) => { a.items.boots = 3; b.x = 30; });
+    const a = state.players.p0;
+    run(state, 4);
+    expect(a._sprinting).toBe(true);
+    expect(playerStats(a).speed)
+      .toBeCloseTo(PLAYER.SPEED * ITEM_FX.boots.speedMult[2] * 1.12, 5);
+    // a hit re-arms the clock
+    const b = state.players.p1;
+    b.x = 6; b.y = 0; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a._sprinting).toBe(false);
+    expect(playerStats(a).speed).toBeLessThan(PLAYER.SPEED * ITEM_FX.boots.speedMult[2] * 1.05);
+    // ...and lv2 boots never sprint
+    const lv2 = duo((s, x) => { x.items.boots = 2; });
+    run(lv2, 4);
+    expect(lv2.players.p0._sprinting).toBe(false);
+  });
+
+  function umbraHit(state, times = 1) {
+    for (let i = 0; i < times; i++) {
+      const a = state.players.p0, b = state.players.p1;
+      a.cooldowns = {}; b.x = 6; b.y = 0; b.vx = 0; b.vy = 0; b.hp = b.maxHp;
+      castSpell(state, 'p0', 'umbra', 6, 0);
+      run(state, 0.3);
+    }
+  }
+
+  it('dark ball: the third hit blinds for the level duration; no re-mark while blind', () => {
+    const state = duo((s, a) => { a.spells.umbra = 2; });
+    const b = state.players.p1;
+    umbraHit(state, 2);
+    expect(b._dark.p0).toBe(2);
+    expect(b.blindT).toBe(0);
+    umbraHit(state, 1);
+    expect(b.blindT).toBeGreaterThan(SPELLS.umbra.blind[1] - 0.5); // lv2 = 2 s
+    expect(b._dark.p0).toBeUndefined();
+    // hits while blind mark NOTHING — the blackout must be earned again
+    umbraHit(state, 1);
+    expect(b._dark.p0).toBeUndefined();
+  });
+
+  it('the blackout is private: your snapshot only, and bots play from stale memory', () => {
+    const state = duo((s, a, b) => { b.blindT = 2; b.bot = true; b.kind = 'berserker'; });
+    expect(snapshot(state, 'p1').players.p1.blindT).toBeCloseTo(2, 3);
+    expect(snapshot(state, 'p0').players.p1.blindT).toBeUndefined();
+    // a blinded bot with no memory sees nobody: it stops shooting
+    const casts0 = Object.keys(state.players.p1.cooldowns).length;
+    for (let i = 0; i < 15; i++) { stepBot(state, 'p1', 1 / 30); step(state, 1 / 30); }
+    expect(Object.keys(state.players.p1.cooldowns).length).toBe(casts0);
+  });
+
+  it('storm ball: 10 damage, a 30% arc to the neighbour, and 3+ in the arc = paralysis', () => {
+    const state = freshBattle(3);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    for (const pl of [a, b, c]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; a.spells.chainball = 1;
+    b.x = 6; b.y = 0;
+    c.x = 6; c.y = 2.5;   // inside 1.5 victim-widths (1.5 * 2.8 = 4.2)
+    const bHp = b.hp, cHp = c.hp;
+    castSpell(state, 'p0', 'chainball', 6, 0);
+    run(state, 0.3);
+    expect(bHp - b.hp).toBe(10);
+    expect(cHp - c.hp).toBeCloseTo(3, 5);
+    // crowd of 3 (victim + 2 in the arc): everyone in it is paralysed
+    const s2 = freshBattle(4);
+    s2.pillars = [];
+    const [q, w, e2, r2] = ['p0', 'p1', 'p2', 'p3'].map(id => s2.players[id]);
+    for (const pl of [q, w, e2, r2]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    q.x = 0; q.y = 0; q.spells.chainball = 1;
+    w.x = 6; w.y = 0; e2.x = 6; e2.y = 2.5; r2.x = 6; r2.y = -2.5;
+    castSpell(s2, 'p0', 'chainball', 6, 0);
+    run(s2, 0.3);
+    expect(w.stunT).toBeGreaterThan(0);
+    expect(e2.stunT).toBeGreaterThan(0);
+    expect(r2.stunT).toBeGreaterThan(0);
+    expect(s2.events.some(ev => ev.t === 'paralysis')).toBe(true);
+  });
+
+  it('storm ball chains off a pillar it pops on', () => {
+    const state = duo((s, a, b) => {
+      a.spells.chainball = 1;
+      s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }];
+      b.x = 8; b.y = 6;    // within 1.5 pillar-widths (1.5 * 5 = 7.5) of the stone
+    });
+    const b = state.players.p1;
+    const hp0 = b.hp;
+    castSpell(state, 'p0', 'chainball', 8, 0);
+    run(state, 0.4);
+    expect(hp0 - b.hp).toBeCloseTo(3, 5);   // 30% of 10, no direct hit
+    expect(state.events.some(ev => ev.t === 'zap')).toBe(true);
+  });
+
+  it('guardian angel: buying past level 3 works and each level is one more save', () => {
+    const state = duo(() => {});
+    state.phase = 'shop';
+    const a = state.players.p0;
+    a.gold = 500;
+    for (let i = 0; i < 5; i++) expect(buy(state, 'p0', 'angel').ok).toBe(true);
+    expect(a.items.angel).toBe(5);
+    expect(itemFxAt('angel', 'saves', 5)).toBe(5);
+    expect(a.gold).toBe(500 - (12 + 15 + 19 + 23 + 29));
   });
 });
