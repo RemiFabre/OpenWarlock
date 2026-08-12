@@ -25,7 +25,7 @@ const p2 = await newPlayer('Rival');
 await p1.waitForTimeout(400);
 await p1.screenshot({ path: `${OUT}/1-lobby.png` });
 
-// no lobby shop anymore — buying only happens during the shop phase
+// no lobby shop anymore; buying only happens during the shop phase
 await p1.click('#readyBtn');
 await p2.click('#readyBtn');
 await p1.waitForSelector('#lobby.hidden', { state: 'attached', timeout: 5000 });
@@ -46,7 +46,7 @@ for (let i = 0; i < 6; i++) {
 }
 await p1.screenshot({ path: `${OUT}/3-battle.png` });
 
-// wait for a shop phase (someone dies eventually — lava shrinks in 75s)
+// wait for a shop phase (someone dies eventually; lava shrinks in 75s)
 try {
   await p1.waitForSelector('#shop:not(.hidden)', { timeout: 120000 });
   await p1.waitForTimeout(400);
@@ -57,5 +57,5 @@ if (errors.length) {
   console.error('PAGE ERRORS:\n' + errors.join('\n'));
   process.exit(1);
 }
-console.log('VISUAL OK — no page errors');
+console.log('VISUAL OK, no page errors');
 await browser.close();

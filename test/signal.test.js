@@ -1,4 +1,4 @@
-// server/signal.js — the WebRTC rendezvous (docs/BRIEF-browser-hosting.md §B1).
+// server/signal.js: the WebRTC rendezvous (docs/BRIEF-browser-hosting.md §B1).
 // It brokers { host, code } <-> guests and relays opaque sig blobs; it never
 // sees game traffic (the e2e kills it mid-match and the game must not notice).
 
@@ -100,7 +100,7 @@ describe('signal server', () => {
     heir.ws.close(); guest.ws.close();
   });
 
-  it('a requested code that is still LIVE is not stolen — a fresh one is dealt', async () => {
+  it('a requested code that is still LIVE is not stolen; a fresh one is dealt', async () => {
     const host = await dial();
     host.send({ t: 'create' });
     const { code } = await host.next();
@@ -137,7 +137,7 @@ describe('signal server', () => {
 // ---- anonymous usage counters (/beacon -> /stats) ---------------------------
 // The relay counts tiny anonymous beacons from client/analytics.js: visits per
 // transport mode, games started (with seat counts), games ended (with rounds).
-// Persistence is an injected store (statsStore) — these tests stub it; the
+// Persistence is an injected store (statsStore); these tests stub it; the
 // real HF uploader is never touched from vitest.
 
 const post = (port, body, type = 'text/plain') =>
@@ -169,7 +169,7 @@ describe('usage counters', () => {
     s.close();
   });
 
-  it('tolerates garbage, sendBeacon content types, and hostile numbers — always 204', async () => {
+  it('tolerates garbage, sendBeacon content types, and hostile numbers (always 204)', async () => {
     const s = await createSignalServer({ port: 0 });
     expect((await post(s.port, 'not json at all')).status).toBe(204);
     expect((await post(s.port, '')).status).toBe(204);
@@ -316,7 +316,7 @@ describe('per-version stats and ratings', () => {
     s.close();
   });
 
-  it('rejects invalid stars and clamps prev abuse — aggregates never go absurd', async () => {
+  it('rejects invalid stars and clamps prev abuse (aggregates never go absurd)', async () => {
     const s = await createSignalServer({ port: 0 });
     for (const stars of [0, 6, 'x', 4.5, null]) {
       expect((await rate(s.port, JSON.stringify({ slug: 'main', stars }))).status).toBe(204);

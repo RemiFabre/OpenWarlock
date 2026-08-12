@@ -1,4 +1,4 @@
-// shared/engine.js — the transport-agnostic room, driven with NO sockets.
+// shared/engine.js: the transport-agnostic room, driven with NO sockets.
 // This is the brief's phase-A gate (docs/BRIEF-browser-hosting.md §A
 // verification 4): if a bare engine can seat a human, autostart with bots,
 // play rounds through shop and reach gameover purely via join/message/tick,
@@ -169,7 +169,7 @@ describe('engine: headless room (no sockets)', () => {
     engine.destroy();
   });
 
-  // Versus teams (round 21.3): the lobby wire — you move yourself, the host may
+  // Versus teams (round 21.3): the lobby wire; you move yourself, the host may
   // move a BOT, nobody may move another human, and a drop keeps your side.
   it('team numbers: own row + bots, never another human, and they survive a reconnect', () => {
     const engine = createEngine({ seed: 4, demoBot: false });

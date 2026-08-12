@@ -43,7 +43,7 @@ export class ScriptedPlayer {
     this.connected = false;
     this.finished = false;
     this._current = null; // {cmd, until} for timed steps
-    // the receiving half of the real wire (shared/snapwire.js) — reassembles
+    // the receiving half of the real wire (shared/snapwire.js); reassembles
     // `evt` + delta state back into the snapshots the checker reads
     this.sink = createSnapSink(
       (m) => {
@@ -70,7 +70,7 @@ export class ScriptedPlayer {
         // A new socket restarts the wire's sequence at 1, so a decoder still
         // holding the old session's cursor would reject everything as stale.
         this.sink.reset();
-        // dv:1 — the harness rides the SAME wire real players do (round 21.10:
+        // dv:1 means the harness rides the SAME wire real players do (round 21.10:
         // events on their own message, delta-coded state), so a full scenario
         // run with invariant checking covers the framing too.
         this.send({ t: 'join', name: this.name, dv: 1 });

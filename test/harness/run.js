@@ -149,7 +149,7 @@ if (process.argv[1] && process.argv[1].endsWith('run.js')) {
     seed: seedArg ? Number(seedArg.split('=')[1]) : undefined,
     verbose: process.argv.includes('-v'),
   });
-  console.log(`\n${res.ok ? 'PASS' : 'FAIL'} — ${res.name} (seed ${res.seed})`);
+  console.log(`\n${res.ok ? 'PASS' : 'FAIL'}: ${res.name} (seed ${res.seed})`);
   console.log(`  ended: ${res.stats.ended ?? '?'} after ${res.stats.ranSec ?? '?'}s` +
     `  deaths: ${res.stats.deaths ?? '?'}  casts: ${res.stats.casts ?? '?'}`);
   console.log(`  journal: ${res.journal}`);
