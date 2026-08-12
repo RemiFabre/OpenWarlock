@@ -7353,6 +7353,40 @@ describe('Faker & Runner (issue #7)', () => {
     expect(a.spells.swap || 0).toBeGreaterThan(0);
   });
 
+  it('a HELD body that is still SLIDING is bolted at the END of the slide (issue #7 reopen)', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells = { fireball: 1, lightning: 1 };
+    a.cooldowns = { fireball: 9 };        // only the bolt is in play
+    b.stunT = 2;
+    b.vx = 25; b.vy = 0;                  // riding a shove while frozen
+    const hp0 = b.hp;
+    think(state, 'A', 0.2);
+    run(state, SPELLS.lightning.delay + 0.2);
+    expect(hp0 - b.hp).toBeGreaterThan(0);   // pre-fix: 0/40 landed on a slider
+  });
+
+  it('a hold shorter than the bolt delay is refused — no doomed telegraphs', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells = { fireball: 1, lightning: 1 };
+    a.cooldowns = { fireball: 9 };
+    b.stunT = 0.2;                        // wakes before the 0.5 s bolt lands
+    b.vx = 25; b.vy = 0;
+    think(state, 'A', 0.12);              // one combo thought inside the hold
+    expect(state.events.some(e => e.t === 'cast' && e.spell === 'lightning')).toBe(false);
+  });
+
+  it('a gold statue never scores as a combo target', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells = { fireball: 1, lightning: 1 };
+    a.cooldowns = { fireball: 9 };
+    b.stunT = 2; b.statueT = 2;           // held AND invulnerable
+    think(state, 'A', 0.3);
+    expect(state.events.some(e => e.t === 'cast' && e.spell === 'lightning')).toBe(false);
+  });
+
   it('the lobby label IS the name (Remi: "Faker, not Insane")', () => {
     expect(BOTS.faker.label).toBe('Faker');
   });
