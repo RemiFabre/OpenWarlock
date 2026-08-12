@@ -1,6 +1,6 @@
 // Trash Talk (issue #4): the warlocks comment on the fight.
 //
-// Purely cosmetic and purely client-side — this file reads the same event
+// Purely cosmetic and purely client-side; this file reads the same event
 // stream the FX already run on and turns it into speech bubbles. Nothing here
 // touches the simulation, the wire or a bot brain.
 //
@@ -16,16 +16,16 @@ const SPEAKER_GAP_MS = 2600; // an ordinary line needs this much silence first
 const MAX_BUBBLES = 12;      // hard cap, so a massacre cannot flood the canvas
 
 // A "big push" is measured from how far a body actually travelled between two
-// snapshots, not from whatever hit it — any shove this fast earns the line.
+// snapshots, not from whatever hit it; any shove this fast earns the line.
 const FLY_SPEED = 34;        // units/second
 const FLY_GAP_MS = 3500;
 
 const pick = (list, rng) => list[Math.floor(rng() * list.length) % list.length];
 
 // The lines. Each entry: what is said, how likely, and whether it shouts.
-// ⚠ Remi (second pass): keep them SHORT — a long line eats the arena. Nothing
+// ⚠ Remi (second pass): keep them SHORT (a long line eats the arena). Nothing
 // here goes past ~14 characters.
-// `rare: true` means "must not be missed" — always said, never rate-limited.
+// `rare: true` means "must not be missed": always said, never rate-limited.
 const LINES = {
   hitSmall:   { p: 0.10, lines: ['ouch', 'hey', 'tsk', 'rude', 'ow', 'stop it'] },
   hitMedium:  { p: 0.35, lines: ['OUCH', 'ow ow', "I'll remember", 'seriously?', 'not cool'] },
@@ -64,7 +64,7 @@ const LINES = {
 };
 
 // Damage bands. Below SMALL nothing is worth a word; above BIG everyone
-// reacts (victim, sender, bystanders) — Remi's three-sided example.
+// reacts (victim, sender, bystanders); Remi's three-sided example.
 const DMG_MEDIUM = 9;
 const DMG_BIG = 20;
 
@@ -110,7 +110,7 @@ export function createChatter(rng = Math.random) {
           const dmg = +e.amount || 0;
           if (dmg < 1) return;
           if (visible(e.id)) say(e.id, dmg >= DMG_BIG ? 'hitBig' : dmg >= DMG_MEDIUM ? 'hitMedium' : 'hitSmall', now);
-          // the sender answers their own work — but never from stealth, which
+          // the sender answers their own work, but never from stealth, which
           // would hand the whole table a vanished player's identity
           if (e.src != null && e.src !== e.id && visible(e.src))
             say(e.src, dmg >= DMG_BIG ? 'dealtBig' : dmg >= DMG_MEDIUM ? 'dealtNice' : null, now);
@@ -136,7 +136,7 @@ export function createChatter(rng = Math.random) {
         case 'midasMark': say(e.by, 'midas', now); return;
         case 'lifesteal': say(e.id, 'drain', now); return;
         case 'refund': say(e.id, 'refund', now); return;
-        // the sky drops carry no id — whoever is standing near the crater
+        // the sky drops carry no id; whoever is standing near the crater
         // reacts, which is what makes them read as an event
         case 'meteorHit': case 'boltHit': {
           const key = e.t === 'meteorHit' ? 'meteor' : 'bolt';
@@ -163,7 +163,7 @@ export function createChatter(rng = Math.random) {
     },
 
     // Called once a frame with the two most recent snapshots: the things no
-    // event announces — being launched across the arena, and swimming.
+    // event announces: being launched across the arena, and swimming.
     onFrame(players, prev, dtSec, now) {
       if (!players || !prev || !(dtSec > 0)) return;
       for (const p of players) {

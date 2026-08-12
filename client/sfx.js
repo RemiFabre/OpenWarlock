@@ -1,4 +1,4 @@
-// Sound effects — everything synthesized with WebAudio, no external files.
+// Sound effects: everything synthesized with WebAudio, no external files.
 // One shared AudioContext, created lazily on the first user gesture (initSfx
 // is called from the join click). Every public call is try/catch-safe: audio
 // must never crash the game.
@@ -21,7 +21,7 @@ export function setMuted(m) {
 }
 
 // Create the AudioContext. Call from a user gesture (browsers block earlier);
-// safe to call repeatedly — later calls just try to resume a suspended context.
+// safe to call repeatedly; later calls just try to resume a suspended context.
 export function initSfx() {
   try {
     if (ctx) {
@@ -85,7 +85,7 @@ function noise({ t0 = 0, dur = 0.2, vol = 0.4, filter = 'bandpass', f0 = 1000, f
 // All short (<400 ms) except the gameover fanfare.
 
 const FX = {
-  // fireball cast: soft whoosh — bandpass noise sweeping up
+  // fireball cast: soft whoosh (bandpass noise sweeping up)
   whoosh() { noise({ dur: 0.24, vol: 0.5, filter: 'bandpass', f0: 380, f1: 2100, q: 1.3 }); },
 
   // projectile impact: sine drop thump + low noise burst
@@ -94,7 +94,7 @@ const FX = {
     noise({ dur: 0.13, vol: 0.5, filter: 'lowpass', f0: 900, f1: 130 });
   },
 
-  // lightning beam: electric zap — fast saw drop + crackle
+  // lightning beam: electric zap (fast saw drop + crackle)
   zap() {
     tone({ type: 'sawtooth', f0: 1900, f1: 210, dur: 0.14, vol: 0.32 });
     noise({ dur: 0.1, vol: 0.22, filter: 'highpass', f0: 2600, q: 0.8 });
@@ -109,7 +109,7 @@ const FX = {
   // teleport / rush: rising chirp
   teleport() { tone({ type: 'sine', f0: 280, f1: 1500, dur: 0.2, vol: 0.4 }); },
 
-  // shield reflect: metallic ping — two detuned high partials
+  // shield reflect: metallic ping (two detuned high partials)
   reflect() {
     tone({ type: 'triangle', f0: 1320, dur: 0.18, vol: 0.3 });
     tone({ type: 'triangle', f0: 1980, dur: 0.11, vol: 0.18 });
@@ -139,7 +139,7 @@ const FX = {
     tone({ type: 'sine', f0: 120, f1: 48, dur: 0.5, vol: 0.55 });
   },
 
-  // vampire drain: a wet upward slurp — rising body, breathy noise tail. The
+  // vampire drain: a wet upward slurp (rising body, breathy noise tail). The
   // engorged ball is meant to be an event you HEAR land.
   drain() {
     tone({ type: 'sawtooth', f0: 180, f1: 520, dur: 0.26, vol: 0.3 });
@@ -153,7 +153,7 @@ const FX = {
     tone({ type: 'square', f0: 1180, f1: 780, dur: 0.07, vol: 0.13, t0: 0.06 });
   },
 
-  // swap: two voices CROSSING — one falls while the other rises, the sound of
+  // swap: two voices CROSSING (one falls while the other rises), the sound of
   // trading places. A breath of noise marks the instant they pass each other.
   swap() {
     tone({ type: 'triangle', f0: 1250, f1: 320, dur: 0.24, vol: 0.3 });
@@ -161,7 +161,7 @@ const FX = {
     noise({ dur: 0.1, vol: 0.14, filter: 'highpass', f0: 2500, q: 0.8, t0: 0.08 });
   },
 
-  // gale detonation: a whoosh — filtered noise sweeping UP and out, with a short
+  // gale detonation: a whoosh (filtered noise sweeping UP and out), with a short
   // low thump under it for the shove. Deliberately unlike freeze()'s glassy
   // shatter: the two elements stack, so their bursts must not sound alike.
   gust() {
@@ -170,7 +170,7 @@ const FX = {
   },
 
   // anger: YOU just claimed a red mark, +0.5 fireball damage forever. Remi's
-  // brief: short, low, satisfying — a Heartsteel-style "OUU". A sine bending UP
+  // brief: short, low, satisfying; a Heartsteel-style "OUU". A sine bending UP
   // an octave-ish under a quiet fifth above it reads as a vowel opening, and the
   // sub under it is the weight. Two alternates are kept below because he asked
   // for options: `anger` is the shipped one, swap the name to try another
@@ -180,13 +180,13 @@ const FX = {
     tone({ type: 'sine', f0: 144, f1: 252, dur: 0.26, vol: 0.16, t0: 0.01 }); // fifth: body
     tone({ type: 'sine', f0: 62, f1: 62, dur: 0.34, vol: 0.30 });         // sub: weight
   },
-  // alt 1: bell over a thump — brighter, more "trophy", less vowel
+  // alt 1: bell over a thump; brighter, more "trophy", less vowel
   angerBell() {
     tone({ type: 'sine', f0: 110, f1: 82, dur: 0.30, vol: 0.5 });
     tone({ type: 'triangle', f0: 784, dur: 0.22, vol: 0.20, t0: 0.02 });
     tone({ type: 'triangle', f0: 1174.7, dur: 0.16, vol: 0.10, t0: 0.02 });
   },
-  // alt 2: deeper and slower — a growl that lands rather than pops
+  // alt 2: deeper and slower; a growl that lands rather than pops
   angerDeep() {
     tone({ type: 'triangle', f0: 70, f1: 120, dur: 0.38, vol: 0.55 });
     tone({ type: 'sine', f0: 210, f1: 300, dur: 0.2, vol: 0.12, t0: 0.03 });
@@ -194,7 +194,7 @@ const FX = {
   },
 
   // NOPE (SPELLS.statue): the golden pillar snaps up. A clean two-partial ding
-  // — high, short, unmistakable, and nothing else in the mix is a pure bell.
+  // (high, short, unmistakable, and nothing else in the mix is a pure bell).
   ding() {
     tone({ type: 'sine', f0: 2093, dur: 0.26, vol: 0.26 });
     tone({ type: 'sine', f0: 3136, dur: 0.14, vol: 0.11 });

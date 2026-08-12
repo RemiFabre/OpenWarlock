@@ -1,4 +1,4 @@
-// Music — per-level soundtrack loops from assets/manifest.json.
+// Music: per-level soundtrack loops from assets/manifest.json.
 // The manifest's levels also carry the background art and title used by
 // render.js (same round -> level mapping), so this module owns the manifest.
 // Every public call is try/catch-safe: a missing or blocked audio file must
@@ -65,7 +65,7 @@ const assetUrl = (p) => new URL(String(p).replace(/^\//, ''), ROOT_BASE).href;
 })();
 
 // Create the audio elements. Call from a user gesture (the join click);
-// safe to call repeatedly — later calls just retry a blocked play().
+// safe to call repeatedly; later calls just retry a blocked play().
 export function initMusic() {
   try {
     if (!inited) {
@@ -79,7 +79,7 @@ export function initMusic() {
 
 // setLevel(n) picks BOTH the track and the art. `track` overrides the audio
 // only: the co-op finale shows level 10's art over the intro theme
-// (setLevel(10, 'intro')) — Remi's ask for the 10th level.
+// (setLevel(10, 'intro')); Remi's ask for the 10th level.
 export function setLevel(n, track = null) {
   wantedN = n;
   trackN = track;
@@ -183,7 +183,7 @@ try {
   window.addEventListener('keydown', retry, { passive: true });
 } catch { }
 
-// test/debug hook — mirrors window.__phase / __deaths in main.js
+// test/debug hook; mirrors window.__phase / __deaths in main.js
 try {
   window.__music = () => players ? {
     src: players[active].src,
