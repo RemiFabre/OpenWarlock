@@ -266,7 +266,7 @@ export const SPELLS = {
     name: 'Storm Ball', hotkey_retired: 'J', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2.1, speed: Math.round(41 * 1.3), radius: 0.56, range: Infinity,
     damage: [10, 10, 10], knockback: [40, 44, 48],
-    chainFrac: 0.3, chainRangeMult: 1.5, packCount: 3, packStun: [0.75, 1, 1.25],
+    chainFrac: 0.3, chainRangeMult: 5, packCount: 3, packStun: [0.75, 1, 1.25],
     desc: 'Arcs to everyone nearby.',
     long: 'A small, fast orb (70% of a fireball, 30% quicker). Its hit sends lightning to every enemy within 1.5 victim-widths for 30% of the damage — and if three or more players stand in the arc, all of them are paralysed. It chains off pillars it pops on, too.',
   },
@@ -527,7 +527,7 @@ export const ITEMS = {
             costs: Array.from({ length: 9 }, (_, i) => Math.round(12 * 1.25 ** i)),
             maxLevel: 9,
             desc: 'Cheat death, secretly.',
-            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. One save per level, per round; each purchase costs 25% more, and there is no purchase limit. No other player can see that you own it.' },
+            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. At most ONE save per round, and a save consumes one purchase — each repurchase costs 25% more, without limit. No other player can see that you own it.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by
@@ -671,22 +671,22 @@ export const ELEMENTS = {
   // forever; levels still only buy back the damage/push penalty.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
   // ---- Issue #13 (Ju v4): the BALL IDENTITIES — mutations that transform the
-  // fireball itself. Exclusive: a player owns at most ONE (buy() refuses a
-  // second), because only one ball projectile can exist. The physics stay on
-  // the hidden SPELLS entries of the same key; the level here IS the ball's
-  // level. Stat elements (ember, gale...) do NOT ride a transformed ball —
+  // fireball itself. v5 (Ju): they STACK — one fireball can bounce, arc and
+  // blind at once (castSpell composes them; physics base = ricochet, else
+  // storm, else dark). The physics stay on the hidden SPELLS entries of the
+  // same key; the level here IS the ball's level. Stat elements (ember, gale...) do NOT ride a transformed ball —
   // the mutation replaces the ball wholesale (Ricochet's v1 rule, kept).
   ricochet: { name: 'Ricochet', icon: '🎾', maxLevel: 3, costs: [10, 5, 5],
     desc: 'Your fireball bounces.',
-    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. You can own only one ball identity.',
+    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. Ball identities stack: they all ride one fireball.',
     fx: { ballTransform: true, cdMult: 2 } },
   umbra: { name: 'Dark Ball', icon: '🌑', maxLevel: 3, costs: [10, 5, 5],
     desc: 'Third hit blinds them.',
-    long: 'Your fireball becomes the Dark Ball: the third hit on the same enemy blacks their screen out for 1.5/2/2.75 s. You can own only one ball identity.',
+    long: 'Your fireball becomes the Dark Ball: the third hit on the same enemy blacks their screen out for 1.5/2/2.75 s. Ball identities stack: they all ride one fireball.',
     fx: { ballTransform: true } },
   chainball: { name: 'Storm Ball', icon: '🌩️', maxLevel: 3, costs: [10, 5, 5],
     desc: 'Arcs to everyone nearby.',
-    long: 'Your fireball becomes the Storm Ball: smaller, 30% faster, and its hit arcs to every enemy within 1.5 victim-widths for 30% of the damage — 3+ bodies in the arc are paralysed. You can own only one ball identity.',
+    long: 'Your fireball becomes the Storm Ball: smaller, 30% faster, and its hit arcs to every enemy within 5x the victim size for 30% of the damage — 3+ bodies in the arc are paralysed. Ball identities stack.',
     fx: { ballTransform: true } },
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',

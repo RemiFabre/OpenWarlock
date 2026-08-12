@@ -4830,17 +4830,10 @@ describe('draft mode 🎴', () => {
     off.phase = 'shop';
     const a = off.players.a;
     a.gold = 9999;
-    // every single catalogue entry is still purchasable, and no offer exists.
-    // The ONE exception is by design (issue #13): ball identities are
-    // exclusive — the first transform bought locks the other two out.
-    let ballOwned = false;
+    // every single catalogue entry is still purchasable, and no offer exists
+    // (v5: the ball identities STACK, so even those all buy together)
     for (const e of catalogue('elemental')) {
       if (e.key === 'fireball') continue;    // starting kit, level 1 already owned
-      if (e.spec.fx && e.spec.fx.ballTransform) {
-        expect(buy(off, 'a', e.key).ok).toBe(!ballOwned);
-        ballOwned = true;
-        continue;
-      }
       expect(buy(off, 'a', e.key).ok).toBe(true);
     }
     expect(a.draftOffer).toBe(null);
@@ -4889,16 +4882,7 @@ describe('draft mode 🎴', () => {
     expect(rest.length).toBe(all.length - state.draftPool.length);
     const a = state.players.a;
     a.gold = 9999;
-    let ballOwned2 = false;
-    for (const e of rest) {
-      // ball identities are exclusive (issue #13): first one wins
-      if (e.spec.fx && e.spec.fx.ballTransform) {
-        expect(buy(state, 'a', e.key).ok).toBe(!ballOwned2);
-        ballOwned2 = true;
-        continue;
-      }
-      expect(buy(state, 'a', e.key).ok).toBe(true);
-    }
+    for (const e of rest) expect(buy(state, 'a', e.key).ok).toBe(true);
   });
 
   it('a pooled thing cannot be bought at any price until it is drafted', () => {
@@ -7261,25 +7245,17 @@ describe('Guardian Angel (issue #3)', () => {
     expect(state.events.some(e => e.t === 'death')).toBe(false);
   });
 
-  it('one save per level, per round, and they refresh with the round', () => {
-    const state = table(1);
+  it('one save per ROUND, and each save consumes a purchase (v5)', () => {
+    const state = table(3);            // a stock of three
     const a = state.players.p0;
     lethalHit(state);
-    expect(a.alive).toBe(true);
+    expect(a.alive).toBe(true);        // first death this round: refused
+    expect(a.items.angel).toBe(2);     // ...and it cost one purchase
     lethalHit(state);
-    expect(a.alive).toBe(false);     // level 1 had exactly one
-    expect(a.deaths).toBe(1);
-    // level 2 survives two lethal hits in the same round
-    const s2 = table(2);
-    lethalHit(s2); lethalHit(s2);
-    expect(s2.players.p0.alive).toBe(true);
-    lethalHit(s2);
-    expect(s2.players.p0.alive).toBe(false);
-    // and the next round hands the saves back
-    s2.players.p0.angelUsed = 2;
-    run(s2, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
-    expect(s2.players.p0.angelUsed).toBe(0);
+    expect(a.alive).toBe(false);       // second death same round: for real
+    expect(a.items.angel).toBe(2);     // the stock is untouched by a real death
   });
+
 
   it('moves the first-death gold to the next real death', () => {
     const state = table(1);
@@ -7573,16 +7549,26 @@ describe('Ju v4 (issue #13)', () => {
     return state;
   }
 
-  it('the ball identities are mutations: exclusive, and the old spells unbuyable', () => {
+  it('the ball identities are mutations that STACK (v5), old spells unbuyable', () => {
     const state = pitch();
     state.phase = 'shop';
     const a = state.players.p0;
     a.gold = 999;
     expect(buy(state, 'p0', 'ricochet').ok).toBe(true);
-    expect(a.elements.ricochet).toBe(1);
-    expect(buy(state, 'p0', 'umbra').err).toContain('already');
-    expect(buy(state, 'p0', 'chainball').err).toContain('already');
+    expect(buy(state, 'p0', 'umbra').ok).toBe(true);
+    expect(buy(state, 'p0', 'chainball').ok).toBe(true);
     expect(a.spells.ricochet || 0).toBe(0);   // never a spell any more
+    // one cast composes all three: ricochet physics, dark + storm as flags,
+    // storm's smaller/faster body applied
+    state.phase = 'battle';
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', 15, 0);
+    const pr = state.projectiles.find(x => x.type === 'ricochet');
+    expect(pr).toBeTruthy();
+    expect(pr.dark).toBe(1);
+    expect(pr.storm).toBe(1);
+    expect(pr.radius).toBeCloseTo(SPELLS.ricochet.radius * 0.7, 5);
+    expect(Math.hypot(pr.vx, pr.vy)).toBeCloseTo(SPELLS.ricochet.speed * 1.3, 1);
   });
 
   it('an owned identity transforms the FIREBALL cast, cooldown rules included', () => {
@@ -7601,10 +7587,9 @@ describe('Ju v4 (issue #13)', () => {
     expect(s2.players.p0.cooldowns.fireball).toBeCloseTo(SPELLS.fireball.cooldown[0], 1);
   });
 
-  it('vomit: the glob splashes at the cursor into a slowing puddle', () => {
+  it('vomit: the puddle appears AT the cursor, instantly (v5)', () => {
     const state = pitch((s, a) => { a.spells.vomit = 1; });
     castSpell(state, 'p0', 'vomit', 10, 8);
-    run(state, 1);
     expect(state.puddles.length).toBe(1);
     const pu = state.puddles[0];
     expect(Math.hypot(pu.x - 10, pu.y - 8)).toBeLessThan(1.5);
@@ -7617,32 +7602,32 @@ describe('Ju v4 (issue #13)', () => {
     expect(b.slowMultHit).toBeCloseTo(1 - SPELLS.vomit.slowPct[0] / 100, 5);
   });
 
-  it('the victim vomits in turn, and their own vomit roots them on re-entry', () => {
+  it('v5: one retch per round, never onto yourself, own vomit roots on re-entry', () => {
     const state = pitch((s, a, b) => { a.spells.vomit = 3; b.x = 12; });
-    castSpell(state, 'p0', 'vomit', 12, 0);
-    run(state, 0.6);
-    // primary puddle (sized off the victim) + the victim's own retch
+    castSpell(state, 'p0', 'vomit', 12, 0);   // lands ON the victim
+    run(state, DT * 3);
+    // primary puddle + the victim's single retch, placed CLEAR of their body
     expect(state.puddles.length).toBe(2);
     const own = state.puddles.find(p => p.victim === 'p1');
     expect(own).toBeTruthy();
-    expect(Math.hypot(own.x - 12, own.y)).toBeLessThanOrEqual(
-      state.players.p1.radius * SPELLS.vomit.spreadMult + 1);
-    // walk them back into their own vomit: rooted for the level's time, and
-    // they retch AGAIN
     const b = state.players.p1;
+    expect(Math.hypot(own.x - 12, own.y)).toBeGreaterThan(own.r + b.radius);
+    // walk them into their own vomit: rooted — but NO second retch, ever
     b.x = own.x; b.y = own.y; b.stunT = 0;
     run(state, DT * 3);
     expect(b.stunT).toBeGreaterThan(SPELLS.vomit.rootTime[2] - 0.5);
-    // 3+, not exactly 3: the fresh retch can land ON the victim, who then
-    // re-enters it and retches again — the chain is the feature
-    expect(state.puddles.length).toBeGreaterThanOrEqual(3);
-    expect(state.events.some(e => e.t === 'vomitRoot' && e.id === 'p1')).toBe(true);
+    expect(state.puddles.length).toBe(2);
+    // and a NEW puddle cannot make them retch again this round
+    state.players.p0.cooldowns = {};
+    castSpell(state, 'p0', 'vomit', b.x, b.y);
+    run(state, DT * 3);
+    expect(state.puddles.length).toBe(3);     // only the cast's own puddle
   });
 
+
   it('puddles die with the round and with their clock', () => {
-    const state = pitch((s, a) => { a.spells.vomit = 1; });
-    castSpell(state, 'p0', 'vomit', 10, 0);
-    run(state, 0.6);
+    const state = pitch((s, a, b) => { a.spells.vomit = 1; b.x = 30; });
+    castSpell(state, 'p0', 'vomit', 10, 0);   // instant, nobody under it
     expect(state.puddles.length).toBe(1);
     run(state, SPELLS.vomit.puddleLife[0] + 0.5);
     expect(state.puddles.length).toBe(0);

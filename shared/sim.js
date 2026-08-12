@@ -571,21 +571,27 @@ export function castSpell(state, id, key, tx, ty) {
       // LEAD — kbScale 0 (zero knockback from every source: base, kbAdd riders
       // and gale's gust alike; damage and every on-hit rider are untouched) —
       // and the trailing ball is queued a beat behind on the same aim.
-      // issue #13 (Ju v4): an owned ball identity TRANSFORMS this cast — the
-      // fireball key launches that ball at the mutation's level, riders and
-      // pair/engorge mechanics deliberately excluded (the mutation replaces
-      // the ball wholesale). Ricochet's identity keeps its doubled cooldown.
-      const tk = ['ricochet', 'umbra', 'chainball'].find(k => (pl.elements[k] || 0) > 0);
-      if (tk) {
-        const tlvl = pl.elements[tk];
-        const tspec = SPELLS[tk];
-        if (ELEMENTS[tk].fx.cdMult) pl.cooldowns[key] = cd * ELEMENTS[tk].fx.cdMult;
+      // issue #13 v5 (Ju): the owned ball identities STACK onto this cast.
+      // Physics base = Ricochet if owned (bounce rules ride the type), else
+      // Storm Ball, else Dark Ball; the other identities ride as FLAGS the
+      // on-hit hooks read (dark = blind marks, storm = the arc). Storm's
+      // smaller/faster body applies whenever it is owned; Ricochet's doubled
+      // cooldown likewise. Riders/pair/engorge stay off transformed balls.
+      const owned = ['ricochet', 'chainball', 'umbra'].filter(k => (pl.elements[k] || 0) > 0);
+      if (owned.length) {
+        const base = owned[0];
+        const tspec = SPELLS[base];
+        if (owned.includes('ricochet')) pl.cooldowns[key] = cd * ELEMENTS.ricochet.fx.cdMult;
+        const spd = tspec.speed * (base !== 'chainball' && owned.includes('chainball') ? 1.3 : 1);
         state.projectiles.push({
-          id: state.nextId++, type: tk, owner: id, level: tlvl,
+          id: state.nextId++, type: base, owner: id, level: pl.elements[base],
           x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
-          vx: dx * tspec.speed, vy: dy * tspec.speed,
+          vx: dx * spd, vy: dy * spd,
           traveled: 0, hit: {}, pierce: false, pierced: 0,
-          ...(tk === 'ricochet' ? { life: null } : {}),
+          radius: tspec.radius * (base !== 'chainball' && owned.includes('chainball') ? 0.7 : 1),
+          ...(base === 'ricochet' ? { life: null } : {}),
+          ...(owned.includes('umbra') && base !== 'umbra' ? { dark: pl.elements.umbra } : {}),
+          ...(owned.includes('chainball') && base !== 'chainball' ? { storm: pl.elements.chainball } : {}),
         });
         break;
       }
@@ -640,15 +646,17 @@ export function castSpell(state, id, key, tx, ty) {
       break;
     }
     case 'vomit': {
-      // issue #13 (Ju v4): a lobbed glob that splashes AT THE CURSOR (or on
-      // whoever it meets on the way — the puddle is sized off them)
-      state.projectiles.push({
-        id: state.nextId++, type: key, owner: id, level,
-        x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
-        vx: dx * spec.speed, vy: dy * spec.speed,
-        traveled: 0, hit: {}, pierce: false, pierced: 0,
-        maxDist: d,
-      });
+      // issue #13 v5 (Ju): the puddle appears AT THE CURSOR, instantly — no
+      // glob in flight. Anyone under it is "touched": it is sized off them
+      // and they retch in turn (once per round, vomitOnce).
+      const touched = Object.values(state.players).find(o =>
+        o.alive && o.id !== id && !alliedIds(state, id, o.id) &&
+        Math.hypot(o.x - tx, o.y - ty) <= PLAYER.RADIUS * spec.puddleMult);
+      const r = (touched ? touched.radius : PLAYER.RADIUS) * spec.puddleMult;
+      state.puddles.push({ x: tx, y: ty, r, level, owner: id,
+        victim: null, until: state.time + lvl(spec, 'puddleLife', level), _in: {} });
+      state.events.push({ t: 'vomit', x: tx, y: ty, r });
+      if (touched) vomitOnce(state, touched, level, id);
       break;
     }
     case 'umbra':
@@ -1018,13 +1026,8 @@ export function buy(state, id, thing) {
     // Own as many as you like (frost+ember = chilling fire).
     if (state.mode !== 'elemental') return { ok: false, err: 'elemental mode only' };
     const espec = ELEMENTS[thing];
-    // issue #13 (Ju v4): one ball identity per player — a second transform
-    // is refused outright (only one ball projectile can exist)
-    if (espec.fx && espec.fx.ballTransform) {
-      const other = Object.keys(ELEMENTS).find(k =>
-        k !== thing && ELEMENTS[k].fx.ballTransform && (pl.elements[k] || 0) > 0);
-      if (other) return { ok: false, err: `your ball is already ${ELEMENTS[other].name}` };
-    }
+    // issue #13 v5 (Ju): the ball identities STACK — a fireball can bounce,
+    // arc and blind at once (the v4 exclusivity is reverted by its author)
     // every element is a fireball rider (round 16 — the last global element,
     // arcane, became fireball-scoped and chronos became the hourglass item)
     if ((pl.spells.fireball || 0) < 1)
@@ -1107,13 +1110,9 @@ export function draftDue(round) {
 // covers "never offer what is already maxed"), and never a power spell to a bot,
 // which cannot pilot one (see botShop: buying it would just burn its gold).
 function draftOptionsFor(state, pl) {
-  const ownsBall = ['ricochet', 'umbra', 'chainball']
-    .some(k => (pl.elements && pl.elements[k]) > 0);
   const cands = draftable(state.mode).filter(e =>
     state.draftPool.includes(e.key) &&
     ownedLevel(pl, e.key) < 1 &&
-    // ball identities are exclusive (issue #13): a second one is a dead offer
-    !(ownsBall && e.spec.fx && e.spec.fx.ballTransform) &&
     !(pl.bot && e.kind === 'spell' && e.spec.tier === 'power'));
   // shuffle first so the price sort's ties (most things cost 10 g) are random
   // rather than catalogue order
@@ -1365,9 +1364,13 @@ function spoonTickDue(state, src, target) {
 // finishes the job after this still gets the credit.
 function angelSave(state, pl) {
   const level = (pl.items && pl.items.angel) || 0;
-  const saves = itemFxAt('angel', 'saves', level);
-  if (!saves || (pl.angelUsed || 0) >= saves) return false;
+  // v5 (Ju): ONE revive per round, whatever the stock — and the save CONSUMES
+  // a purchase (that is what the +25%-compounding price is for: you re-buy
+  // your angel after every refused death). Levels = the stockpile.
+  if (!level || (pl.angelUsed || 0) >= 1) return false;
   pl.angelUsed = (pl.angelUsed || 0) + 1;
+  pl.items.angel = level - 1;
+  if (!pl.items.angel) delete pl.items.angel;
   pl.hp = Math.max(1, Math.round(pl.maxHp * ITEM_FX.angel.reviveFrac));
   // no `id` on the event on purpose: it is drawn at x/y for everyone, and the
   // item is a secret — the wire must not say whose kit paid for it.
@@ -1587,6 +1590,7 @@ function startRound(state) {
     pl.angelUsed = 0;
     // Dark Ball marks/blind and the boots-sprint clock die with the round (issue #9)
     pl.blindT = 0; pl._dark = {}; pl._hurtT = null;
+    pl._vomited = false;   // v5: the one retch per round re-arms
     pl.roundKills = 0;
     pl.roundBounty = 0;
     pl.shopReady = false;
@@ -2037,10 +2041,12 @@ function stepBattle(state, dt) {
         if (!pu._in[pl.id]) {
           pu._in[pl.id] = true;
           if (pu.victim === pl.id) {
-            // your own vomit: rooted, and you retch again — ON ENTRY only
+            // your own vomit: rooted ON ENTRY (v5: no re-retch — once per round)
             pl.stunT = Math.max(pl.stunT || 0, lvl(spec, 'rootTime', pu.level));
             state.events.push({ t: 'vomitRoot', id: pl.id, x: pl.x, y: pl.y });
-            vomitFrom(state, pl, pu.level, pu.owner);
+          } else {
+            // v5: ANYONE stepping into someone's vomit retches too — once
+            vomitOnce(state, pl, pu.level, pu.owner);
           }
         }
       }
@@ -2520,12 +2526,6 @@ function stepProjectiles(state, dt) {
       }
     }
 
-    // vomit (issue #13): the glob splashes where it was aimed
-    if (pr.type === 'vomit' && pr.traveled >= pr.maxDist) {
-      vomitSplash(state, pr, null);
-      continue;
-    }
-
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
     if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
@@ -2556,8 +2556,10 @@ function stepProjectiles(state, dt) {
       }
       // Storm Ball (issue #9): popping on a pillar still arcs — enemies near
       // the STONE get zapped, sized off the pillar itself.
-      if (pr.type === 'chainball')
-        chainZap(state, pr, null, lvl(spec, 'damage', pr.level), pil.r * 2, pil);
+      if (pr.type === 'chainball' || pr.storm)
+        chainZap(state, pr, null,
+          pr.type === 'chainball' ? lvl(spec, 'damage', pr.level) : SPELLS.chainball.damage[0],
+          PLAYER.RADIUS, pil);
       // Switcheroo grapple (issue #11): a hook that finds STONE pulls the
       // CASTER to it — no exchange, no stun, just travel. Landing side = the
       // side the caster is on. Any swap hit also refunds 2 s of cooldown
@@ -2766,9 +2768,9 @@ function stepProjectiles(state, dt) {
         { bonus: ramp, lifesteal: pr.engorged || 0 });
       if (pr.elements) applyElementsHit(state, pr, other);
       // issue #9 (Ju, v2): the on-hit identities of the two new balls
-      if (pr.type === 'umbra') umbraMark(state, pr, other);
-      if (pr.type === 'vomit') { vomitSplash(state, pr, other); dead = true; }
-      if (pr.type === 'chainball') chainZap(state, pr, other, dmg, other.radius * 2);
+      if (pr.type === 'umbra' || pr.dark) umbraMark(state, pr, other);
+      if (pr.type === 'chainball' || pr.storm)
+        chainZap(state, pr, other, dmg, other.radius);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // swap (round 17): full state exchange with the (surviving) victim —
@@ -2863,12 +2865,13 @@ function mosquitoPair(state, pl, trailing) {
 // be re-marked — the blind must be earned again from zero.
 function umbraMark(state, pr, victim) {
   const spec = SPELLS.umbra;
+  const dlvl = pr.dark || pr.level;   // v5: the identity may ride as a flag
   if (victim.blindT > 0) return;
   const marks = victim._dark = victim._dark || {};
   const n = (marks[pr.owner] || 0) + 1;
   if (n >= spec.marksToBlind) {
     delete marks[pr.owner];
-    victim.blindT = lvl(spec, 'blind', pr.level);
+    victim.blindT = lvl(spec, 'blind', dlvl);
     state.events.push({ t: 'blinded', id: victim.id, x: victim.x, y: victim.y,
       dur: round2(victim.blindT) });
   } else {
@@ -2885,6 +2888,7 @@ function umbraMark(state, pr, victim) {
 // print their position on the wire (the vanish scar).
 function chainZap(state, pr, victim, dmg, size, at = victim) {
   const spec = SPELLS.chainball;
+  const slvl = pr.storm || pr.level;   // v5: the identity may ride as a flag
   const range = spec.chainRangeMult * size;
   const zapped = [];
   for (const pl of Object.values(state.players)) {
@@ -2900,7 +2904,7 @@ function chainZap(state, pr, victim, dmg, size, at = victim) {
   }
   const crowd = victim ? [victim, ...zapped] : zapped;
   if (crowd.length >= spec.packCount) {
-    const stun = lvl(spec, 'packStun', pr.level);
+    const stun = lvl(spec, 'packStun', slvl);
     for (const pl of crowd) pl.stunT = Math.max(pl.stunT || 0, stun);
     state.events.push({ t: 'paralysis', x: at.x, y: at.y, n: crowd.length,
       dur: stun });
@@ -2912,21 +2916,21 @@ function chainZap(state, pr, victim, dmg, size, at = victim) {
 // body if it hit the ground), slowing enemies inside. The victim VOMITS IN
 // TURN nearby — and their own vomit is tagged: stepping back into it roots
 // them and makes them vomit again. Humiliation compounds.
-function vomitSplash(state, pr, victim) {
+// v5 (Ju): ONE retch per player per round, and never onto themselves — the
+// secondary puddle spawns fully clear of their body, so the v4 loop (a retch
+// landing on its author, re-entered forever: the black-hp-bar bug) cannot
+// exist. Puddle count is finite by construction: <= casts + players.
+function vomitOnce(state, victim, level, owner) {
+  if (!victim.alive || victim._vomited) return;
+  victim._vomited = true;
   const spec = SPELLS.vomit;
-  const r = (victim ? victim.radius : PLAYER.RADIUS) * spec.puddleMult;
-  state.puddles.push({ x: pr.x, y: pr.y, r, level: pr.level, owner: pr.owner,
-    victim: null, until: state.time + lvl(spec, 'puddleLife', pr.level), _in: {} });
-  state.events.push({ t: 'vomit', x: pr.x, y: pr.y, r });
-  if (victim && victim.alive) vomitFrom(state, victim, pr.level, pr.owner);
-}
-
-function vomitFrom(state, victim, level, owner) {
-  const spec = SPELLS.vomit;
-  const a = rng(state) * Math.PI * 2;
-  const d = rng(state) * victim.radius * spec.spreadMult;
-  const x = victim.x + Math.cos(a) * d, y = victim.y + Math.sin(a) * d;
   const r = victim.radius * spec.puddleMult * 0.7;   // their own retch, smaller
+  const a = rng(state) * Math.PI * 2;
+  // distance band [min clear of the body, 5x their size]
+  const dMin = r + victim.radius + 0.5;
+  const dMax = Math.max(dMin + 0.5, victim.radius * spec.spreadMult);
+  const d = dMin + rng(state) * (dMax - dMin);
+  const x = victim.x + Math.cos(a) * d, y = victim.y + Math.sin(a) * d;
   state.puddles.push({ x, y, r, level, owner, victim: victim.id,
     until: state.time + lvl(spec, 'puddleLife', level), _in: {} });
   state.events.push({ t: 'vomit', x, y, r, id: victim.id });

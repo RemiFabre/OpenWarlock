@@ -1169,7 +1169,7 @@ const ITEM_LIVE = {
   hourglass: (lv) => `all your cooldowns run at ×${fmtNum(Math.round(100 / (1 + itemFxAt('hourglass', 'haste', lv) / 100)) / 100)}`,
   brazier: (lv) => `enemies within ${fmtNum(itemFxAt('brazier', 'auraR', lv))} units of you burn for ${fmtNum(itemFxAt('brazier', 'auraDps', lv))} hp/s, and keep burning ${fmtNum(itemFxAt('brazier', 'linger', lv))} s after they leave`,
   spoon: (lv) => `every enemy you damage heals you ${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp, and ${fmtNum(itemFxAt('spoon', 'healOnHit', lv) * ITEM_FX.spoon.tickFrac)} per burn or sickness tick`,
-  angel: (lv) => `${fmtNum(itemFxAt('angel', 'saves', lv))} death${itemFxAt('angel', 'saves', lv) > 1 ? 's' : ''} per round are refused: you stand back up where you fell on ${fmtNum(Math.round(PLAYER.MAX_HP * ITEM_FX.angel.reviveFrac))} hp — half of your base ${fmtNum(PLAYER.MAX_HP)} — and nobody is credited`,
+  angel: (lv) => `a stock of ${fmtNum(lv)} save${lv > 1 ? 's' : ''}: at most ONE death refused per round, and each save consumes a purchase — you stand back up where you fell on ${fmtNum(Math.round(PLAYER.MAX_HP * ITEM_FX.angel.reviveFrac))} hp, and nobody is credited`,
 };
 
 // The card's stat tag (round 20.1, Remi): ONE short value, not a sentence —
@@ -1184,7 +1184,7 @@ const ITEM_TAG = {
   hourglass: (lv) => `+${fmtNum(itemFxAt('hourglass', 'haste', lv))} haste`,
   brazier: (lv) => `${fmtNum(itemFxAt('brazier', 'auraDps', lv))} dmg/s, r ${fmtNum(itemFxAt('brazier', 'auraR', lv))}, +${fmtNum(itemFxAt('brazier', 'linger', lv))} s`,
   spoon: (lv) => `+${fmtNum(itemFxAt('spoon', 'healOnHit', lv))} hp per hit`,
-  angel: (lv) => `${fmtNum(itemFxAt('angel', 'saves', lv))} free death${itemFxAt('angel', 'saves', lv) > 1 ? 's' : ''}/round`,
+  angel: (lv) => `stock: ${fmtNum(lv)} save${lv > 1 ? 's' : ''} (1/round)`,
 };
 
 // One row of the per-level table. A scalar REPEATS in every level column
