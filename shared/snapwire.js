@@ -14,12 +14,15 @@
 //   2. STATE IS DELTA-CODED per connection (shared/snapdelta.js). Opt-in, so a
 //      stale cached tab that never asked still gets whole snapshots.
 //   3. A BACKED-UP SOCKET GETS ITS STATE SKIPPED, not queued: a dropped
-//      snapshot costs nothing (the next one carries the full state again), a
-//      queued one costs permanent latency that never drains. ⚠ The skip breaks
-//      the delta chain — but WE broke it, so we force our own keyframe next
-//      send and no round trip is needed. That is the whole robustness story
-//      Remi asked about: a delta needs its base, so the only party allowed to
-//      drop one is the party that can immediately re-base.
+//      snapshot costs nothing (deltas span it — see below), a queued one costs
+//      permanent latency that never drains.
+//
+// Round 21.11, after tools/rtclab.js reproduced the late-game RTC lag: a
+// skipped state never reaches the encoder, so the NEXT delta is still valid
+// against the last state actually sent — a skip does not break the chain and
+// forces no keyframe (the old forced keyframe landed ~18 KB on an already-full
+// link, exactly when it hurt most). The delta chain only breaks when the
+// RECEIVER loses a message, and that is its call to requestFull().
 
 import { createSnapEncoder, createSnapDecoder } from './snapdelta.js';
 
@@ -43,12 +46,13 @@ export const ACK_LIMIT_SNAPS = 6;   // ~400 ms of backlog ABOVE this link's floo
 
 export function createSnapWire({
   delta = true,                 // false = the pre-21.10 shape, whole every time
+  echo = false,                 // two-channel callers: cadence keyframes ride BESIDE the delta (out.key)
   fullEvery = 30,               // belt-and-braces keyframe cadence (~2 s at 15 Hz)
   queueLimitSnaps = QUEUE_LIMIT_SNAPS,
   queueFloorBytes = QUEUE_FLOOR_BYTES,
   ackLimitSnaps = ACK_LIMIT_SNAPS,
 } = {}) {
-  const enc = delta ? createSnapEncoder({ fullEvery }) : null;
+  const enc = delta ? createSnapEncoder({ fullEvery, echo }) : null;
   let wantFull = true;          // join, a client-reported gap, or a skip of ours
   let lastPhase = null;
   let lastBytes = 0;            // size of the last state message actually sent
@@ -70,11 +74,13 @@ export function createSnapWire({
 
     // One engine 'snap' message -> the strings to send, in order.
     // `queued` is the socket's unflushed byte count (ws.bufferedAmount).
-    // -> { evt, state, full, skipped } — either string may be null. `full` says
-    // the state is a KEYFRAME, which matters to a caller that has both a
-    // reliable and a lossy channel: see the RTC host in client/transport.js.
+    // -> { evt, state, key, full, skipped } — any string may be null. `full`
+    // says the state is a KEYFRAME, which matters to a caller that has both a
+    // reliable and a lossy channel; `key` (echo mode only) is a redundant
+    // cadence keyframe for the reliable channel while `state` stays a delta
+    // for the lossy one. See the RTC host in client/transport.js.
     frame(msg, queued = 0) {
-      const out = { evt: null, state: null, full: false, skipped: false };
+      const out = { evt: null, state: null, key: null, full: false, skipped: false };
       if (!msg || msg.t !== 'snap' || !msg.s) return out;
       // Events get their own reliable message — but only for a client that
       // announced it understands this framing. A pre-21.10 tab still finds them
@@ -92,13 +98,15 @@ export function createSnapWire({
         floor = Math.min(backlog, floor + 0.01);
         behind = backlog > floor + ackLimitSnaps;
       }
-      if ((queued > limit || behind) && !(!delta && hasEvents)) {
-        // Falling behind: drop this state on the floor. Re-base on the next
-        // one (a no-op for the legacy shape, which is always self-contained).
+      // A keyframe the client ASKED for bypasses the ack test: a gapped client
+      // cannot apply anything, so it stops acking — withholding its keyframe
+      // until it acks again is a deadlock (multi-second stalls, found by
+      // tools/rtclab.js). The byte test still stands: a full pipe is full.
+      if ((queued > limit || (behind && !wantFull)) && !(!delta && hasEvents)) {
+        // Falling behind: drop this state on the floor. The encoder never sees
+        // it, so the next delta spans the hole — nothing to re-base.
         out.skipped = true;
         skipped++;
-        wantFull = true;
-        lastPhase = msg.s.phase; // the forced keyframe already covers the change
         return out;
       }
 
@@ -118,6 +126,7 @@ export function createSnapWire({
         : { t: 'snap', ...payload, ...(hasEvents ? { e: msg.e } : { e: [] }) };
       // `full` above is what we ASKED for; the encoder also keyframes on its own
       // fullEvery cadence, so read the answer off the message it produced.
+      if (wire.echo) { out.key = JSON.stringify(wire.echo); delete wire.echo; }
       out.full = wire.f !== undefined || !delta;
       if (wire.q != null) sentQ = wire.q;
       out.state = JSON.stringify(wire);

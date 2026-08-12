@@ -18,7 +18,11 @@
 //
 // --guests = name:downKBs/rttMs/loss% per guest, comma-separated.
 // --up     = host uplink KB/s (shared by everyone — the host tab IS the server).
-// --spare  = hot-spare cadence in seconds (transport.js sends every 2; 0 = off).
+// --spare  = hot-spare cadence in seconds (0 = off). --sparemode=robin|all:
+//            robin = one rotating guest per beat (shipped), all = every guest
+//            every beat (the pre-21.11 behaviour that drowned thin links).
+// --echo   = 1|0: cadence keyframes ride beside the delta (shipped) vs
+//            replacing it (pre-21.11 — the keyframe race).
 // ⚠ What this cannot see: it is arithmetic, not SCTP — no congestion control
 // (real loss also collapses the send window, so real harm is WORSE), no browser
 // scheduling, and guest inputs reach the engine with zero delay. Trends and
@@ -35,6 +39,8 @@ const arg = (n, d) => {
 const UP_KBS = Number(arg('up', 1250));        // 10 Mbit/s host uplink
 const MINUTES = Number(arg('minutes', 25));    // sim cap; the game usually ends first
 const SPARE_S = Number(arg('spare', 2));       // transport.js cadence
+const SPARE_MODE = arg('sparemode', 'robin');
+const ECHO = arg('echo', '1') !== '0';
 const GUESTS = arg('guests', 'fiber:2500/12/0.3,cable:1000/25/1,dsl:250/45/1')
   .split(',').map(s => {
     const [name, spec] = s.split(':');
@@ -121,7 +127,7 @@ function pumpNet(now) {
 // ---- assemble the room: engine + one wire per guest, mirroring transport.js
 const guests = GUESTS.map((c, i) => makeGuest(c, 'g' + (i + 1)));
 const byId = new Map(guests.map(g => [g.id, g]));
-const wires = new Map(guests.map(g => [g.id, createSnapWire()]));
+const wires = new Map(guests.map(g => [g.id, createSnapWire({ echo: ECHO })]));
 let now = 0;
 const laterQ = [];  // guest->host acks/fulls, delayed one uplink OWD
 const later = (at, fn) => laterQ.push({ at, fn });
@@ -141,6 +147,7 @@ const engine = createEngine({
     }
     if (f.evt) send(g, 'ctrl', f.evt, now);
     if (f.state) send(g, f.full ? 'ctrl' : 'snap', f.state, now);
+    if (f.key) send(g, 'ctrl', f.key, now);
   },
 });
 
@@ -166,7 +173,7 @@ for (const id of ['p1', ...guests.map(g => g.id)]) engine.message(id, { t: 'read
 // ---- run the game: everyone spams pillars, exactly like tools/slowlink.js
 const snapEvery = Math.max(1, Math.round(TICK_RATE / SNAPSHOT_RATE));
 const gm = () => engine.game;
-let castN = 0, tick = 0, lastShop = false, lastSpare = 0, lastReport = 0;
+let castN = 0, tick = 0, lastShop = false, lastSpare = 0, lastReport = 0, spareN = 0;
 const BUCKET_S = 120;
 console.log(`host uplink ${UP_KBS} KB/s · spare every ${SPARE_S || '∞'} s · guests: ` +
   GUESTS.map(g => `${g.name} ${g.downKBs}KB/s ${g.rttMs}ms ${(g.loss * 100).toFixed(1)}%`).join(' · '));
@@ -211,12 +218,16 @@ while (now < MINUTES * 60) {
 
   engine.tick(DT);
   if (++tick % snapEvery === 0) engine.pushSnapshots();
-  // the hot spare, verbatim from transport.js ensureEngine(): every guest, no
-  // backpressure — that unconditional send is one of the suspects on trial here
+  // the hot spare, mirroring transport.js ensureEngine(): 'robin' = the shipped
+  // one-rotating-guest-on-an-idle-channel, 'all' = the pre-21.11 firehose
   if (SPARE_S && now - lastSpare >= SPARE_S) {
     lastSpare = now;
-    const spare = JSON.stringify({ t: 'spare', code: 'ABCDEFGH2345', state: engine.serialize() });
-    for (const g of guests) { send(g, 'ctrl', spare, now); g.m.spareB += spare.length; }
+    const idle = guests.filter(g => g.queued.ctrl === 0);
+    const targets = SPARE_MODE === 'all' ? guests : idle.length ? [idle[spareN++ % idle.length]] : [];
+    if (targets.length) {
+      const spare = JSON.stringify({ t: 'spare', code: 'ABCDEFGH2345', state: engine.serialize() });
+      for (const g of targets) { send(g, 'ctrl', spare, now); g.m.spareB += spare.length; }
+    }
   }
 
   pumpNet(now);

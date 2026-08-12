@@ -95,29 +95,31 @@ describe('snapwire: delta stream', () => {
 });
 
 describe('snapwire: skipping a backed-up socket stays decodable', () => {
-  it('re-bases itself after a skip, so the receiver never needs the lost base', () => {
+  it('the next delta SPANS the skipped state — no keyframe needed, nothing lost', () => {
+    // 21.11: a skipped state never reaches the encoder, so the next delta is
+    // based on the last state the client actually got. The old forced keyframe
+    // dropped ~18 KB onto an already-full link, exactly when it hurt most.
     const w = createSnapWire();
     const dec = createSnapDecoder();
     apply(dec, w.frame(snap('battle')).state);
     // the socket backs up: this state never reaches the client
     expect(w.frame(snap('battle', { time: 2 }), 10 * QUEUE_FLOOR_BYTES).skipped).toBe(true);
-    // the link recovers — the next message must be applicable ON ITS OWN
+    // the link recovers — the next message applies against what the client HAS
     const next = snap('battle', { time: 3 });
-    const wire = w.frame(next, 0).state;
-    expect(JSON.parse(wire).f).toBeDefined();
-    const r = apply(dec, wire);
+    next.s.players.p1.x = 42;
+    const f = w.frame(next, 0);
+    expect(JSON.parse(f.state).f).toBeUndefined();   // a small delta, not a keyframe
+    const r = apply(dec, f.state);
     expect(r.needFull).toBe(false);
-    expect(r.payload.s).toEqual(next.s);
+    expect(r.payload.s).toEqual(next.s);             // the skipped change is IN the span
   });
 
-  it('a fresh decoder can join on that forced keyframe with no history at all', () => {
+  it('a phase change during a skipped stretch still gets its keyframe', () => {
     const w = createSnapWire();
     w.frame(snap('battle'));
-    w.frame(snap('battle', { time: 2 }), 10 * QUEUE_FLOOR_BYTES);
-    const cold = createSnapDecoder();
-    const r = apply(cold, w.frame(snap('battle', { time: 3 }), 0).state);
-    expect(r.needFull).toBe(false);
-    expect(r.payload.s.time).toBe(3);
+    expect(w.frame(snap('shop'), 10 * QUEUE_FLOOR_BYTES).skipped).toBe(true);
+    const f = w.frame(snap('shop', { time: 2 }), 0);
+    expect(JSON.parse(f.state).f).toBeDefined();     // the deferred phase keyframe
   });
 
   it('does not trip on the ordinary write buffering of a healthy link', () => {
@@ -286,19 +288,101 @@ describe('snapwire: falling behind is detected by ACKS, not by the socket', () =
     expect(r.w.stats().behind).toBe(null);
   });
 
-  it('resumes the moment the client catches up, on a keyframe it can use', () => {
+  it('resumes the moment the client catches up, on a state it can use', () => {
     const w = createSnapWire({ ackLimitSnaps: 2 });
     const dec = createSnapDecoder();
     apply(dec, w.frame(snap('battle'), 0).state);
     w.ack(1);
-    for (let i = 0; i < 10; i++) w.frame(snap('battle', { time: i }), 0);  // it goes quiet
+    const sent = [];
+    for (let i = 0; i < 10; i++) {
+      const f = w.frame(snap('battle', { time: i }), 0);  // it goes quiet
+      if (f.state) sent.push(f.state);
+    }
     expect(w.frame(snap('battle', { time: 99 }), 0).skipped).toBe(true);
     w.ack(w.stats().behind + 1e9);               // "I am fully caught up"
+    // everything SENT before the skips eventually arrived (the pipe is reliable)
+    for (const s of sent) apply(dec, s);
     const f = w.frame(snap('battle', { time: 100 }), 0);
     expect(f.skipped).toBe(false);
     const r = apply(dec, f.state);
-    expect(r.needFull).toBe(false);              // and it is a keyframe, not an orphan delta
+    expect(r.needFull).toBe(false);
     expect(r.payload.s.time).toBe(100);
+  });
+
+  it('a REQUESTED keyframe goes out even while the client is behind — else deadlock', () => {
+    // The scar (found by tools/rtclab.js): a gapped client applies nothing, so
+    // it acks nothing, so the backlog test skipped the very keyframe it was
+    // waiting for — a stall that only ended when the floor crept up, ~10 s.
+    const w = createSnapWire({ ackLimitSnaps: 2 });
+    w.frame(snap('battle'), 0);
+    w.ack(1);
+    for (let i = 0; i < 10; i++) w.frame(snap('battle', { time: i }), 0);   // acks stopped
+    expect(w.frame(snap('battle', { time: 50 }), 0).skipped).toBe(true);    // behind: skipping
+    w.requestFull();                                                        // "I hit a gap"
+    const f = w.frame(snap('battle', { time: 51 }), 0);
+    expect(f.skipped).toBe(false);
+    expect(JSON.parse(f.state).f).toBeDefined();                            // the way out
+  });
+});
+
+describe('snapwire: echo mode — cadence keyframes ride BESIDE the delta', () => {
+  // The 21.11 fix for the keyframe race: a big cadence keyframe on the slow
+  // reliable channel used to REPLACE the delta, so every delta behind it was
+  // orphaned until it landed. In echo mode the delta chain never routes
+  // through the reliable channel; the keyframe is a redundant recovery point.
+  const wire = () => createSnapWire({ echo: true, fullEvery: 3 });
+
+  it('emits the delta AND a keyframe with the same q at cadence time', () => {
+    const w = wire();
+    w.frame(snap('battle'));
+    w.frame(snap('battle', { time: 2 }));
+    w.frame(snap('battle', { time: 3 }));
+    const f = w.frame(snap('battle', { time: 4 }));      // 4th state: cadence hits
+    expect(f.key).not.toBe(null);
+    const d = JSON.parse(f.state), k = JSON.parse(f.key);
+    expect(d.f).toBeUndefined();                          // the chain link
+    expect(k.f).toBeDefined();                            // the recovery point
+    expect(d.q).toBe(k.q);
+    expect(f.full).toBe(false);                           // the STATE is a delta
+  });
+
+  it('either arrival order yields the same state, the other copy is dropped', () => {
+    const w = wire();
+    const lead = [w.frame(snap('battle')), w.frame(snap('battle', { time: 2 })), w.frame(snap('battle', { time: 3 }))];
+    const pair = w.frame(snap('battle', { time: 4 }));    // cadence: delta + keyframe
+    const after = w.frame(snap('battle', { time: 5 }));   // plain delta on top
+    for (const order of [[pair.state, pair.key], [pair.key, pair.state]]) {
+      const dec = createSnapDecoder();
+      for (const f of lead) apply(dec, f.state);
+      const got = [order[0], order[1], after.state].map(s => apply(dec, s));
+      expect(got[0].payload.s.time).toBe(4);              // first copy applies...
+      expect(got[1].payload).toBe(null);                  // ...duplicate dropped...
+      expect(got[2].payload.s.time).toBe(5);              // ...chain continues
+    }
+  });
+
+  it('a receiver that lost the delta stands up on the echoed keyframe, then chains', () => {
+    const w = wire();
+    const dec = createSnapDecoder();
+    apply(dec, w.frame(snap('battle')).state);
+    w.frame(snap('battle', { time: 2 }));                 // delta LOST in flight
+    w.frame(snap('battle', { time: 3 }));                 // delta LOST in flight
+    const pair = w.frame(snap('battle', { time: 4 }));    // cadence: delta + keyframe
+    expect(apply(dec, pair.state).needFull).toBe(true);   // delta useless (no base)
+    expect(apply(dec, pair.key).payload.s.time).toBe(4);  // keyframe recovers, no round trip
+    const next = w.frame(snap('battle', { time: 5 }));
+    expect(apply(dec, next.state).payload.s.time).toBe(5);// and the chain continues
+  });
+
+  it('forced keyframes (join, gap, phase change) still replace the delta', () => {
+    const w = wire();
+    expect(w.frame(snap('battle')).key).toBe(null);                 // join
+    expect(w.frame(snap('shop')).key).toBe(null);                   // phase change
+    expect(JSON.parse(w.frame(snap('shop', { time: 9 })).state).f).toBeUndefined();
+    w.requestFull();
+    const f = w.frame(snap('shop', { time: 10 }));
+    expect(f.key).toBe(null);                                       // requested gap fill
+    expect(JSON.parse(f.state).f).toBeDefined();
   });
 });
 

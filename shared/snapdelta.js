@@ -45,14 +45,29 @@ export function patch(a, d) {
 // {t:'snap', q, b, d} delta against the previous message q=b. The caller asks
 // for a keyframe on join, on phase change, and when the peer reports a gap;
 // fullEvery is the belt-and-braces cadence on top (~2 s at 15 Hz).
-export function createSnapEncoder({ fullEvery = 30 } = {}) {
+export function createSnapEncoder({ fullEvery = 30, echo = false } = {}) {
   let q = 0, last = null, sinceFull = 0;
   return {
     encode(payload, { full = false } = {}) {
       q++;
-      if (full || last === null || sinceFull >= fullEvery) {
-        last = payload; sinceFull = 1;
-        return { t: 'snap', q, f: payload };
+      const forced = full || last === null;
+      if (forced || sinceFull >= fullEvery) {
+        const kf = { t: 'snap', q, f: payload };
+        sinceFull = 1;
+        // echo mode (21.11, two-channel callers): a CADENCE keyframe rides
+        // ALONGSIDE the delta instead of replacing it — the delta keeps the
+        // chain unbroken on the lossy channel, the keyframe is a redundant
+        // recovery point for the reliable one. Same q on purpose: the decoder
+        // applies whichever lands first, the other is dropped as stale. The
+        // caller (snapwire) strips `.echo` before anything is stringified.
+        // Forced fulls (join, gap, phase change) have no useful base — no echo.
+        if (echo && !forced) {
+          const d = diff(last, payload);
+          last = payload;
+          return { t: 'snap', q, b: q - 1, ...(d !== undefined ? { d } : {}), echo: kf };
+        }
+        last = payload;
+        return kf;
       }
       const d = diff(last, payload);
       const msg = { t: 'snap', q, b: q - 1, ...(d !== undefined ? { d } : {}) };

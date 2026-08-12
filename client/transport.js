@@ -174,14 +174,21 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       onKick: (connId) => { const p = peers.get(connId); if (p) dropPeer(p, 'kicked'); },
       onLog: log,
     });
-    // hot spare for host migration (§B4): every 2 s each guest holds a full
-    // serialized room, so a survivor CAN resume the game if this tab dies.
-    // Kept in B3 on purpose — migration later needs no protocol change.
+    // hot spare for host migration (§B4): a guest holds a full serialized room,
+    // so a survivor CAN resume the game if this tab dies. Round 21.11: ONE
+    // guest per 2 s, rotating, and only on an idle channel — the old
+    // every-guest-every-2-s send was the single biggest late-game stream (the
+    // blob carries the full pillar list, ~40 KB by round 25) and it drowned
+    // thin downlinks. Migration needs A recent spare somewhere, not a fresh
+    // one everywhere; a backed-up guest is a poor migration host anyway.
+    // history: docs/history/2026-08-12-rtc-lag-rootcause.md
+    let spareN = 0;
     setInterval(() => {
-      const alive = [...peers.values()].filter(p => p.joined && p.ctrl && p.ctrl.readyState === 'open');
+      const alive = [...peers.values()].filter(p =>
+        p.joined && p.ctrl && p.ctrl.readyState === 'open' && p.ctrl.bufferedAmount === 0);
       if (!alive.length) return;
-      const spare = JSON.stringify({ t: 'spare', code, state: engine.serialize() });
-      for (const p of alive) { try { p.ctrl.send(spare); } catch { } }
+      const p = alive[spareN++ % alive.length];
+      try { p.ctrl.send(JSON.stringify({ t: 'spare', code, state: engine.serialize() })); } catch { }
     }, 2000);
   }
 
@@ -194,16 +201,16 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
         // Two channels, and WHICH one a message takes is the whole robustness
         // story on this path:
         //  - events -> ctrl, reliable. A lost death is a lost kill cue.
-        //  - a KEYFRAME -> ctrl, reliable. It is rare (~1 per 2 s) and every
-        //    delta after it is worthless without it. ⚠ It used to ride the lossy
-        //    channel, where a full late-game snapshot fragments into ~18 SCTP
-        //    chunks with maxRetransmits:0 — losing ANY one discarded the whole
-        //    thing, orphaning every following delta, and the recovery request is
-        //    rate-limited to 2 Hz. That is a spiral that gets worse as the
-        //    pillar list grows: exactly the "low freq" a friend reported.
         //  - a DELTA -> snap, unreliable. Disposable by design: a stale one is
         //    worthless, and reliability there would head-of-line-block the
         //    fresh ones behind it.
+        //  - a cadence KEYFRAME -> ctrl, reliable, and since 21.11 it rides
+        //    BESIDE the delta (f.key), not instead of it: a big keyframe
+        //    arrives after the deltas that follow it, and a decoder that had
+        //    to wait for it threw those deltas away — the chain now never
+        //    routes through the slow channel. Forced keyframes (join, gap,
+        //    phase change) still replace the delta and take ctrl.
+        // history: docs/history/2026-08-12-rtc-lag-rootcause.md
         const live = p.snap && p.snap.readyState === 'open';
         const f = p.wire.frame(msg, live ? p.snap.bufferedAmount : p.ctrl.bufferedAmount);
         if (f.evt) p.ctrl.send(f.evt);
@@ -211,6 +218,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
           if (live && !f.full) p.snap.send(f.state);
           else p.ctrl.send(f.state);
         }
+        if (f.key && live) p.ctrl.send(f.key);
       } else {
         p.ctrl.send(JSON.stringify(msg)); // welcome / denied
       }
@@ -235,7 +243,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       connId, peerId, pc, joined: false, dead: false,
       ctrl: pc.createDataChannel('ctrl'),
       snap: pc.createDataChannel('snap', { ordered: false, maxRetransmits: 0 }),
-      wire: createSnapWire(),
+      wire: createSnapWire({ echo: true }),
     };
     peers.set(connId, p);
     byPeerId.set(peerId, p);
