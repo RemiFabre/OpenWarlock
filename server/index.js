@@ -16,6 +16,7 @@ import { WebSocketServer } from 'ws';
 import { createEngine } from '../shared/engine.js';
 import { VERSION } from '../shared/version.js';
 import { snapshot } from '../shared/sim.js';
+import { createSnapWire } from '../shared/snapwire.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -80,6 +81,12 @@ const httpServer = http.createServer((req, res) => {
       ok: true, tick, phase: game.phase, round: game.round,
       players: Object.keys(game.players).length, uptime: process.uptime(),
       version: VERSION,
+      // round 21.10: per-player snapshot bandwidth, live. `skipped` climbing on
+      // ONE seat is the signature of a link that cannot keep up — that is the
+      // number to look at when a friend reports late-game jerkiness.
+      wire: [...sockets].map(([pid, ws]) => ({
+        id: pid, queued: ws.bufferedAmount, ...(ws.wire ? ws.wire.stats() : {}),
+      })),
     }));
     return;
   }
@@ -141,9 +148,18 @@ const engine = createEngine({
   maxPlayers: MAX_PLAYERS,
   againGraceMs: Number(process.env.AGAIN_GRACE_MS || 45000),
   resetGraceMs: Number(process.env.RESET_GRACE_MS || 60_000),
+  // Snapshots go through the per-connection wire (shared/snapwire.js): events
+  // on their own message, state delta-coded, and SKIPPED rather than queued for
+  // a socket that is backing up. Everything else (welcome, denied) is sent as
+  // is. history: docs/history/2026-08-12-snapshot-bandwidth.md
   onSend: (connId, msg) => {
     const ws = sockets.get(connId);
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+    if (!ws || ws.readyState !== 1) return;
+    if (msg.t !== 'snap') { ws.send(JSON.stringify(msg)); return; }
+    if (!ws.wire) ws.wire = createSnapWire({ delta: false });
+    const f = ws.wire.frame(msg, ws.bufferedAmount);
+    if (f.evt) ws.send(f.evt);
+    if (f.state) ws.send(f.state);
   },
   onKick: (connId, { ban }) => {
     if (ban) {
@@ -167,11 +183,22 @@ const engine = createEngine({
 });
 
 // ---- websocket protocol ---------------------------------------------------
-// client -> server: join, ready, spectate, mode, draft, move, cast, buy,
-//                   draftPick, addBot, removeBot, again
-// server -> client: welcome {id}, snap {state, events}, denied {reason}
+// client -> server: join {name, avatar, dv?}, ready, spectate, mode, draft,
+//                   move, cast, buy, draftPick, addBot, removeBot, again,
+//                   and two transport-only ones (round 21.10): full, ack {q}
+// server -> client: welcome {id, v}, denied {reason}, evt {e}, and snap —
+//                   whole (`{s, e}`) for a client that sent no `dv`, else
+//                   delta-coded per shared/snapwire.js
 
-const wss = new WebSocketServer({ server: httpServer });
+// permessage-deflate is OFF in `ws` by default, and snapshots are the most
+// compressible thing in the game (a repetitive pillar list): measured 17-21% of
+// raw at 6-450 pillars, i.e. ~5× fewer bytes for one option. `threshold` keeps
+// the tiny messages (welcome, denied) out of the compressor.
+// WS_DEFLATE=0 is the one-line revert, and the knob tools/slowlink.js measures.
+const wss = new WebSocketServer({
+  server: httpServer,
+  perMessageDeflate: process.env.WS_DEFLATE === '0' ? false : { threshold: 512 },
+});
 
 // Zombie reaper: connections through tunnels (cloudflared) often die WITHOUT
 // a close frame, leaving a ghost warlock seated forever — blocking the lobby
@@ -204,6 +231,9 @@ wss.on('connection', (ws, req) => {
   const ip = ipOf(req);
   let joined = false;
   ws.isAlive = true;
+  // Nagle would hold a small snapshot back for up to 40 ms waiting for company;
+  // this stream is 15 whole messages a second and wants none of that.
+  try { ws._socket.setNoDelay(true); } catch { /* not a TCP socket (tests) */ }
   ws.on('pong', (data) => {
     ws.isAlive = true;
     // RTT pings carry their send time; the reaper's plain ping echoes an
@@ -236,9 +266,18 @@ wss.on('connection', (ws, req) => {
       sockets.set(id, ws);
       ipsById.set(id, ip);
       joined = true;
+      // `dv:1` in the join is the client saying "I can patch deltas" (round
+      // 21.10). A stale cached tab omits it and keeps getting whole snapshots,
+      // so a mixed-version lobby degrades in bandwidth, never in correctness.
+      ws.wire = createSnapWire({ delta: m.dv === 1 });
       ws.send(JSON.stringify({ t: 'welcome', id, v: VERSION }));
       return;
     }
+    // Transport concerns, never forwarded to the engine: "I lost the base of a
+    // delta" (answered with a keyframe) and "the newest state I applied is q"
+    // (the only signal that shows a thin link falling behind).
+    if (m.t === 'full') { if (ws.wire) ws.wire.requestFull(); return; }
+    if (m.t === 'ack') { if (ws.wire) ws.wire.ack(m.q); return; }
     engine.message(id, m);
   });
 

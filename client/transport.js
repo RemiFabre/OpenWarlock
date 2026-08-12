@@ -12,12 +12,18 @@
 
 import { createEngine } from '../shared/engine.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
-import { createSnapEncoder, createSnapDecoder } from '../shared/snapdelta.js';
+import { createSnapWire, createSnapSink } from '../shared/snapwire.js';
 import { VERSION } from '../shared/version.js';
 
 export function createWsTransport() {
   const handlers = { msg: () => {}, close: () => {} };
   let ws = null; // the CURRENT socket; stale sockets' callbacks check identity and bail
+  const up = (m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
+  const sink = createSnapSink(
+    (m) => handlers.msg(m),
+    () => up({ t: 'full' }),
+    { ack: (q) => up({ t: 'ack', q }) },
+  );
 
   return {
     kind: 'ws',
@@ -28,14 +34,18 @@ export function createWsTransport() {
         sock = new WebSocket(`${proto}://${location.host}`);
       } catch (err) { handlers.close(err); return; }
       ws = sock;
+      sink.reset();
       sock.onopen = () => {
-        if (ws === sock) sock.send(JSON.stringify({ t: 'join', name, avatar }));
+        // dv:1 = "I can patch deltas" (round 21.10). An older server ignores it
+        // and keeps sending whole snapshots, which this transport still accepts.
+        if (ws === sock) sock.send(JSON.stringify({ t: 'join', name, avatar, dv: 1 }));
       };
       sock.onmessage = (ev) => {
         if (ws !== sock) return;
         let m;
         try { m = JSON.parse(ev.data); } catch { return; }
         if (!m || typeof m !== 'object') return;
+        if (sink.take(m)) return;
         handlers.msg(m);
       };
       sock.onerror = () => {}; // close always follows; handled there
@@ -181,15 +191,16 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
     if (!p || !p.ctrl || p.ctrl.readyState !== 'open') return;
     try {
       if (msg.t === 'snap') {
-        // events ride ctrl (reliable — a lost death is a lost kill cue);
-        // state rides the lossy snap channel as full-or-delta (shared/snapdelta.js)
-        if (msg.e && msg.e.length) p.ctrl.send(JSON.stringify({ t: 'evt', e: msg.e }));
-        const payload = { s: msg.s, ...(msg.bans != null ? { bans: msg.bans } : {}) };
-        const full = p.wantFull || msg.s.phase !== p.lastPhase; // keyframe on join/gap/phase change
-        p.lastPhase = msg.s.phase; p.wantFull = false;
-        const wire = JSON.stringify(p.enc.encode(payload, { full }));
-        if (p.snap && p.snap.readyState === 'open') p.snap.send(wire);
-        else p.ctrl.send(wire); // snap channel not up (yet): the framing still works
+        // events ride ctrl (reliable — a lost death is a lost kill cue); state
+        // rides the lossy snap channel as full-or-delta, and is SKIPPED rather
+        // than queued when that channel is backing up (shared/snapwire.js).
+        const live = p.snap && p.snap.readyState === 'open';
+        const f = p.wire.frame(msg, live ? p.snap.bufferedAmount : p.ctrl.bufferedAmount);
+        if (f.evt) p.ctrl.send(f.evt);
+        if (f.state) {
+          if (live) p.snap.send(f.state);
+          else p.ctrl.send(f.state); // snap channel not up (yet): framing still works
+        }
       } else {
         p.ctrl.send(JSON.stringify(msg)); // welcome / denied
       }
@@ -214,7 +225,7 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       connId, peerId, pc, joined: false, dead: false,
       ctrl: pc.createDataChannel('ctrl'),
       snap: pc.createDataChannel('snap', { ordered: false, maxRetransmits: 0 }),
-      enc: createSnapEncoder(), wantFull: true, lastPhase: null,
+      wire: createSnapWire(),
     };
     peers.set(connId, p);
     byPeerId.set(peerId, p);
@@ -232,11 +243,12 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
           return;
         }
         p.joined = true;
-        p.wantFull = true;
+        p.wire.requestFull();
         p.ctrl.send(JSON.stringify({ t: 'welcome', id: connId, v: VERSION }));
         return;
       }
-      if (m.t === 'full') { p.wantFull = true; return; } // guest's snap decoder hit a gap
+      if (m.t === 'full') { p.wire.requestFull(); return; } // guest's decoder hit a gap
+      if (m.t === 'ack') { p.wire.ack(m.q); return; }       // ...and how far behind it is
       engine.message(connId, m);
     };
     p.ctrl.onclose = () => dropPeer(p, 'ctrl closed');
@@ -312,11 +324,16 @@ export function createRtcGuestTransport(code) {
   const handlers = { msg: () => {}, close: () => {} };
   let profile = null;
   let sig = null, pc = null, ctrl = null;
-  let dec = null, events = [], lastFullReq = 0;
   let down = true;          // becomes false once ctrl opens
   let closedFired = false;
   let sigQ = Promise.resolve(); // serializes async SDP/ICE handling in order
   let dialTimer = null;
+  const up = (m) => { if (ctrl && ctrl.readyState === 'open') ctrl.send(JSON.stringify(m)); };
+  const sink = createSnapSink(
+    (m) => handlers.msg(m),
+    () => up({ t: 'full' }),
+    { ack: (q) => up({ t: 'ack', q }) },
+  );
 
   function dropped(err) {
     if (closedFired) return;
@@ -325,21 +342,6 @@ export function createRtcGuestTransport(code) {
     try { if (pc) pc.close(); } catch { }
     try { if (sig) sig.close(); } catch { }
     handlers.close(err);
-  }
-
-  function onSnapWire(m) {
-    const r = dec.decode(m);
-    if (r.needFull && ctrl && ctrl.readyState === 'open' && Date.now() - lastFullReq > 500) {
-      lastFullReq = Date.now();
-      ctrl.send(JSON.stringify({ t: 'full' })); // a keyframe, please — we lost the base
-    }
-    if (!r.payload) return;
-    // shallow-clone s: the client annotates m.s (bans/pings) and the decoder's
-    // copy must stay pristine — it is the base the next delta patches
-    const out = { t: 'snap', s: { ...r.payload.s }, e: events };
-    if (r.payload.bans != null) out.bans = r.payload.bans;
-    events = [];
-    handlers.msg(out);
   }
 
   function wireCtrl(ch) {
@@ -352,9 +354,8 @@ export function createRtcGuestTransport(code) {
     ch.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       if (!m || typeof m !== 'object') return;
-      if (m.t === 'evt') { if (Array.isArray(m.e)) events.push(...m.e); return; }
       if (m.t === 'spare') { window.__spare = m; return; } // B4 hot spare, held for migration
-      if (m.t === 'snap') { onSnapWire(m); return; }        // reliable-fallback framing
+      if (sink.take(m)) return;   // evt, and the reliable-fallback snap framing
       handlers.msg(m);                                      // welcome / denied
     };
     ch.onclose = () => dropped();
@@ -364,7 +365,7 @@ export function createRtcGuestTransport(code) {
     try { if (pc) pc.close(); } catch { }
     try { if (sig) sig.close(); } catch { }
     pc = null; ctrl = null;
-    dec = createSnapDecoder(); events = [];
+    sink.reset();
     closedFired = false;
     let ws;
     try { ws = new WebSocket(signalUrl()); } catch (err) { dropped(err); return; }
@@ -401,7 +402,7 @@ export function createRtcGuestTransport(code) {
         if (e.channel.label === 'ctrl') wireCtrl(e.channel);
         else if (e.channel.label === 'snap') e.channel.onmessage = (ev) => {
           let m; try { m = JSON.parse(ev.data); } catch { return; }
-          onSnapWire(m);
+          if (m && typeof m === 'object') sink.take(m);
         };
       };
       pc.onconnectionstatechange = () => {
