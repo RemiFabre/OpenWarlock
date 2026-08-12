@@ -85,16 +85,25 @@
     list.querySelectorAll('.owv-play').forEach((link) => link.addEventListener('click', switchVersion));
   }
 
+  // Same rule as the service worker's allowlist (see version-sw.js): both
+  // copies of the manifest, and the higher `serial` wins — so the list a player
+  // sees and the list the loader enforces can never disagree about which one of
+  // them is stale.
   async function loadManifest() {
-    for (const url of [`${rawManifest}?bust=${Date.now()}`, new URL(`versions.json?bust=${Date.now()}`, rootUrl)]) {
+    const bust = Date.now();
+    const urls = [`${rawManifest}?bust=${bust}`, new URL(`versions.json?bust=${bust}`, rootUrl)];
+    const fetched = await Promise.all(urls.map(async (url) => {
       try {
         const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) continue;
+        if (!response.ok) return null;
         const data = await response.json();
-        if (data.default && Array.isArray(data.versions)) return data;
-      } catch { /* try the Pages copy */ }
-    }
-    throw new Error('version list unavailable');
+        return (data.default && Array.isArray(data.versions)) ? data : null;
+      } catch { return null; }
+    }));
+    const best = fetched.filter(Boolean)
+      .sort((a, b) => (Number(b.serial) || 0) - (Number(a.serial) || 0))[0];
+    if (!best) throw new Error('version list unavailable');
+    return best;
   }
 
   function addJoinPicker(data) {

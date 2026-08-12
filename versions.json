@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "serial": 1,
   "default": {
     "slug": "default",
     "name": "Default",

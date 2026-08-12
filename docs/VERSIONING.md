@@ -123,11 +123,16 @@ Add one entry to `versions.json`:
 }
 ```
 
+and **increment the top-level `serial`** in the same edit. That number is how
+both loaders decide which copy of the manifest is fresher: raw GitHub and Pages
+update on their own schedules, and the higher serial wins. Forgetting to bump it
+leaves a publish (or a revocation) waiting on a CDN cache for ~10 minutes.
+
 Commit and push only the manifest change plus any automatic version stamp.
 Preserve concurrent changes on `main`; if the push is rejected, re-fetch and
 rebase this small manifest commit. Adding the commit enables the version;
-removing it revokes it. The menu reads raw GitHub first, so the entry normally
-appears within seconds.
+removing it revokes it — both take effect as soon as EITHER copy of the manifest
+updates.
 
 ### 6. Verify, report, and close
 

@@ -65,19 +65,40 @@ async function versionFile(request, commit, filePath) {
   }
 }
 
+// The allowlist, from whichever copy of the manifest is FRESHER.
+//
+// ⚠ Why both copies, and why `serial`: raw.githubusercontent and Pages update
+// on their own schedules and each can serve a stale-but-well-formed manifest
+// for several minutes. Taking the first one that parses meant a stale copy beat
+// a fresh one, so a just-published version 403'd as "no longer listed" for ~10
+// minutes. Taking the UNION would have fixed publishing and broken revocation
+// (a removed commit would stay playable until BOTH copies expired). `serial`
+// is bumped on every manifest edit, so "highest serial wins" is symmetric:
+// a publish and a revocation both take effect as soon as EITHER copy updates.
+// A manifest with no serial counts as 0, so an old cached copy can never
+// outrank a numbered one.
+function readManifest(data) {
+  if (!data || !Array.isArray(data.versions)) return null;
+  const commits = data.versions.map((version) => String(version.commit || '').toLowerCase());
+  if (!commits.every((commit) => /^[0-9a-f]{40}$/.test(commit))) return null;
+  return { serial: Number(data.serial) || 0, commits: new Set(commits) };
+}
+
 async function loadValidCommits() {
   const root = self.registration.scope;
-  for (const url of [`${RAW_MANIFEST}?bust=${Date.now()}`, `${root}versions.json?bust=${Date.now()}`]) {
-    try {
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (!Array.isArray(data.versions)) continue;
-      const commits = data.versions.map((version) => String(version.commit || '').toLowerCase());
-      if (commits.every((commit) => /^[0-9a-f]{40}$/.test(commit))) return new Set(commits);
-    } catch { /* try the Pages copy */ }
-  }
-  throw new Error('version list unavailable');
+  const bust = Date.now();
+  const fetched = await Promise.all(
+    [`${RAW_MANIFEST}?bust=${bust}`, `${root}versions.json?bust=${bust}`].map(async (url) => {
+      try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) return null;
+        return readManifest(await response.json());
+      } catch { return null; }
+    })
+  );
+  const best = fetched.filter(Boolean).sort((a, b) => b.serial - a.serial)[0];
+  if (!best) throw new Error('version list unavailable');
+  return best.commits;
 }
 
 function mimeType(path) {

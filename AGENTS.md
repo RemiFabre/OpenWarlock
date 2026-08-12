@@ -98,6 +98,9 @@ build step, Node ESM, only dep is `ws`.
   switch the clean dedicated clone back to the latest `origin/main`, add its
   immutable commit and player-facing metadata to `versions.json`; that list IS the loader's
   allowlist, so removing an entry revokes it. Push the manifest to `main`.
+  Bump its `serial` in the same edit — both loaders take the manifest copy with
+  the HIGHER serial, which is what makes a publish AND a revocation land as soon
+  as either CDN updates instead of waiting out the slower one.
   Verify `/v/COMMIT/client/`, then `@mention` the author with the version name,
   permanent link, branch/commit, and verification. Close only when that link is
   playable. If blocked, explain why and restore `ai:queued`.
