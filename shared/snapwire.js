@@ -151,6 +151,10 @@ export function createSnapSink(deliver, requestFull = () => {}, {
   // like a backlog (the first version acked at 2 Hz and throttled everybody).
   ack = () => {},
   ackEveryMs = 0,
+  // injectable so a loss test can run 300 frames against a VIRTUAL clock: with
+  // the real one they all land in the same millisecond and the rate limits below
+  // suppress everything, which silently understates recovery
+  now = () => Date.now(),
 } = {}) {
   let dec = createSnapDecoder();
   let events = [];
@@ -176,11 +180,11 @@ export function createSnapSink(deliver, requestFull = () => {}, {
       // A gap: ask for a keyframe, at most twice a second. On the unreliable rtc
       // channel a gap can repeat every frame, and one request per 500 ms
       // recovers without adding a request storm to an already struggling link.
-      if (r.needFull && Date.now() - lastReq > fullEveryMs) { lastReq = Date.now(); requestFull(); }
+      const t = now();
+      if (r.needFull && t - lastReq >= fullEveryMs) { lastReq = t; requestFull(); }
       if (r.payload) {
         flush(r.payload);
-        const now = Date.now();
-        if (now - lastAck > ackEveryMs) { lastAck = now; ack(m.q); }
+        if (t - lastAck >= ackEveryMs) { lastAck = t; ack(m.q); }
       }
       return true;
     },

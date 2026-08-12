@@ -122,8 +122,8 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | the bulk of the 422 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
-| `test/snapwire.test.js` | 24 tests on the wire rules: a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots |
+| `test/sim.test.js` | the bulk of the 428 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/snapwire.test.js` | 30 tests on the wire rules — a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, and a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`) — read it before grepping `sim.js` |
@@ -273,7 +273,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 422 green
+npx vitest run                                   # 428 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
@@ -317,6 +317,9 @@ first that Remi isn't hosting a live game.**
   only if it re-bases immediately; a reconnect must reset the decoder, or a new
   socket's sequence-1 keyframe reads as ancient forever.
 - A lab that prints "no data" as `0.00` makes the worst row look like the best.
+- A test that exercises rate-limited logic needs a VIRTUAL clock: 300 frames run
+  inside one real millisecond, so a 500 ms limiter suppressed every recovery and
+  the loss numbers read 3× worse than truth (hence `createSnapSink({now})`).
 - Stale server/browser after pulling ships mixed-version games; tunnel sockets
   die silently (hence the heartbeat); audio must start from a user gesture;
   emoji icons are load-bearing UI; voice transcriptions garble numbers —

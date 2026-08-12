@@ -140,12 +140,35 @@ actually drops packets.
 encoder keyframes on its own `fullEvery` cadence too, which a caller reading only
 its own request flag would miss.
 
-⚠ **Not measured, reasoned.** `tools/slowlink.js` is one machine: bandwidth only,
-no packet loss, and it does not drive the RTC path at all. `test/rtc-host.js`
-proves a real round still plays with keyframes on the reliable channel. Whether
-this was *the* cause of that friend's session is a mechanism argument until a long
-game with him says otherwise. Next suspect if it persists: the host tab's upload,
-which serves every guest.
+**How much it matters, measured.** `test/snapwire.test.js` models the chunk
+arithmetic (an 11 KB keyframe = 10 chunks, a 112 B delta = 1) and replays 300
+frames at 15 Hz against a VIRTUAL clock, counting states the client applied:
+
+| per-packet loss | keyframes reliable | keyframes lossy |
+|---|---|---|
+| 0.5% | 298/300 | 298/300 |
+| 1% | 296/300 | 296/300 |
+| 3% | 291/300 | 280/300 |
+| 5% | 284/300 | 200/300 |
+| 10% | 241/300 | **82/300** |
+
+So the reroute is decisive at ≥5% loss and **worth nothing at 1%**. It is the
+explanation for that friend's session only if his link was genuinely bad; at
+ordinary loss rates something else was wrong. Do not claim more than that.
+
+⚠ Three limits. It models chunking, it is **not** SCTP. `tools/slowlink.js` is one
+machine (bandwidth only, no loss, no RTC path), and `test/rtc-host.js` proves a
+round still plays, not that this was the cause. And real loss is **bursty**, which
+punishes large messages harder than the independent-loss maths here — so these are
+a floor on the harm, not an estimate of it. Next suspect if it persists: the host
+tab's upload, which carries N× the traffic.
+
+⚠ **A scar inside this test itself**: the first version ran 300 frames inside one
+millisecond of real time, so the sink's 500 ms keyframe-request limit suppressed
+almost every recovery and the results read ~3× worse than reality (87/300 instead
+of 241/300 at 10%). `createSnapSink` takes an injectable `now` for exactly this.
+Any test that exercises rate-limited logic needs a virtual clock, or it measures
+its own harness.
 
 ## 4. Scars this round earned
 

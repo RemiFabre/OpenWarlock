@@ -135,9 +135,8 @@ big all-or-nothing keyframe goes out, and on a lossy link it gets shredded again
 
 That is a spiral, and **it gets worse exactly as the pillar list grows** —
 early rounds are a small keyframe that usually survives, late rounds are a big one
-that usually doesn't. It is the best match yet for "fine early, huge lag later,
-like low freq", and it is specific to his connection because it is driven by *his*
-packet loss.
+that usually doesn't. It fits "fine early, huge lag later, like low freq", and it
+is specific to his connection because it is driven by *his* packet loss.
 
 **Fixed:** keyframes now take the **reliable** channel — they are rare and
 everything depends on them — and only the disposable deltas ride the lossy one,
@@ -145,13 +144,31 @@ which is what it is for. A test pins the rule to "a receiver with no history can
 stand up on exactly the messages we mark as keyframes", so this cannot silently
 regress.
 
-⚠ **Honest caveat**: I cannot reproduce packet loss in the lab (`tools/slowlink.js`
-is one machine, bandwidth only, and it does not exercise the peer-to-peer path at
-all). The RTC end-to-end test proves a real round still plays over WebRTC with
-keyframes on the reliable channel, but "this is what was hurting him" is
-reasoning about the mechanism, not a measurement of his session. **Play a long
-game with him and tell me.** If it is still bad late-game, the next suspect is
-your upload: your tab serves every guest, and that is measurable.
+**And then I measured how much it actually matters, which cuts my own claim
+down.** A local test now models the packet arithmetic — an 11 KB keyframe is 10
+chunks, a delta is one — and replays 300 frames at a given loss rate:
+
+| his per-packet loss | keyframes reliable (now) | keyframes lossy (before) |
+|---|---|---|
+| 1% | 296 of 300 frames land | 296 — **no difference** |
+| 3% | 291 | 280 |
+| 5% | 284 | 200 |
+| 10% | 241 | **82** |
+
+So the reroute is worth a lot on a genuinely bad link and **nothing at all on an
+ordinary one**. If his connection was dropping 1% of packets, this was not his
+problem and I should not claim it was. It becomes the explanation only if he was
+at 5% or worse — bad wifi, or a saturated uplink somewhere.
+
+⚠ Two things this cannot see. It models chunking, it is **not** SCTP, and it does
+not drive real WebRTC (`test/rtc-host.js` proves a round still plays, not that
+this was his bug). And real packet loss comes in **bursts**, which punishes big
+messages harder than the independent-loss maths above — so those numbers are a
+floor on the harm, not an estimate of it.
+
+**So: play a long game with him and tell me.** If it is still bad late-game, the
+next suspect is your **upload** — your tab serves every guest, so it carries N×
+the traffic — and unlike his packet loss, that one I can measure.
 
 ## Still waiting on you (unchanged from 21.9)
 

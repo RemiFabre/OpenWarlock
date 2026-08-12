@@ -302,6 +302,70 @@ describe('snapwire: falling behind is detected by ACKS, not by the socket', () =
   });
 });
 
+// A lossy pipe with SIZE-DEPENDENT loss, which is the whole point: a data
+// channel splits a message into ~1200-byte chunks, and on the unreliable one
+// (maxRetransmits: 0) losing ANY chunk discards the WHOLE message. So a 15 KB
+// keyframe is ~13× more exposed than a 250-byte delta.
+// ⚠ This MODELS that arithmetic; it is not SCTP. It cannot prove anything about
+// real WebRTC — it tests that our framing recovers from loss, which is where the
+// round-21.10 bug actually lived. Seeded, so a failure is reproducible.
+const MTU = 1200;
+function lossyRun({ pktLoss, frames = 300, protectKeyframes, pillars = 300, seed = 7 }) {
+  let s = seed >>> 0;
+  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 2 ** 32);
+  const ring = Array.from({ length: pillars }, (_, i) => ({ x: i % 50, y: i % 37, r: 2.2, sunk: false }));
+  const w = createSnapWire();
+  let clock = 0, applied = 0, lost = 0, last = null;
+  // no acks on purpose: this isolates loss recovery from the backpressure logic.
+  // The VIRTUAL clock is load-bearing — with the real one, 300 frames land in the
+  // same millisecond and the 500 ms keyframe-request limit suppresses every
+  // recovery, which made the first version of this test read 3× worse than truth.
+  const sink = createSnapSink(
+    (m) => { applied++; last = m.s; },
+    () => w.requestFull(),
+    { fullEveryMs: 500, now: () => clock },
+  );
+  for (let i = 0; i < frames; i++) {
+    clock = i * (1000 / 15);
+    const msg = snap('battle', { time: i, pillars: ring });
+    msg.s.players.p1.x = i;                       // something real changes each frame
+    const f = w.frame(msg, 0);
+    if (!f.state) continue;
+    const reliable = protectKeyframes && f.full;
+    const frags = Math.ceil(f.state.length / MTU);
+    if (!reliable && rnd() < 1 - (1 - pktLoss) ** frags) { lost++; continue; }
+    sink.take(JSON.parse(f.state));
+    if (f.full) last = JSON.parse(f.state).f.s;   // truth, straight off the keyframe
+  }
+  return { applied, lost, frames, last, truth: { time: frames - 1 } };
+}
+
+describe('snapwire: recovery under packet loss (the reason keyframes went reliable)', () => {
+  it('an ordinary 1% link is fine either way — this fix is not what carries it', () => {
+    expect(lossyRun({ pktLoss: 0.01, protectKeyframes: true }).applied).toBeGreaterThan(290);
+    expect(lossyRun({ pktLoss: 0.01, protectKeyframes: false }).applied).toBeGreaterThan(290);
+  });
+
+  it('at 10% it is the difference between playable and dead', () => {
+    const good = lossyRun({ pktLoss: 0.10, protectKeyframes: true });
+    const bad = lossyRun({ pktLoss: 0.10, protectKeyframes: false });
+    // an ~11 KB keyframe is all-or-nothing across 10 chunks, and every delta
+    // after a lost one is orphaned until the next keyframe — so it compounds
+    expect(good.applied).toBeGreaterThan(200);
+    expect(bad.applied).toBeLessThan(good.applied / 2);
+  });
+
+  it('never drifts: whatever was lost, the state ends up exactly right', () => {
+    const r = lossyRun({ pktLoss: 0.05, protectKeyframes: true });
+    expect(r.lost).toBeGreaterThan(0);            // the run really did lose messages
+    // the decisive check: the state the client ends up holding is a real
+    // snapshot of the game, not an accumulation of half-applied patches.
+    // x is set to the frame number every frame, so x === time or we drifted.
+    expect(r.last.pillars).toHaveLength(300);
+    expect(r.last.players.p1.x).toBe(r.last.time);
+  });
+});
+
 describe('snapwire: a client that never asked for deltas', () => {
   it('gets the pre-21.10 self-contained shape, events INSIDE the snapshot', () => {
     const w = createSnapWire({ delta: false });
