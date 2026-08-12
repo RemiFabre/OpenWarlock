@@ -1,5 +1,8 @@
 # BRIEF — round 22: Remi's 2026-08-12 request list
 
+*STATUS: executed 2026-08-12, all 18 items on main (REMI_NOTES round 22 is the
+outcome report). Kept as the interpretation record.*
+
 *Transcribed from voice (2026-08-12, after the 21.11 netcode round) and
 interpreted; ⚠ marks an interpretation Remi has not confirmed. Everything
 targets the MAIN version. Execution order is the agent's choice; keep main

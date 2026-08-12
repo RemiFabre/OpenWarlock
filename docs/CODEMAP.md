@@ -30,7 +30,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **berserker ★★: relentless brawler** — stepBerserker
 - **stalker ★★★: the skilled one** — stepStalker, botElementFor, botShop, botShopPass
 
-## shared/engine.js (434 lines)
+## shared/engine.js (441 lines)
 
 - BOT_NAMES, normName, createEngine, playerCount, botName, maybeAutoStart, resetToLobby, scheduleLobbyReset, cancelLobbyReset
 
@@ -67,7 +67,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
 
-## client/main.js (2152 lines)
+## client/main.js (2237 lines)
 
 - **key bindings (rebindable, persisted)** — loadKeys, saveKeys, spellForKey, keyLabel
 - **state** — me, latest
@@ -80,7 +80,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **join / lobby / shop DOM** — doJoin
 - **hosting online (docs/BRIEF-browser-hosting.md §B3)** — inviteLink, showHostbar, copyInviteLink, doHost, syncAvatarGrid
 - **key bindings panel** — startCapture, cancelCapture, onCaptureClick, onCaptureKey, applyPreset, closeKeysPanel
-- **rebinding: ONE rule, both entry points** — bindKey, openRebind, closeRebind, onRebindKey, refreshKeyUi, toast
+- **rebinding: ONE rule, both entry points** — bindKey, openRebind, closeRebind, onRebindKey, refreshKeyUi, setShopPreview, toast
 - **shop numbers** — fmtNum, fmtMult, tipRow, orderedFields, tipHead, tipShell, spellTip, elementTip, itemTip
 - **hover tooltip** — placeTip, showTip, hideTip, refreshTip, attachTip, buildShop, drawDraftBanner, thingSpec, thingName, thingDesc, thingIcon, thingCost
 - **DOM update per phase** — setVisible
@@ -105,6 +105,6 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - versionFile, readManifest, loadValidCommits, mimeType
 
-## version-menu.js (154 lines)
+## version-menu.js (189 lines)
 
-- close, render, loadManifest, addJoinPicker, isCurrent, versionUrl, switchVersion, escapeHtml, escapeAttr
+- loadVstats, openOverlay, close, render, loadManifest, addJoinPicker, isCurrent, versionUrl, switchVersion, escapeHtml, escapeAttr

@@ -1,82 +1,78 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Round 21.11, 2026-08-12, merged to main at your request before tonight's
-session. Round 21.10 (the ws-path bandwidth fixes) is archived at
-`docs/history/2026-08-12-remi-notes-round-21.10.md`. Full investigation:
-`docs/history/2026-08-12-rtc-lag-rootcause.md`.*
+*Round 22, 2026-08-12 — your full request list, all on main. Round 21.11 (the
+RTC lag root-cause) is archived at
+`docs/history/2026-08-12-remi-notes-round-21.11.md`. The interpreted spec I
+worked from is `docs/BRIEF-round22.md` — check my ⚠ interpretation calls there.*
 
-## Your friend's lag: found for real this time, and reproduced first
+## Faker is on main
 
-The 21.10 fixes were real bugs but, as that handoff admitted, none of them was
-proven to explain HIS session. I built the missing instrument —
-`node tools/rtclab.js`, a simulated network (bandwidth, latency, packet loss,
-per guest) around the REAL engine and the real wire code — and it reproduces
-his exact symptom: a guest on ~0.5 Mbit/s plays perfectly for 14 minutes, then
-drops to 2–3 updates a second and drifts 48 s behind, while the other guests in
-the same game feel nothing.
+The community version merged in whole: a tier ABOVE Extreme with a real combo
+brain (swap-hooks onto falling meteors, freeze-then-bolt, mine-then-swap), and
+exactly its four combo arsenals — hookstorm, permafrost, minefield, galeforce —
+selectable for it and for nobody else. It came with a **Runner** (stands still
+until first hit, then flees, never casts), and I added the **Dummy** you asked
+for: never moves, never casts, even under fire — pure combo practice. One call
+you may want to reverse: the Faker version pre-seated a Faker in every fresh
+lobby to demo itself; on main I turned that off — bots are added by choice.
 
-Two things caused it, both growing with the pillar list, which is why it only
-shows late:
+## Bots got personalities per difficulty
 
-1. **A hidden second stream.** Every 2 s your hosting tab sent EVERY guest a
-   complete backup of the room, preparation for a host-migration feature that
-   is not built. By round 25 that blob is 40 KB — twice a keyframe — and it
-   shared the ordered channel with keyframes and kill events, jamming them
-   behind it. Per your call: **deleted entirely** — the migration plan stays
-   written in `docs/BRIEF-browser-hosting.md` §B4 and the spare returns with
-   the feature, throttled.
-2. **Keyframes raced their own deltas.** A delta patches the state right
-   before it. The every-2-s keyframe IS one of those states, and it travelled
-   on the slow reliable channel — so late-game, the little deltas arrived
-   *before the big state they patch*, and your friend's client had to throw
-   them all away and live on keyframes alone: 1–2 updates a second, "like low
-   freq". Fix: the keyframe now travels ALONGSIDE a normal delta instead of
-   replacing it, so the delta chain never has to wait for a big message. If a
-   delta is lost, the next keyframe repairs things anyway — no round trip.
+Easy = Zug-Zug, Grubnub, Snotbog, Wobbla, Peon Pip. Normal = Grommash, Durotan,
+Orgrim, Nazgrel, Broxigar. **Hard = the classic six you know.** Extreme =
+Mannoroth, Tichondrius, Magtheridon, Mal'Ganis, Sargeras. Faker = Loki, Anansi,
+Puck, Kitsune, Coyote. Runner/Dummy = Sandbag, Piñata, Bullseye, Tin Can,
+Scarecrow. A lobby never repeats a name while one is unused; past five of a
+tier it borrows from the others.
 
-After the fixes, the same simulated guest holds 13–14 of 15 updates a second
-through round 25, at worst 1.4 s behind for a moment. Two smaller bugs fell
-out too (a skip used to *add* an 18 KB keyframe to an already-full pipe, and a
-guest waiting for a keyframe could be starved for ~10 s because it had stopped
-acking). All four fixes are ~10 lines each; 430 tests green, full ritual run,
-a real WebRTC round played.
+## Less point-blank oppression — ⚠ one number for you to feel out
 
-## Updating your mental model — you asked exactly the right question
+Normal bots now hold a real gap (standoff 13 — the melee chase is gone); Hard
+only refuses melee (its wounded-prey dive stops at 5 instead of face-camping);
+Extreme and Faker are untouched. Bots still close in when the ring leaves no
+room, and never back into lava. **The honest cost, measured twice:** Hard beats
+Normal 66-69% now instead of ~98% — the ladder still orders cleanly
+(Extreme>Hard and Normal>Easy both 100%), but the Hard-Normal gap is
+compressed. If Hard now feels too tame or Normal too easy, the knob is the two
+`standoff` numbers in `shared/constants.js` BOTS — say the word, don't let a
+table decide.
 
-Your picture is correct: full state every frame → too big; deltas → small but
-each one needs the one before it. Here is the part to add:
+## Fire Walk 👣 — your lava-immunity spell
 
-- **Fragility is handled by roles, not hope.** Every message is numbered and
-  names the state it patches, so the receiver always KNOWS it missed one —
-  nothing is silently wrong. The receiver's remedy is "ask for a full"; the
-  sender's remedy (when it must drop for a slow client) is nothing at all,
-  because a state it never sent is simply spanned by the next delta.
-- **A keyframe every ~2 s is the safety net**: whatever was lost, at most 2 s
-  later a complete state arrives and everything re-anchors. The 21.11 insight
-  is that the safety net must never be *in the way* — it now rides beside the
-  stream, not inside it.
-- **So deltas did not make the game less robust — the two big blobs did.**
-  Everything that broke was a large message (keyframe, backup blob) sitting in
-  front of small fresh ones. The deltas themselves were never the problem.
+Active self-buff, key **H**: zero lava damage for 3 s (lv1) / 5 s (lv2),
+cooldown flat 15 s, price 10 g + 5 g. You still swim lava at double speed, so
+it buys crossings and rim escapes, not a new home. A flame-gold ring shows on
+anyone who has it running — chasing them into lava is an informed mistake. Icon
+is footprints, not the burning boot: 🥾 was already Lava Treads. The Mine now
+sits in the shop's Offense row.
 
-## Tonight, you can finally SEE his link
+## The screens
 
-- Every player now has the **ms badge on the RTC path** too (his own browser
-  measures its connection and reports it). If his badge is high or jumpy,
-  it's his link; if it's clean and he still lags, tell me — that would point
-  at his machine (4K display? another window covering the browser?).
-- Your host tab's downloadable debug log now records, every 2 s, how far
-  behind each guest is and how much we dropped for them.
+- **First screen**: name, Play, Host online, the version picker with equal
+  billing ("official & community ideas"), one sentence about joining by link,
+  and the idea pitch in one line with "(wait ≈ 1 hour)". Avatar picker, key
+  panel and control hints moved to the lobby.
+- **Lobby**: 📜 Rules fold holds the gold/team/win text; "press H — right-click
+  to move" style controls line stays visible (live binding, never hardcoded);
+  config is a quiet vertical stack (Playing/Spectating, Rules without emoji or
+  violet, Draft, Testing); every bot row has its own ✕; **🗿 Shop** opens the
+  real shelves for browsing (buying stays between rounds); avatars apply live;
+  the idea pitch repeats at the bottom.
+- **Dead-and-watching**: the standings band folds behind ▾ so you can watch.
 
-## For "host + 6 friends"
+## Ratings & per-version stats
 
-Simulated: 6 guests including two bad links — on a normal fibre upload all six
-hold 11–14 Hz to round 25 even with 874 pillars. On a 1 Mbit/s upload (old
-ADSL) the late game saturates for everyone at once; if that case ever matters,
-the next lever is documented in the history file (pillars are 86 % of a
-keyframe and change rarely — send them once, not 15×/s).
+Stars in the lobby's top right — everyone's average and count show in the
+version picker, with hollow ☆☆☆☆☆ ? until someone rates. Next to it:
+**player-rounds** (3 rounds × 5 players = 15; the ⓘ explains it on hover).
+Honest limits: the counting starts today, and old pinned community versions
+won't feed per-version numbers until each is republished (they run frozen
+clients) — their plays DO count in the global 📊 panel, which always covered
+all versions. Re-rating replaces your stars (remembered per browser); it's
+trust-based, like everything in a friends lobby.
 
-## Still waiting on you (unchanged from 21.9)
+## Still waiting on you
 
-The mine's name; whether the trap should be throwable; the two 21.7 sounds;
-capping a 3v1 team's kill target; names for Switcheroo 🎭.
+The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
+cap, Switcheroo names) — plus, new: the Hard/Normal standoff feel after
+tonight, and whether the demo-Faker should return to fresh lobbies.

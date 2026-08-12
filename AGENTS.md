@@ -1,6 +1,7 @@
 # AGENTS.md — handoff for the next session
 
-*Last updated 2026-08-12 (round 21.11). Read this first, then REMI_NOTES.md
+*Last updated 2026-08-12 (round 22 — Remi's request list, spec in
+docs/BRIEF-round22.md, all shipped). Read this first, then REMI_NOTES.md
 (latest round only) — that is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08 — non-negotiable)
@@ -122,7 +123,7 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
 | `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
-| `test/sim.test.js` | the bulk of the 433 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
+| `test/sim.test.js` | the bulk of the 462 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/snapwire.test.js` | 35 tests on the wire rules — a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss, and echo keyframes (21.11) ride beside the delta |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
@@ -137,6 +138,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots — prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity) — the Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed — re-run **only if its tests break** |
+| `tools/combo.js` | Faker combo lab (issue #7): Faker vs Runner, `--no-combo` ablates the combo layer |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
 | `tools/slowlink.js` | **the ws netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). ⚠ bandwidth only — no jitter, no loss, no RTC path |
 | `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link — per-guest bandwidth/RTT/bursty loss, shared host uplink. Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
@@ -224,7 +226,9 @@ build step, Node ESM, only dep is `ws`.
   rooted + silenced + unpushable, body eats projectiles ([10,5], cd [16,12],
   duration FLAT); **Decoy** 👥 = 4 s mirages (21.8) that ape your casts and have zero
   gameplay effect ([10,5], lv2 = a second clone, cd flat, power tier);
-  vanish 1/2/3 s at 10 g — ANY cast while invisible
+  **Fire Walk** 👣 (key `firewalk`, round 22) = lava immunity [3,5] s,
+  [10,5] g, cd flat 15, public `fw` field → flame ring (the ×2 lava swim
+  SPEED stays); vanish 1/2/3 s at 10 g — ANY cast while invisible
   REVEALS (vanish itself + the auto repulse burst don't; vanish is castable
   mid-charge); walls reflect projectiles ONLY (the round-19 "tangible" order was a transcription ghost — Remi reverted it); infinite ground-target
   range; `tier: 'power'` = bot guard + draft filter only. Spell keys are
@@ -246,10 +250,16 @@ build step, Node ESM, only dep is `ws`.
   damaged them more recently. Revert = `stamp: false` at the two tick sites. Lifesteal pays on damage actually dealt, never lava; heals
   ≥ 1 hp pop a green +N; poison ticks are exempt from the ≥1 floater filter.
 - **Draft mode**: optional flag over any ruleset. Unmeasured by design.
-- **Bots**: Easy/Normal/Hard/Extreme (`grunt/brawler/berserker/stalker` keys).
-  Ladder h2h 100/99.8/100. Targeting is a SOFTMAX draw (`BOT_TARGETING`,
-  TEMPERATURE 6); sky-bolt dodge is a committed per-bolt roll (`boltDodge`
-  0.35/0.5/0.85 — Remi set Hard's 50%); bots pressure the kill leader
+- **Bots**: Easy/Normal/Hard/Extreme/Faker (`grunt/brawler/berserker/stalker/
+  faker` keys) + two sparring tiers (`runner` flees after first hit, `dummy`
+  never reacts — round 22). Faker (issue #7) = stalker brain + a combo layer;
+  its four combo BUILDS (`kinds:['faker']`) are two-way exclusive. Per-kind
+  NAME POOLS in engine.js `BOT_NAMES` (classic six = Hard; own pool first,
+  then borrow). Round-22 `standoff` (Normal 13 / Hard 5) floors the prowl
+  ring so Normal never face-camps — ladder h2h now 100 / **66-69** / 100,
+  ⚠ awaiting Remi's feel verdict. Targeting is a SOFTMAX draw
+  (`BOT_TARGETING`, TEMPERATURE 6); sky-bolt dodge is a committed per-bolt
+  roll (`boltDodge` — Remi set Hard's 50%); bots pressure the kill leader
   (`LEADER_BIAS 2.5`).
 
 ## Co-op campaign (mode `coop`) — MOTHBALLED
@@ -277,7 +287,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 433 green
+npx vitest run                                   # 462 green
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
