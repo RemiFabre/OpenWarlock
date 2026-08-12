@@ -1,4 +1,4 @@
-# Swap THIS shell onto the repo-scoped fine-grained PAT. Must be sourced —
+# Swap THIS shell onto the repo-scoped fine-grained PAT. Must be sourced;
 # a child process cannot touch the terminal's environment:
 #
 #   source scripts/agent-env.sh
@@ -17,11 +17,11 @@ fi
 unset GITHUB_TOKEN
 export GH_TOKEN="$GITHUB_TOKEN_WARLOCK"
 
-# git push does NOT read GH_TOKEN — this machine's credential.helper is
+# git push does NOT read GH_TOKEN; this machine's credential.helper is
 # `store`, which would hand git the wide credential from ~/.git-credentials.
 # Override the helper for this shell only (env-level git config, no files
-# touched): blank entry clears the helper list, then gh — which does honor
-# GH_TOKEN — takes over.
+# touched): blank entry clears the helper list, then gh (which does honor
+# GH_TOKEN) takes over.
 export GIT_CONFIG_COUNT=2
 export GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=""
 export GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1="!gh auth git-credential"

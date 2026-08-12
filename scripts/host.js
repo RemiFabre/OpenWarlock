@@ -40,7 +40,7 @@ setTimeout(() => {
     tun.on('exit', (c) => { console.error(`cloudflared exited (${c})`); });
     process.on('exit', () => tun.kill());
   } else {
-    console.log('  cloudflared not found — falling back to localtunnel (npx).');
+    console.log('  cloudflared not found; falling back to localtunnel (npx).');
     console.log('  For a smoother tunnel: brew install cloudflared\n');
     const tun = spawn('npx', ['-y', 'localtunnel', '--port', String(PORT)], { shell: false });
     tun.stdout.on('data', (buf) => {
