@@ -1,4 +1,4 @@
-// OpenWarlock — Node adapter around the authoritative room (shared/engine.js).
+// OpenWarlock: Node adapter around the authoritative room (shared/engine.js).
 // One process = one game (lobby -> rounds -> gameover -> back to lobby).
 // Serves the static client over HTTP and the game over WebSocket.
 //
@@ -82,7 +82,7 @@ const httpServer = http.createServer((req, res) => {
       players: Object.keys(game.players).length, uptime: process.uptime(),
       version: VERSION,
       // round 21.10: per-player snapshot bandwidth, live. `skipped` climbing on
-      // ONE seat is the signature of a link that cannot keep up — that is the
+      // ONE seat is the signature of a link that cannot keep up; that is the
       // number to look at when a friend reports late-game jerkiness.
       wire: [...sockets].map(([pid, ws]) => ({
         id: pid, queued: ws.bufferedAmount, ...(ws.wire ? ws.wire.stats() : {}),
@@ -130,7 +130,7 @@ let nextConnId = 1;
 const sockets = new Map(); // playerId -> ws
 
 // Bans (until the server restarts): a kicked-with-ban player is blocked by
-// NAME (engine) and by IP (here). Name catches the classic offender — an
+// NAME (engine) and by IP (here). Name catches the classic offender, an
 // abandoned tab that auto-reconnects under the same name 2 s after every
 // kick; IP catches renames. Behind cloudflared every socket is local, so
 // trust the CF-Connecting-IP header first.
@@ -186,7 +186,7 @@ const engine = createEngine({
 // client -> server: join {name, avatar, dv?}, ready, spectate, mode, draft,
 //                   move, cast, buy, draftPick, addBot, removeBot, again,
 //                   and two transport-only ones (round 21.10): full, ack {q}
-// server -> client: welcome {id, v}, denied {reason}, evt {e}, and snap —
+// server -> client: welcome {id, v}, denied {reason}, evt {e}, and snap;
 //                   whole (`{s, e}`) for a client that sent no `dv`, else
 //                   delta-coded per shared/snapwire.js
 
@@ -201,7 +201,7 @@ const wss = new WebSocketServer({
 });
 
 // Zombie reaper: connections through tunnels (cloudflared) often die WITHOUT
-// a close frame, leaving a ghost warlock seated forever — blocking the lobby
+// a close frame, leaving a ghost warlock seated forever, blocking the lobby
 // (start needs every human ready). Ping every 15 s; a socket that misses two
 // pongs is terminated, which fires 'close' and removes the player normally.
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 15000);
@@ -214,7 +214,7 @@ setInterval(() => {
 }, HEARTBEAT_MS);
 
 // RTT measure (round 18, Remi: "a friend had a lot of lag"): a second, faster
-// ping stream whose payload is its own send time — the pong echoes the payload
+// ping stream whose payload is its own send time; the pong echoes the payload
 // back (RFC 6455), so every browser reports its round-trip with zero client
 // code. DELIBERATELY separate from the reaper above: folding this cadence into
 // the reaper would shrink its miss-two-pongs tolerance from 30 s to 4 s and
@@ -317,7 +317,7 @@ setInterval(() => {
           gold: p.gold, score: p.score, alive: p.alive, bot: p.bot,
           spells: p.spells, items: p.items,
           team: p.team,   // versus teams: the round-end invariant is per TEAM (round 21.3)
-          // co-op: campaign monsters are not seats — the invariant checker
+          // co-op: campaign monsters are not seats; the invariant checker
           // must not count them as fighters (see test/harness/check.js)
           ...(p.wave ? { wave: true } : {}),
         };

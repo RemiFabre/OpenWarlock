@@ -1,7 +1,7 @@
 {
   "name": "openwarlock",
   "version": "0.1.0",
-  "description": "OpenWarlock — open-source web remake of the WC3 Warlock arena brawler",
+  "description": "OpenWarlock, an open-source web remake of the WC3 Warlock arena brawler",
   "main": "index.js",
   "scripts": {
     "test": "vitest run",

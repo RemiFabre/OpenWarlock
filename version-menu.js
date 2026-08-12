@@ -52,7 +52,7 @@
   document.body.append(button, overlay);
 
   // Per-version plays/ratings from the relay (the host the beacons already
-  // hit — client/transport.js SIGNAL_URL). Best-effort: the list never waits.
+  // hit; client/transport.js SIGNAL_URL). Best-effort: the list never waits.
   const relayHttp = 'https://remifabre-openwarlock-signal.hf.space';
   let vstats = null, manifest = null;
   async function loadVstats() {
@@ -61,7 +61,7 @@
       const r = await fetch(`${relayHttp}/versions`, { cache: 'no-store' });
       const j = await r.json();
       if (j && j.ok) vstats = j.versions || {};
-    } catch { /* relay asleep — the numbers just don't show */ }
+    } catch { /* relay asleep; the numbers just don't show */ }
   }
   function openOverlay() {
     overlay.classList.add('open');
@@ -103,11 +103,11 @@
       const avg = n ? Number(st.rating_sum) / n : 0;
       const stars = n
         ? `${'★'.repeat(Math.round(avg))}${'☆'.repeat(5 - Math.round(avg))} ${avg.toFixed(1)} <span class="owv-dim">(${n})</span>`
-        : `☆☆☆☆☆ <span class="owv-dim" title="no ratings yet — rate it from the game lobby (top right)">?</span>`;
+        : `☆☆☆☆☆ <span class="owv-dim" title="no ratings yet. Rate it from the game lobby (top right)">?</span>`;
       const pr = st && Number(st.player_rounds) > 0
         ? `${Number(st.player_rounds)} player-rounds`
         : 'no play data yet';
-      const statsLine = vstats ? `<div class="owv-stats">${stars} · <span title="player-rounds: every round fought counts once per player in it — 3 rounds × 5 players = 15. Counted since 2026-08-12.">${pr} ⓘ</span></div>` : '';
+      const statsLine = vstats ? `<div class="owv-stats">${stars} · <span title="player-rounds: every round fought counts once per player in it (3 rounds × 5 players = 15). Counted since 2026-08-12.">${pr} ⓘ</span></div>` : '';
       return `<div class="owv-item">
         <div><span class="owv-name">${escapeHtml(entry.name)}</span>${current ? '<span class="owv-current">playing</span>' : ''}</div>
         <div class="owv-meta">by ${escapeHtml(entry.author)}${issue}</div>
@@ -121,7 +121,7 @@
   }
 
   // Same rule as the service worker's allowlist (see version-sw.js): both
-  // copies of the manifest, and the higher `serial` wins — so the list a player
+  // copies of the manifest, and the higher `serial` wins, so the list a player
   // sees and the list the loader enforces can never disagree about which one of
   // them is stale.
   async function loadManifest() {
