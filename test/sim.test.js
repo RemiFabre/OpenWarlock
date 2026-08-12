@@ -7278,3 +7278,145 @@ describe('Faker & Runner (issue #7)', () => {
     plain.destroy();
   });
 });
+
+// ---- Genki (issue #12): the charging omega ball ------------------------------
+describe('Genki (issue #12)', () => {
+  const spec = SPELLS.genki;
+  function arena2(setup = () => {}) {
+    const state = freshBattle(2);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    a.spells.genki = 1;
+    setup(state, a, b);
+    return state;
+  }
+  const charge = (state, secs) => { state.players.p0.genki.t = secs; };
+  const ball = (state) => state.projectiles.find(p => p.type === 'genki');
+
+  it('press charges, second press fires; damage 3/s, radius with the sqrt of time', () => {
+    const state = arena2();
+    expect(castSpell(state, 'p0', 'genki', 20, 0)).toBe(true);
+    expect(state.players.p0.genki).toBeTruthy();
+    run(state, 1);
+    expect(state.players.p0.genki.t).toBeCloseTo(1, 1);
+    charge(state, 4);
+    castSpell(state, 'p0', 'genki', 20, 0);     // release
+    const pr = ball(state);
+    expect(pr).toBeTruthy();
+    expect(pr.dmg).toBeCloseTo(12, 5);                                   // 3 * 4
+    expect(pr.radius).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 5);
+    expect(state.players.p0.genki).toBe(null);
+    // it lands for exactly the charge
+    const b = state.players.p1;
+    const hp0 = b.hp;
+    run(state, 1);
+    expect(hp0 - b.hp).toBeCloseTo(12, 5);
+  });
+
+  it('lv2 pumps 1.5x fluid: same second, more damage and more ball', () => {
+    const state = arena2((s, a) => { a.spells.genki = 2; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 4);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    expect(ball(state).dmg).toBeCloseTo(18, 5);                          // 3 * 4 * 1.5
+  });
+
+  it('casting anything else works but drops the whole charge', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 5);
+    expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);        // the cast lands
+    expect(state.players.p0.genki).toBe(null);                           // the charge is gone
+    expect(state.events.some(e => e.t === 'genkiFizzle')).toBe(true);
+  });
+
+  it('a direct hit drops it; lava and sickness ticks do not', () => {
+    const state = arena2();
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 3);
+    // sickness tick: poison the charger, let it tick
+    a.poisonT = 2; a.poisonTick = 1; a.poisonBy = 'p1'; a._poisonNext = 0;
+    run(state, 1.2);
+    expect(a.genki).toBeTruthy();          // the plague did not drop it
+    // lava
+    a.x = state.arenaRadius + 5; a.y = 0;
+    run(state, 0.5);
+    expect(a.genki).toBeTruthy();          // the swim did not drop it
+    a.x = 0; a.y = 0;
+    // a fireball does
+    const b = state.players.p1;
+    b.x = 6; b.y = 0; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a.genki).toBe(null);
+  });
+
+  it('stage 1 (Terra-3 size) smashes pillars and FLIES ON; stage 0 pops', () => {
+    const stage1T = spec.calibT * (spec.smashR / spec.radius) ** 2;
+    const state = arena2((s) => { s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }]; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, stage1T + 0.2);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    run(state, 0.6);
+    expect(state.pillars.length).toBe(0);                        // smashed
+    const b = state.players.p1;
+    expect(b.hp).toBeLessThan(b.maxHp);                          // ...and it flew on
+    // control: an uncharged ball pops on the stone
+    const s2 = arena2((s) => { s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }]; });
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, 1);
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    run(s2, 0.6);
+    expect(s2.pillars.length).toBe(1);
+    expect(s2.players.p1.hp).toBe(s2.players.p1.maxHp);
+  });
+
+  it('stage 2 ignores shields and mirror walls; a statue passes it through', () => {
+    const stage2T = spec.calibT * (spec.smashR / spec.radius) ** 2 + spec.unstoppableAfter;
+    // shield
+    const state = arena2((s, a, b) => { b.shieldT = 5; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, stage2T + 0.2);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    run(state, 0.8);
+    const b = state.players.p1;
+    expect(b.hp).toBeLessThan(b.maxHp);                          // hit THROUGH the shield
+    // statue: unaffected while gold, hit when it thaws under the ball
+    const s3 = arena2((s, a, x) => { x.statueT = 0.35; x.x = 12; });
+    castSpell(s3, 'p0', 'genki', 20, 0);
+    charge(s3, stage2T + 0.2);
+    castSpell(s3, 'p0', 'genki', 12, 0);
+    run(s3, 0.28);                                               // ball inside the statue
+    expect(s3.players.p1.hp).toBe(s3.players.p1.maxHp);
+    run(s3, 0.4);                                                // stasis over, ball still there?
+    // the ball is huge (r > 2) and passes through: the thaw tick eats it
+    expect(s3.players.p1.hp).toBeLessThan(s3.players.p1.maxHp);
+  });
+
+  it('death and round start clear the charge', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 8);
+    const a = state.players.p0;
+    a.hp = 1;
+    const b = state.players.p1;
+    b.x = 6; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a.alive).toBe(false);
+    expect(a.genki).toBe(null);
+  });
+
+  it('the charge is public on the wire: radius, stage, damage', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 4);
+    const view = snapshot(state, 'p1').players.p0;   // the ENEMY sees it
+    expect(view.genkiR).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 2);
+    expect(view.genkiDmg).toBe(12);
+    expect(view.genkiStage).toBe(0);
+  });
+});

@@ -271,6 +271,24 @@ export const SPELLS = {
   // BOT_CC_CAST + PILOTED_POWER in shared/sim.js). For the rest, omission from
   // every BUILDS/BOT_BUILDS order list IS the gate, and it is load-bearing
   // (AGENTS.md debt #2). history: docs/history/2026-08-08-constants-sweeps.md#spells-power-tier
+  genki: {
+    // Issue #12 (Remi): the Genki-Dama. Two presses: charge above your head,
+    // then fire at the cursor. Damage 3/s forever; the AREA grows linearly
+    // (constant fluid inflow) so radius = base * sqrt(t / calibT). Stage 1
+    // (radius = a Terra-3 ball, ~6.8 s) smashes pillars and keeps flying;
+    // stage 2 (+5 s) ignores shields and mirror walls. Statues alone are
+    // exempt: the ball passes through and hits whatever outlives the gold.
+    // Casting anything else, or taking DIRECT damage, drops the whole charge
+    // (lava/burn/sickness are the exceptions). `rate` is what lv2 buys: +50%
+    // fluid. tier 'power' = the bot guard; no bot pilots a two-press channel.
+    name: 'Genki', hotkey: 'K', tier: 'power', maxLevel: 2, costs: [12, 6],
+    cooldown: [4, 4], speed: 41, radius: 0.8, range: Infinity,
+    kbBase: 65,   // push starts at a fireball's and grows +3/s with the charge
+    dmgPerSec: 3, calibT: 2.5, rate: [1, 1.5],
+    smashR: 0.8 * 1.65, unstoppableAfter: 5,
+    desc: 'Charge one omega ball.',
+    long: 'Press to charge a ball above your head, press again to fire it. It gains 3 damage per second, forever, and grows like a filling pool (radius with the square root of time). At Terra-3 size it smashes pillars and flies on; 5 seconds later nothing reflects it. Casting anything else or taking a direct hit drops the charge — lava, burns and sickness do not.',
+  },
   meteor: {
     // Round 21.1: 14 was off the tier ladder — expensive tier is 12.
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [12, 6],
