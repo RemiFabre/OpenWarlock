@@ -124,6 +124,9 @@ build step, Node ESM, only dep is `ws`.
 | `test/sim.test.js` | 395 vitest tests — must stay green; balance tests read numbers FROM THE SPEC, never pinned |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
+| `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`) — read it before grepping `sim.js` |
+| `tools/shot.js` | drives the real client and PROBES the canvas for a colour signature, so "did it render" costs one cropped screenshot instead of a burst (`--self-test`) |
+| `scripts/setup-agent.sh` | one idempotent command to make a fresh clone runnable (deps, browsers, hooks, main, token check) |
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, `--mode=elemental` (element-vs-element study), self-test (trust it at ≥1600 games). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 — every arena table printed before that date was classic |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
