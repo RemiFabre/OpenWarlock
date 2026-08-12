@@ -56,6 +56,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/6",
       "branch": "issue-6-charging",
       "commit": "cd0f4f5b62623df4476aa9a0ca304963e784d501"
+    },
+    {
+      "slug": "faker",
+      "name": "Faker",
+      "author": "@RemiFabre",
+      "summary": "A difficulty above Extreme whose whole identity is the combo: it solves where your body will land under a knockback and puts the lightning there before you arrive. Ships with a Runner sparring bot that never escapes with a spell.",
+      "issue": 7,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/7",
+      "branch": "issue-7-faker",
+      "commit": "b9d68425e59d8474985c1a6f6a059a87851e3e26"
     }
   ]
 }
