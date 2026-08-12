@@ -1639,7 +1639,7 @@ function buildShop(container, mode = 'classic') {
         }
       }
       // level pips (round 22.2, Remi): a tiny bar at the bottom of every card
-      // says 0..max at a glance — one cell per level, owned cells lit
+      // says 0..max at a glance (one cell per level, owned cells lit)
       const pmax = w.kind === 'spell' ? (w.maxLevel || w.spec.maxLevel) : w.spec.maxLevel;
       if (!w.pips) {
         w.pips = document.createElement('span');
