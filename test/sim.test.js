@@ -3867,6 +3867,69 @@ describe('bot profiles', () => {
     expect(Math.abs(s.y)).toBeGreaterThan(2); // and it left the threat ray
   });
 
+  // Boomerangs must stay inside the same threat scan as fireballs: the dodge
+  // reads the projectile's CURRENT velocity, so each straight leg (out and
+  // return) is dodged like any other shot. Locked against a type filter ever
+  // sneaking into scanThreats; boomer strategies must not win for free.
+  it('a stalker sidesteps a boomerang on its OUT leg', () => {
+    const state = createGame({ seed: 11 });
+    addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });
+    addPlayer(state, 'e', 'Enemy', { bot: true, kind: 'grunt' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const s = state.players.s;
+    s.x = 0; s.y = 0; s.vx = 0; s.vy = 0;
+    state.players.e.x = 0; state.players.e.y = 40; // parked far off the ray
+    // hostile boomerang flying straight at the stalker along y = 0
+    state.projectiles.push({
+      id: 999, type: 'boomerang', owner: 'e', level: 1,
+      x: 25, y: 0, ox: 25, oy: 0,
+      vx: -SPELLS.boomerang.speed, vy: 0,
+      traveled: 0, returning: false, lost: false,
+      hit: {}, pierce: true, pierced: 0,
+    });
+    let guard = 0;
+    while (guard++ < 120) {
+      const pr = state.projectiles.find((p) => p.id === 999);
+      if (!pr || pr.x <= -5) break; // pierces: it flies past, never pops
+      step(state, DT);
+      stepBot(state, 's', DT);
+    }
+    expect(s.alive).toBe(true);
+    expect(s.hp).toBe(s.maxHp);               // it was never clipped
+    expect(Math.abs(s.y)).toBeGreaterThan(2); // and it left the threat ray
+  });
+
+  it('a stalker sidesteps a boomerang on its RETURN leg', () => {
+    const state = createGame({ seed: 11 });
+    addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });
+    addPlayer(state, 'e', 'Enemy', { bot: true, kind: 'grunt' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const s = state.players.s;
+    s.x = 0; s.y = 0; s.vx = 0; s.vy = 0;
+    state.players.e.x = 0; state.players.e.y = 40;
+    // already recalled: turned at (-20,0), heading home to its launch point
+    // (25,0), straight through the stalker; a fresh hit set threatens it
+    state.projectiles.push({
+      id: 999, type: 'boomerang', owner: 'e', level: 1,
+      x: -20, y: 0, ox: 25, oy: 0,
+      vx: SPELLS.boomerang.speed, vy: 0,
+      traveled: 45, turnAt: 45, returning: true, lost: false,
+      hit: {}, pierce: true, pierced: 0,
+    });
+    let guard = 0;
+    while (guard++ < 120) {
+      const pr = state.projectiles.find((p) => p.id === 999);
+      if (!pr || pr.x >= 25) break; // home: only its owner could catch it
+      step(state, DT);
+      stepBot(state, 's', DT);
+    }
+    expect(s.alive).toBe(true);
+    expect(s.hp).toBe(s.maxHp);
+    expect(Math.abs(s.y)).toBeGreaterThan(2);
+  });
+
   it('a stalker teleports out of lava when it owns teleport', () => {
     const state = createGame({ seed: 12 });
     addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });

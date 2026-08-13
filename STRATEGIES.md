@@ -155,10 +155,12 @@ it there. (The pointer used to say "report #4"; that report is now in git histor
 at `33b64ab:BALANCE.md` and the live table is the round-15 one.)
 
 **Boomer is the strongest pick at every tier**, and that is partly a bot
-artifact: nothing in the bot code dodges a boomerang (Extreme's dodge routine
-follows a projectile's current velocity ray, which is exactly what a
-returning boomerang violates) and no bot ever *catches* one to halve its
-cooldown, so the lab over-rates the weapon and under-rates the skill in it.
+artifact. Extreme/Faker DO sidestep boomerangs (scanThreats is type-agnostic
+and each leg flies straight; both legs test-locked 2026-08-13), but the lab's
+Hard lobbies run the berserker brain, which sidesteps nothing by design; a
+recall can re-aim the return inside any bot's reaction window; and no bot
+ever *catches* one to halve its cooldown. So the lab over-rates the weapon
+and under-rates the skill in it.
 For the hardest fight, pick **boomer**; for a brawl, **berserker/bruiser**;
 for a war of attrition, **stalker/turtle**. Rusher and escape stay weak in
 bot hands (bots can't extract teleport/rush's reactive value the way a human
