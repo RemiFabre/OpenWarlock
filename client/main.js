@@ -1316,19 +1316,21 @@ function tipUpgrade(lines, from, to) {
 }
 
 function tipBody(lines, cur, max, costAt, previewLv) {
+  // iteration 5 (Sam): every remaining level is visible, stacked in the same
+  // style — LV n+1 vs your level, then each further level vs the one before
+  // it. The dots stay as the level map (hovering them changes nothing now).
   const maxed = cur >= max;
-  const target = !maxed && previewLv > cur + 1 ? Math.min(previewLv, max)
-    : Math.min(cur + 1, max);
-  let h = tipProg(cur, max, maxed ? 0 : target);
+  let h = tipProg(cur, max, maxed ? 0 : cur + 1);
   if (cur >= 1) {
     h += `<div class="lvhead l${Math.min(cur, 3)}">CURRENT · LV ${cur}${maxed ? ' · MAX' : ''}</div>` +
       `<div class="stats">${tipStatList(lines, cur)}</div>`;
   }
-  if (!maxed) {
-    const from = target === cur + 1 ? cur : target - 1;
-    h += `<div class="lvhead l${target}">LV ${target} · <span class="cost">${esc(costAt(target))}</span>` +
+  for (let t = cur + 1; t <= max; t++) {
+    const from = t - 1;
+    h += `<div class="lvhead l${t}">LV ${t}${t === cur + 1 && cur >= 1 ? ' · NEXT' : ''} · ` +
+      `<span class="cost">${esc(costAt(t))}</span>` +
       `${from >= 1 && from !== cur ? ` <span class="vs">vs lv ${from}</span>` : ''}</div>` +
-      `<div class="stats">${tipUpgrade(lines, from, target)}</div>`;
+      `<div class="stats">${tipUpgrade(lines, from, t)}</div>`;
   }
   return h;
 }
