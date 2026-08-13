@@ -1372,10 +1372,13 @@ const statAt = (v, level) => Array.isArray(v) ? v[Math.min(level, v.length) - 1]
 // Elements = the ball's stat axes; Mutations = the ones that change what the
 // ball does.
 const ELEMENT_ROWS = [
+  // issue #13 v6 fix (Ju, explicit): Dark Ball and Storm Ball are ELEMENTS —
+  // they sit beside Ghost, never under Mutations. Ricochet stays a mutation
+  // (it still transforms the ball).
   ['Elements ⚗️ (your fireball\'s stat axes)',
-    ['ember', 'terra', 'gale', 'arcane', 'ghost']],
+    ['ember', 'terra', 'gale', 'arcane', 'ghost', 'umbra', 'chainball']],
   ['Mutations 🧬 (they change what your fireball does)',
-    ['malady', 'frost', 'anger', 'mosquito', 'vampire', 'midas']],
+    ['malady', 'frost', 'anger', 'mosquito', 'vampire', 'midas', 'ricochet']],
 ];
 const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 
