@@ -1110,6 +1110,7 @@ const FX_FIELDS = {
   kbMult: ['fireball push', fmtMult],
   haste: ['fireball haste', (v) => `+${fmtNum(v)}`],
   cd: ['your fireball cooldown becomes', fmtSec],
+  ballTransform: ['your fireball', (v) => (v ? 'becomes this ball' : '—')],
   projRadiusMult: ['fireball size', fmtMult],
   projSpeedMult: ['fireball speed', fmtMult],
   stacksToTrigger: ['stacks to detonate', fmtNum],
