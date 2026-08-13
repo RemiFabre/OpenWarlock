@@ -741,8 +741,8 @@ $('statsBtn').addEventListener('click', async () => {
       row('page visits', t.visits, today.visits) +
       row('games started', t.games, today.games) +
       row('players seated', t.players_total, today.players_total) +
-      row('games finished', t.game_ends, today.game_ends) +
       row('rounds fought', t.rounds_total, today.rounds_total);
+    // game_ends is still counted by the relay, just not displayed (Remi, round 23)
   } catch { el.textContent = 'stats unreachable (relay asleep or offline)'; }
 });
 $('statsOverlay').addEventListener('click', () => $('statsOverlay').classList.add('hidden'));
