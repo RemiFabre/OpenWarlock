@@ -145,7 +145,7 @@ build step, Node ESM, only dep is `ws`.
 | `client/transport.js` | ws + solo + RTC transports behind one seam (`?mode=`, `#r=CODE`, else /health probe). Hosting record: `docs/history/2026-08-09-browser-hosting-phaseB.md` |
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
 | `scripts/host.js` | `npm run host`: server + cloudflared quick tunnel |
-| `client/` | canvas client: main.js (net/input/HUD/shop/floaters), render.js, coop.js, music.js, sfx.js |
+| `client/` | canvas client. Round 23 split main.js (2310 lines) into: **ui.js** (the LEAF: `$`, esc, fin, toast, setVisible, ICONS, fmtNum, statAt), **keys.js** (bindings + Keys panel + rebind popup; OWNS the bindings, read via `bindings()`/`keyOf()`), **shop.js** (card grid, tooltips, draft banner; `send` is INJECTED via `initShop`), and main.js (net/input/HUD/lobby/floaters, 1473). ⚠ The import order **ui → keys → shop → main** is load-bearing: a cycle would be a blank page, not a warning. Plus render.js, coop.js, music.js, sfx.js, chatter.js, transport.js, analytics.js |
 | `versions.json`, `version-{menu,sw}.js`, `404.html` | in-game version list + exact-commit loader; issue branches stay isolated and get permanent `/v/COMMIT/client/` links |
 | `test/sim.test.js` | the bulk of the 478 vitest tests (must stay green); balance tests read numbers FROM THE SPEC, never pinned |
 | `test/snapwire.test.js` | 35 tests on the wire rules: a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss, and echo keyframes (21.11) ride beside the delta |
