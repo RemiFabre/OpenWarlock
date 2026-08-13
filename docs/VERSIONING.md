@@ -46,11 +46,12 @@ Three properties the watchdog must keep (each one cost a real miss):
   UNTREATED marks per-watchdog though: a new session must still be told about
   an issue that is already waiting. Also seed your OWN comment ids into it
   after posting (`gh issue comment` prints `#issuecomment-ID`), or the agent
-  wakes itself for its own words. A watcher that exits
-on its first hit leaves the queue blind during implementation and depends on a
-re-arm step a busy or crashed session can forget; the never-exit design has no
-such gap. New arrivals during work are noted and taken in order after the
-current issue is delivered.
+  wakes itself for its own words.
+
+A watcher that exits on its first hit leaves the queue blind during
+implementation and depends on a re-arm step a busy or crashed session can
+forget; the never-exit design has no such gap. New arrivals during work are
+noted and taken in order after the current issue is delivered.
 
 ### 1. Start in the dedicated clone
 
