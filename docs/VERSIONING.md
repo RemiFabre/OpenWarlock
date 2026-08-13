@@ -184,6 +184,18 @@ Verify that the game boots, the requested change works, the version picker shows
 the correct name, and switching back to Default works. Retry briefly if the CDN
 has not received the commit yet. Do not report before the link works.
 
+⚠ Two rules learned the hard way (2026-08-13, a delivery stalled ~40 min):
+
+- **Verify with a real BROWSER LOAD, never an HTTP status probe.** Permanent
+  links are served through the `404.html` loader, so the URL can answer 404
+  forever while the page renders perfectly. A "wait for 200" poll waits for a
+  condition that cannot become true.
+- **Every background wait needs a deadline and a failure signal.** Retry the
+  browser check about once a minute, give up loudly after ~15 minutes, and
+  treat silence as a bug, not as progress. While the CDN wait runs, start the
+  next queued issue's reading and verdict instead of idling; publish and
+  report the stalled one as soon as its link verifies.
+
 Finally comment with an `@mention`, version name, permanent link, branch, full
 commit, and tests performed. Remove `ai:working`, add `ai:done`, and **leave the
 issue open** (Remi, 2026-08-13). The agent never closes an issue: the creator
