@@ -221,10 +221,8 @@
     position: fixed; inset: 0; z-index: 230; display: grid; place-items: center;
     pointer-events: none; background: rgba(10, 6, 4, 0.55);
   }
-  #scorepanel .scoreslab {
-    background: #171210; border: 1px solid #4a3a2c; border-top: 3px solid var(--ember);
-    padding: 18px 22px; box-shadow: 0 24px 80px #000; max-width: min(920px, 92vw);
-  }
+  /* Round 23 (Remi): no backing box; the full-screen dim above is enough. */
+  #scorepanel .scoreslab { padding: 18px 22px; max-width: min(920px, 92vw); }
   #keyList { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 24px; }
   #keysPanel .krow {
     display: flex; align-items: center; gap: 10px;
@@ -341,10 +339,13 @@
     color: #6f6357;
   }
   /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
-     wrapper NEXT TO the buy button; inside a disabled button it'd be dead. */
-  .warewrap { position: relative; display: flex; }
+     wrapper NEXT TO the buy button; inside a disabled button it'd be dead.
+     align-self keeps the wrap at card height (the sideways row label used to
+     stretch it by a per-word amount, round 23), so the chip's overhang below
+     the card edge is the same on every row. */
+  .warewrap { position: relative; display: flex; align-self: flex-start; }
   .keychip {
-    position: absolute; right: 5px; bottom: 4px; cursor: pointer;
+    position: absolute; right: 5px; bottom: -6px; cursor: pointer;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px;
     line-height: 16px; padding: 0 5px; border-radius: 3px;
     color: var(--ash); background: var(--obsidian); border: 1px solid #3a2c22;
