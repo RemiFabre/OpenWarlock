@@ -1242,18 +1242,19 @@ const ITEM_TAG = {
 // (round 20, Remi: half-empty columns read as "level 1 has no stats"); 0 is
 // a value too (the bomb's knockback: 0 must print), never a blank cell.
 function tipRow(label, value, cols, fmt, cur, cls = '') {
-  // issue #14 (Sam): the level you would BUY (cur+1) is emphasized, and a row
-  // whose value never changes between levels steps back ('flat'), so the eye
-  // lands on the numbers that actually improve.
+  // issue #14 iteration 2 (Sam): only a value that actually IMPROVES at the
+  // next level is emphasized, and a row that never changes between levels
+  // steps back ('flat'), so the eye lands on the numbers that move.
+  const vals = [];
+  for (let i = 0; i < cols; i++)
+    vals.push(Array.isArray(value) ? value[Math.min(i, value.length - 1)] : value);
+  const flat = vals.every(v => String(v) === String(vals[0]));
   let cells = '';
-  let flat = true, prev;
   for (let i = 0; i < cols; i++) {
-    const v = Array.isArray(value) ? value[Math.min(i, value.length - 1)] : value;
-    if (i > 0 && String(v) !== String(prev)) flat = false;
-    prev = v;
-    const marks = [i + 1 === cur ? 'cur' : '', i === cur && cur < cols ? 'nxt' : '']
-      .filter(Boolean).join(' ');
-    cells += `<td class="${marks}">${esc(fmt(v))}</td>`;
+    const changes = cur < 1 ? !flat : String(vals[i]) !== String(vals[cur - 1]);
+    const nxt = cls !== 'cost' && i === cur && cur < cols && changes;
+    const marks = [i + 1 === cur ? 'cur' : '', nxt ? 'nxt' : ''].filter(Boolean).join(' ');
+    cells += `<td class="${marks}">${esc(fmt(vals[i]))}</td>`;
   }
   return `<tr class="${[cls, flat && cls !== 'cost' ? 'flat' : ''].filter(Boolean).join(' ')}">` +
     `<th>${esc(label)}</th>${cells}</tr>`;
@@ -1281,9 +1282,12 @@ function tipHead(cols, cur, label = 'lv') {
 // where EVERYTHING lives: the one-line desc, the long mechanism sentence and
 // the per-level table (no "Next:" foot since round 19.4; the table already
 // says it, Remi).
-function tipShell(icon, name, desc, long, body, foot) {
+function tipShell(icon, name, desc, long, body, foot, lv = 0) {
+  // issue #14 iteration 2 (Sam): name + current level first, the description
+  // is what the eye reads first after that, the table is a secondary block
   const both = long && long !== desc;
-  return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}</div>
+  return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}` +
+    `${lv > 0 ? `<span class="tlv">LV ${lv}</span>` : ''}</div>
     <div class="tdesc">${esc(desc)}</div>
     ${both ? `<div class="tlong">${esc(long)}</div>` : ''}${body}
     ${foot ? `<div class="tfoot">${foot}</div>` : ''}`;
@@ -1319,7 +1323,7 @@ function spellTip(key, spec, level, maxLevel) {
   // unless one needs a longer mechanism sentence, and then `long` wins (the
   // element shape; round 21.0, shield's "not physical" caveat)
   return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
-    `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot);
+    `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot, level);
 }
 
 function elementTip(key, spec, level) {
@@ -1339,7 +1343,7 @@ function elementTip(key, spec, level) {
   // the card already wears the short tag; the hover shows ONLY the long
   // explanation (Remi, round 19.6: say it once)
   return tipShell(spec.icon, spec.name, spec.long || spec.desc, null,
-    `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot);
+    `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot, level);
 }
 
 // Items are LEVELLED like spells (round 12): the columns are levels 1..maxLevel
@@ -1367,7 +1371,7 @@ function itemTip(key, spec, level) {
   // items follow the shop's tag shape now (round 21.5): `long` is the mechanism
   // sentence when the spec carries one, exactly like spells and elements
   return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
-    `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot);
+    `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot, level);
 }
 
 // ---- hover tooltip -------------------------------------------------------------
@@ -1375,11 +1379,6 @@ function itemTip(key, spec, level) {
 // panel refreshes in place after a purchase (the mouse never left the button).
 
 const tipEl = $('tip');
-// issue #14 (Sam): inside the shop the tooltip is a FIXED panel on the right
-// (#shopDetail) — always the same place, never covering cards. The floating
-// #tip keeps serving everything outside the shop grid. The panel deliberately
-// keeps showing the last hovered card, so leaving a card never blanks it.
-const shopDetailEl = $('shopDetail');
 let tipOwner = null;
 
 function placeTip(anchor) {
@@ -1398,17 +1397,13 @@ function placeTip(anchor) {
 function showTip(el, build) {
   const html = build();
   if (!html) return;
-  const panel = shopDetailEl && el.closest && el.closest('#shopBody');
-  tipOwner = { el, build, panel: !!panel };
-  if (panel) { shopDetailEl.innerHTML = html; return; }
+  tipOwner = { el, build };
   tipEl.innerHTML = html;
   tipEl.classList.remove('hidden');
   placeTip(el);
 }
 
 function hideTip() {
-  // the shop's fixed panel holds its content; only the floating tip vanishes
-  if (tipOwner && tipOwner.panel) return;
   tipOwner = null;
   tipEl.classList.add('hidden');
 }
@@ -1418,9 +1413,7 @@ function refreshTip() {
   if (!tipOwner || !tipOwner.el.isConnected) { hideTip(); return; }
   try {
     const html = tipOwner.build();
-    if (!html) return;
-    if (tipOwner.panel) { shopDetailEl.innerHTML = html; return; }
-    tipEl.innerHTML = html; placeTip(tipOwner.el);
+    if (html) { tipEl.innerHTML = html; placeTip(tipOwner.el); }
   } catch { hideTip(); }
 }
 
@@ -1487,9 +1480,11 @@ function buildShop(container, mode = 'classic') {
   const labels = [];
   const rows = [];
   let curRow = null;
-  const mkLabel = (txt) => {
+  const mkLabel = (txt, kind) => {
     const el = document.createElement('div');
-    el.className = 'shoplabel'; el.textContent = txt;
+    // iteration 2 (Sam): per-section accent hue, understated (sl-* in the CSS)
+    el.className = 'shoplabel' + (kind ? ` sl-${kind}` : '');
+    el.textContent = txt;
     container.appendChild(el);
     labels.push({ el, wares: [] });
   };
@@ -1545,7 +1540,7 @@ function buildShop(container, mode = 'classic') {
   // and the draft-offer filter, never as a shelf. Round 20: three quiet
   // Offense / Defense / Special rows; a spell missing from SPELL_ROWS lands in
   // the last row so nothing can silently vanish from the shop.
-  mkLabel('Spells');
+  mkLabel('Spells 📜', 'spells');
   for (let i = 0; i < SPELL_ROWS.length; i++) {
     const [cat, keys] = SPELL_ROWS[i];
     mkRow(cat);
@@ -1578,7 +1573,7 @@ function buildShop(container, mode = 'classic') {
   if (elemental) {
     for (let i = 0; i < ELEMENT_ROWS.length; i++) {
       const [label, keys] = ELEMENT_ROWS[i];
-      mkLabel(label);
+      mkLabel(label, i === 0 ? 'elements' : 'mutations');
       mkRow();
       for (const key of keys) if (ELEMENTS[key]) mkElement(key, ELEMENTS[key]);
       // the last row also catches anything added to ELEMENTS but not named
@@ -1588,7 +1583,7 @@ function buildShop(container, mode = 'classic') {
           if (!ROW_KEYS.has(key)) mkElement(key, spec);
     }
   }
-  mkLabel('Items (passive boosts)');
+  mkLabel('Items 🎒 (passive boosts)', 'items');
   mkRow();
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
@@ -1690,11 +1685,13 @@ function buildShop(container, mode = 'classic') {
         }
       }
       if (maxed) {
-        cost.textContent = 'MAX'; cost.className = 'cost owned'; w.el.disabled = true;
+        // iteration 2 (Sam): ONE compact badge (LV n · MAX), no separate price
+        cost.textContent = ''; cost.className = 'cost owned'; w.el.disabled = true;
       }
       const owned = (w.level || 0) > 0;
       const badge = w.el.querySelector('.lvbadge');
-      if (badge) badge.textContent = owned ? `LV ${w.level}` : '';
+      if (badge) badge.textContent =
+        owned ? (maxed ? `LV ${w.level} · MAX` : `LV ${w.level}`) : '';
       w.el.classList.toggle('sel', owned);
       w.el.classList.toggle('maxed', maxed);
       w.el.classList.toggle('poor', !owned && !maxed && !afford);
