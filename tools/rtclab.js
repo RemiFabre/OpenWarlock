@@ -27,7 +27,7 @@
 // mechanisms are trustworthy; absolute numbers are a floor on the harm.
 
 import { createEngine } from '../shared/engine.js';
-import { createSnapWire, createSnapSink } from '../shared/snapwire.js';
+import { createSnapWire, createSnapSink, createGapTracker } from '../shared/snapwire.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
 
 const arg = (n, d) => {
@@ -37,6 +37,10 @@ const arg = (n, d) => {
 const UP_KBS = Number(arg('up', 1250));        // 10 Mbit/s host uplink
 const MINUTES = Number(arg('minutes', 25));    // sim cap; the game usually ends first
 const ECHO = arg('echo', '1') !== '0';
+// The PLAYOUT tracker each guest renders with (createGapTracker): 'step' is
+// the shipped peak-hold (a jitter spike REWINDS the drawn world in one frame),
+// 'slew' the bounded-walk fix. The rew/freeze columns price the difference.
+const TRACKER = arg('tracker', 'step');
 const GUESTS = arg('guests', 'fiber:2500/12/0.3,cable:1000/25/1,dsl:250/45/1')
   .split(',').map(s => {
     const [name, spec] = s.split(':');
@@ -78,6 +82,9 @@ function makeGuest(cfg, id) {
     // metrics for the current report bucket
     m: { applied: 0, kf: 0, fulls: 0, staleSum: 0, staleMax: 0, ctrlB: 0, snapB: 0 },
     sink: null,
+    // the playout layer: what this guest's EYES get (times in ms, like the client)
+    tracker: createGapTracker({ intervalMs: 1000 / SNAPSHOT_RATE, mode: TRACKER }),
+    prevRt: null, lastArriveMs: null,
   };
 }
 
@@ -153,6 +160,7 @@ for (const g of guests) {
   g.sink = createSnapSink(
     (m) => {
       g.m.applied++;
+      g.tracker.track(now * 1000); g.lastArriveMs = now * 1000;
       const stale = engine.game.time - (m.s.time || 0);
       if (engine.game.phase === 'battle' && stale >= 0) {
         g.m.staleSum += stale; g.m.staleMax = Math.max(g.m.staleMax, stale); g.m.staleN = (g.m.staleN || 0) + 1;
@@ -173,9 +181,12 @@ let castN = 0, tick = 0, lastShop = false, lastReport = 0;
 const BUCKET_S = 120;
 console.log(`host uplink ${UP_KBS} KB/s · echo ${ECHO ? 'on' : 'off'} · guests: ` +
   GUESTS.map(g => `${g.name} ${g.downKBs}KB/s ${g.rttMs}ms ${(g.loss * 100).toFixed(1)}%`).join(' · '));
-console.log('\nHz = state updates applied per second (15 = keeping up, in battle only).');
+console.log(`\nHz = state updates applied per second (15 = keeping up, in battle only).`);
 console.log('stale = host clock minus the state on the guest screen, battle only.');
-console.log('min  guest   Hz     stale avg/max   fulls  wasted  skip  ctrl KB/s  snap KB/s  pillars');
+console.log(`delay = renderDelay ms the guest plays with (tracker '${TRACKER}'; healthy = 132).`);
+console.log('rew   = drawn-world REWIND events per battle-minute / total ms rewound.');
+console.log('frz   = ms per battle-minute with nothing new to draw at the render time.');
+console.log('min  guest   Hz     stale avg/max   delay   rew /ms      frz  fulls  wasted  skip  ctrl KB/s  snap KB/s  pillars');
 
 function report() {
   const mins = `${Math.round(now / 60)}`.padStart(3);
@@ -184,8 +195,12 @@ function report() {
     const hz = (g.m.appliedBattle || 0) / battleS;
     const stale = g.m.staleN ? g.m.staleSum / g.m.staleN : 0;
     const w = wires.get(g.id).stats();
+    const bMin = battleS / 60 || 1e-9;
     console.log(`${mins}  ${String(g.cfg.name || g.id).padEnd(6)} ${hz.toFixed(1).padStart(5)}   ` +
       `${(stale.toFixed(2) + ' / ' + g.m.staleMax.toFixed(2)).padStart(13)}   ` +
+      `${(g.m.delayN ? g.m.delaySum / g.m.delayN : 0).toFixed(0).padStart(5)}   ` +
+      `${(((g.m.rew || 0) / bMin).toFixed(1) + '/' + ((g.m.rewMs || 0) / bMin).toFixed(0)).padStart(9)}  ` +
+      `${((g.m.freezeMs || 0) / bMin).toFixed(0).padStart(6)}  ` +
       `${String(g.m.fulls).padStart(5)}  ${String(g.m.wasted || 0).padStart(6)}  ${String(w.skipped - (g.m.skip0 || 0)).padStart(4)}  ` +
       `${(g.m.ctrlB / 1024 / BUCKET_S).toFixed(1).padStart(9)}  ` +
       `${(g.m.snapB / 1024 / BUCKET_S).toFixed(1).padStart(9)}  ` +
@@ -230,6 +245,15 @@ while (now < MINUTES * 60) {
         else g.m.wasted = (g.m.wasted || 0) + 1;           // stale, or a gap: base never arrived
       }
     }
+    // the playout sample: what this guest DRAWS this tick (battle only, like stale)
+    if (gm().phase === 'battle' && g.lastArriveMs != null) {
+      const d = g.tracker.delay(now * 1000);
+      const rt = now * 1000 - d;
+      g.m.delaySum = (g.m.delaySum || 0) + d; g.m.delayN = (g.m.delayN || 0) + 1;
+      if (g.prevRt != null && rt < g.prevRt - 1) { g.m.rew = (g.m.rew || 0) + 1; g.m.rewMs = (g.m.rewMs || 0) + (g.prevRt - rt); }
+      if (rt > g.lastArriveMs) g.m.freezeMs = (g.m.freezeMs || 0) + DT * 1000;
+      g.prevRt = rt;
+    } else g.prevRt = null;
   }
 
   now += DT;

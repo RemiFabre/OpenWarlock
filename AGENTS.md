@@ -140,7 +140,7 @@ build step, Node ESM, only dep is `ws`.
 | `shared/sim.js` | pure simulation + bot brains (grunt random, berserker piloted, stalker dodging; Normal = berserker brain with worse params) + elements, hazards, Vanish wire-masking |
 | `shared/campaign.js` | co-op campaign: 10 levels as pure data. Levels are data, never code |
 | `shared/engine.js` | the authoritative ROOM behind a transport seam (round 19): seating, wire switch, ghosts, bans, snapshots. Node server AND the in-tab solo mode both run it |
-| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING: events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it |
+| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING: events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it. Also home of `createGapTracker` (2026-08-14), the client's PLAYOUT delay: mode 'step' = shipped peak-hold (spikes REWIND the drawn world), 'slew' = the staged bounded-walk fix. History: `docs/history/2026-08-14-playout-rewind.md` |
 | `server/index.js` | now an ADAPTER over engine.js: http, `/health` (+ per-player wire stats), ws + heartbeat/RTT pings + permessage-deflate, JSONL journal, IP bans |
 | `client/transport.js` | ws + solo + RTC transports behind one seam (`?mode=`, `#r=CODE`, else /health probe). Hosting record: `docs/history/2026-08-09-browser-hosting-phaseB.md` |
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
@@ -167,7 +167,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/combo.js` | Faker combo lab (issue #7): Faker vs Runner, `--no-combo` ablates the combo layer |
 | `tools/reconnect-test.js` | e2e reconnect persistence (spawns a real server) |
 | `tools/slowlink.js` | **the ws netcode lab (21.10)**: a real server, 3 normal seats + 1 throttled, all four wire configurations in one table (`--rate=` KB/s, `--seconds=`, `--only=`). ⚠ bandwidth only (no jitter, no loss, no RTC path) |
-| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link (per-guest bandwidth/RTT/bursty loss, shared host uplink). Reproduced the "fine early, jerky late" collapse. ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
+| `tools/rtclab.js` | **the RTC netcode lab (21.11)**: real engine + real snapwire through a modeled two-channel link (per-guest bandwidth/RTT/bursty loss, shared host uplink). Reproduced the "fine early, jerky late" collapse. Since 2026-08-14 it also runs the PLAYOUT layer per guest (`--tracker=step\|slew`, delay/rew/frz columns price what the player's eyes get). ⚠ arithmetic, not SCTP: no congestion control (real loss is worse), sim clock (pass `clock` to createSnapSink) |
 | `BALANCE.md` | current balance truths + open questions + repro commands. Full reports: `docs/history/` |
 | `STRATEGIES.md` | bot tiers × builds chart, the 25-strategy ranking, how to read arena reports |
 | `REMI_NOTES.md` | the changelog Remi reads (latest round only) |

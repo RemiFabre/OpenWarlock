@@ -149,6 +149,65 @@ export function createSnapWire({
   };
 }
 
+// The playout half: how far in the past the client renders (`renderDelay`),
+// fed by snapshot ARRIVAL times. Lives here, not in main.js, so tools/rtclab.js
+// and the tests run the exact code the client runs.
+//
+// mode 'step' is the shipped pre-fix behavior: a peak-hold gap estimate (jump
+// to the worst gap, decay 8% per snapshot) applied to renderDelay INSTANTLY.
+// ⚠ Measured against a friend's real trace (2026-08-13): one 284 ms arrival
+// gap steps renderDelay +313 ms in one frame, which REWINDS the drawn world a
+// third of a second. history: docs/history/2026-08-14-playout-rewind.md
+// mode 'slew' is the fix: the estimate becomes a sliding-window max (one spike
+// stops poisoning it after windowMs) and the APPLIED delay walks toward that
+// target at a bounded rate. Widening slows playback a little, tightening
+// speeds it a little, and the drawn clock never jumps.
+export function createGapTracker({
+  intervalMs = 1000 / 15,      // nominal snapshot interval
+  maxDelay = 600,              // past this, lag is worse than the stutter it hides
+  mode = 'step',               // 'step' = pre-fix behavior · 'slew' = bounded walk
+  windowMs = 3000,             // 'slew': how long a bad gap keeps the target wide
+  slewUp = 200,                // 'slew': widen at most 200 ms/s (0.8x playback)
+  slewDown = 30,               // 'slew': tighten at most 30 ms/s (1.03x playback)
+} = {}) {
+  const base = intervalMs * 1.6 + 25;   // one-and-a-bit intervals on a healthy link
+  const target = (g) => Math.min(maxDelay, Math.max(base, g * 1.6 + 25));
+  let lastAt = null;           // previous snapshot arrival
+  let gapEst = intervalMs;     // 'step': peak-hold · 'slew': max over the window
+  let delay = base;            // the renderDelay actually applied
+  let lastNow = null;          // 'slew': when the walk last advanced
+  let gaps = [];               // 'slew': {at, gap} samples inside the window
+  return {
+    reset() { lastAt = null; gapEst = intervalMs; delay = base; lastNow = null; gaps = []; },
+    // a snapshot arrived at time `at` (same clock as delay(now))
+    track(at) {
+      if (lastAt != null && at > lastAt) {
+        const gap = at - lastAt;
+        if (mode === 'step') {
+          gapEst = Math.max(gap, gapEst * 0.92);
+          delay = target(gapEst);
+        } else {
+          gaps.push({ at, gap });
+          while (gaps.length && gaps[0].at < at - windowMs) gaps.shift();
+          gapEst = gaps.reduce((m, g) => Math.max(m, g.gap), intervalMs);
+        }
+      }
+      lastAt = at;
+    },
+    // the delay to render with at time `now`; call it every drawn frame
+    delay(now) {
+      if (mode === 'step') return delay;
+      const dt = lastNow == null ? 0 : Math.max(0, now - lastNow) / 1000;
+      lastNow = now;
+      const t = target(gapEst);
+      if (t > delay) delay = Math.min(t, delay + slewUp * dt);
+      else delay = Math.max(t, delay - slewDown * dt);
+      return delay;
+    },
+    stats() { return { renderDelay: delay, gapEst }; },
+  };
+}
+
 // The receiving half: turn `evt` messages and delta-coded `snap` messages back
 // into the one `{t:'snap', s, e}` the client has always seen. Used by BOTH
 // client transports (ws and rtc guest; they differ in their channels, not in
