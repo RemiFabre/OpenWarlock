@@ -29,7 +29,23 @@ repo-wide feed, so delivered and even closed issues are covered), AND body
 edits of open issues (hash each body and fire on change — some authors iterate
 by editing their issue, which produces no comment). It remembers what it
 already reported (so it never re-fires on the same thing), and NEVER
-exits — not on a hit, not while an issue is being worked. A watcher that exits
+exits — not on a hit, not while an issue is being worked.
+
+Three properties the watchdog must keep (each one cost a real miss):
+
+- **Overlapping window, never an advancing cursor.** Query comments with a
+  `since` that looks BACK a fixed span (15 min) and dedupe by comment id.
+  Advancing `since` to "now" each round drops every comment made during a
+  failed poll, silently and permanently.
+- **Failure must be audible.** A poll that cannot reach GitHub (expired token,
+  network down) has to announce itself once per outage streak. Silence is
+  otherwise indistinguishable from a quiet queue.
+- **Dedupe state outlives the session** (a stable path, not the session's own
+  scratch dir), so a re-armed watchdog does not re-report old chatter. Keep the
+  UNTREATED marks per-watchdog though: a new session must still be told about
+  an issue that is already waiting. Also seed your OWN comment ids into it
+  after posting (`gh issue comment` prints `#issuecomment-ID`), or the agent
+  wakes itself for its own words. A watcher that exits
 on its first hit leaves the queue blind during implementation and depends on a
 re-arm step a busy or crashed session can forget; the never-exit design has no
 such gap. New arrivals during work are noted and taken in order after the
