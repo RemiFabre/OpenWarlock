@@ -1,4 +1,4 @@
-# Notes for Remi — OpenWarlock & the open web MOBA
+# Notes for Remi (OpenWarlock & the open web MOBA)
 
 *Round 23, 2026-08-13 (your voice list: polish, balance, two issue ports, the
 lobby rework, the Faker+anger run). Rounds 22.2-22.4 are archived at

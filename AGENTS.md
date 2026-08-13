@@ -41,7 +41,7 @@ Agent context usage on this project is **CRITICAL**. The rules:
   table at 2783 (`docs/history/2026-08-13-round23-elo-faker-anger.md`).
 - Issues #1, #7, #12, and Ju's #3/#9/#11 are closed (by Remi's instruction;
   the agent itself still never closes issues).
-- **Issue #13 is Ju's living iteration thread** — he reopens/edits it for each
+- **Issue #13 is Ju's living iteration thread**: he reopens/edits it for each
   new version. A reopen with NO new comment/body-edit is a no-op: ask, don't
   re-implement (runbook §7 note).
 - **THE GAME IS PUBLIC** (2026-08-09): GitHub Pages serves it at
