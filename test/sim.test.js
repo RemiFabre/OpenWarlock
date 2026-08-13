@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
+  undoBuy, refundBuy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
@@ -7833,5 +7834,84 @@ describe('Genki (issue #12)', () => {
     expect(view.genkiR).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 2);
     expect(view.genkiDmg).toBe(spec.dmgPerSec * 4);
     expect(view.genkiStage).toBe(0);
+  });
+});
+
+// ---- Issue #14 iteration 4 (Sam): right-click per-card refund ---------------
+describe("Sam's right-click refund (issue #14)", () => {
+  function shopper(setup = () => {}) {
+    const state = createGame('t');
+    setMode(state, 'elemental');
+    addPlayer(state, 'p0', 'A'); addPlayer(state, 'p1', 'B');
+    startGame(state);
+    state.phase = 'shop';
+    const pl = state.players.p0;
+    pl.gold = 100;
+    setup(state, pl);
+    return { state, pl };
+  }
+
+  it('per-card LIFO, never below the shop-start baseline, others untouched', () => {
+    // baseline: gale lv1 owned BEFORE this shop opened (not in the stack)
+    const { state, pl } = shopper((s, p) => { p.elements.gale = 1; });
+    buy(state, 'p0', 'gale');    // lv2
+    buy(state, 'p0', 'boots');   // interleaved
+    buy(state, 'p0', 'gale');    // lv3
+    const gold0 = pl.gold;
+    expect(refundBuy(state, 'p0', 'gale').ok).toBe(true);   // lv3 -> lv2
+    expect(pl.elements.gale).toBe(2);
+    expect(refundBuy(state, 'p0', 'gale').ok).toBe(true);   // lv2 -> lv1
+    expect(pl.elements.gale).toBe(1);
+    expect(pl.gold).toBe(gold0 + ELEMENTS.gale.costs[2] + ELEMENTS.gale.costs[1]);
+    // lv1 predates this shop: a third right-click is refused
+    expect(refundBuy(state, 'p0', 'gale').ok).toBe(false);
+    expect(pl.elements.gale).toBe(1);
+    expect(pl.items.boots).toBe(1);                          // untouched
+    // and the global Undo still works on what remains (the boots buy)
+    expect(undoBuy(state, 'p0').ok).toBe(true);
+    expect(pl.items.boots || 0).toBe(0);
+  });
+
+  it('refunds the EXACT price paid per level (per-level cost arrays)', () => {
+    const { state, pl } = shopper();
+    buy(state, 'p0', 'teleport');   // blink lv1: 10 g
+    buy(state, 'p0', 'teleport');   // blink lv2: 5 g
+    const g = pl.gold;
+    expect(refundBuy(state, 'p0', 'teleport').ok).toBe(true);
+    expect(pl.gold).toBe(g + SPELLS.teleport.costs[1]);      // +5
+    expect(refundBuy(state, 'p0', 'teleport').ok).toBe(true);
+    expect(pl.gold).toBe(g + SPELLS.teleport.costs[1] + SPELLS.teleport.costs[0]); // +10
+  });
+
+  it('side effects unwind exactly for a MIDDLE purchase (amulet max HP)', () => {
+    const { state, pl } = shopper();
+    const hp0 = pl.maxHp;
+    buy(state, 'p0', 'amulet');
+    buy(state, 'p0', 'boots');
+    expect(pl.maxHp).toBeGreaterThan(hp0);
+    expect(refundBuy(state, 'p0', 'amulet').ok).toBe(true);
+    expect(pl.maxHp).toBe(hp0);
+    expect(pl.items.amulet || 0).toBe(0);
+    expect(pl.items.boots).toBe(1);
+  });
+
+  it('the round boundary makes everything permanent', () => {
+    const { state } = shopper();
+    buy(state, 'p0', 'boots');
+    delete state.players.p0.shopUndo;   // what startRound does to the stack
+    expect(refundBuy(state, 'p0', 'boots').ok).toBe(false);
+  });
+
+  it('the snapshot advertises the exact refund per card, viewer only', () => {
+    const { state, pl } = shopper((s, p) => { p.elements.gale = 1; });
+    buy(state, 'p0', 'gale');       // lv2: 6 g
+    buy(state, 'p0', 'teleport');   // 10 g
+    const me = snapshot(state, 'p0').players.p0;
+    expect(me.refunds).toEqual({ gale: ELEMENTS.gale.costs[1], teleport: SPELLS.teleport.costs[0] });
+    expect(snapshot(state, 'p1').players.p0.refunds).toBeUndefined();
+    refundBuy(state, 'p0', 'gale');
+    const me2 = snapshot(state, 'p0').players.p0;
+    expect(me2.refunds).toEqual({ teleport: SPELLS.teleport.costs[0] });
+    expect(pl.elements.gale).toBe(1);
   });
 });

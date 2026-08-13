@@ -1054,6 +1054,59 @@ export function undoBuy(state, id) {
   return { ok: true };
 }
 
+// issue #14 iteration 4 (Sam): right-click refunds the LAST purchase of ONE
+// card made THIS shop. The undo stack IS the purchase history (memo[i] = the
+// state before buy i), so: find the last step where that card leveled up,
+// restore that memo, and REPLAY every later buy. Replay is deterministic
+// (each price depends only on the key and its level at that moment), gold can
+// only be higher than it originally was at every step, and buy()'s own memo()
+// rebuilds the stack — so the Undo button stays exactly consistent, and every
+// side effect (the amulet's max HP…) lands as if the purchase never happened.
+function boughtAtStep(pl, stack, i) {
+  const a = stack[i];
+  const b = i + 1 < stack.length ? stack[i + 1]
+    : { spells: pl.spells, items: pl.items, elements: pl.elements };
+  for (const grp of ['spells', 'items', 'elements'])
+    for (const k of Object.keys(b[grp] || {}))
+      if ((b[grp][k] || 0) > ((a[grp] || {})[k] || 0)) return k;
+  return null;
+}
+
+export function refundBuy(state, id, thing) {
+  const pl = state.players[id];
+  if (!pl) return { ok: false, err: 'no player' };
+  if (state.phase !== 'shop') return { ok: false, err: 'shop is closed' };
+  const stack = pl.shopUndo || [];
+  let hit = -1;
+  for (let i = stack.length - 1; i >= 0; i--)
+    if (boughtAtStep(pl, stack, i) === thing) { hit = i; break; }
+  if (hit < 0) return { ok: false, err: 'nothing bought this shop' };
+  const later = [];
+  for (let i = hit + 1; i < stack.length; i++) later.push(boughtAtStep(pl, stack, i));
+  const m = stack[hit];
+  pl.gold = m.gold; pl.maxHp = m.maxHp; pl.hp = m.hp;
+  pl.spells = m.spells; pl.items = m.items; pl.elements = m.elements;
+  pl.shopUndo = stack.slice(0, hit);
+  for (const k of later) if (k) buy(state, id, k);
+  return { ok: true };
+}
+
+// The viewer's tooltip hint: for each card bought this shop, the EXACT gold
+// its most recent purchase cost (the gold delta across that step, so a price
+// table change could never desynchronize the refund from what was paid).
+export function refundOffers(pl) {
+  const stack = pl.shopUndo || [];
+  if (!stack.length) return null;
+  const offers = {};
+  for (let i = 0; i < stack.length; i++) {
+    const k = boughtAtStep(pl, stack, i);
+    if (!k) continue;
+    const goldAfter = i + 1 < stack.length ? stack[i + 1].gold : pl.gold;
+    offers[k] = stack[i].gold - goldAfter;
+  }
+  return offers;
+}
+
 // ---- draft mode (docs/ROUND12.md S7) -------------------------------------
 // OFF by default and every function here is a no-op while it is off, so classic
 // and elemental stay bit-for-bit what they were.
@@ -3160,6 +3213,9 @@ export function snapshot(state, viewerId = null) {
       ...(p.draftOffer && p.id === viewerId ? { draftOffer: p.draftOffer } : {}),
       // how many of YOUR buys this shop can still be undone (drives the button)
       ...(p.id === viewerId && p.shopUndo && p.shopUndo.length ? { undoN: p.shopUndo.length } : {}),
+      // per-card right-click refunds: {key: exact gold back} (issue #14 iter 4)
+      ...(p.id === viewerId && p.shopUndo && p.shopUndo.length
+        ? { refunds: refundOffers(p) } : {}),
       // elemental-only wire fields; classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,

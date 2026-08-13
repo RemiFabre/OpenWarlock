@@ -1250,6 +1250,10 @@ function orderedFields(obj, dict, skip) {
   return known.concat(keys.filter(k => !dict[k]));
 }
 
+// issue #14 iteration 4 (Sam): what the viewer could right-click-refund this
+// shop ({key: exact gold back}); refresh() keeps it in step with the snapshot.
+let myRefunds = {};
+
 // issue #14 iteration 3 (Sam): the tooltip stopped being a 3-column table.
 // It reads top-down — name+level, identity, description, an interactive
 // 3-step progression indicator (bronze/silver/gold), CURRENT effects, then
@@ -1357,7 +1361,10 @@ function spellTip(key, spec, level, maxLevel, previewLv) {
     lines.push({ f: '_stun1', label: 'stun, full-range swap', fmt: fmtSec,
       at: (lv) => swapStun(statAt(rng, lv)) });
   }
-  const foot = spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '';
+  const foot = [
+    spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
+    myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
+  ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
   return tipShell(ICONS[key], spec.name, sub, spec.long || spec.desc,
     tipBody(lines, level, maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
@@ -1367,8 +1374,11 @@ function spellTip(key, spec, level, maxLevel, previewLv) {
 function elementTip(key, spec, level, previewLv) {
   const lines = tipLines(spec.fx || {}, FX_FIELDS, ELEM_FX_SKIP);
   // the one boilerplate line that earns its place: what haste MEANS
-  const foot = spec.fx && spec.fx.haste
-    ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '';
+  const foot = [
+    spec.fx && spec.fx.haste
+      ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
+    myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
+  ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
   return tipShell(spec.icon, spec.name, sub, spec.long || spec.desc,
     tipBody(lines, level, spec.maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
@@ -1387,6 +1397,7 @@ function itemTip(key, spec, level, previewLv) {
   const foot = [
     live ? `With that, ${live}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
+    myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
   return tipShell(ICONS[key], spec.name, sub, spec.long || spec.desc,
@@ -1601,6 +1612,13 @@ function buildShop(container, mode = 'classic') {
       if (shopPreview) { toast('browsing only. Buying happens between rounds'); return; }
       playSfx('buy'); send({ t: 'buy', id: key });
     });
+    // issue #14 iteration 4 (Sam): right-click refunds this card's last
+    // purchase of THIS shop (server-checked; the tooltip shows when and how much)
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (shopPreview) return;
+      send({ t: 'refund', id: key });
+    });
     // key chip (spells only): sits OUTSIDE the buy button in a relative wrapper
     // because a disabled button (max level / can't afford) eats clicks on its
     // children, and the chip must stay clickable to open the rebind popup.
@@ -1649,6 +1667,13 @@ function buildShop(container, mode = 'classic') {
       if (shopPreview) { toast('browsing only. Buying happens between rounds'); return; }
       playSfx('buy'); send({ t: 'buy', id: key });
     });
+    // issue #14 iteration 4 (Sam): right-click refunds this card's last
+    // purchase of THIS shop (server-checked; the tooltip shows when and how much)
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (shopPreview) return;
+      send({ t: 'refund', id: key });
+    });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'element' };
     attachTip(b, (pv) => elementTip(key, spec, w.level || 0, pv));
@@ -1685,6 +1710,13 @@ function buildShop(container, mode = 'classic') {
       if (shopPreview) { toast('browsing only. Buying happens between rounds'); return; }
       playSfx('buy'); send({ t: 'buy', id: key });
     });
+    // issue #14 iteration 4 (Sam): right-click refunds this card's last
+    // purchase of THIS shop (server-checked; the tooltip shows when and how much)
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (shopPreview) return;
+      send({ t: 'refund', id: key });
+    });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
     attachTip(b, (pv) => itemTip(key, spec, w.level || 0, pv));
@@ -1694,6 +1726,8 @@ function buildShop(container, mode = 'classic') {
     if (!m) return;
     const gold = fin(+m.gold) ? +m.gold : 0;
     const spells = m.spells || {};
+    // per-card refunds this shop (issue #14 iter 4); the tooltip reads it
+    myRefunds = (m.refunds && typeof m.refunds === 'object') ? m.refunds : {};
     // draft mode: this game's pool is not for sale. A pool thing you have
     // DRAFTED goes back on the shelf (that is how levels 2-3 are bought), which
     // is exactly "do I own any level of it", the same rule the server uses.

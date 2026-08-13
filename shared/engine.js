@@ -12,7 +12,7 @@
 // in browsers and Node alike and survives a paused caller.
 
 import {
-  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy, undoBuy,
+  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy, undoBuy, refundBuy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
   setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
 } from './sim.js';
@@ -308,6 +308,14 @@ export function createEngine({
           // refund the last buy of THIS shop (misclick insurance, round 22.2)
           const r = undoBuy(game, id);
           onLog('undo', { id, ok: r.ok, err: r.err });
+          if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
+          break;
+        }
+        case 'refund': {
+          // right-click: refund ONE card's last purchase of THIS shop
+          // (issue #14 iteration 4, Sam)
+          const r = refundBuy(game, id, String(m.id || ''));
+          onLog('refund', { id, thing: m.id, ok: r.ok, err: r.err });
           if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
           break;
         }
