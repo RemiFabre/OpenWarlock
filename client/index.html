@@ -107,6 +107,15 @@
 
   /* ---- lobby ---- */
   #playerList { margin: 0 0 14px; }
+  /* Round 23 (Remi): hosting adds the invite card and the WHOLE lobby grew a
+     scrollbar. Only the warlock list may scroll now; the config, the bots and
+     the invite card stay put, because those are the things you came to click. */
+  #lobby .scroller { display: flex; flex-direction: column; min-height: 0; }
+  /* The list is the flexible part, so it gives up its height first and the
+     config/bots/invite card stay put. ⚠ The scroller keeps overflow auto as a
+     FALLBACK: on a short window even a minimal list does not fit, and clipping
+     it would hide controls with no way to reach them. */
+  #lobby #playerList { flex: 1 1 auto; min-height: 64px; overflow-y: auto; }
   #playerList .pl {
     display: flex; align-items: center; gap: 10px;
     padding: 7px 4px; border-bottom: 1px solid var(--line);
@@ -242,7 +251,7 @@
   /* ---- shop ---- */
   #shop .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
   /* the shop must fit WITHOUT scrolling at ordinary window heights (round
-     22.3, Remi) — tighter chrome than the other slabs */
+     22.3, Remi): tighter chrome than the other slabs */
   #shop .slab { padding: 12px 22px 10px; }
   #shop h1 { font-size: 22px; }
   #shop .sub { margin: 2px 0 6px; }
@@ -300,12 +309,18 @@
     display: flex; flex-direction: column; gap: 5px;
     margin-top: 2px; padding-bottom: 2px;
   }
-  .shoprow { display: flex; flex-wrap: wrap; gap: 6px; }
-  /* round 20.1 (Remi): every card in every row is the SAME fixed tile;
-     mixed widths "looked messy". Rows are grids of identical tiles. */
-  .shoprow > .ware, .shoprow > .warewrap {
-    flex: 0 0 200px; width: 200px; min-width: 0;
+  /* round 20.1 (Remi): every card in every row is the SAME tile; mixed widths
+     "looked messy". Round 23 (Remi): and no row may WRAP, a lone Mine or Fire
+     Walk on a second line reads as a mistake. So every row is a grid of the
+     SAME column count (--cols = the longest row, set by buildShop), which both
+     kills the wrap and lines the cards up vertically across rows. The tile
+     shrinks to fit and is capped so a short row keeps the old 200px look. */
+  .shoprow {
+    display: grid; gap: 6px; align-items: start; position: relative;
+    padding-left: 21px;   /* the sideways category label lives in here */
+    grid-template-columns: repeat(var(--cols, 6), minmax(0, 200px));
   }
+  .shoprow > .ware, .shoprow > .warewrap { width: auto; min-width: 0; }
   .shoprow .ware { height: 46px; }
   .ware {
     display: flex; gap: 8px; align-items: center; position: relative;
@@ -322,7 +337,13 @@
   .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; }
   /* item/element names run long (Hourglass of Haste): a notch smaller keeps
      them to one line clear of the pips (round 22.3, Remi) */
-  .ware .info .name { flex: none; font-size: 11.5px; line-height: 1.25; }
+  /* one line, ellipsis if it must: a two-line name pushes the stat tag out of
+     the fixed-height card, which is how "Cape of the Magi" lost its tag when
+     the tile narrowed (round 23) */
+  .ware .info .name {
+    flex: none; font-size: 11.5px; line-height: 1.25;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .ware .desc { color: var(--ash); font-size: 12px; display: block; }
   /* the card's tag line: an element's 2-4 word desc / an item's one stat value */
   .ware .tag { display: block; color: var(--ash); font-size: 10.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -334,12 +355,18 @@
   .warewrap .ware .cost { align-self: flex-start; }
   /* quiet category label on the row's left edge (round 20: Offense / Defense /
      Special); sideways, tiny, muted: a whisper, not a header */
+  /* ⚠ Absolutely positioned since round 23, NOT a grid cell: as a cell it ate
+     column 1 of every implicit row, so the 8th item wrapped INTO the 15 px
+     label slot and rendered as a squashed pile. */
   .catlabel {
-    flex: none; align-self: stretch; display: flex;
-    align-items: center; justify-content: center; width: 15px;
+    position: absolute; left: 0; top: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center; width: 15px;
     writing-mode: vertical-rl; transform: rotate(180deg);
-    font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
-    color: #6f6357;
+    /* tighter since round 23: a row that no longer wraps is only 46 px tall,
+       and the old 9.5px/.18em "OFFENSE" needed ~52, so it bled into the row
+       above. overflow hidden is the backstop for a longer future category. */
+    font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase;
+    color: #6f6357; overflow: hidden;
   }
   /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
      wrapper NEXT TO the buy button; inside a disabled button it'd be dead.
@@ -792,7 +819,9 @@
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
       <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
-      <div id="playerList" style="min-height:216px"></div>
+      <!-- no inline min-height since round 23: it is the flex child that
+           absorbs the overflow, so it has to be free to shrink -->
+      <div id="playerList"></div>
       <div class="ideaPitch">
         <span class="experimental">experimental</span>
         <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
@@ -803,7 +832,10 @@
 </div>
 
 <div id="shop" class="overlay hidden">
-  <div class="slab" style="--w:1500px">
+  <!-- 1560 (round 23): the widest shelf is the 8 items, and at 1500 it was
+       48 px short of fitting on one line. The viewport still wins on a small
+       screen (.slab is width: min(--w, 100%)). -->
+  <div class="slab" style="--w:1560px">
     <div class="head">
       <h1 class="display">The Shop</h1>
       <span id="shopGold" class="num">0 g</span>

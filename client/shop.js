@@ -395,15 +395,16 @@ export function buildShop(container, mode = 'classic') {
     container.appendChild(el);
     labels.push({ el, wares: [] });
   };
+  // The label span is ALWAYS created, empty when the row has no category: it
+  // owns grid column 1, so an unlabelled row still lines its cards up with a
+  // labelled one instead of sliding 15px left (round 23).
   const mkRow = (cat) => {
     const el = document.createElement('div');
     el.className = 'shoprow';
-    if (cat) {
-      const lab = document.createElement('span');
-      lab.className = 'catlabel';
-      lab.textContent = cat;
-      el.appendChild(lab);
-    }
+    const lab = document.createElement('span');
+    lab.className = 'catlabel';
+    lab.textContent = cat || '';
+    el.appendChild(lab);
     container.appendChild(el);
     curRow = el;
     rows.push({ el, wares: [] });
@@ -510,6 +511,30 @@ export function buildShop(container, mode = 'classic') {
     attachTip(b, () => itemTip(key, spec, w.level || 0));
     wares.push(w); inSection(w);
   }
+  // Column count per row (round 23, Remi: "Mine and Fire Walk should not sit on
+  // their own line"). As many columns as fit above MIN_TILE, never more than
+  // the row actually has, and each capped at the round-20.1 tile of 200 px. So
+  // a wide window shows every row on one line at full size, and a narrow one
+  // shrinks to 160 before it gives up and wraps. Below 160 the name takes two
+  // lines and clips its tag, which is worse than wrapping.
+  // ⚠ A ResizeObserver, not a resize listener and not a call from refresh():
+  // the grid is BUILT hidden (clientWidth 0) and setShopPreview shows the panel
+  // AFTER its first refresh, so every "measure it once" version silently left
+  // the CSS fallback in place. The observer fires the moment it has a width.
+  // 180 is measured, not taste: below it "Blood Debt" and "Cape of the Magi"
+  // take two lines and push their stat tag out of the 46 px card. A wrapped row
+  // of readable cards beats one line of clipped ones.
+  const MIN_TILE = 180, GAP = 6, PAD = 21;   // PAD = .shoprow's label gutter
+  let laidOutAt = -1;
+  const layoutRows = () => {
+    const w = container.clientWidth;
+    if (!w || w === laidOutAt) return;
+    laidOutAt = w;
+    const fit = Math.max(1, Math.floor((w - PAD + GAP) / (MIN_TILE + GAP)));
+    for (const r of rows) r.el.style.setProperty('--cols', Math.min(r.wares.length, fit));
+  };
+  new ResizeObserver(layoutRows).observe(container);
+
   return function refresh(m, round = 0, s = null) {
     if (!m) return;
     const gold = fin(+m.gold) ? +m.gold : 0;
