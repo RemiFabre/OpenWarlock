@@ -150,6 +150,8 @@ build step, Node ESM, only dep is `ws`.
 | `test/sim.test.js` | the bulk of the 478 vitest tests (must stay green); balance tests read numbers FROM THE SPEC, never pinned |
 | `test/snapwire.test.js` | 35 tests on the wire rules: a lost packet recovers exactly, a late one never rolls back, a pre-21.10 client keeps whole snapshots, a seeded lossy pipe (models chunking, NOT SCTP) prices keyframe routing at 1-10% loss, and echo keyframes (21.11) ride beside the delta |
 | `test/harness/` | scenario runner + invariant checker + fuzzer (`scenarios/bots.js`, `scenarios/coop.js`) |
+| `test/portability.test.js` | the anti-rot guard: no machine-specific paths (Ubuntu AND macOS), no off-default ports, no invented phase strings, no dead DOM selectors. See the ritual section |
+| `.github/workflows/ci.yml` | CI (free, public repo): `checks` / `browser` / `harness`. Runs on main + PRs |
 | `test/client-robustness.js` | 2-engine playwright test (`PLAY_MS=30000`) |
 | `docs/CODEMAP.md` | GENERATED symbol index for the big files (`node tools/codemap.js --doc`). Read it before grepping `sim.js` |
 | `tools/shot.js` | drives the real client and PROBES the canvas for a colour signature, so "did it render" costs one cropped screenshot instead of a burst (`--self-test`) |
@@ -318,17 +320,46 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 478 green
+npx vitest run                                   # 498 green (incl. the guards)
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit
 node tools/reconnect-test.js                     # progress survives a drop
 node tools/arena.js --games=60 --players=4       # games finish, sane kills
 node tools/arena.js --games=60 --players=8       # ditto at the scaled arena (21.2)
+node test/solo-static.js                         # in-tab solo, no server at all
 node tools/slowlink.js --seconds=20              # WIRE changes only (~2 min)
+node test/rtc-host.js                            # RTC/signal changes only (~85 s)
+node test/version-platform.js                    # versions.json / loader changes only
 ```
 Kill stray servers when done (`pgrep -fl "server/index.js"`), **but check
 first that Remi isn't hosting a live game.**
+
+**CI runs the deterministic part of this automatically**
+(`.github/workflows/ci.yml`, free: public repos have no Actions minute cap).
+Three jobs so a red tick says where: `checks` (vitest + guards + arena, ~1 min),
+`browser` (client-robustness, solo-static, shot self-test, ~4 min), `harness`
+(the two scenarios + reconnect, ~5 min). It is not a substitute for the local
+ritual: the wire lab, the RTC lab and the version-platform check are NOT in CI
+(bandwidth timing, and Pages being live, are not things a runner can judge).
+
+⚠ **CI is ADVISORY and must stay that way** (Remi, round 23): a published
+version has to be playable on its link IMMEDIATELY, never after a green tick.
+Two facts keep that true, and both are worth re-checking before you touch
+anything CI-shaped: Pages serves `main` **directly** (`build_type: legacy`,
+source = branch `main` `/`), so publishing never routes through Actions, and
+`main` has **no branch protection**. Never add required status checks, never
+move Pages to a workflow build, never add a deploy step to ci.yml. This matters
+most for the issue agent, which publishes unattended.
+
+⚠ **`test/portability.test.js` is the anti-rot guard** (round 23, after an audit
+found 3 scripts dead from hardcoded constants). It fails on: a machine-specific
+absolute path anywhere (Remi develops on **Ubuntu AND macOS**, so use
+`os.tmpdir()`, `process.env`, or a resolver like
+`playwright.chromium.executablePath()`, NEVER a literal path, comments
+included), a hardcoded port that is not the server default, a `phase === '...'`
+string that is not a real phase, and a DOM selector no client file defines.
+It globs `client/*` on purpose, so splitting a client file never rots it.
 
 ## Scars (one line each; full stories: `docs/history/2026-08-08-agents-full-pre-diet.md`)
 - Swept-collision side checks must use the PRE-move position (fast balls
@@ -362,6 +393,12 @@ first that Remi isn't hosting a live game.**
   only if it re-bases immediately; a reconnect must reset the decoder, or a new
   socket's sequence-1 keyframe reads as ancient forever.
 - A lab that prints "no data" as `0.00` makes the worst row look like the best.
+  Worse: `tools/tabtest-run.js` printed four "NO DATA" rows and exited **0** for
+  months. A broken run must exit non-zero (round 23; it does now).
+- A tool rots from CONSTANTS, not just names: 3 of 3 dead scripts found by the
+  round-23 audit died on a hardcoded macOS path or an off-default port, 0 on a
+  renamed symbol. Remi develops on Ubuntu AND macOS: derive paths, never write
+  them. `test/portability.test.js` guards this.
 - A test that exercises rate-limited logic needs a VIRTUAL clock: 300 frames run
   inside one real millisecond, so a 500 ms limiter suppressed every recovery and
   the loss numbers read 3× worse than truth (hence `createSnapSink({now})`).
