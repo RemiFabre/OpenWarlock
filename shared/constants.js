@@ -98,7 +98,7 @@ export const PLAYER = {
 };
 
 export const LAVA = {
-  DPS: 14,          // hp/s while swimming (was 20; -30% 2026-08 playtest round)
+  DPS: 16,          // hp/s while swimming (Remi round 23: 14 felt too cheap, +~15%)
   // you move FASTER in lava, not slower: dipping through the lava is a real
   // play (dodge route, flank), the DPS is the price of admission.
   // 2026-08-05: 1.3 → 2.0. At 1.3 a swimmer was still a sitting duck;
@@ -494,9 +494,9 @@ export function itemCost(key, owned = 0) {
 // history: docs/history/2026-08-08-constants-sweeps.md#item_fx-level-curve-round-15
 export const ITEM_FX = {
   boots: { speedMult: [1.15, 1.29, 1.42] },
-  // Round 19.6 (Remi): a 10 g full-counter to lava playstyles was too extreme
-  // (was [0.50, 0.36, 0.28]).
-  treads: { lavaMult: [0.75, 0.50, 0.35] },
+  // Round 23 (Remi): nerfed to the cape's 25/40/50% curve alongside the lava
+  // DPS buff (was [0.75, 0.50, 0.35]; 19.6 history: [0.50, 0.36, 0.28]).
+  treads: { lavaMult: [0.75, 0.60, 0.50] },
   amulet: { maxHp: [18, 32, 42] },   // round 17 §9 trim (was [25, 43, 56])
   // Round 21.7 (Remi's hand spec): −25/−40/−50% knockback. History:
   // [0.92,0.85,0.80] → 19.2 [0.88,0.78,0.70] → 19.6 [0.85,0.74,0.65] → now.
