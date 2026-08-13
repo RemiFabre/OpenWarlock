@@ -1242,12 +1242,21 @@ const ITEM_TAG = {
 // (round 20, Remi: half-empty columns read as "level 1 has no stats"); 0 is
 // a value too (the bomb's knockback: 0 must print), never a blank cell.
 function tipRow(label, value, cols, fmt, cur, cls = '') {
+  // issue #14 (Sam): the level you would BUY (cur+1) is emphasized, and a row
+  // whose value never changes between levels steps back ('flat'), so the eye
+  // lands on the numbers that actually improve.
   let cells = '';
+  let flat = true, prev;
   for (let i = 0; i < cols; i++) {
     const v = Array.isArray(value) ? value[Math.min(i, value.length - 1)] : value;
-    cells += `<td class="${i + 1 === cur ? 'cur' : ''}">${esc(fmt(v))}</td>`;
+    if (i > 0 && String(v) !== String(prev)) flat = false;
+    prev = v;
+    const marks = [i + 1 === cur ? 'cur' : '', i === cur && cur < cols ? 'nxt' : '']
+      .filter(Boolean).join(' ');
+    cells += `<td class="${marks}">${esc(fmt(v))}</td>`;
   }
-  return `<tr class="${cls}"><th>${esc(label)}</th>${cells}</tr>`;
+  return `<tr class="${[cls, flat && cls !== 'cost' ? 'flat' : ''].filter(Boolean).join(' ')}">` +
+    `<th>${esc(label)}</th>${cells}</tr>`;
 }
 
 // Known fields first, in the order the dictionary declares them (damage before
@@ -1261,7 +1270,10 @@ function orderedFields(obj, dict, skip) {
 
 function tipHead(cols, cur, label = 'lv') {
   let th = '<th></th>';
-  for (let i = 1; i <= cols; i++) th += `<th class="${i === cur ? 'cur' : ''}">${label} ${i}</th>`;
+  for (let i = 1; i <= cols; i++) {
+    const marks = [i === cur ? 'cur' : '', i === cur + 1 ? 'nxt' : ''].filter(Boolean).join(' ');
+    th += `<th class="${marks}">${label} ${i}${i === cur + 1 ? ' →' : ''}</th>`;
+  }
   return `<thead><tr>${th}</tr></thead>`;
 }
 
@@ -1363,6 +1375,11 @@ function itemTip(key, spec, level) {
 // panel refreshes in place after a purchase (the mouse never left the button).
 
 const tipEl = $('tip');
+// issue #14 (Sam): inside the shop the tooltip is a FIXED panel on the right
+// (#shopDetail) — always the same place, never covering cards. The floating
+// #tip keeps serving everything outside the shop grid. The panel deliberately
+// keeps showing the last hovered card, so leaving a card never blanks it.
+const shopDetailEl = $('shopDetail');
 let tipOwner = null;
 
 function placeTip(anchor) {
@@ -1381,13 +1398,17 @@ function placeTip(anchor) {
 function showTip(el, build) {
   const html = build();
   if (!html) return;
-  tipOwner = { el, build };
+  const panel = shopDetailEl && el.closest && el.closest('#shopBody');
+  tipOwner = { el, build, panel: !!panel };
+  if (panel) { shopDetailEl.innerHTML = html; return; }
   tipEl.innerHTML = html;
   tipEl.classList.remove('hidden');
   placeTip(el);
 }
 
 function hideTip() {
+  // the shop's fixed panel holds its content; only the floating tip vanishes
+  if (tipOwner && tipOwner.panel) return;
   tipOwner = null;
   tipEl.classList.add('hidden');
 }
@@ -1397,7 +1418,9 @@ function refreshTip() {
   if (!tipOwner || !tipOwner.el.isConnected) { hideTip(); return; }
   try {
     const html = tipOwner.build();
-    if (html) { tipEl.innerHTML = html; placeTip(tipOwner.el); }
+    if (!html) return;
+    if (tipOwner.panel) { shopDetailEl.innerHTML = html; return; }
+    tipEl.innerHTML = html; placeTip(tipOwner.el);
   } catch { hideTip(); }
 }
 
@@ -1492,6 +1515,7 @@ function buildShop(container, mode = 'classic') {
     b.className = 'ware';
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
       <span class="name">${spec.name}</span>
+      <span class="lvbadge"></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
@@ -1539,6 +1563,7 @@ function buildShop(container, mode = 'classic') {
     b.innerHTML = `<span class="icon">${spec.icon}</span>
       <span class="info"><span class="name">${spec.name}</span>
       <span class="tag">${esc(spec.desc)}</span></span>
+      <span class="lvbadge"></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
@@ -1574,6 +1599,7 @@ function buildShop(container, mode = 'classic') {
     b.innerHTML = `<span class="icon">${ICONS[key]}</span>
       <span class="info"><span class="name">${spec.name}</span>
       <span class="tag"></span></span>
+      <span class="lvbadge"></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
@@ -1607,35 +1633,42 @@ function buildShop(container, mode = 'classic') {
       (w.wrap || w.el).classList.toggle('hidden', locked);
       if (locked) { w.el.disabled = true; continue; }
       const cost = w.el.querySelector('.cost');
+      // issue #14 (Sam): every card wears its state — maxed / poor (unowned,
+      // unaffordable) / sel (owned) / up (owned, next level affordable) —
+      // computed per kind below, painted once at the bottom.
+      let maxed = false, afford = false, locked2 = false;
       if (w.kind === 'spell') {
         // power tier stays locked until enough rounds have been fought
         if (w.spec.minRound && round < w.spec.minRound) {
           cost.textContent = `🔒 r${w.spec.minRound + 1}`; cost.className = 'cost';
           w.el.disabled = true;
-          continue;
-        }
-        const level = spells[w.key] || 0;
-        // round 16: in elemental mode the fireball never levels; the elements
-        // are its progression (same rule as buy() in shared/sim.js)
-        const maxLevel = elemental && w.key === 'fireball' ? 1 : w.spec.maxLevel;
-        w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
-        if (level >= maxLevel) {
-          cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
+          w.level = spells[w.key] || 0;
+          locked2 = true;
         } else {
-          const c = w.spec.costs[level];
-          cost.textContent = `${c} g`; cost.className = 'cost';
-          w.el.disabled = gold < c;
+          const level = spells[w.key] || 0;
+          // round 16: in elemental mode the fireball never levels; the elements
+          // are its progression (same rule as buy() in shared/sim.js)
+          const maxLevel = elemental && w.key === 'fireball' ? 1 : w.spec.maxLevel;
+          w.level = level; w.maxLevel = maxLevel; // what the tooltip reads
+          if (level >= maxLevel) {
+            maxed = true;
+          } else {
+            const c = w.spec.costs[level];
+            cost.textContent = `${c} g`; cost.className = 'cost';
+            afford = gold >= c;
+            w.el.disabled = !afford;
+          }
         }
       } else if (w.kind === 'element') {
         const elevel = (m.elements && m.elements[w.key]) || 0;
         w.level = elevel;
-        w.el.classList.toggle('sel', elevel > 0);
         if (elevel >= w.spec.maxLevel) {
-          cost.textContent = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
+          maxed = true;
         } else {
           const c = w.spec.costs[elevel];
           cost.textContent = `${c} g`; cost.className = 'cost';
-          w.el.disabled = gold < c || (spells.fireball || 0) < 1;
+          afford = gold >= c && (spells.fireball || 0) >= 1;
+          w.el.disabled = !afford;
         }
       } else {
         // items are levelled like spells: the level you own sits next to the
@@ -1643,19 +1676,29 @@ function buildShop(container, mode = 'classic') {
         // itemCost handles both), and maxLevel is the wall.
         const level = Math.min(items[w.key] || 0, w.spec.maxLevel);
         w.level = level;
-        w.el.classList.toggle('sel', level > 0);
         // the stat tag tracks the level you'd BUY (totals); at max, what you own
         w.el.querySelector('.tag').textContent = ITEM_TAG[w.key]
           ? ITEM_TAG[w.key](Math.min(level + 1, w.spec.maxLevel)) : '';
         if (level >= w.spec.maxLevel) {
-          cost.innerHTML = 'max'; cost.className = 'cost owned'; w.el.disabled = true;
+          maxed = true;
         } else {
           const c = itemCost(w.key, level);
           cost.innerHTML = `${c} g${level > 0 ? `<span class="nth">→ lv ${level + 1}</span>` : ''}`;
           cost.className = 'cost';
-          w.el.disabled = gold < c;
+          afford = gold >= c;
+          w.el.disabled = !afford;
         }
       }
+      if (maxed) {
+        cost.textContent = 'MAX'; cost.className = 'cost owned'; w.el.disabled = true;
+      }
+      const owned = (w.level || 0) > 0;
+      const badge = w.el.querySelector('.lvbadge');
+      if (badge) badge.textContent = owned ? `LV ${w.level}` : '';
+      w.el.classList.toggle('sel', owned);
+      w.el.classList.toggle('maxed', maxed);
+      w.el.classList.toggle('poor', !owned && !maxed && !afford);
+      w.el.classList.toggle('up', owned && !maxed && afford && !locked2);
       // level pips (round 22.2, Remi): a tiny bar at the bottom of every card
       // says 0..max at a glance (one cell per level, owned cells lit)
       const pmax = w.kind === 'spell' ? (w.maxLevel || w.spec.maxLevel) : w.spec.maxLevel;
@@ -2218,6 +2261,7 @@ function updateUi(s) {
       el.querySelector('.elem').textContent = riders;
       const cd = fin(+cooldowns[key]) ? +cooldowns[key] : 0;
       const cdEl = el.querySelector('.cd');
+      el.classList.toggle('cooling', cd > 0); // issue #14: READY vs COOLDOWN border
       cdEl.classList.toggle('hidden', cd <= 0);
       if (cd > 0) cdEl.textContent = cd.toFixed(1);
     }

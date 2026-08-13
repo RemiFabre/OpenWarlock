@@ -247,7 +247,7 @@
   #shop h1 { font-size: 22px; }
   #shop .sub { margin: 2px 0 6px; }
   #shop .head h1 { font-size: 26px; flex: 1; }
-  #shopGold { color: var(--gold); font-size: 20px; }
+  #shopGold { color: var(--gold); font-size: 24px; font-weight: 700; }
   #shopTimer { color: var(--parchment); font-size: 20px; }
   #shopTimer.low { color: var(--ember); }
   #shopTimer.paused { color: var(--gold, #e8c65a); }
@@ -297,38 +297,59 @@
   /* round 20 (Remi): MINIMAL cards (icon + name + cost), one flex ROW per
      category so a whole shelf reads as one line; everything else is on hover */
   .shopgrid {
-    display: flex; flex-direction: column; gap: 5px;
+    display: flex; flex-direction: column; gap: 9px;
     margin-top: 2px; padding-bottom: 2px;
   }
-  .shoprow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .shoprow { display: flex; flex-wrap: wrap; gap: 8px; }
   /* round 20.1 (Remi): every card in every row is the SAME fixed tile;
      mixed widths "looked messy". Rows are grids of identical tiles. */
   .shoprow > .ware, .shoprow > .warewrap {
-    flex: 0 0 200px; width: 200px; min-width: 0;
+    flex: 0 0 208px; width: 208px; min-width: 0;
   }
-  .shoprow .ware { height: 46px; }
+  .shoprow .ware { height: 58px; }
   .ware {
     display: flex; gap: 8px; align-items: center; position: relative;
-    background: var(--obsidian); border: 1px solid #2e241c; padding: 5px 11px 11px;
+    background: var(--obsidian); border: 1px solid #2e241c; padding: 6px 12px 13px;
     text-align: left; width: 100%; min-height: 38px;
   }
-  /* level pips (round 22.2): one cell per level along the card's bottom edge */
+  /* level pips (round 22.2; thicker since issue #14): one cell per level along
+     the card's bottom edge */
   .ware .pips { position: absolute; left: 8px; right: 8px; bottom: 3px; display: flex; gap: 3px; pointer-events: none; }
-  .ware .pips i { flex: 1; height: 3px; background: #33291f; }
+  .ware .pips i { flex: 1; height: 5px; background: #33291f; }
   .ware .pips i.on { background: #699b54; }
   .ware:hover:not(:disabled) { border-color: var(--ember); }
-  .ware .icon { font-size: 19px; width: 24px; text-align: center; flex: none; }
+  .ware .icon { font-size: 20px; width: 25px; text-align: center; flex: none; }
   .ware .info { flex: 1; min-width: 0; }
-  .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; }
+  .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 13px; }
   /* item/element names run long (Hourglass of Haste): a notch smaller keeps
      them to one line clear of the pips (round 22.3, Remi) */
-  .ware .info .name { flex: none; font-size: 11.5px; line-height: 1.25; }
+  .ware .info .name { flex: none; font-size: 12px; line-height: 1.25; }
   .ware .desc { color: var(--ash); font-size: 12px; display: block; }
   /* the card's tag line: an element's 2-4 word desc / an item's one stat value */
   .ware .tag { display: block; color: var(--ash); font-size: 10.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ware .cost { color: var(--gold); flex: none; text-align: right; }
+  /* prices share one right-aligned column so the eye can run down them */
+  .ware .cost { color: var(--gold); flex: none; text-align: right; min-width: 46px; font-weight: 700; font-size: 13px; }
   .ware .cost.owned { color: var(--ok); }
-  .ware .cost .nth { display: block; font-size: 10px; color: var(--ash); }
+  .ware .cost .nth { display: block; font-size: 10px; font-weight: 400; color: var(--ash); }
+  /* ---- card states (issue #14, Sam): each state readable before reading ----
+     poor  = unowned you cannot afford: strongly dimmed, dimmed price
+     sel   = owned: green edge + LV badge
+     up    = owned AND the next level is affordable: the standout state
+     maxed = complete: quiet green, MAX, non-interactive */
+  .ware .lvbadge {
+    flex: none; color: #b7e59f; font-size: 10px; font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .04em;
+  }
+  /* element/item cards (the .info shape): long names need the row, so their
+     badge floats in the card's top-right corner instead of the flow */
+  .ware .info ~ .lvbadge { position: absolute; top: 2px; right: 6px; }
+  .ware .info ~ .cost { margin-top: 8px; }
+  .ware.poor { opacity: .35; filter: grayscale(.6); }
+  .ware.poor .cost { color: var(--ash); }
+  .ware.sel { border-color: #567a42; background: #17150f; }
+  .ware.up { border-color: var(--gold, #e8c65a); box-shadow: 0 0 9px rgba(232, 198, 90, .30); }
+  .ware.maxed { border-color: #3d5731; background: #141810; opacity: .9; }
   /* the cost rides the top-right on spell cards so the key chip below it
      keeps its corner to itself */
   .warewrap .ware .cost { align-self: flex-start; }
@@ -336,10 +357,10 @@
      Special); sideways, tiny, muted: a whisper, not a header */
   .catlabel {
     flex: none; align-self: stretch; display: flex;
-    align-items: center; justify-content: center; width: 15px;
+    align-items: center; justify-content: center; width: 17px;
     writing-mode: vertical-rl; transform: rotate(180deg);
-    font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
-    color: #6f6357;
+    font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: #9a8a76; border-right: 1px solid #2e241c; padding-right: 2px;
   }
   /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
      wrapper NEXT TO the buy button; inside a disabled button it'd be dead.
@@ -348,10 +369,10 @@
      the card edge is the same on every row. */
   .warewrap { position: relative; display: flex; align-self: flex-start; }
   .keychip {
-    position: absolute; right: 5px; bottom: -6px; cursor: pointer;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px;
-    line-height: 16px; padding: 0 5px; border-radius: 3px;
-    color: var(--ash); background: var(--obsidian); border: 1px solid #3a2c22;
+    position: absolute; right: 5px; bottom: -7px; cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    line-height: 18px; padding: 0 6px; border-radius: 3px;
+    color: var(--parchment); background: var(--obsidian); border: 1px solid #3a2c22;
   }
   .keychip:hover { border-color: var(--ember); color: var(--ember); }
   #rebind { z-index: 80; }
@@ -359,9 +380,12 @@
      so the two read as "stone / gold stone" everywhere an icon appears.
      Emoji are colour glyphs, so this is a filter, not a colour. */
   .goldicon { filter: sepia(1) saturate(5.5) hue-rotate(-12deg) brightness(1.12); }
-  .shoplabel { grid-column: 1 / -1; color: var(--ash); font-size: 12px;
-    text-transform: uppercase; letter-spacing: .12em; margin-top: 5px;
-    border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+  /* issue #14 (Sam): section headers strong enough to split the shop into
+     obvious blocks (Spells / Elements / Mutations / Items) before reading */
+  .shoplabel { grid-column: 1 / -1; color: var(--parchment); font-size: 13.5px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
+    margin-top: 10px; border-bottom: 2px solid #4a3a2c; padding-bottom: 4px; }
+  .shoplabel:first-of-type { margin-top: 2px; }
 
   /* ---- draft mode: the free pick, at the top of the shop and unmissable ---- */
   .draftpick {
@@ -423,31 +447,44 @@
 
   /* ---- rich hover tooltip: full per-level numbers, generated from the
          constants so it can never disagree with the simulation ---- */
+  /* .tipbox: shared by the floating #tip (outside the shop) and the shop's
+     fixed #shopDetail panel (issue #14, Sam) — one look, two homes */
+  .tipbox {
+    background: #100c0a; border: 1px solid #4a3a2c;
+    border-top: 2px solid var(--ember);
+    padding: 12px 14px; font-size: 12.5px;
+  }
   #tip {
     position: fixed; z-index: 200; pointer-events: none;
     width: min(420px, calc(100vw - 24px));
-    background: #100c0a; border: 1px solid #4a3a2c;
-    border-top: 2px solid var(--ember);
     box-shadow: 0 16px 48px rgba(0,0,0,.8);
-    padding: 12px 14px; font-size: 12.5px;
   }
-  #tip .tname { font-weight: 700; font-size: 14px; }
-  #tip .tname .ic { margin-right: 6px; }
-  #tip .tdesc { color: var(--parchment); margin: 4px 0 9px; }
-  #tip .tlong { color: var(--ash); margin: -6px 0 9px; }
-  #tip table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  #tip th, #tip td { padding: 3px 7px; border-bottom: 1px solid #241c17; text-align: right; }
-  #tip th:first-child, #tip td:first-child { text-align: left; color: var(--ash); }
-  #tip thead th { color: var(--ash); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
-  #tip td {
+  #shopBody { display: flex; gap: 16px; align-items: flex-start; }
+  #shopBody .shopgrid { flex: 1; min-width: 0; }
+  #shopDetail { flex: 0 0 340px; position: sticky; top: 0; min-height: 300px; }
+  #shopDetail .tiphint { color: var(--ash); margin: 4px 0; }
+  .tipbox .tname { font-weight: 700; font-size: 14px; }
+  .tipbox .tname .ic { margin-right: 6px; }
+  .tipbox .tdesc { color: var(--parchment); margin: 4px 0 9px; }
+  .tipbox .tlong { color: var(--ash); margin: -6px 0 9px; }
+  .tipbox table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tipbox th, .tipbox td { padding: 3px 7px; border-bottom: 1px solid #241c17; text-align: right; }
+  .tipbox th:first-child, .tipbox td:first-child { text-align: left; color: var(--ash); }
+  .tipbox thead th { color: var(--ash); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .tipbox td {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
   }
-  #tip .cur { background: rgba(255, 93, 31, .13); color: #fff; }
-  #tip thead th.cur { color: var(--ember); }
-  #tip .cost td, #tip .cost th { color: var(--gold); border-bottom: none; }
-  #tip .tfoot { color: var(--ash); margin-top: 8px; font-size: 11.5px; }
-  #tip .tfoot b { color: var(--parchment); font-weight: 600; }
+  .tipbox .cur { background: rgba(255, 93, 31, .13); color: #fff; }
+  .tipbox thead th.cur { color: var(--ember); }
+  /* issue #14: the level you would BUY glows gold; rows that never change
+     between levels step back so the improving numbers pop */
+  .tipbox td.nxt { background: rgba(232, 198, 90, .12); }
+  .tipbox thead th.nxt { color: var(--gold); }
+  .tipbox tr.flat td { color: #7a6d5f; }
+  .tipbox .cost td, .tipbox .cost th { color: var(--gold); border-bottom: none; }
+  .tipbox .tfoot { color: var(--ash); margin-top: 8px; font-size: 11.5px; }
+  .tipbox .tfoot b { color: var(--parchment); font-weight: 600; }
 
   /* ---- HUD ---- */
   #hud { position: fixed; inset: 0; pointer-events: none; }
@@ -455,25 +492,32 @@
     position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
     display: flex; gap: 6px; pointer-events: auto;
   }
+  /* issue #14 (Sam): in combat only OWNED spells earn attention. Unowned
+     slots are gone from the bar (they are shop business); owned slots are
+     bigger, READY is bright with a clear border, COOLDOWN is a dark overlay
+     with readable seconds. */
   .spell {
-    width: 52px; height: 52px; position: relative;
+    width: 58px; height: 58px; position: relative;
     background: var(--slab); border: 1px solid #3a2c22;
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; user-select: none;
+    font-size: 26px; user-select: none;
   }
-  .spell.owned { border-color: #6a4a2c; }
+  .spell.owned { border-color: #8a6440; background: #1d1712; }
+  .spell.owned:not(.cooling) { box-shadow: inset 0 0 0 1px rgba(232, 198, 90, .18); }
+  .spell.cooling { border-color: #3a2c22; }
   .spell .key {
-    position: absolute; top: 1px; left: 4px;
-    font-size: 10px; color: var(--ash);
+    position: absolute; top: 1px; left: 4px; z-index: 1;
+    font-size: 12px; color: var(--parchment);
     font-family: ui-monospace, Menlo, monospace;
   }
-  .spell .lv { position: absolute; bottom: 1px; right: 4px; font-size: 10px; color: var(--gold); }
+  .spell .lv { position: absolute; bottom: 1px; right: 4px; font-size: 11px; color: var(--gold); }
   .spell .cd {
-    position: absolute; inset: 0; background: rgba(8,5,3,.78);
+    position: absolute; inset: 0; background: rgba(8,5,3,.82);
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 15px;
+    color: #fff; font-size: 18px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
-  .spell:not(.owned) { opacity: .28; }
+  .spell:not(.owned) { display: none; }
 
   /* live element readouts (crit ramp, frost stacks…) above the spell bar */
   #buffbar {
@@ -664,7 +708,7 @@
   </div>
 </div>
 
-<div id="tip" class="hidden"></div>
+<div id="tip" class="tipbox hidden"></div>
 
 <div id="join" class="overlay">
   <div class="slab" style="--w:560px">
@@ -816,7 +860,14 @@
     <p class="sub" id="shopSub"></p>
     <div class="scroller">
       <p class="hint" id="shopIncome" style="margin:0 0 6px"></p>
-      <div class="shopgrid" id="shopGrid"></div>
+      <!-- issue #14 (Sam): cards left, fixed detail panel right — the panel
+           replaces the floating tooltip inside the shop and never moves -->
+      <div id="shopBody">
+        <div class="shopgrid" id="shopGrid"></div>
+        <aside id="shopDetail" class="tipbox">
+          <p class="tiphint">Hover any card for its full details.</p>
+        </aside>
+      </div>
     </div>
     <div class="row" style="margin-top:6px; align-items:center">
       <button id="shopReadyBtn" class="primary" style="flex:1">Ready: next round</button>
