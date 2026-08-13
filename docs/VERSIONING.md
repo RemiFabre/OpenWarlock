@@ -23,7 +23,8 @@ several versions per session without carrying unnecessary context forward. When
 the queue is empty, wait 60 seconds and check again instead of stopping.
 
 **Arm a queue WATCHDOG before selecting any issue, and keep it alive for the
-whole session.** It is a persistent background process, separate from the issue
+whole session.** The agent starting its own watchdog each session IS the
+accepted design (Remi, 2026-08-13): no cron job or external supervisor. It is a persistent background process, separate from the issue
 loop: every 60 s it polls for untreated issues, new issue comments (the
 repo-wide feed, so delivered and even closed issues are covered), AND body
 edits of open issues (hash each body and fire on change — some authors iterate
