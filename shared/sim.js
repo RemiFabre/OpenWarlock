@@ -582,7 +582,9 @@ export function castSpell(state, id, key, tx, ty) {
       const ricoLvl = pl.elements.ricochet || 0;
       if (ricoLvl > 0) {
         const tspec = SPELLS.ricochet;
-        pl.cooldowns[key] = cd * ELEMENTS.ricochet.fx.cdMult;
+        // v6.2 (Ju): the bounce cast costs a flat SPELLS.ricochet.cooldown,
+        // not twice the fireball's. `cd` is already hasted, so rescale it.
+        pl.cooldowns[key] = cd * (tspec.cooldown / lvl(spec, 'cooldown', level));
         let elements = null;
         for (const [k, v] of Object.entries(pl.elements))
           if (v > 0) (elements = elements || {})[k] = v;

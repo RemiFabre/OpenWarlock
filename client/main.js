@@ -1109,7 +1109,7 @@ const FX_FIELDS = {
   dmgMult: ['fireball damage', fmtMult],
   kbMult: ['fireball push', fmtMult],
   haste: ['fireball haste', (v) => `+${fmtNum(v)}`],
-  cdMult: ['fireball haste', (v) => `+${fmtNum(Math.round((1 / v - 1) * 100))}%`],
+  cd: ['your fireball cooldown becomes', fmtSec],
   projRadiusMult: ['fireball size', fmtMult],
   projSpeedMult: ['fireball speed', fmtMult],
   stacksToTrigger: ['stacks to detonate', fmtNum],
@@ -1140,6 +1140,9 @@ const FX_FIELDS = {
 // totals per level, so the array IS the row (see shared/items.js).
 const ITEM_FIELDS = {
   speedMult: ['move speed', fmtMult],
+  // issue #13 v6.2 (Ju): the sprint printed as raw keys, so nobody could read it
+  sprintPct: ['sprint, at lv 3 only', (v) => `+${fmtNum(v)}% speed`],
+  sprintAfter: ['the sprint arms after', (v) => `${fmtSec(v)} unhurt`],
   lavaMult: ['lava damage taken', fmtMult],
   kbMult: ['knockback taken', fmtMult],
   maxHp: ['max HP', (v) => `+${fmtNum(v)}`],
@@ -1161,7 +1164,8 @@ const ITEM_FIELDS = {
 // double speed, with regen still locked), which would read as a lie on a shop
 // button.
 const ITEM_LIVE = {
-  boots: (lv) => `you move at ${fmtNum(PLAYER.SPEED * itemFxAt('boots', 'speedMult', lv))} u/s (base ${fmtNum(PLAYER.SPEED)})`,
+  boots: (lv) => `you move at ${fmtNum(PLAYER.SPEED * itemFxAt('boots', 'speedMult', lv))} u/s (base ${fmtNum(PLAYER.SPEED)})`
+    + (lv >= 3 ? `, and ${fmtNum(PLAYER.SPEED * itemFxAt('boots', 'speedMult', lv) * (1 + ITEM_FX.boots.sprintPct / 100))} u/s while you sprint (${fmtNum(ITEM_FX.boots.sprintAfter)} s without taking damage)` : ''),
   treads: (lv) => `lava burns you for ${fmtNum(LAVA.DPS * itemFxAt('treads', 'lavaMult', lv))} hp/s (base ${fmtNum(LAVA.DPS)})`,
   amulet: (lv) => `you have ${fmtNum(PLAYER.MAX_HP + itemFxAt('amulet', 'maxHp', lv))} max HP (base ${fmtNum(PLAYER.MAX_HP)})`,
   cape: (lv) => `you take ×${fmtNum(itemFxAt('cape', 'kbMult', lv))} knockback`,

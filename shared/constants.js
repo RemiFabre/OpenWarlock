@@ -233,15 +233,17 @@ export const SPELLS = {
     // below): no bot brain casts a bounce shot, and without the guard the
     // round-19.1 leftover pass would happily buy one and never fire it.
     shopHidden: true,   // issue #13 (Ju v4): sold as a MUTATION now
+    // v6.2 (Ju): a FLAT 3.2 s cast, no longer twice the fireball's cooldown
+    // (4.2 s). Haste still shortens it. Revert: 2 * 2.1.
     name: 'Ricochet', hotkey_retired: 'Y', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
-    cooldown: 2 * 2.1, speed: 41, radius: 0.8, range: Infinity,
+    cooldown: 3.2, speed: 41, radius: 0.8, range: Infinity,
     damage: [10, 13, 16], knockback: [60, 65, 70],
     life: [4, 8, 12], bounceAllAtLevel: 3,
     // issue #9 (Ju, v2): a hit landed AFTER any bounce is worth 65% — the
     // trick shot is the discount, the straight shot the full price.
     bounceDmgMult: 0.65,
     desc: 'A ball that bounces off the world.',
-    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches, and a hit landed after a bounce deals 35% less. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too.',
+    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches, and a hit landed after a bounce deals 35% less. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too. Its cast costs a flat 3.2 s.',
   },
   umbra: {
     // Issue #9 (Ju, v2): the Dark Ball — the SECOND hit on the same victim
@@ -255,9 +257,10 @@ export const SPELLS = {
     name: 'Dark Ball', hotkey_retired: 'U', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2.1, speed: 41, radius: 0.8, range: Infinity,
     damage: [5, 6, 7], knockback: [40, 44, 48],
-    blind: [1.5, 2, 2.75], marksToBlind: 2,
+    // v6.2 (Ju): blind cut to [1, 1.5, 2] (was [1.5, 2, 2.75]).
+    blind: [1, 1.5, 2], marksToBlind: 2,
     desc: 'Second hit blinds them.',
-    long: 'A ball of darkness: the second hit on the same enemy blacks out their screen for 1.5 / 2 / 2.75 seconds — they see nothing but their own HUD. A blinded player cannot be marked again until they can see.',
+    long: 'A ball of darkness: the second hit on the same enemy blacks out their screen for 1 / 1.5 / 2 seconds (they see nothing but their own HUD). A blinded player cannot be marked again until they can see.',
   },
   chainball: {
     // Issue #9 (Ju, v2): the Storm Ball — 70% of a fireball's size, 30%
@@ -468,7 +471,10 @@ export const SPELLS = {
 // Revert: boots/treads 10, cape 12, amulet 12, sword 15, hourglass costs [10,8,8].
 // history: docs/history/2026-08-08-constants-sweeps.md#items
 export const ITEMS = {
-  boots:  { name: 'Boots of Speed',       cost: 5, maxLevel: 3, desc: 'Move speed.' },
+  boots:  { name: 'Boots of Speed',       cost: 5, maxLevel: 3, desc: 'Move speed.',
+            // v6.2 (Ju): the lv3 sprint was invisible in the shop, so it is
+            // spelled out here as well as in the per-level rows.
+            long: 'Move faster at every level. At level 3 you also SPRINT: 12% more speed once you have gone 3.5 seconds without taking damage, lost the instant you are hit.' },
   treads: { name: 'Lava Treads',          cost: 5, maxLevel: 3, desc: 'Lava resistance.' },
   // Round 17 §9 (ruling: no item may be mandatory by win rate — amulet lv0 sat
   // at 0.2% on the ladder): amulet and ring trimmed, FIRST TRY values.
@@ -683,11 +689,11 @@ export const ELEMENTS = {
   // rhythms and every stat element. Physics stay on the hidden SPELLS entries.
   ricochet: { name: 'Ricochet', icon: '🎾', maxLevel: 3, costs: [10, 5, 5],
     desc: 'Your fireball bounces.',
-    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. Every other element you own still rides the bouncing ball.',
-    fx: { ballTransform: true, cdMult: 2 } },
+    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and each cast costs a flat 3.2 s. Every other element you own still rides the bouncing ball.',
+    fx: { ballTransform: true, cd: SPELLS.ricochet.cooldown } },
   umbra: { name: 'Dark Ball', icon: '🌑', maxLevel: 3, costs: [6, 6, 6],
     desc: 'Second hit blinds them.',
-    long: 'An axis of your fireball: the second hit on the same enemy blacks their screen out for 1.5/2/2.75 s. Independent of the other identities.',
+    long: 'An axis of your fireball: the second hit on the same enemy blacks their screen out for 1/1.5/2 s. Independent of the other identities.',
     fx: {} },
   chainball: { name: 'Storm Ball', icon: '🌩️', maxLevel: 3, costs: [6, 6, 6],
     desc: 'Arcs to everyone nearby.',

@@ -7105,9 +7105,10 @@ describe('Ricochet (issue #3)', () => {
   }
   const ball = (state) => state.projectiles.find(p => p.type === 'ricochet');
 
-  it('costs the medium tier and its cooldown is exactly twice the fireball', () => {
+  it('costs the medium tier and its cast cost is a flat cooldown (v6.2)', () => {
     expect(spec.costs).toEqual([10, 5, 5]);
-    expect(spec.cooldown).toBe(2 * SPELLS.fireball.cooldown[0]);
+    expect(spec.cooldown).toBe(ELEMENTS.ricochet.fx.cd);   // one truth, the spec's
+    expect(spec.cooldown).toBeGreaterThan(SPELLS.fireball.cooldown[0]);
     // bots cast no bounce shot, so the guard has to keep them from buying one
     expect(spec.tier).toBe('power');
   });
@@ -7328,6 +7329,15 @@ describe('Ju v2 (issue #9)', () => {
     expect(lv2.players.p0._sprinting).toBe(false);
   });
 
+  // v6.2 (Ju, twice): the sprint existed but the shop never said so. The shop
+  // reads `long`, so the sentence has to carry the two numbers it promises.
+  it('the boots shop text announces the sprint, with the numbers it runs on', () => {
+    const long = ITEMS.boots.long || '';
+    expect(long.toLowerCase()).toContain('sprint');
+    expect(long).toContain(`${ITEM_FX.boots.sprintPct}%`);
+    expect(long).toContain(String(ITEM_FX.boots.sprintAfter));
+  });
+
   function umbraHit(state, times = 1) {
     for (let i = 0; i < times; i++) {
       const a = state.players.p0, b = state.players.p1;
@@ -7344,7 +7354,7 @@ describe('Ju v2 (issue #9)', () => {
     expect(b._dark.p0).toBe(1);
     expect(b.blindT).toBe(0);
     umbraHit(state, 1);
-    expect(b.blindT).toBeGreaterThan(SPELLS.umbra.blind[1] - 0.5); // lv2 = 2 s
+    expect(b.blindT).toBeGreaterThan(SPELLS.umbra.blind[1] - 0.5); // lv2 = 1.5 s
     expect(b._dark.p0).toBeUndefined();
     // hits while blind mark NOTHING — the blackout must be earned again
     umbraHit(state, 1);
@@ -7594,16 +7604,17 @@ describe('Ju v4 (issue #13)', () => {
     expect(pr2.radius).toBeCloseTo(SPELLS.fireball.radius, 5);
   });
 
-  it('an owned Ricochet transforms the FIREBALL cast, cooldown tax included', () => {
+  it('an owned Ricochet transforms the FIREBALL cast, flat cooldown included', () => {
     const state = pitch((s, a) => { a.elements.ricochet = 2; });
     castSpell(state, 'p0', 'fireball', 15, 0);
     const pr = state.projectiles.find(p => p.type === 'ricochet');
     expect(pr).toBeTruthy();
     expect(pr.level).toBe(2);
     expect(pr.dark).toBeUndefined();          // independence: no stray flags
-    // ricochet's identity keeps its doubled cooldown
+    // v6.2 (Ju): a FLAT cast cost, no longer twice the fireball's
     expect(state.players.p0.cooldowns.fireball)
-      .toBeCloseTo(SPELLS.fireball.cooldown[0] * 2, 1);
+      .toBeCloseTo(SPELLS.ricochet.cooldown, 3);
+    expect(SPELLS.ricochet.cooldown).not.toBeCloseTo(SPELLS.fireball.cooldown[0] * 2, 1);
   });
 
   it('v6.1: elements FUSE onto the ricochet — never supplanted, any order', () => {
