@@ -1241,25 +1241,6 @@ const ITEM_TAG = {
 // One row of the per-level table. A scalar REPEATS in every level column
 // (round 20, Remi: half-empty columns read as "level 1 has no stats"); 0 is
 // a value too (the bomb's knockback: 0 must print), never a blank cell.
-function tipRow(label, value, cols, fmt, cur, cls = '') {
-  // issue #14 iteration 2 (Sam): only a value that actually IMPROVES at the
-  // next level is emphasized, and a row that never changes between levels
-  // steps back ('flat'), so the eye lands on the numbers that move.
-  const vals = [];
-  for (let i = 0; i < cols; i++)
-    vals.push(Array.isArray(value) ? value[Math.min(i, value.length - 1)] : value);
-  const flat = vals.every(v => String(v) === String(vals[0]));
-  let cells = '';
-  for (let i = 0; i < cols; i++) {
-    const changes = cur < 1 ? !flat : String(vals[i]) !== String(vals[cur - 1]);
-    const nxt = cls !== 'cost' && i === cur && cur < cols && changes;
-    const marks = [i + 1 === cur ? 'cur' : '', nxt ? 'nxt' : ''].filter(Boolean).join(' ');
-    cells += `<td class="${marks}">${esc(fmt(vals[i]))}</td>`;
-  }
-  return `<tr class="${[cls, flat && cls !== 'cost' ? 'flat' : ''].filter(Boolean).join(' ')}">` +
-    `<th>${esc(label)}</th>${cells}</tr>`;
-}
-
 // Known fields first, in the order the dictionary declares them (damage before
 // hit radius); anything the dictionary hasn't heard of trails behind, unlabelled
 // but visible; a new constant must never silently vanish from the tooltip.
@@ -1269,109 +1250,148 @@ function orderedFields(obj, dict, skip) {
   return known.concat(keys.filter(k => !dict[k]));
 }
 
-function tipHead(cols, cur, label = 'lv') {
-  let th = '<th></th>';
-  for (let i = 1; i <= cols; i++) {
-    const marks = [i === cur ? 'cur' : '', i === cur + 1 ? 'nxt' : ''].filter(Boolean).join(' ');
-    th += `<th class="${marks}">${label} ${i}${i === cur + 1 ? ' →' : ''}</th>`;
-  }
-  return `<thead><tr>${th}</tr></thead>`;
+// issue #14 iteration 3 (Sam): the tooltip stopped being a 3-column table.
+// It reads top-down — name+level, identity, description, an interactive
+// 3-step progression indicator (bronze/silver/gold), CURRENT effects, then
+// ONE upgrade block: the next level by default, or the future level whose
+// dot the mouse is on. Only values that change, `old → new`, and a NEW
+// badge on an effect whose value first appears at that level.
+
+// one line per spec field: at(lv) reads the value at a 1-based level
+function tipLines(obj, dict, skip) {
+  return orderedFields(obj, dict, skip).map((f) => {
+    const [label, fmt] = dict[f] || [f, fmtNum];
+    return { f, label, fmt, at: (lv) => statAt(obj[f], lv) };
+  });
 }
 
-// The card only shows icon + name + cost (round 20, Remi); the tooltip is
-// where EVERYTHING lives: the one-line desc, the long mechanism sentence and
-// the per-level table (no "Next:" foot since round 19.4; the table already
-// says it, Remi).
-function tipShell(icon, name, desc, long, body, foot, lv = 0) {
-  // issue #14 iteration 2 (Sam): name + current level first, the description
-  // is what the eye reads first after that, the table is a secondary block
-  const both = long && long !== desc;
+function tipProg(cur, max, target) {
+  let h = '<div class="prog">';
+  for (let lv = 1; lv <= max; lv++) {
+    if (lv > 1) h += `<span class="pline${lv <= cur ? ' done' : ''}"></span>`;
+    const state = lv <= cur ? 'done' : lv === cur + 1 ? 'next' : 'future';
+    const tag = lv === cur ? 'current' : (lv === cur + 1 && cur < max ? 'next' : '');
+    h += `<span class="pdot l${lv} ${state}${lv === target ? ' sel' : ''}" data-lv="${lv}">` +
+      `<i></i><b>LV${lv}</b><u>${tag}</u></span>`;
+  }
+  return h + '</div>';
+}
+
+function tipStatList(lines, lv) {
+  let h = '';
+  for (const ln of lines) {
+    const v = ln.at(lv);
+    if (v == null) continue;
+    h += `<div class="stat"><span>${esc(ln.label)}</span><b>${esc(ln.fmt(v))}</b></div>`;
+  }
+  return h;
+}
+
+// the upgrade block from level `from` to `to`: changed values only. A value
+// that was none/zero before wears the NEW badge of the level unlocking it.
+function tipUpgrade(lines, from, to) {
+  let h = '';
+  for (const ln of lines) {
+    const b = ln.at(to);
+    if (b == null) continue;
+    if (from < 1) {
+      h += `<div class="stat"><span>${esc(ln.label)}</span><b>${esc(ln.fmt(b))}</b></div>`;
+      continue;
+    }
+    const a = ln.at(from);
+    if (String(ln.fmt(a)) === String(ln.fmt(b))) continue;
+    if ((a == null || a === 0 || a === false) && b) {
+      h += `<div class="stat"><span><i class="newb l${to}">NEW</i>${esc(ln.label)}</span>` +
+        `<b>${esc(ln.fmt(b))}</b></div>`;
+    } else {
+      h += `<div class="stat"><span>${esc(ln.label)}</span>` +
+        `<b class="dim">${esc(ln.fmt(a))}</b><b class="arrow">→</b><b>${esc(ln.fmt(b))}</b></div>`;
+    }
+  }
+  return h || '<div class="stat dimline">no stat changes at this level</div>';
+}
+
+function tipBody(lines, cur, max, costAt, previewLv) {
+  const maxed = cur >= max;
+  const target = !maxed && previewLv > cur + 1 ? Math.min(previewLv, max)
+    : Math.min(cur + 1, max);
+  let h = tipProg(cur, max, maxed ? 0 : target);
+  if (cur >= 1) {
+    h += `<div class="lvhead l${Math.min(cur, 3)}">CURRENT · LV ${cur}${maxed ? ' · MAX' : ''}</div>` +
+      `<div class="stats">${tipStatList(lines, cur)}</div>`;
+  }
+  if (!maxed) {
+    const from = target === cur + 1 ? cur : target - 1;
+    h += `<div class="lvhead l${target}">LV ${target} · <span class="cost">${esc(costAt(target))}</span>` +
+      `${from >= 1 && from !== cur ? ` <span class="vs">vs lv ${from}</span>` : ''}</div>` +
+      `<div class="stats">${tipUpgrade(lines, from, target)}</div>`;
+  }
+  return h;
+}
+
+function tipShell(icon, name, sub, desc, body, foot, lv = 0, max = 3) {
   return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}` +
-    `${lv > 0 ? `<span class="tlv">LV ${lv}</span>` : ''}</div>
+    `${lv > 0 ? `<span class="tlv l${Math.min(lv, 3)}">LV ${lv}${lv >= max ? ' · MAX' : ''}</span>` : ''}</div>
+    ${sub ? `<div class="tsub">${esc(sub)}</div>` : ''}
     <div class="tdesc">${esc(desc)}</div>
-    ${both ? `<div class="tlong">${esc(long)}</div>` : ''}${body}
+    ${body}
     ${foot ? `<div class="tfoot">${foot}</div>` : ''}`;
 }
 
-function spellTip(key, spec, level, maxLevel) {
-  let rows = '';
-  for (const field of orderedFields(spec, SPELL_FIELDS, SPELL_SKIP)) {
-    const [label, fmt] = SPELL_FIELDS[field] || [field, fmtNum];
-    rows += tipRow(label, spec[field], maxLevel, fmt, level);
-    // the return leg (boomerang) flies back through the launch point and
-    // onward until caught; no spec field carries that, but the table must
-    // not imply the flight ends where the throw does (Remi, round 19.4)
-    if (field === 'outDistance') rows += tipRow('return distance', Infinity, maxLevel, fmt, level);
-  }
-  // Switcheroo's stun scales with how far you actually swapped (round 20.5), so
-  // there is no single number: show the floor and what a full-range swap buys,
-  // both recomputed from the spec exactly like the sim does it; min floor,
-  // pad + d/fireball speed, and the round-21.0 `max` ceiling.
+function spellTip(key, spec, level, maxLevel, previewLv) {
+  const lines = tipLines(spec, SPELL_FIELDS, SPELL_SKIP);
+  // the return leg (boomerang) flies back through the launch point and onward
+  // until caught; no spec field carries that, but the list must not imply the
+  // flight ends where the throw does (Remi, round 19.4)
+  const od = lines.findIndex((ln) => ln.f === 'outDistance');
+  if (od >= 0) lines.splice(od + 1, 0,
+    { f: '_ret', label: 'return distance', fmt: fmtNum, at: () => Infinity });
+  // Switcheroo's stun scales with how far you actually swapped (round 20.5):
+  // show the floor and what a full-range swap buys, recomputed from the spec
+  // exactly like the sim does it (min floor, pad + d/speed, round-21.0 max).
   if (spec.stun) {
     const rng = Array.isArray(spec.range) ? spec.range : [spec.range];
     const swapStun = d => Math.min(spec.stun.max || Infinity,
       Math.max(spec.stun.min, spec.stun.pad + d / SPELLS.fireball.speed));
-    rows += tipRow('stun, short swap', spec.stun.min, maxLevel, fmtSec, level);
-    rows += tipRow('stun, full-range swap', rng.map(swapStun), maxLevel, fmtSec, level);
+    lines.push({ f: '_stun0', label: 'stun, short swap', fmt: fmtSec, at: () => spec.stun.min });
+    lines.push({ f: '_stun1', label: 'stun, full-range swap', fmt: fmtSec,
+      at: (lv) => swapStun(statAt(rng, lv)) });
   }
-  rows += tipRow('cost', spec.costs.slice(0, maxLevel), maxLevel, fmtGold, level + 1, 'cost');
-  const foot = [
-    level > 0 ? `You own it at <b>lv ${level}</b>${level >= maxLevel ? ' (max)' : ''}.` : '',
-    spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
-  ].filter(Boolean).join(' ');
-  // one message per hover (Remi, round 19.6): spells carry everything in desc;
-  // unless one needs a longer mechanism sentence, and then `long` wins (the
-  // element shape; round 21.0, shield's "not physical" caveat)
-  return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
-    `<table>${tipHead(maxLevel, level)}<tbody>${rows}</tbody></table>`, foot, level);
+  const foot = spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '';
+  const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
+  return tipShell(ICONS[key], spec.name, sub, spec.long || spec.desc,
+    tipBody(lines, level, maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
+    foot, level, maxLevel);
 }
 
-function elementTip(key, spec, level) {
-  const cols = spec.maxLevel;
-  let rows = '';
-  const fxSpec = spec.fx || {};
-  for (const field of orderedFields(fxSpec, FX_FIELDS, ELEM_FX_SKIP)) {
-    const [label, fmt] = FX_FIELDS[field] || [field, fmtNum];
-    rows += tipRow(label, fxSpec[field], cols, fmt, level);
-  }
-  rows += tipRow('cost', spec.costs.slice(0, cols), cols, fmtGold, level + 1, 'cost');
-  const foot = [
-    level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
-    // the one boilerplate line that earns its place: what haste MEANS
-    spec.fx && spec.fx.haste ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '',
-  ].filter(Boolean).join(' ');
-  // the card already wears the short tag; the hover shows ONLY the long
-  // explanation (Remi, round 19.6: say it once)
-  return tipShell(spec.icon, spec.name, spec.long || spec.desc, null,
-    `<table>${tipHead(cols, level)}<tbody>${rows}</tbody></table>`, foot, level);
+function elementTip(key, spec, level, previewLv) {
+  const lines = tipLines(spec.fx || {}, FX_FIELDS, ELEM_FX_SKIP);
+  // the one boilerplate line that earns its place: what haste MEANS
+  const foot = spec.fx && spec.fx.haste
+    ? 'Ability Haste: +18 means 18% more casts in the same time. It sums across everything you own.' : '';
+  const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
+  return tipShell(spec.icon, spec.name, sub, spec.long || spec.desc,
+    tipBody(lines, level, spec.maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
+    foot, level, spec.maxLevel);
 }
 
-// Items are LEVELLED like spells (round 12): the columns are levels 1..maxLevel
-// and the ITEM_FX arrays are absolute totals, so each cell is read straight out
-// of the spec: no per-copy arithmetic, and nothing here can drift from what
-// stats() computes on the server. Cost is flat at every level for most items;
-// the hourglass carries a per-level costs array (itemCost reads both).
-function itemTip(key, spec, level) {
-  const cols = spec.maxLevel;
-  const cur = Math.min(level, cols);
-  const fxSpec = ITEM_FX[key] || {};
-  let rows = '';
-  for (const field of orderedFields(fxSpec, ITEM_FIELDS)) {
-    const [label, fmt] = ITEM_FIELDS[field] || [field, fmtNum];
-    rows += tipRow(label, fxSpec[field], cols, fmt, cur);
-  }
-  const costs = Array.from({ length: cols }, (_, i) => itemCost(key, i));
-  rows += tipRow('cost', costs, cols, fmtGold, Math.min(level + 1, cols), 'cost');
+// Items are LEVELLED like spells (round 12): the ITEM_FX arrays are absolute
+// totals, so every value is read straight out of the spec: no per-copy
+// arithmetic, and nothing here can drift from what stats() computes on the
+// server. Cost is flat for most items; the hourglass carries a per-level
+// costs array (itemCost reads both).
+function itemTip(key, spec, level, previewLv) {
+  const cur = Math.min(level, spec.maxLevel);
+  const lines = tipLines(ITEM_FX[key] || {}, ITEM_FIELDS);
   const live = level > 0 && ITEM_LIVE[key] && ITEM_LIVE[key](cur);
   const foot = [
-    level > 0 ? `You own it at <b>lv ${level}</b>${level >= cols ? ' (max)' : ''}.` : '',
     live ? `With that, ${live}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
   ].filter(Boolean).join(' ');
-  // items follow the shop's tag shape now (round 21.5): `long` is the mechanism
-  // sentence when the spec carries one, exactly like spells and elements
-  return tipShell(ICONS[key], spec.name, spec.long || spec.desc, null,
-    `<table>${tipHead(cols, cur)}<tbody>${rows}</tbody></table>`, foot, level);
+  const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
+  return tipShell(ICONS[key], spec.name, sub, spec.long || spec.desc,
+    tipBody(lines, cur, spec.maxLevel, (lv) => fmtGold(itemCost(key, lv - 1)), previewLv),
+    foot, level, spec.maxLevel);
 }
 
 // ---- hover tooltip -------------------------------------------------------------
@@ -1394,35 +1414,99 @@ function placeTip(anchor) {
   tipEl.style.top = `${Math.round(top)}px`;
 }
 
-function showTip(el, build) {
-  const html = build();
-  if (!html) return;
-  tipOwner = { el, build };
+// issue #14 iteration 3 (Sam): the progression dots inside the tooltip are
+// interactive, so the tooltip takes the mouse and hides on a short grace
+// period — leaving the card toward the tooltip keeps it open, leaving both
+// closes it. paintTip re-renders in place when a dot changes the preview.
+let tipHideT = null;
+
+function paintTip() {
+  // idempotent: the shop refresh calls this ~20x/s and a re-render swaps the
+  // DOM under the mouse (which re-fires mouseenter) — repaint ONLY when the
+  // rendered html actually changed, or hovering a dot would loop forever
+  const html = tipOwner.build(tipOwner.preview);
+  if (!html || html === tipOwner.lastHtml) return;
+  tipOwner.lastHtml = html;
   tipEl.innerHTML = html;
   tipEl.classList.remove('hidden');
-  placeTip(el);
+  placeTip(tipOwner.el);
+  for (const d of tipEl.querySelectorAll('.pdot')) {
+    d.addEventListener('mouseenter', () => {
+      if (!tipOwner || tipOwner.preview === +d.dataset.lv) return;
+      tipOwner.preview = +d.dataset.lv;
+      paintTip();
+    });
+  }
+  const prog = tipEl.querySelector('.prog');
+  if (prog) {
+    // ONLY the indicator keeps the tooltip alive: parking the mouse on the
+    // tip body must never pin it open over the shop (it blocks clicks)
+    prog.addEventListener('mouseenter', () => clearTimeout(tipHideT));
+    prog.addEventListener('mouseleave', () => {
+      if (!tipOwner) return;
+      scheduleHideTip();
+      if (tipOwner.preview == null) return;
+      tipOwner.preview = null;
+      paintTip();
+    });
+  }
+}
+
+function showTip(el, build) {
+  clearTimeout(tipHideT);
+  tipOwner = { el, build, preview: null };
+  paintTip();
 }
 
 function hideTip() {
+  clearTimeout(tipHideT);
   tipOwner = null;
   tipEl.classList.add('hidden');
 }
 
+function scheduleHideTip() {
+  clearTimeout(tipHideT);
+  tipHideT = setTimeout(() => {
+    const p = tipEl.querySelector('.prog');
+    if (!(p && p.matches(':hover'))) hideTip();
+  }, 350);
+}
+// the tooltip has no clickable content (the dots are hover-only), so a press
+// on it means the player wants what is UNDER it: get out of the way at once
+tipEl.addEventListener('pointerdown', hideTip);
+
+// ⚠ Boundary events are NOT enough: paintTip replaces the tooltip's DOM under
+// a stationary cursor, and the browser then never fires mouseleave (its hover
+// chain points at the detached node) — the tooltip stayed open forever. This
+// document-level guard re-derives keep-alive from every real mouse move: the
+// anchor card and the progression dots hold the tooltip, anywhere else arms
+// the grace timer.
+document.addEventListener('mousemove', (e) => {
+  if (!tipOwner || tipEl.classList.contains('hidden')) return;
+  const t = e.target;
+  const anchor = (tipOwner.el.closest && tipOwner.el.closest('.warewrap')) || tipOwner.el;
+  if (anchor === t || (anchor.contains && anchor.contains(t))) { clearTimeout(tipHideT); return; }
+  if (tipEl.contains(t)) {
+    const prog = tipEl.querySelector('.prog');
+    if (prog && prog.contains(t)) { clearTimeout(tipHideT); return; }
+  }
+  scheduleHideTip();
+});
+
 // Repaint the open tooltip from fresh state (a purchase just changed a level).
+// Called on every shop refresh; paintTip's html memo makes that free, and the
+// hover preview survives refreshes instead of being stomped 20x a second.
 function refreshTip() {
   if (!tipOwner || !tipOwner.el.isConnected) { hideTip(); return; }
-  try {
-    const html = tipOwner.build();
-    if (html) { tipEl.innerHTML = html; placeTip(tipOwner.el); }
-  } catch { hideTip(); }
+  try { paintTip(); } catch { hideTip(); }
 }
 
 function attachTip(el, build) {
   const show = () => showTip(el, build);
   el.addEventListener('mouseenter', show);
   el.addEventListener('focus', show);
-  el.addEventListener('mouseleave', hideTip);
-  el.addEventListener('blur', hideTip);
+  el.addEventListener('mouseleave', scheduleHideTip);
+  el.addEventListener('blur', scheduleHideTip);
 }
 
 // The panel is anchored to a button, so it has to follow when the wares scroll
@@ -1532,7 +1616,7 @@ function buildShop(container, mode = 'classic') {
     wrap.appendChild(chip);
     curRow.appendChild(wrap);
     const w = { key, spec, el: b, wrap, kind: 'spell' };
-    attachTip(b, () => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel));
+    attachTip(b, (pv) => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel, pv));
     wares.push(w); inSection(w);
   };
   // Round 17 (Remi): no separate "Powerful" category; every spell is just a
@@ -1567,7 +1651,7 @@ function buildShop(container, mode = 'classic') {
     });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'element' };
-    attachTip(b, () => elementTip(key, spec, w.level || 0));
+    attachTip(b, (pv) => elementTip(key, spec, w.level || 0, pv));
     wares.push(w); inSection(w);
   };
   if (elemental) {
@@ -1603,7 +1687,7 @@ function buildShop(container, mode = 'classic') {
     });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
-    attachTip(b, () => itemTip(key, spec, w.level || 0));
+    attachTip(b, (pv) => itemTip(key, spec, w.level || 0, pv));
     wares.push(w); inSection(w);
   }
   return function refresh(m, round = 0, s = null) {

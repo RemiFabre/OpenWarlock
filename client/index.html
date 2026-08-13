@@ -471,35 +471,64 @@
     padding: 13px 15px; font-size: 12.5px;
   }
   #tip {
-    position: fixed; z-index: 200; pointer-events: none;
-    width: min(420px, calc(100vw - 24px));
+    position: fixed; z-index: 200;
+    width: min(400px, calc(100vw - 24px));
     box-shadow: 0 16px 48px rgba(0,0,0,.8);
   }
   .tipbox .tname { font-weight: 700; font-size: 15px; }
   .tipbox .tname .ic { margin-right: 6px; }
   .tipbox .tname .tlv {
-    margin-left: 9px; color: #b7e59f; font-size: 11px; font-weight: 700;
+    margin-left: 9px; font-size: 11px; font-weight: 700;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em;
   }
-  .tipbox .tdesc { color: var(--parchment); font-size: 13.5px; line-height: 1.5; margin: 7px 0 12px; }
-  .tipbox .tlong { color: var(--ash); margin: -7px 0 12px; line-height: 1.45; }
-  .tipbox table { width: 100%; border-collapse: collapse; font-size: 11.5px; opacity: .95; }
-  .tipbox th, .tipbox td { padding: 3px 7px; border-bottom: 1px solid #241c17; text-align: right; }
-  .tipbox th:first-child, .tipbox td:first-child { text-align: left; color: var(--ash); }
-  .tipbox thead th { color: var(--ash); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
-  .tipbox td {
+  .tipbox .tsub { color: var(--ash); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .1em; margin-top: 2px; }
+  .tipbox .tdesc { color: var(--parchment); font-size: 13.5px; line-height: 1.5; margin: 7px 0 4px; }
+  /* iteration 3 (Sam): the level hues — bronze / silver / gold, subtle */
+  .tipbox .l1 { color: #c08552; }
+  .tipbox .l2 { color: #c6ccd6; }
+  .tipbox .l3 { color: var(--gold); }
+  /* the 3-step progression indicator; future dots are hoverable previews */
+  .tipbox .prog { display: flex; align-items: flex-start; margin: 12px 0 6px; }
+  .tipbox .pdot { flex: none; width: 56px; text-align: center; }
+  .tipbox .pdot i {
+    display: block; width: 13px; height: 13px; margin: 0 auto;
+    border-radius: 50%; border: 2px solid #4a3a2c; background: transparent;
+  }
+  .tipbox .pdot.done i { background: currentColor; border-color: currentColor; }
+  .tipbox .pdot.next i { border-color: currentColor; box-shadow: 0 0 5px currentColor; }
+  .tipbox .pdot.future i { opacity: .4; }
+  .tipbox .pdot.sel i { outline: 1px solid currentColor; outline-offset: 2px; }
+  .tipbox .pdot b { display: block; font-size: 9.5px; margin-top: 3px; letter-spacing: .06em; }
+  .tipbox .pdot u {
+    display: block; text-decoration: none; font-size: 8px; min-height: 10px;
+    color: var(--ash); text-transform: uppercase; letter-spacing: .1em;
+  }
+  .tipbox .pline { flex: 1; height: 2px; background: #33291f; margin-top: 7px; }
+  .tipbox .pline.done { background: #5a4a34; }
+  /* section heads + the vertical stat lists (the 3-column table is gone) */
+  .tipbox .lvhead {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; margin: 10px 0 3px;
+    padding-bottom: 3px; border-bottom: 1px solid #241c17;
+  }
+  .tipbox .lvhead .cost { color: var(--gold); }
+  .tipbox .lvhead .vs { color: var(--ash); font-weight: 400; letter-spacing: .04em; }
+  .tipbox .stat { display: flex; gap: 7px; align-items: baseline; padding: 2.5px 0; font-size: 12px; }
+  .tipbox .stat > span { flex: 1; color: var(--ash); }
+  .tipbox .stat b {
+    font-weight: 600; color: var(--parchment);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
   }
-  .tipbox .cur { background: rgba(255, 93, 31, .13); color: #fff; }
-  .tipbox thead th.cur { color: var(--ember); }
-  /* issue #14: the level you would BUY glows gold; rows that never change
-     between levels step back so the improving numbers pop */
-  .tipbox td.nxt { background: rgba(232, 198, 90, .12); }
-  .tipbox thead th.nxt { color: var(--gold); }
-  .tipbox tr.flat td { color: #7a6d5f; }
-  .tipbox .cost td, .tipbox .cost th { color: var(--gold); border-bottom: none;
-    padding-top: 9px; font-size: 12.5px; }
+  .tipbox .stat b.dim { color: #7a6d5f; font-weight: 400; }
+  .tipbox .stat b.arrow { color: var(--ash); font-weight: 400; }
+  .tipbox .stat.dimline { color: #7a6d5f; font-style: italic; }
+  .tipbox .newb {
+    display: inline-block; font-style: normal; font-size: 8.5px; font-weight: 800;
+    letter-spacing: .1em; border: 1px solid currentColor; border-radius: 2px;
+    padding: 0 4px; margin-right: 6px; vertical-align: 1px;
+  }
   .tipbox .tfoot { color: var(--ash); margin-top: 10px; font-size: 11.5px; }
   .tipbox .tfoot b { color: var(--parchment); font-weight: 600; }
 
