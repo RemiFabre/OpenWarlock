@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 17,
+  "serial": 18,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -92,11 +92,11 @@
       "slug": "sam-hud",
       "name": "Sam's Clear Shop",
       "author": "@SamKhosravi",
-      "summary": "A pure readability pass, no gameplay changes: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds.",
+      "summary": "A pure readability pass, no gameplay changes: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds, plus right-click to refund this shop's purchases card by card.",
       "issue": 14,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/14",
       "branch": "issue-14-hud-readability",
-      "commit": "b61dcc7135f58a8f24fdc212890748f40940fbc4"
+      "commit": "048600c742ee3636229622308c7ac748f8f39f31"
     }
   ]
 }
