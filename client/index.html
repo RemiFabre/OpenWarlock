@@ -217,6 +217,9 @@
 
   /* ---- key bindings panel ---- */
   #keysPanel { z-index: 60; }
+  /* Round 23: rule toggles are read-only for everyone but the host. The lit
+     segment stays as the readout; the control just stops being clickable. */
+  .seg.locked { pointer-events: none; opacity: .6; }
   #scorepanel {
     position: fixed; inset: 0; z-index: 230; display: grid; place-items: center;
     pointer-events: none; background: rgba(10, 6, 4, 0.55);
@@ -759,9 +762,14 @@
               <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
                 aria-label="Starting gold per player"> gold
             </label>
+            <div class="seg" id="chatSeg"
+              title="Avatars occasionally say short lines when things happen (hits, kills, a swim). Cosmetic only.">
+              <span class="lbl">Reactions</span><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button>
+            </div>
+            <div id="hostHint" class="hint hidden">The host sets the rules and the bots.</div>
           </div>
         </div>
-        <div>
+        <div id="botPanel">
           <h2 class="secttl">Add bots</h2>
           <div class="botpicker">
             <div class="botcols"><span>Difficulty</span><span>Strategy</span></div>

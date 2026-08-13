@@ -114,6 +114,8 @@ export function createSnapWire({
         s: msg.s,
         ...(msg.bans != null ? { bans: msg.bans } : {}),
         ...(msg.pings != null ? { pings: msg.pings } : {}),
+        ...(msg.host != null ? { host: msg.host } : {}),
+        ...(msg.chat != null ? { chat: msg.chat } : {}),
       };
       // Keyframe on join, on a reported gap, after a skip of ours, and on a
       // phase change: a shop opening changes almost every field anyway, so a
@@ -176,6 +178,8 @@ export function createSnapSink(deliver, requestFull = () => {}, {
     events = [];
     if (payload.bans != null) out.bans = payload.bans;
     if (payload.pings != null) out.pings = payload.pings;
+    if (payload.host != null) out.host = payload.host;
+    if (payload.chat != null) out.chat = payload.chat;
     deliver(out);
   };
   return {

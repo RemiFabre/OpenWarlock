@@ -22,14 +22,19 @@ describe('Trash Talk (issue #4)', () => {
     expect(said(c, 'p3')).toBeTruthy();
   });
 
-  it('a rare line is never lost to the dice or to the speaker cooldown', () => {
-    const c = createChatter(never);          // every probability roll fails
-    c.onEvent({ t: 'hit', id: 'p0', src: 'p1', amount: 4 }, roster(), 1000);
-    expect(said(c, 'p0')).toBeUndefined();   // ordinary chip damage stays quiet
+  // Round 23 (Remi): EVERY line, rare ones included, takes the halved dice
+  // (FREQ), so "rare" now only means "exempt from the speaker cooldown".
+  it('a rare line takes the dice but never the speaker cooldown', () => {
+    const quiet = createChatter(never);      // every probability roll fails
+    quiet.onEvent({ t: 'hit', id: 'p0', src: 'p1', amount: 30 }, roster(), 1000);
+    expect(said(quiet, 'p0')).toBeUndefined(); // the global damper can eat even a big one
+    const c = createChatter(always);
     c.onEvent({ t: 'hit', id: 'p0', src: 'p1', amount: 30 }, roster(), 1100);
-    expect(said(c, 'p0')).toBeTruthy();      // a big one always lands
+    const hitLine = said(c, 'p0');
+    expect(hitLine).toBeTruthy();            // a big one lands when the dice allow
     c.onEvent({ t: 'death', id: 'p0', killer: 'p1' }, roster(), 1150);
-    expect(said(c, 'p0')).toBeTruthy();      // and again, inside the cooldown
+    expect(said(c, 'p0')).toBeTruthy();      // and again, inside the cooldown...
+    expect(said(c, 'p0')).not.toBe(hitLine); // ...replacing the hit line
   });
 
   it('an ordinary line is rate-limited per speaker', () => {

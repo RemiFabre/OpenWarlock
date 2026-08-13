@@ -79,6 +79,12 @@ export function createEngine({
   const bannedNames = new Set();
   const ghosts = new Map();     // normName -> {at, ...progress}
   let lobbyResetTimer = null;
+  // Round 23 (Remi): the HOST is the oldest seated connection. Rules, bots and
+  // kicks are theirs alone; everyone else picks their own seat (play/watch,
+  // own team, avatar) and reads the rules. conns keeps insertion order, so a
+  // dropped host promotes the next-oldest automatically.
+  const hostId = () => { for (const c of conns) if (game.players[c]) return c; return null; };
+  let chatterOn = true;         // avatar reactions (round 23): room config, host-set, rides the snap
 
   // Seats that count against maxPlayers: co-op campaign monsters are spawned by
   // the simulation and must never keep a human out of their own game.
@@ -216,6 +222,13 @@ export function createEngine({
     message(id, m) {
       const pl = game.players[id];
       if (!pl) return;
+      // host gate (round 23): rules/bots/kicks are refused with a visible
+      // denied, so a guest's click explains itself instead of doing nothing
+      const hostOnly = () => {
+        if (id === hostId()) return true;
+        onSend(id, { t: 'denied', reason: 'only the host changes that' });
+        return false;
+      };
       switch (m.t) {
         case 'ready':
           if (game.phase === 'shop') { setShopReady(game, id, !!m.ready); break; }
@@ -238,28 +251,37 @@ export function createEngine({
           maybeAutoStart();
           break;
         case 'mode':
-          // any player may flip the ruleset, but only in the lobby;
-          // setMode validates both the phase and the value
+          // host only (round 23), lobby only; setMode validates phase and value
+          if (!hostOnly()) break;
           if (typeof m.mode === 'string') setMode(game, m.mode);
           break;
         case 'draft':
           // draft mode is an INDEPENDENT flag, not a fourth ruleset: it composes
           // with classic, elemental and co-op. Lobby only, like 'mode'.
+          if (!hostOnly()) break;
           setDraft(game, !!m.on);
           break;
         case 'testing':
           // testing sandbox: chosen starting gold, game opens in an untimed
           // shop. A flag like draft, lobby only; setTesting validates.
+          if (!hostOnly()) break;
           setTesting(game, !!m.on, m.gold);
+          break;
+        case 'chatter':
+          // avatar reactions on/off (round 23): room config like the flags
+          // above, but engine-level (cosmetic, never game state)
+          if (!hostOnly()) break;
+          if (game.phase === 'lobby') chatterOn = !!m.on;
           break;
         case 'team':
           // Versus teams (round 21.3): you set your OWN number. `m.id` is
-          // honoured only for a BOT, so whoever is arranging the lobby can put
-          // the bots on a side too; it can never move another human.
+          // honoured only for a BOT, so the HOST can put the bots on a side
+          // too; it can never move another human.
           {
-            const target = typeof m.id === 'string' && game.players[m.id] &&
-              game.players[m.id].bot ? m.id : id;
-            setTeam(game, target, m.n);
+            const wantBot = typeof m.id === 'string' && game.players[m.id] &&
+              game.players[m.id].bot;
+            if (wantBot && !hostOnly()) break;
+            setTeam(game, wantBot ? m.id : id, m.n);
           }
           break;
         case 'draftPick': {
@@ -290,6 +312,7 @@ export function createEngine({
           break;
         }
         case 'addBot': {
+          if (!hostOnly()) break;
           if (game.phase !== 'lobby' || playerCount() >= maxPlayers) break;
           const kind = Object.hasOwn(BOTS, m.kind) ? m.kind : 'grunt';
           // build strategy: explicit lobby pick, or a random one ('random'/absent).
@@ -313,6 +336,7 @@ export function createEngine({
           // round 22 (per-row remove buttons): an optional m.id names WHICH bot
           // goes: a bot only, never a human (kick owns those). No id keeps the
           // old behavior: the last-added bot leaves.
+          if (!hostOnly()) break;
           if (game.phase !== 'lobby') break;
           const bots = Object.values(game.players).filter(p => p.bot);
           const target = typeof m.id === 'string'
@@ -324,6 +348,7 @@ export function createEngine({
           // lobby-only: boot a HUMAN player (ghost seats, AFK friends). With
           // ban:true their name stays blocked (the adapter adds the IP) until
           // the room dies; else an abandoned tab auto-reconnects 2 s later.
+          if (!hostOnly()) break;
           if (game.phase !== 'lobby' || typeof m.id !== 'string') break;
           const target = game.players[m.id];
           if (!target || target.bot || m.id === id) break;
@@ -337,6 +362,7 @@ export function createEngine({
           break;
         }
         case 'unbanAll': {
+          if (!hostOnly()) break;
           onLog('unbanAll', { by: id, names: bannedNames.size, ips: externalBans() });
           bannedNames.clear();
           onUnbanAll();
@@ -414,11 +440,14 @@ export function createEngine({
       // lobby ban count (room-level, not game state): the client shows its
       // "Unban all" button only when there is actually something to lift
       const banCount = bannedNames.size + externalBans();
+      const host = hostId(); // room-level, like bans: who owns the rule controls
       for (const id of conns) {
         onSend(id, {
           t: 'snap', s: snapshot(game, id), e: viewEvents(game, events, id),
           ...(banCount ? { bans: banCount } : {}),
           ...(havePings ? { pings: pingBlob } : {}),
+          ...(host ? { host } : {}),
+          ...(chatterOn ? {} : { chat: false }),
         });
       }
     },

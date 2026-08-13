@@ -244,4 +244,52 @@ describe('engine: headless room (no sockets)', () => {
     expect(engine.game.players.h2.team).toBe(2);   // back on the same side
     engine.destroy();
   });
+
+  // Round 23 (Remi): rules, bots and kicks belong to the HOST (the oldest
+  // seated connection); guests keep their own seat choices and a visible
+  // denied for anything else. A leaving host promotes the next-oldest.
+  it('host only: rules, bots, kicks; a guest is denied and a new host is promoted', () => {
+    const { engine, sent } = makeRoom(6);
+    engine.join('h1', { name: 'Host' });
+    engine.join('h2', { name: 'Guest' });
+
+    engine.message('h2', { t: 'draft', on: true });
+    expect(engine.game.draft).toBeFalsy();
+    expect(sent.some(x => x.connId === 'h2' && x.msg.t === 'denied')).toBe(true);
+    engine.message('h2', { t: 'mode', mode: 'classic' });
+    expect(engine.game.mode).toBe('elemental');
+    engine.message('h2', { t: 'addBot', kind: 'grunt' });
+    expect(Object.values(engine.game.players).some(p => p.bot)).toBe(false);
+    engine.message('h2', { t: 'kick', id: 'h1' });
+    expect(engine.game.players.h1).toBeTruthy();
+
+    // the guest still owns their OWN seat: spectate and team keep working
+    engine.message('h2', { t: 'spectate', on: true });
+    expect(engine.game.players.h2.spectator).toBe(true);
+    engine.message('h2', { t: 'spectate', on: false });
+    engine.message('h2', { t: 'team', n: 3 });
+    expect(engine.game.players.h2.team).toBe(3);
+
+    // the host can do all of it, including the chatter flag on the snap
+    engine.message('h1', { t: 'draft', on: true });
+    expect(engine.game.draft).toBe(true);
+    engine.message('h1', { t: 'addBot', kind: 'grunt' });
+    const bot = Object.values(engine.game.players).find(p => p.bot);
+    expect(bot).toBeTruthy();
+    const botTeam = bot.team;
+    engine.message('h2', { t: 'team', id: bot.id, n: botTeam === 9 ? 8 : 9 });
+    expect(bot.team).toBe(botTeam);            // arranging bots is host work
+    engine.message('h1', { t: 'chatter', on: false });
+    sent.length = 0;
+    engine.pushSnapshots();
+    const snap = sent.find(x => x.connId === 'h2' && x.msg.t === 'snap');
+    expect(snap.msg.chat).toBe(false);
+    expect(snap.msg.host).toBe('h1');
+
+    // host leaves: the oldest remaining human inherits the controls
+    engine.leave('h1');
+    engine.message('h2', { t: 'draft', on: false });
+    expect(engine.game.draft).toBeFalsy();
+    engine.destroy();
+  });
 });

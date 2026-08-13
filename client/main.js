@@ -226,6 +226,8 @@ function onMessage(m) {
   } else if (m.t === 'snap' && m.s && typeof m.s === 'object' && m.s.players) {
     if (m.bans != null) m.s.bans = m.bans; // server-level: lobby ban count
     if (m.pings && typeof m.pings === 'object') m.s.pings = m.pings; // per-player RTT (ms)
+    if (m.host != null) m.s.host = m.host; // who owns the rule controls (round 23)
+    if (m.chat != null) m.s.chat = m.chat; // avatar reactions off when false
     snaps.push({ at: performance.now(), s: m.s });
     if (snaps.length > 40) snaps.shift();
     trackSnapGap(snaps[snaps.length - 1].at);
@@ -290,7 +292,10 @@ let lastFrameAt = 0;
 
 function onEvent(e) {
   const now = performance.now();
-  try { chatter.onEvent(e, chatterPlayers, now); } catch { /* never break the fx */ }
+  try {
+    const s = latest();
+    if (!s || s.chat !== false) chatter.onEvent(e, chatterPlayers, now);
+  } catch { /* never break the fx */ }
   switch (e.t) {
     case 'boom': fx.push({ ...e, type: 'boom', at: now, dur: 0.4 }); playSfx('boom'); break;
     // lightning sky-bolt landing (round 17; the hitscan 'beam' died with it)
@@ -915,6 +920,7 @@ seg('modeSeg', (v) => send({ t: 'mode', mode: v }));
 // whichever ruleset is selected (docs/ROUND12.md S7)
 seg('draftSeg', (v) => send({ t: 'draft', on: v === 'on' }));
 seg('testSeg', (v) => send({ t: 'testing', on: v === 'on', gold: +$('testingGold').value || 0 }));
+seg('chatSeg', (v) => send({ t: 'chatter', on: v === 'on' }));
 $('testingGold').addEventListener('change', () => {
   const s = latest();
   if (s && s.testing)
@@ -1945,6 +1951,9 @@ function updateUi(s) {
   updateCoopHud(s); // co-op campaign level card + status strip (no-op elsewhere)
 
   if (s.phase === 'lobby') {
+    // Round 23 (Remi): rules, bots and bans belong to the host (no `host` in
+    // the snap = solo or an old server: everyone keeps the controls)
+    const amHost = !s.host || s.host === myId;
     const list = $('playerList');
     // Replacing a focused native select closes its menu. Leave the list alone
     // until the player has picked a team, then the next snapshot refreshes it.
@@ -1960,7 +1969,7 @@ function updateUi(s) {
         // person can arrange a 2v2 without everybody clicking. Other humans show
         // a read-only chip: their side is theirs to pick.
         if (s.mode !== 'coop') {
-          if (p.id === myId || p.bot) {
+          if (p.id === myId || (p.bot && amHost)) {
             const wrap = document.createElement('span');
             wrap.className = 'teamsel';
             wrap.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
@@ -1987,7 +1996,7 @@ function updateUi(s) {
         }
         // ban button on other humans: clears ghost seats AND keeps them out
         // (name+ip blocked until the server restarts or someone unbans)
-        if (!p.bot && p.id !== myId) {
+        if (!p.bot && p.id !== myId && amHost) {
           const kb = document.createElement('button');
           kb.type = 'button';
           kb.className = 'mini kick';
@@ -1997,7 +2006,7 @@ function updateUi(s) {
           div.appendChild(kb);
         }
         // per-row bot remove (round 22): pick WHICH bot leaves, not just the last
-        if (p.bot) {
+        if (p.bot && amHost) {
           const rb = document.createElement('button');
           rb.type = 'button';
           rb.className = 'mini kick';
@@ -2021,7 +2030,15 @@ function updateUi(s) {
     segOn('modeSeg', s.mode === 'classic' ? 'classic' : 'elemental');
     segOn('draftSeg', s.draft ? 'on' : 'off');
     segOn('testSeg', s.testing ? 'on' : 'off');
+    segOn('chatSeg', s.chat === false ? 'off' : 'on');
+    // guests still SEE every setting (the lit segment is the readout);
+    // they just can't click it
+    for (const sid of ['modeSeg', 'draftSeg', 'testSeg', 'chatSeg'])
+      $(sid).classList.toggle('locked', !amHost);
+    $('hostHint').classList.toggle('hidden', amHost);
+    $('botPanel').classList.toggle('hidden', !amHost);
     const testGold = $('testingGold');
+    testGold.disabled = !amHost;
     $('testingGoldWrap').classList.toggle('hidden', !s.testing);
     if (s.testing && document.activeElement !== testGold)
       testGold.value = s.testing.gold;
@@ -2254,7 +2271,7 @@ function frame(now) {
     const vs = interpolated(now);
     const prevPlayers = chatterPlayers;
     chatterPlayers = (vs && Array.isArray(vs.players)) ? vs.players : [];
-    if (vs && vs.phase !== 'battle') chatter.clear();
+    if (vs && (vs.phase !== 'battle' || vs.chat === false)) chatter.clear();
     else chatter.onFrame(chatterPlayers, prevPlayers, (now - lastFrameAt) / 1000, now);
     lastFrameAt = now;
     draw(view, vs, fx, myId, moveMark, now, chatter.bubbles);
