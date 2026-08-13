@@ -32,7 +32,7 @@ const ICONS = {
   // Round 21.7 (Remi): the Stone Pillar has its 🗿 back, and NOPE (SPELLS.statue)
   // wears the SAME moai tinted gold (.goldicon in index.html); "a normal pillar
   // icon and a gold one". Revert = drop the span / restore 🏛️.
-  teleport: '🌀', shield: '🛡️', rush: '💨', pillar: '🗿', vanish: '👁️',
+  teleport: '🌀', shield: '🛡️', debt: '🩶', rush: '💨', pillar: '🗿', vanish: '👁️',
   statue: '<span class="goldicon">🗿</span>',
   // Decoy (round 21.6): the two silhouettes; "there are more of me than there
   // should be". 👤/👥 were both free.
@@ -61,10 +61,10 @@ const KEY_PRESETS = {
   // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a', decoy: 'z', firewalk: 'h' },
+            statue: 'a', decoy: 'z', firewalk: 'h', debt: 'y' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q', decoy: 'w', firewalk: 'h' },
+            statue: 'q', decoy: 'w', firewalk: 'h', debt: 'y' },
 };
 
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
@@ -315,6 +315,7 @@ function onEvent(e) {
       break;
     case 'teleport': fx.push({ ...e, type: 'teleport', at: now, dur: 0.45 }); playSfx('teleport'); break;
     case 'reflect': fx.push({ ...e, type: 'reflect', at: now, dur: 0.4 }); playSfx('reflect'); break;
+    case 'debtTransfer': fx.push({ ...e, type: 'grow', at: now, dur: 0.5 }); playSfx('catch'); break;
     case 'catch':
       fx.push({ ...e, type: 'catch', at: now, dur: 0.35 });
       if (e.id === myId) playSfx('catch'); // your snag, your snap
@@ -1129,6 +1130,7 @@ const SPELL_FIELDS = {
   clones: ['copies of you', fmtNum],
   stores: ['fireballs it stores', fmtNum],
   ballDelay: ['stored balls fire', (v) => `${fmtSec(v)} apart`],
+  repay: ['repay after', fmtSec],
 };
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
 // sim evaluates at resolution ({pad, min}); spellTip prints the two readings a
@@ -1418,7 +1420,7 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 // they are things you LEAVE somewhere, not things you throw at a face.
 const SPELL_ROWS = [
   ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'repulse', 'nova']], // Mine is a weapon (Remi, round 22)
-  ['Defense', ['teleport', 'shield', 'statue', 'rush', 'wall', 'firewalk']],
+  ['Defense', ['teleport', 'shield', 'debt', 'statue', 'rush', 'wall', 'firewalk']],
   ['Special', ['swap', 'vanish', 'decoy', 'pillar']],
 ];
 const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));

@@ -489,6 +489,83 @@ describe('spells', () => {
     expect(a.hp).toBeLessThan(a.maxHp - SPELLS.fireball.damage[0] + 1.5);     // (minus a little regen)
   });
 
+  it('Blood Debt stores incoming damage and knockback as visible gray health', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    b.vx = 0; b.vy = 0; b.moveTarget = null;
+    state.players.p2.y = 30;
+    b.spells.debt = 1;
+    expect(castSpell(state, 'p1', 'debt', 0, 0)).toBe(true);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.35);
+    expect(b.hp).toBe(b.maxHp);
+    expect(b.debtDamage).toBeCloseTo(SPELLS.fireball.damage[0], 3);
+    expect(b.vx).toBe(0);
+    const wire = snapshot(state, 'p1').players.p1;
+    expect(wire.debtDamage).toBeCloseTo(b.debtDamage, 2);
+    expect(wire.debtT).toBeGreaterThan(0);
+  });
+
+  it('Blood Debt absorbs environmental damage through the same gray-health pool', () => {
+    const state = freshBattle(3);
+    const b = state.players.p1;
+    b.spells.debt = 1;
+    b.x = state.arenaRadius + 2; b.y = 0;
+    b.vx = 0; b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p1', 'debt', b.x, b.y);
+    run(state, 0.2);
+    expect(b.hp).toBe(b.maxHp);
+    expect(b.debtDamage).toBeGreaterThan(0);
+  });
+
+  it('Blood Debt transfers the stored damage on a fireball hit with no extra push', () => {
+    const plain = freshBattle(3);
+    plain.players.p0.x = 0; plain.players.p0.y = 0;
+    plain.players.p1.x = 8; plain.players.p1.y = 0;
+    plain.players.p1.vx = 0; plain.players.p1.vy = 0; plain.players.p1.moveTarget = null;
+    plain.players.p2.y = 30;
+    castSpell(plain, 'p0', 'fireball', 20, 0);
+    run(plain, 0.35);
+    const plainPush = plain.players.p1.vx;
+
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; c.x = 24; c.y = 0;
+    b.vx = 0; b.vy = 0; c.vx = 0; c.vy = 0;
+    b.moveTarget = null; c.moveTarget = null;
+    b.spells.debt = 1;
+    castSpell(state, 'p1', 'debt', 0, 0);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.35);
+    const stored = b.debtDamage;
+    a.y = 30;
+    b.x = 0; c.x = 8;
+    castSpell(state, 'p1', 'fireball', 20, 0);
+    run(state, 0.35);
+    expect(b.debtDamage).toBe(0);
+    expect(b.debtPayT).toBe(0);
+    expect(c.maxHp - c.hp).toBeCloseTo(stored + SPELLS.fireball.damage[0], 3);
+    expect(c.vx).toBeCloseTo(plainPush, 3);
+  });
+
+  it('Blood Debt repays the caster after the window without knockback', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    b.vx = 0; b.vy = 0; b.moveTarget = null;
+    state.players.p2.y = 30;
+    b.spells.debt = 1;
+    castSpell(state, 'p1', 'debt', 0, 0);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.35);
+    const stored = b.debtDamage;
+    run(state, SPELLS.debt.duration + SPELLS.debt.repay + 0.2);
+    expect(b.maxHp - b.hp).toBeCloseTo(stored, 3);
+    expect(b.debtDamage).toBe(0);
+    expect(b.vx).toBe(0);
+  });
+
   it('tapping the key again recalls the boomerang early', () => {
     const state = freshBattle(3);
     const a = state.players.p0;

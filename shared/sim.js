@@ -188,6 +188,12 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     draftOffer: null,
     cooldowns: {},
     shieldT: 0,
+    // Blood Debt (SPELLS.debt, issue #1): debtT = absorb window left,
+    // debtDamage = gray health stored, debtPayT = seconds until the caster
+    // repays it themselves. A fireball hit transfers first (transferDebt).
+    debtT: 0,
+    debtDamage: 0,
+    debtPayT: 0,
     // Vanish: seconds of invisibility left. NEVER goes on the wire for anyone
     // but you (snapshot() strips the whole position instead; see there), and it
     // is masked out of bot perception too (see seenBy/perceive).
@@ -628,6 +634,12 @@ export function castSpell(state, id, key, tx, ty) {
     }
     case 'shield': {
       pl.shieldT = spec.duration;
+      break;
+    }
+    case 'debt': {
+      pl.debtT = spec.duration;
+      pl.debtDamage = 0;
+      pl.debtPayT = 0;
       break;
     }
     case 'statue': {
@@ -1172,8 +1184,8 @@ function resolveDraftOffers(state) {
 function applyKnockback(state, target, dx, dy, magnitude) {
   // Statue (round 21.4): a pillar does not move. One guard at the single
   // impulse choke point covers every source: balls, repulse, gale gust,
-  // rush, meteor, bolt.
-  if (target.statueT > 0) return;
+  // rush, meteor, bolt. Blood Debt absorbs push the same way (issue #1).
+  if (target.statueT > 0 || target.debtT > 0) return;
   const { kbMult } = stats(target);
   // the lower your hp PERCENTAGE, the further you fly (full HP = baseline,
   // near-death ≈ 1+KB_HP_FACTOR). Cape still multiplies on top. Deliberately
@@ -1222,14 +1234,24 @@ const HEAL_FLOAT_MIN = 1;
 
 function applyDamage(state, target, amount, sourceId,
   { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0,
-    flatHeal = 0, procs = true } = {}) {
-  if (!target.alive) return;
+    flatHeal = 0, procs = true, bypassDebt = false, noRewards = false,
+    unstoppable = false } = {}) {
+  if (!target.alive) return false;
   // Statue (round 21.4): ZERO damage from everything while the gold holds:
   // spells, zones, hazards, lava, poison ticks. Every damage source in the game
   // funnels through here, so this one line IS the invincibility; it also means
   // no hit floater, no regen lock and no lifesteal for the attacker, because
-  // nothing happened.
-  if (target.statueT > 0) return;
+  // nothing happened. `unstoppable` is Blood Debt's own repayment: a debt
+  // comes due even inside a statue (issue #1).
+  if (target.statueT > 0 && !unstoppable) return false;
+  // Blood Debt (issue #1): while the window is open, EVERY hit banks as gray
+  // health instead of landing; `bypassDebt` is the transfer/repayment itself,
+  // which a second debt must never absorb. Returns false: nothing happened, so
+  // no riders, no lifesteal, no swap (callers gate on the return).
+  if (target.debtT > 0 && !bypassDebt) {
+    target.debtDamage += Math.max(0, amount);
+    return false;
+  }
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
   // damage attribution: the direct source, or, for sourceless lava ticks,
@@ -1266,7 +1288,9 @@ function applyDamage(state, target, amount, sourceId,
   if (sourceId != null && sourceId !== target.id) {
     if (stamp) target.lastHitBy = { id: sourceId, t: state.time };
     const src = state.players[sourceId];
-    if (src && src.alive) {
+    // noRewards: a Blood Debt transfer pays no lifesteal/spoon (the absorbed
+    // hits already paid nobody; moving the bill must not mint value).
+    if (src && src.alive && !noRewards) {
       // heal on EFFECTIVE damage (overkill doesn't feed the sword); works on
       // everything with a source (spells, DoT ticks, trails), never lava
       const { lifesteal, healOnHit } = stats(src);
@@ -1315,6 +1339,21 @@ function applyDamage(state, target, amount, sourceId,
       ...(sourceId != null && sourceId !== target.id ? { src: sourceId } : {}),
     });
   if (target.hp <= 0) kill(state, target, sourceId);
+  return true;
+}
+
+// Blood Debt (issue #1): dump the owner's stored gray health on the victim of
+// their fireball. Stamps last-hitter credit like any hit (the kill is the debt
+// owner's); push-less by design and immune to the victim's own debt.
+function transferDebt(state, owner, target) {
+  const amount = owner && Math.max(0, owner.debtDamage || 0);
+  if (!amount || !target || !target.alive) return;
+  owner.debtDamage = 0;
+  owner.debtPayT = 0;
+  state.events.push({ t: 'debtTransfer', id: owner.id, target: target.id,
+    amount, x: target.x, y: target.y });
+  applyDamage(state, target, amount, owner.id,
+    { bypassDebt: true, noRewards: true, procs: false });
 }
 
 // The Slow Spoon's tick gate: has this attacker been paid for this victim's
@@ -1338,6 +1377,7 @@ function kill(state, target, directSourceId) {
   // DEATH is the ONE thing that cancels a repulse charge (round 21.0 ruling,
   // interpretation: "you blow up eventually" assumes you are alive to do it).
   target.charging = null;
+  target.debtT = 0; target.debtDamage = 0; target.debtPayT = 0; // debts die with you
   // dying reveals you: a corpse and its death burst must be visible to everyone,
   // and a hidden body would also silently vanish from the standings
   target.vanishT = 0;
@@ -1499,6 +1539,7 @@ function startRound(state) {
     pl.cooldowns = {};
     // (a round boundary, not a cancel: nothing survives the respawn)
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
+    pl.debtT = 0; pl.debtDamage = 0; pl.debtPayT = 0;
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.statueT = 0;   // …nor already golden
     pl.fireWalkT = 0; // …nor already lava-proof
@@ -2085,6 +2126,24 @@ function stepBattle(state, dt) {
     for (const k of Object.keys(pl.cooldowns))
       pl.cooldowns[k] = Math.max(0, pl.cooldowns[k] - dt);
     if (pl.shieldT > 0) pl.shieldT = Math.max(0, pl.shieldT - dt);
+    // Blood Debt (issue #1): window closes -> the repay clock starts; clock
+    // runs out -> the caster takes the whole bank themselves, push-less, and
+    // even through a statue (unstoppable). A fireball hit meanwhile clears it
+    // via transferDebt in stepProjectiles.
+    if (pl.debtT > 0) {
+      pl.debtT = Math.max(0, pl.debtT - dt);
+      if (pl.debtT === 0 && pl.debtDamage > 0)
+        pl.debtPayT = SPELLS.debt.repay;
+    } else if (pl.debtPayT > 0) {
+      pl.debtPayT = Math.max(0, pl.debtPayT - dt);
+      if (pl.debtPayT === 0 && pl.debtDamage > 0) {
+        const amount = pl.debtDamage;
+        pl.debtDamage = 0;
+        applyDamage(state, pl, amount, pl.id,
+          { bypassDebt: true, noRewards: true, procs: false, unstoppable: true });
+        if (!pl.alive) continue;
+      }
+    }
     if (pl.vanishT > 0) pl.vanishT = Math.max(0, pl.vanishT - dt);
     if (pl.fireWalkT > 0) pl.fireWalkT = Math.max(0, pl.fireWalkT - dt);
     // Stack fade (round 22.4, Remi): an unfed frost/gale/malady pile loses one
@@ -2564,7 +2623,7 @@ function stepProjectiles(state, dt) {
         // riders, per Remi). Resolved here because knockback is applied below,
         // before the on-hit riders run. Added AFTER the multiplier loop so the
         // gust value is truly constant whatever else rides the ball.
-        if (pr.elements.gale)
+        if (pr.elements.gale && other.debtT <= 0) // debt absorbs the gust too
           kb += galeHit(state, pr, other, pr.elements.gale);
       }
       // (Ghost's old behind-the-first-victim damage/push bonus was removed in
@@ -2579,9 +2638,17 @@ function stepProjectiles(state, dt) {
       // (round 21.8, Remi: max of the two, never their sum; SPELLS.nova)
       if (pr.kbMin != null) kb = Math.max(kb, pr.kbMin);
       if (kb) applyKnockback(state, other, pr.vx / v, pr.vy / v, kb);
-      applyDamage(state, other, dmg + ramp, pr.owner,
+      // Blood Debt (issue #1): the owner's next fireball hit collects first,
+      // then the ball's own damage lands normally on whatever survives.
+      const debtOwner = state.players[pr.owner];
+      if (pr.type === 'fireball' && debtOwner && debtOwner.debtDamage > 0)
+        transferDebt(state, debtOwner, other);
+      if (!other.alive) { dead = true; break; }
+      // `landed` is false when the hit was absorbed (victim's debt window):
+      // nothing happened, so element riders and the swap trade are gated too.
+      const landed = applyDamage(state, other, dmg + ramp, pr.owner,
         { bonus: ramp, flatHeal: pr.engorged || 0 });
-      if (pr.elements) applyElementsHit(state, pr, other);
+      if (landed && pr.elements) applyElementsHit(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
       // swap (round 17): full state exchange with the (surviving) victim:
@@ -2591,7 +2658,7 @@ function stepProjectiles(state, dt) {
       // up somewhere new with no stale intent. `charging` is NOT (round 21.0
       // ruling): a swapped charger keeps charging and detonates at the new
       // position; swapping a charger pulls the bomb onto yourself.
-      if (pr.type === 'swap' && other.alive) {
+      if (landed && pr.type === 'swap' && other.alive) {
         const owner = state.players[pr.owner];
         if (owner && owner.alive) {
           [owner.x, other.x] = [other.x, owner.x];
@@ -2970,6 +3037,11 @@ export function snapshot(state, viewerId = null) {
         };
       })(),
       shieldT: round2(p.shieldT),
+      // Blood Debt (issue #1): PUBLIC like statueT; the gray ring and the gray
+      // health bar are the counterplay tell. Absent when inactive (lean wire).
+      ...(p.debtT > 0 ? { debtT: round2(p.debtT) } : {}),
+      ...(p.debtDamage > 0 ? { debtDamage: round2(p.debtDamage) } : {}),
+      ...(p.debtPayT > 0 ? { debtPayT: round2(p.debtPayT) } : {}),
       // Statue (round 21.4): PUBLIC; being an unmissable golden pillar is the
       // whole downside, so everyone sees it (the client draws the body as a
       // gold column). Absent when 0, so nothing changes for anyone not casting it.

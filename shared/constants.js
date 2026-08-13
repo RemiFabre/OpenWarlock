@@ -251,6 +251,16 @@ export const SPELLS = {
     // a Repulse blast; the physical drops (Meteor, Bomb) land through it.
     long: 'Reflects energy projectiles (fireballs, boomerangs, Switcheroo) back at their owner, and holds a Lightning bolt or a Repulse blast; physical impacts (Meteor, Bomb) go straight through it.',
   },
+  debt: {
+    // Blood Debt (issue #1): Shield's cost/cooldown family. While `duration`
+    // runs, ALL damage and push become gray health (debtDamage). A fireball
+    // hit within `repay` s dumps it on the victim; otherwise the caster takes
+    // it, push-less. lv2 buys cooldown; duration and repay never level.
+    name: 'Blood Debt', hotkey: 'Y', maxLevel: 2, costs: [12, 6],
+    cooldown: [15, 12], duration: 1.25, repay: 5,
+    desc: 'Absorb, then transfer.',
+    long: 'For a moment, all damage and push become gray health. Hit an enemy with a fireball within 5 seconds to give them the stored damage; otherwise you take it yourself, without pushback.',
+  },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 5],
     cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,

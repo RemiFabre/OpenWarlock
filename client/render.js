@@ -845,6 +845,13 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * 1.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
+    // Blood Debt (issue #1): the gray absorb ring while the window is open
+    if (fin(pl.debtT) && pl.debtT > 0) {
+      ctx.strokeStyle = 'rgba(190, 190, 200, 0.95)';
+      ctx.fillStyle = 'rgba(150, 150, 165, 0.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
 
     // name + hp
     const bw = 46;
@@ -858,6 +865,15 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const frac = fin(rawFrac) ? Math.max(0, Math.min(1, rawFrac)) : 0;
     ctx.fillStyle = frac > 0.5 ? '#7fb069' : frac > 0.25 ? '#f0b64a' : '#c0392b';
     ctx.fillRect(x - bw / 2, y - r - 12, bw * frac, 5);
+    // Blood Debt (issue #1): the stored gray health eats the TOP of the bar,
+    // the slice you will lose if the debt comes due. Capped at current hp.
+    const debtFrac = Math.min(Math.max(0, +pl.debtDamage || 0), Math.max(0, +pl.hp || 0)) /
+      (+pl.maxHp || PLAYER.MAX_HP);
+    if (debtFrac > 0) {
+      ctx.fillStyle = '#9a9aa5';
+      ctx.fillRect(x - bw / 2 + bw * Math.max(0, frac - debtFrac),
+        y - r - 12, bw * Math.min(frac, debtFrac), 5);
+    }
     ctx.restore();   // pairs with the Vanish ghosting save() above
   }
 

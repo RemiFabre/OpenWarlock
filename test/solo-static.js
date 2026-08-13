@@ -62,10 +62,12 @@ try {
   await page.waitForURL('**/client/**', { timeout: 5000 });
   await page.waitForSelector('#joinBtn', { timeout: 5000 });
 
-  // the /health probe must have failed over to solo, and said so
-  await page.waitForSelector('#netMode:not(.hidden)', { timeout: 5000 });
-  const hint = await page.textContent('#netMode');
-  if (!/solo/i.test(hint)) fail(`netMode hint doesn't announce solo: "${hint}"`);
+  // the /health probe must have failed over to solo, and said so. The tell is
+  // the Play button label (#netMode is invite/rtc-only since the 19.4 rework).
+  await page.waitForFunction(
+    () => /solo/i.test(document.getElementById('joinBtn')?.textContent || ''),
+    { timeout: 5000 });
+  const hint = await page.textContent('#joinBtn');
   console.log(`solo detected: "${hint.trim()}"`);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-join.png') });
 
@@ -81,19 +83,56 @@ try {
   if (await page.getAttribute(teamSel, 'data-focus-probe') !== 'kept')
     fail('team selector was rebuilt while open');
   await page.selectOption(teamSel, '2');
-  await page.click('#testingBtn');
+  // (the testing toggle is a segmented control since the lobby rework)
+  await page.click('#testSeg button[data-v="on"]');
   await page.waitForSelector('#testingGoldWrap:not(.hidden)', { timeout: 3000 });
   await page.click('#ideaBtn');
   await page.waitForSelector('#ideaOverlay:not(.hidden)', { timeout: 3000 });
   await page.click('#ideaCloseBtn');
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-lobby.png') });
-  await page.click('#testingBtn');
+  await page.click('#testSeg button[data-v="off"]');
   await page.waitForSelector('#testingGoldWrap.hidden', { state: 'attached', timeout: 3000 });
 
   await page.click('#addBot-berserker');
   await page.click('#readyBtn');
   await page.waitForFunction(() => window.__phase === 'battle', { timeout: 20000 });
   console.log('battle running, no server anywhere');
+
+  // Blood Debt (issue #1) browser acceptance: the new spell is bound, absorbs
+  // a real projectile in the live in-tab engine, and exposes gray health to
+  // render. (The branch's Boots-of-Speed check was a test-only buff and did
+  // NOT ship; see the port note in the issue.)
+  const issueUi = await page.evaluate(() => {
+    const keys = window.__keys();
+    return {
+      debtKey: keys.debt,
+      uniqueKeys: new Set(Object.values(keys)).size === Object.keys(keys).length,
+      debtCard: document.querySelector('.ware[data-key="debt"]')?.textContent || '',
+    };
+  });
+  if (!issueUi.debtKey || !issueUi.uniqueKeys || !/Blood Debt/.test(issueUi.debtCard))
+    fail(`Blood Debt shop/key UI is incomplete: ${JSON.stringify(issueUi)}`);
+  await page.evaluate(async () => {
+    const { castSpell } = await import('../shared/sim.js');
+    const g = window.__engine.game;
+    const me = Object.values(g.players).find(p => !p.bot);
+    const bot = Object.values(g.players).find(p => p.bot);
+    me.spells.debt = 1; me.cooldowns.debt = 0;
+    me.x = 0; me.y = 0; me.vx = 0; me.vy = 0; me.moveTarget = null;
+    bot.x = -8; bot.y = 0; bot.vx = 0; bot.vy = 0; bot.moveTarget = null;
+    bot._botT = 99; bot.cooldowns.fireball = 0;
+    castSpell(g, me.id, 'debt', me.x, me.y);
+    castSpell(g, bot.id, 'fireball', me.x, me.y);
+  });
+  await sleep(350);
+  const debt = await page.evaluate(() => {
+    const me = Object.values(window.__engine.game.players).find(p => !p.bot);
+    return { hp: me.hp, maxHp: me.maxHp, stored: me.debtDamage, active: me.debtT };
+  });
+  if (!(debt.hp === debt.maxHp && debt.stored > 0 && debt.active > 0))
+    fail(`Blood Debt did not absorb in the live browser: ${JSON.stringify(debt)}`);
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-blood-debt.png') });
+
   if (SHOTS) { await sleep(1500); await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-battle.png') }); }
 
   // actually PLAY: chase the cursor around and cast at it for a while
