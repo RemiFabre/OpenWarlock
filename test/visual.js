@@ -1,10 +1,27 @@
 // Drives the real client in headless Chromium: two players join, ready up,
 // play a bit, screenshot each stage. Also fails on any page JS error.
+//
+// Needs a server already up (`npm start`); PORT/OUT override the defaults.
+// ⚠ Nothing here may be an absolute path or an off-default port: Remi runs this
+// on Ubuntu AND macOS (test/portability.test.js enforces both).
 import { chromium } from 'playwright';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
 
-const BASE = 'http://localhost:3123';
-const OUT = '/private/tmp/claude-501/-Users-remi/4a6643e9-5f30-4135-8ea2-1267e386f092/scratchpad';
+const PORT = Number(process.env.PORT || 3000);
+const BASE = `http://localhost:${PORT}`;
+const OUT = process.env.OUT || join(tmpdir(), 'openwarlock-visual');
 const errors = [];
+
+mkdirSync(OUT, { recursive: true });
+try {
+  const r = await fetch(`${BASE}/health`);
+  if (!r.ok) throw new Error(String(r.status));
+} catch {
+  console.error(`FAIL: no server on ${BASE}. Start one with \`npm start\` (or set PORT).`);
+  process.exit(1);
+}
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });

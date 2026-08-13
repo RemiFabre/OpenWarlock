@@ -105,7 +105,7 @@ function run(build) {
       chain = null;
     };
 
-    while (state.phase !== 'gameOver' && t < 120) {
+    while (state.phase !== 'gameover' && t < 120) {   // ⚠ lower-case: sim.js phase
       for (const id of ['A', 'B']) {
         if (state.phase === 'battle') stepBot(state, id, DT);
         if (state.phase === 'shop') { botShop(state, id); setShopReady(state, id, true); }

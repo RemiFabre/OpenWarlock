@@ -5,7 +5,8 @@
 
 import WebSocket from 'ws';
 
-const PORT = process.argv[2] || 3123;
+// default matches server/index.js, so `npm run test:e2e` hits a plain `npm start`
+const PORT = process.argv[2] || process.env.PORT || 3000;
 const URL = `ws://localhost:${PORT}`;
 
 function fail(msg) { console.error('FAIL:', msg); process.exit(1); }
