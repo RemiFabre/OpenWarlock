@@ -100,7 +100,7 @@ try {
 
   // ---- host: static page -> "Host online" -> room code --------------------
   const host = await mkPage();
-  await host.goto(`${BASE}/client/${sigQ}`);
+  await host.goto(`${BASE}/client/${sigQ}&nobeacon=1`);
   await host.waitForSelector('#joinBtn', { timeout: 8000 });
   await host.fill('#name', 'Remi-Host');
   await host.click('#hostBtn');
@@ -115,7 +115,7 @@ try {
 
   // ---- guest: opens the invite link, lands in the host's lobby ------------
   const guest = await mkPage();
-  await guest.goto(`${BASE}/client/${sigQ}#r=${code}`);
+  await guest.goto(`${BASE}/client/${sigQ}&nobeacon=1#r=${code}`);
   await guest.waitForSelector('#netMode:not(.hidden)', { timeout: 8000 });
   const hint = await guest.textContent('#netMode');
   if (!hint.includes(code)) fail(`guest netMode does not mention the room: "${hint}"`);

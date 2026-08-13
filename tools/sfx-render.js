@@ -41,7 +41,7 @@ const BASE = `http://127.0.0.1:${server.address().port}`;
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
-await page.goto(BASE);
+await page.goto(`${BASE}/?nobeacon=1`);
 // ⚠ playSfx's per-effect throttle compares performance.now() against 0 for an
 // unheard effect, so ANY sound fired within 45 ms of page load is dropped and
 // renders as silence. Wait the page out of that window once, up front.

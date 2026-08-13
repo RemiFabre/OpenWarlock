@@ -58,7 +58,7 @@ export async function arena(opts = {}) {
     const who = (names && names[i]) || `P${i + 1}`;
     page.on('pageerror', (e) => errors.push(`${who}: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`${who}: ${m.text()}`); });
-    await page.goto(BASE);
+    await page.goto(`${BASE}/?nobeacon=1`);
     await page.fill('#name', who);
     await page.click('#joinBtn');
     await page.waitForSelector('#lobby:not(.hidden)', { timeout: 15000 });

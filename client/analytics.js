@@ -28,7 +28,16 @@ function relayHttp(pathname) {
     return u.href;
   } catch { return null; }
 }
-const beaconUrl = () => relayHttp('/beacon');
+// ⚠ Round 23: `?nobeacon=1` silences every write to the relay (visits, games,
+// ratings). The test suite and CI drive the real client dozens of times a day
+// from a localhost server, and each run was counting as a page visit and a
+// started game in the PUBLIC totals. Reads (/stats, /versions) still work, so
+// the 📊 panel is still testable. Deliberately opt-OUT and explicit rather than
+// "off on localhost": Remi hosting from his own machine is real play.
+const BEACONS_OFF = (() => {
+  try { return new URLSearchParams(location.search).has('nobeacon'); } catch { return false; }
+})();
+const beaconUrl = () => (BEACONS_OFF ? null : relayHttp('/beacon'));
 
 // The public counters, for the in-game 📊 panel (CORS is open on the relay).
 export async function fetchStats() {
@@ -54,7 +63,7 @@ export function sendEvent(e, fields = {}) {
 // submitted for this slug before (or null); the relay replaces, not adds.
 // The lobby UI (main.js) owns the stars widget and the localStorage memory.
 export function rateVersion(slug, stars, prev = null) {
-  const url = relayHttp('/rate');
+  const url = BEACONS_OFF ? null : relayHttp('/rate');
   if (url) post(url, JSON.stringify({ slug, stars, prev }));
 }
 

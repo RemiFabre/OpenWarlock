@@ -30,7 +30,7 @@ async function newPlayer(name) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${name} console: ${m.text()}`); });
-  await page.goto(BASE);
+  await page.goto(`${BASE}/?nobeacon=1`);
   await page.fill('#name', name);
   await page.click('#joinBtn');
   await page.waitForSelector('#lobby:not(.hidden)', { timeout: 5000 });

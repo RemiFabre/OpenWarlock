@@ -121,4 +121,17 @@ describe('portability: no machine or OS specifics in the scripts', () => {
     expect(bad, say('selectors with no definition in client/*.{js,html}',
       'fix the name, or define it in the client', bad)).toEqual([]);
   });
+
+  // Round 23: every headless run was POSTing a page visit and a game start to
+  // the PUBLIC relay, so the suite (and now CI, on every push) inflated the
+  // counters Remi reads. Any script that opens the client must opt out.
+  it('never lets a headless run write to the public counters', () => {
+    const bad = [];
+    for (const f of [...glob('tools'), ...glob('test')]) {
+      const src = read(f);
+      if (/\.goto\(/.test(src) && !src.includes('nobeacon')) bad.push(f);
+    }
+    expect(bad, say('scripts that drive a browser without silencing beacons',
+      'add ?nobeacon=1 to the URL you goto (client/analytics.js honours it)', bad)).toEqual([]);
+  });
 });

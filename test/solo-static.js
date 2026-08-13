@@ -58,7 +58,7 @@ try {
   page.on('pageerror', (e) => errors.push(String(e.message)));
 
   // the root landing page must forward into client/
-  await page.goto(BASE + '/');
+  await page.goto(BASE + '/?nobeacon=1');
   await page.waitForURL('**/client/**', { timeout: 5000 });
   await page.waitForSelector('#joinBtn', { timeout: 5000 });
 
