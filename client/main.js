@@ -404,11 +404,10 @@ function phaseMusic(s) {
 // toward. The delay follows the arrival gaps it actually observes; the logic
 // lives in shared/snapwire.js (createGapTracker) so tests and tools/rtclab.js
 // run the exact code the client runs.
-// ⚠ mode 'step' is the shipped behavior: a jitter spike steps the delay (a
-// visible REWIND of the drawn world) by hundreds of ms in one frame. 'slew'
-// is the bounded-walk fix, staged for Remi's call.
-// Revert to a fixed delay: make delay() return its base in one line there.
-const gaps = createGapTracker({ intervalMs: 1000 / SNAPSHOT_RATE });
+// ⚠ mode 'slew' (round 23.1, Remi's go): the delay WALKS toward its target,
+// so a jitter spike can never rewind the drawn world in one frame. Revert to
+// the old stepping behavior: drop the mode option ('step' is the default).
+const gaps = createGapTracker({ intervalMs: 1000 / SNAPSHOT_RATE, mode: 'slew' });
 window.__delay = () => gaps.stats(); // test/debug hook: {renderDelay, gapEst}
 
 const lerp = (a, b, k) => (fin(a) && fin(b)) ? a + (b - a) * k : (fin(b) ? b : a);
