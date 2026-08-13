@@ -528,6 +528,12 @@ export function castSpell(state, id, key, tx, ty) {
       p => p.type === 'boomerang' && p.owner === id && !p.returning);
     if (mine) { turnBoomerangHome(state, mine); return true; }
   }
+  // Genki (issue #12): the SECOND press releases the charge, before the
+  // cooldown gate (the cooldown was paid when the charge started).
+  if (key === 'genki' && pl.genki) {
+    releaseGenki(state, pl, tx, ty);
+    return true;
+  }
   if ((pl.cooldowns[key] || 0) > 0) return false;
   // power combos (2026-08-05): a charging repulse may still reposition.
   // Teleport/rush into the pack and let the burst land there. Everything
@@ -730,6 +736,13 @@ export function castSpell(state, id, key, tx, ty) {
     case 'repulse': {
       // 2 s of visible charging, then the burst fires in stepBattle
       pl.charging = { left: spec.charge, level };
+      break;
+    }
+    case 'genki': {
+      // Issue #12 (reworked 2026-08-13): the ball starts filling above your
+      // head, public, released by the SECOND press (the pre-gate above). Move
+      // and cast all you like; only a direct hit ends it (see applyDamage).
+      pl.genki = { t: 0, level, stage: 0 };
       break;
     }
     case 'wall': {
@@ -1252,6 +1265,15 @@ function applyDamage(state, target, amount, sourceId,
     target.debtDamage += Math.max(0, amount);
     return false;
   }
+  // Genki (issue #12, reworked 2026-08-13): a real hit ends the charge AND the
+  // victim eats it: the interrupting hit is AMPLIFIED by the stored damage,
+  // riding the attacker's hit so kill credit follows the normal last-hitter
+  // path. Ticks never cancel: lava/trails (silent) and DoT/burn (procs 'tick').
+  if (target.genki && sourceId != null && !silent && procs !== 'tick') {
+    amount += genkiState(target).dmg;
+    state.events.push({ t: 'genkiFizzle', id: target.id, x: target.x, y: target.y });
+    target.genki = null;
+  }
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
   // damage attribution: the direct source, or, for sourceless lava ticks,
@@ -1377,6 +1399,7 @@ function kill(state, target, directSourceId) {
   // DEATH is the ONE thing that cancels a repulse charge (round 21.0 ruling,
   // interpretation: "you blow up eventually" assumes you are alive to do it).
   target.charging = null;
+  target.genki = null;   // the omega ball dies with its bearer (issue #12)
   target.debtT = 0; target.debtDamage = 0; target.debtPayT = 0; // debts die with you
   // dying reveals you: a corpse and its death burst must be visible to everyone,
   // and a hidden body would also silently vanish from the standings
@@ -1539,6 +1562,7 @@ function startRound(state) {
     pl.cooldowns = {};
     // (a round boundary, not a cancel: nothing survives the respawn)
     pl.inLava = false; pl.shieldT = 0; pl.dash = null; pl.charging = null;
+    pl.genki = null;   // no charge survives a respawn (issue #12)
     pl.debtT = 0; pl.debtDamage = 0; pl.debtPayT = 0;
     pl.vanishT = 0;   // nobody starts a round already invisible
     pl.statueT = 0;   // …nor already golden
@@ -2174,6 +2198,17 @@ function stepBattle(state, dt) {
 
     if (pl.regenLockT > 0) pl.regenLockT = Math.max(0, pl.regenLockT - dt);
 
+    // Genki (issue #12): the ball above the head fills while its owner lives;
+    // past the level's cap the clock still runs but genkiState clamps it, so
+    // size, damage and stage all freeze and the ball just waits for the recast.
+    if (pl.genki && pl.alive) {
+      pl.genki.t += dt;
+      const st = genkiState(pl).stage;
+      if (st !== pl.genki.stage) {
+        pl.genki.stage = st;
+        state.events.push({ t: 'genkiStage', id: pl.id, stage: st, x: pl.x, y: pl.y });
+      }
+    }
     // elemental timed effects (all timers stay 0 in classic mode)
     if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
     if (pl.stunT > 0) pl.stunT = Math.max(0, pl.stunT - dt);
@@ -2428,6 +2463,41 @@ function collidePillars(state, pl) {
   }
 }
 
+// ---- Genki (issue #12, reworked 2026-08-13) ---------------------------------
+// The charge, evaluated: seconds clamped at the level's damage cap (levels buy
+// the CAP, the 3/s rate never changes), damage, radius (area grows linearly ->
+// radius with the sqrt of time), and the stage (smash, then unstoppable).
+function genkiState(pl) {
+  const spec = SPELLS.genki;
+  const g = pl.genki;
+  const cap = spec.dmgCap[Math.min(g.level, spec.dmgCap.length) - 1];
+  const tEff = Math.min(g.t, cap / spec.dmgPerSec);
+  const r = spec.radius * Math.sqrt(Math.max(tEff, 0.01) / spec.calibT);
+  const stage1T = spec.calibT * (spec.smashR / spec.radius) ** 2;
+  const stage = tEff >= stage1T + spec.unstoppableAfter ? 2 : r >= spec.smashR ? 1 : 0;
+  return { tEff, r, dmg: Math.max(1, spec.dmgPerSec * tEff), stage };
+}
+
+function releaseGenki(state, pl, tx, ty) {
+  const spec = SPELLS.genki;
+  const { r, dmg, tEff, stage } = genkiState(pl);
+  let dx = tx - pl.x, dy = ty - pl.y;
+  const d = Math.hypot(dx, dy) || 1;
+  dx /= d; dy /= d;
+  state.projectiles.push({
+    id: state.nextId++, type: 'genki', owner: pl.id, level: pl.genki.level,
+    x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
+    vx: dx * spec.speed, vy: dy * spec.speed,
+    traveled: 0, hit: {}, pierce: false, pierced: 0,
+    radius: r, dmg, kb: spec.kbBase + spec.dmgPerSec * tEff,
+    stage,
+  });
+  pl.genki = null;
+  // a release is a cast like any other: it reveals an invisible thrower (18.1)
+  if (pl.vanishT > 0) pl.vanishT = 0;
+  state.events.push({ t: 'cast', id: pl.id, spell: 'genki', x: pl.x, y: pl.y, dx, dy });
+}
+
 function stepProjectiles(state, dt) {
   const players = Object.values(state.players);
   const keep = [];
@@ -2477,6 +2547,14 @@ function stepProjectiles(state, dt) {
       const pil = state.pillars[i];
       if (pil.sunk) continue;
       if (segmentPointDist(px0, py0, pr.x, pr.y, pil.x, pil.y) > prRadius + pil.r) continue;
+      // Genki stage 1+ (issue #12): the ball smashes the stone AND flies on,
+      // unlike terra-3, which trades the ball for the pillar.
+      if (pr.type === 'genki' && (pr.stage || 0) >= 1) {
+        state.pillars.splice(i, 1);
+        i--;
+        state.events.push({ t: 'pillarBroken', x: pil.x, y: pil.y, r: pil.r });
+        continue;
+      }
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
       if (smashes) {
         state.pillars.splice(i, 1);
@@ -2513,8 +2591,13 @@ function stepProjectiles(state, dt) {
     // cross the wall plane inside one tick, and the post-move side then reads
       // as "moving away": the ball tunneled straight through. Found by the
     // ghost+wall test the day ghost became the speed element.
+    // Genki stage 2 (issue #12): nothing reflects it, mirror walls included.
+    // (The shield exemption lives in the player-hit block below.)
+    const unstoppable = pr.type === 'genki' && (pr.stage || 0) >= 2;
+
     let mirrored = false;
     for (const w of state.walls) {
+      if (unstoppable) break;   // stage-2 genki: the wall might as well not exist
       if (w.owner === pr.owner) continue;
       // a teammate's wall is a teammate's spell: your shots pass through it too
       if (alliedIds(state, w.owner, pr.owner)) continue;
@@ -2563,12 +2646,16 @@ function stepProjectiles(state, dt) {
       // collision test): allies ignore each other's spells, and a statue is a
       // spell; the stone pillars are the map, this is not.
       if (other.statueT > 0) {
+        // Genki stage 2 (issue #12): stasis is the ONE thing it respects: the
+        // ball passes through without popping, and a statue that thaws while
+        // the ball is still inside them is hit on the very next tick.
+        if (unstoppable) continue;
         state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
         dead = true;
         break;
       }
 
-      if (other.shieldT > 0) {
+      if (other.shieldT > 0 && !unstoppable) {
         // reflect: reverse velocity, transfer ownership
         pr.vx = -pr.vx; pr.vy = -pr.vy;
         if (pr.elemOwner == null) pr.elemOwner = pr.owner; // riders stay the caster's (22.4)
@@ -2590,8 +2677,10 @@ function stepProjectiles(state, dt) {
       }
 
       const v = Math.hypot(pr.vx, pr.vy) || 1;
-      let dmg = lvl(spec, 'damage', pr.level);
-      let kb = lvl(spec, 'knockback', pr.level);
+      // Genki (issue #12) carries its numbers on the projectile; the charge
+      // decided them at release, and its spec has no damage array to read.
+      let dmg = pr.type === 'genki' ? pr.dmg : lvl(spec, 'damage', pr.level);
+      let kb = pr.type === 'genki' ? pr.kb : lvl(spec, 'knockback', pr.level);
       // Anger's earned bonus rides along in its own accumulator so the
       // floating damage number can show base and bonus separately (the white
       // number over the red one IS the feature; see ELEMENTS.anger). Every
@@ -3057,6 +3146,12 @@ export function snapshot(state, viewerId = null) {
       ...(p._burns && Object.keys(p._burns).length ? { burning: true } : {}),
       dashing: !!p.dash,
       charging: !!p.charging,
+      // Genki (issue #12): the growing ball is public information; its size,
+      // stage and current damage are the whole "protect the president" read
+      ...(p.genki ? (() => {
+        const g = genkiState(p);
+        return { genkiR: round2(g.r), genkiStage: g.stage, genkiDmg: Math.round(g.dmg) };
+      })() : {}),
       // your OWN invisibility, so the client can show you that it is running and
       // when it is about to end. Never present on anybody else's entry.
       ...(p.vanishT > 0 && p.id === viewerId ? { vanishT: round2(p.vanishT) } : {}),
@@ -3159,6 +3254,8 @@ export function snapshot(state, viewerId = null) {
       // vampire: the engorged ball must LOOK different; both fields can only
       // ever be set in elemental mode, so a classic projectile is byte-identical
       ...(p.engorged ? { engorged: 1 } : {}),
+      // genki flies with the size and stage its charge earned (issue #12)
+      ...(p.type === 'genki' ? { radius: round2(p.radius), stage: p.stage || 0 } : {}),
     })),
     // campaign HUD state, co-op only
     ...(coop && state.coop ? {

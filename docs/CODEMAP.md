@@ -3,7 +3,7 @@
 Symbols by file and by the section banner they sit under. No line numbers on
 purpose: grep the name. Regenerate after any change that moves code around.
 
-## shared/sim.js (4439 lines)
+## shared/sim.js (4536 lines)
 
 - makeRng, MODES, createGame, setMode, setDraft, rng
 - **players**: freeTeam, setTeam, addPlayer, fighters
@@ -17,7 +17,8 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **round flow**: setTesting, arenaStartRadius, startGame, startRound
 - **co-op campaign**: coopPrepareRound, coopSpawnWave, makePillars, endRound, afterSummary, setShopReady, setShopPause
 - **main step**: step, stepBattle
-- **pillar geometry**: resolvePillarHit, collidePillars, stepProjectiles
+- **pillar geometry**: resolvePillarHit, collidePillars
+- **Genki (issue #12, reworked 2026-08-13)**: genkiState, releaseGenki, stepProjectiles
 - **mosquito (elemental)**: mosquitoPair, turnBoomerangHome
 - **gale (elemental)**: galeHit, infectMalady, applyElementsHit
 - **serialization**: viewStacks, ownStacks, viewEvents, snapshot, segSegDist, segmentPointDist, round2, mapRound, clamp
@@ -34,7 +35,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - BOT_NAMES, normName, createEngine, playerCount, botName, freeAvatar, maybeAutoStart, resetToLobby, scheduleLobbyReset, cancelLobbyReset
 
-## shared/constants.js (919 lines)
+## shared/constants.js (933 lines)
 
 - TICK_RATE, SNAPSHOT_RATE, ARENA, PLAYER, LAVA, ROUND, TEAMS, teamTint, MULTIKILL_NAMES, AVATARS, GOLD
 - **Spells**: SPELLS
@@ -67,7 +68,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
 
-## client/main.js (2291 lines)
+## client/main.js (2311 lines)
 
 - **key bindings (rebindable, persisted)**: loadKeys, saveKeys, spellForKey, keyLabel
 - **state**: me, latest
@@ -87,7 +88,7 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **versus teams (round 21.3)**: kitIcons, pingBadge, statsTable, updateUi, esc
 - **main loop**: frame
 
-## client/render.js (1511 lines)
+## client/render.js (1555 lines)
 
 - makeView, drawEngorged, draw
 - **fx**: drawBackdrop, drawWorldDone, drawBanners, drawRoundEndBanner, drawFx

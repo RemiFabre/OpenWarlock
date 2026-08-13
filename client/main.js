@@ -44,6 +44,7 @@ const ICONS = {
   // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember.
   // Slow Spoon (21.8): Remi's joke, the slowest murder in history.
   hourglass: '⏳', brazier: '🎩', spoon: '🥄',
+  genki: '💠',   // issue #12: the omega ball
 };
 // ---- key bindings (rebindable, persisted) ----------------------------------
 
@@ -61,10 +62,10 @@ const KEY_PRESETS = {
   // (qwerty Z = azerty W), the last free key on the bottom row.
   qwerty: { fireball: 'q', lightning: 'w', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'a', decoy: 'z', firewalk: 'h', debt: 'y' },
+            statue: 'a', decoy: 'z', firewalk: 'h', debt: 'y', genki: 'k' },
   azerty: { fireball: 'a', lightning: 'z', boomerang: 'r', teleport: 'f', shield: 'd', rush: 'e',
             pillar: 's', vanish: 'v', meteor: 't', swap: 'g', repulse: 'x', wall: 'c', nova: 'b',
-            statue: 'q', decoy: 'w', firewalk: 'h', debt: 'y' },
+            statue: 'q', decoy: 'w', firewalk: 'h', debt: 'y', genki: 'k' },
 };
 
 // ⚠ Round 21.7 SCAR (Remi, live): two spells on one key is a SILENT dead
@@ -328,6 +329,15 @@ function onEvent(e) {
     // criterion for mosquito's pair, and two identical popups on one pixel is
     // exactly the thing that reads as "+1 g once".
     case 'gold': pushFloater(e, 'gold', 0.9, now); break;
+    // Genki (issue #12): a dropped charge deflates; a stage-up flashes
+    case 'genkiFizzle':
+      fx.push({ ...e, type: 'teleport', at: now, dur: 0.5 });
+      if (e.id === myId) playSfx('catch');
+      break;
+    case 'genkiStage':
+      fx.push({ ...e, type: 'grow', at: now, dur: 0.6 });
+      playSfx('ding');
+      break;
     case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
     // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
     // charge is a soft click, the spring is a boom, and every stored ball
@@ -1113,6 +1123,10 @@ const fmtGold = (v) => (+v > 0 ? `${fmtNum(v)} g` : 'free');
 // label + formatter per known field; anything unknown still prints (raw key,
 // raw value) so a newly added constant shows up instead of vanishing.
 const SPELL_FIELDS = {
+  // genki (issue #12, reworked: levels buy the damage cap, the rate is flat)
+  dmgPerSec: ['damage grows', (v) => `+${fmtNum(v)}/s`],
+  dmgCap: ['damage cap', fmtNum],
+  unstoppableAfter: ['unstoppable, after the smash stage +', fmtSec],
   damage: ['damage', fmtNum],
   knockback: ['knockback', fmtNum],
   cooldown: ['cooldown', fmtSec],
@@ -1135,7 +1149,9 @@ const SPELL_FIELDS = {
 // `stun` is skipped here because it is not a per-level array but the RECIPE the
 // sim evaluates at resolution ({pad, min}); spellTip prints the two readings a
 // player can act on instead (round 20.5).
-const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun']);
+const SPELL_SKIP = new Set(['name', 'hotkey', 'maxLevel', 'costs', 'desc', 'long', 'tier', 'minRound', 'stun',
+  // genki (issue #12): the growth formula's internals; `long` tells the story
+  'smashR', 'calibT', 'kbBase']);
 // element fx whose array is NOT per-level (tierHits columns are tiers);
 // their reading lives in another row's label instead. markDelay and
 // rampPermanent are display-only trims (Remi, round 19.4: those anger rows
@@ -1419,7 +1435,7 @@ const ROW_KEYS = new Set(ELEMENT_ROWS.flatMap(([, keys]) => keys));
 // Round 21.7/21.8 (Remi): the Stone Pillar and the Mine both sit in Special;
 // they are things you LEAVE somewhere, not things you throw at a face.
 const SPELL_ROWS = [
-  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'repulse', 'nova']], // Mine is a weapon (Remi, round 22)
+  ['Offense', ['fireball', 'lightning', 'boomerang', 'meteor', 'genki', 'repulse', 'nova']], // Mine is a weapon (Remi, round 22)
   ['Defense', ['teleport', 'shield', 'debt', 'statue', 'rush', 'wall', 'firewalk']],
   ['Special', ['swap', 'vanish', 'decoy', 'pillar']],
 ];
@@ -2247,6 +2263,10 @@ function updateUi(s) {
     // this chip is by construction self-only.
     if (fin(+m.vanishT) && +m.vanishT > 0)
       buffs.push(`<span class="buff vanish">${ICONS.vanish} invisible · ${(+m.vanishT).toFixed(1)}s</span>`);
+    // Genki (issue #12): your own charge, priced live; press again to fire,
+    // a direct hit drops it and the hit eats the whole number
+    if (fin(+m.genkiDmg) && +m.genkiDmg > 0)
+      buffs.push(`<span class="buff vanish">${ICONS.genki} charging · ${Math.round(+m.genkiDmg)} dmg</span>`);
     // Statue: the freeze is short and total, so the countdown is the whole HUD
     // story: how long until you can act again.
     if (fin(+m.statueT) && +m.statueT > 0)

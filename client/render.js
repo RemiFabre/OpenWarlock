@@ -9,6 +9,10 @@ import { currentLevel } from './music.js';
 // read): pale electric blue, deeper blue, storm violet. "r, g, b" strings.
 const BOLT_TINTS = ['165, 220, 255', '110, 190, 255', '195, 160, 255'];
 
+// Genki (issue #12): stage tints; spirit blue, then the pillar-smasher gold,
+// then the unstoppable magenta. Index = stage.
+const GENKI_TINTS = ['140, 210, 255', '255, 205, 80', '255, 90, 230'];
+
 // Precomputed drifting lava blobs (deterministic, just for looks).
 const BLOBS = [];
 for (let i = 0; i < 14; i++) {
@@ -543,6 +547,22 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         if (accent && el[k] > 0) accent(ctx, x, y, r, el[k], ang, t);
       }
       if (pr.engorged) drawEngorged(ctx, x, y, r, t);
+    } else if (pr.type === 'genki') {
+      // issue #12: the omega ball; radius-TRUE (its hitbox IS the show),
+      // tinted by stage, with a slow inner swirl so it reads alive
+      const gr = Math.max(3, (fin(+pr.radius) ? +pr.radius : 0.8) * scale);
+      const tint = GENKI_TINTS[Math.min(pr.stage || 0, 2)];
+      ctx.save();
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, gr * 1.6);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.45, `rgba(${tint}, 0.95)`);
+      glow.addColorStop(1, `rgba(${tint}, 0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, y, gr * 1.6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(${tint}, 0.9)`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, gr, now / 500, now / 500 + Math.PI * 1.6); ctx.stroke();
+      ctx.restore();
     } else if (pr.type === 'swap') {
       // dashed tether from the caster to the swap bolt; the link the trade
       // will travel is VISIBLE (the hook's chain, recolored arcane violet)
@@ -612,6 +632,30 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.font = '700 11px ui-monospace, Menlo, monospace';
       ctx.fillStyle = ending ? 'rgba(255, 210, 120, 1)' : 'rgba(220, 210, 255, 1)';
       ctx.fillText(`👁️ ${(+pl.vanishT).toFixed(1)}s`, x, y - r - 26);
+    }
+
+    // Genki charge (issue #12): the ball grows ABOVE the head, public, tinted
+    // by stage, its current damage printed on it; the whole arena reads it
+    if (fin(+pl.genkiR) && +pl.genkiR > 0) {
+      const gr = Math.max(3, +pl.genkiR * scale);
+      const gy = y - r - gr - 10;
+      const tint = GENKI_TINTS[Math.min(+pl.genkiStage || 0, 2)];
+      ctx.save();
+      const glow = ctx.createRadialGradient(x, gy, 0, x, gy, gr * 1.5);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.5, `rgba(${tint}, 0.9)`);
+      glow.addColorStop(1, `rgba(${tint}, 0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, gy, gr * 1.5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(${tint}, 0.9)`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, gy, gr, now / 600, now / 600 + Math.PI * 1.7); ctx.stroke();
+      if (fin(+pl.genkiDmg)) {
+        ctx.textAlign = 'center';
+        ctx.font = '700 12px ui-monospace, Menlo, monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(String(Math.round(+pl.genkiDmg)), x, gy + 4);
+      }
+      ctx.restore();
     }
 
     // Coal Brazier aura (ITEMS.brazier, round 21.5): a radius-TRUE ring at the

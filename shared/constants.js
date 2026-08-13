@@ -312,6 +312,20 @@ export const SPELLS = {
   // BOT_CC_CAST + PILOTED_POWER in shared/sim.js). For the rest, omission from
   // every BUILDS/BOT_BUILDS order list IS the gate, and it is load-bearing
   // (AGENTS.md debt #2). history: docs/history/2026-08-08-constants-sweeps.md#spells-power-tier
+  genki: {
+    // Issue #12 + Remi's rework (2026-08-13). Two presses: charge above your
+    // head (3 dmg/s flat, capped at dmgCap[level]; area grows linearly so
+    // radius = radius * sqrt(t/calibT), 1.3x the issue-branch ball), then fire
+    // at the cursor. smashR = a Terra-3 ball: stage 1 smashes pillars and flies
+    // on; unstoppableAfter s later stage 2 ignores shields and mirror walls.
+    name: 'Genki', hotkey: 'K', tier: 'power', maxLevel: 3, costs: [12, 6, 6],
+    cooldown: 4, speed: 41, radius: 0.8 * 1.3, range: Infinity,
+    kbBase: 65,   // push starts at a fireball's and grows +3/s with the charge
+    dmgPerSec: 3, calibT: 2.5, dmgCap: [30, 60, 90],
+    smashR: 0.8 * 1.65, unstoppableAfter: 5,
+    desc: 'Charge one omega ball.',
+    long: 'Press to charge a ball above your head, press again to fire it: it gains 3 damage per second up to the level cap (30/60/90) and keeps growing until then; at Terra-3 size it smashes pillars and flies on, and 5 seconds later nothing reflects it. You move and cast freely while it charges, but a direct hit ends the charge AND adds the stored damage to that hit (lava, burns and sickness never do).',
+  },
   meteor: {
     // Round 21.1: 14 was off the tier ladder; expensive tier is 12.
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [12, 6],

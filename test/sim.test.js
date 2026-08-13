@@ -7628,3 +7628,210 @@ describe('Faker & Runner (issue #7)', () => {
     plain.destroy();
   });
 });
+
+// ---- Genki (issue #12, reworked 2026-08-13): the charging omega ball --------
+// Rework (Remi): 3 levels buy damage CAPS (dmgCap), the 3/s rate never
+// changes; casting other spells no longer cancels; a direct hit ends the
+// charge and AMPLIFIES that hit by the stored damage; at the cap the ball
+// waits, un-lost, for the recast. All numbers below read from the spec.
+describe('Genki (issue #12)', () => {
+  const spec = SPELLS.genki;
+  const stage1T = spec.calibT * (spec.smashR / spec.radius) ** 2;
+  const stage2T = stage1T + spec.unstoppableAfter;
+  function arena2(setup = () => {}) {
+    const state = freshBattle(2);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    a.spells.genki = 1;
+    setup(state, a, b);
+    return state;
+  }
+  const charge = (state, secs) => { state.players.p0.genki.t = secs; };
+  const ball = (state) => state.projectiles.find(p => p.type === 'genki');
+
+  it('press charges, second press fires; damage 3/s, radius with the sqrt of time', () => {
+    const state = arena2();
+    expect(castSpell(state, 'p0', 'genki', 20, 0)).toBe(true);
+    expect(state.players.p0.genki).toBeTruthy();
+    run(state, 1);
+    expect(state.players.p0.genki.t).toBeCloseTo(1, 1);
+    charge(state, 4);
+    castSpell(state, 'p0', 'genki', 20, 0);     // release
+    const pr = ball(state);
+    expect(pr).toBeTruthy();
+    expect(pr.dmg).toBeCloseTo(spec.dmgPerSec * 4, 5);
+    expect(pr.radius).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 5);
+    expect(state.players.p0.genki).toBe(null);
+    // it lands for exactly the charge
+    const b = state.players.p1;
+    const hp0 = b.hp;
+    run(state, 1);
+    expect(hp0 - b.hp).toBeCloseTo(spec.dmgPerSec * 4, 5);
+  });
+
+  it('rework: casting another spell mid-charge does NOT cancel', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 5);
+    expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);  // the cast lands
+    expect(state.players.p0.genki).toBeTruthy();                   // the charge stays
+    expect(state.events.some(e => e.t === 'genkiFizzle')).toBe(false);
+    castSpell(state, 'p0', 'genki', 20, 0);                        // and still fires
+    expect(ball(state).dmg).toBeCloseTo(spec.dmgPerSec * 5, 5);
+  });
+
+  it('rework: an interrupting hit is AMPLIFIED by the charge, and a lethal amplify credits the attacker', () => {
+    const fb = SPELLS.fireball.damage[0];
+    const state = arena2((s, a, b) => { b.x = 6; });
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 5);                                     // 15 stored damage
+    const stored = spec.dmgPerSec * 5;
+    const hp0 = a.hp;
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    // the hit ate the ball: fireball + stored damage (the charge kept filling
+    // for the ball's flight time, so allow up to half a second of extra growth)
+    expect(hp0 - a.hp).toBeGreaterThanOrEqual(fb + stored);
+    expect(hp0 - a.hp).toBeLessThan(fb + stored + spec.dmgPerSec * 0.5);
+    expect(a.genki).toBe(null);
+    expect(state.events.some(e => e.t === 'genkiFizzle')).toBe(true);
+    // lethal amplify: the fireball alone would not kill, fireball + charge does,
+    // and the kill is the ATTACKER's (the extra rides their hit)
+    const s2 = arena2((s, x, b) => { b.x = 6; });
+    const a2 = s2.players.p0, b2 = s2.players.p1;
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, 5);
+    a2.hp = fb + stored / 2;                              // survives fb, not fb + charge
+    const kills0 = b2.kills;
+    castSpell(s2, 'p1', 'fireball', 0, 0);
+    run(s2, 0.5);
+    expect(a2.alive).toBe(false);
+    expect(b2.kills).toBe(kills0 + 1);
+  });
+
+  it('rework: damage and size freeze at each level cap, the ball survives and fires on recast', () => {
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const cap = spec.dmgCap[level - 1];
+      const capT = cap / spec.dmgPerSec;
+      const state = arena2((s, a) => { a.spells.genki = level; });
+      castSpell(state, 'p0', 'genki', 20, 0);
+      charge(state, capT + 20);                           // way past the cap
+      const view = snapshot(state, 'p1').players.p0;
+      expect(view.genkiDmg).toBe(cap);
+      expect(view.genkiR).toBeCloseTo(spec.radius * Math.sqrt(capT / spec.calibT), 2);
+      run(state, 1);                                      // still charging...
+      const again = snapshot(state, 'p1').players.p0;
+      expect(again.genkiDmg).toBe(cap);                   // ...but nothing grows
+      expect(again.genkiR).toBeCloseTo(view.genkiR, 2);
+      expect(state.players.p0.genki).toBeTruthy();        // NOT lost at the cap
+      castSpell(state, 'p0', 'genki', 20, 0);             // and it still fires
+      const pr = ball(state);
+      expect(pr.dmg).toBeCloseTo(cap, 5);
+      // the stage freezes with the clamp: whatever the spec says fits under
+      // this cap (with the 1.3x size both stages fit under every cap)
+      const wantStage = capT >= stage2T ? 2 : capT >= stage1T ? 1 : 0;
+      expect(pr.stage).toBe(wantStage);
+    }
+  });
+
+  it('rework: tick damage (poison, lava) never cancels; only a real hit does', () => {
+    const state = arena2();
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 3);
+    // sickness tick: poison the charger, let it tick
+    a.poisonT = 2; a.poisonTick = 1; a.poisonBy = 'p1'; a._poisonNext = 0;
+    const hp0 = a.hp;
+    run(state, 1.2);
+    expect(a.hp).toBeLessThan(hp0);        // the plague ticked...
+    expect(a.genki).toBeTruthy();          // ...and did not drop it
+    // lava
+    a.x = state.arenaRadius + 5; a.y = 0;
+    run(state, 0.5);
+    expect(a.genki).toBeTruthy();          // the swim did not drop it
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    // a fireball does
+    const b = state.players.p1;
+    b.x = 6; b.y = 0; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a.genki).toBe(null);
+  });
+
+  it('stage 1 (Terra-3 size) smashes pillars and FLIES ON; stage 0 pops', () => {
+    const state = arena2((s) => { s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }]; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, stage1T + 0.2);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    run(state, 0.6);
+    expect(state.pillars.length).toBe(0);                        // smashed
+    const b = state.players.p1;
+    expect(b.hp).toBeLessThan(b.maxHp);                          // ...and it flew on
+    // control: an uncharged ball pops on the stone
+    const s2 = arena2((s) => { s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }]; });
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, 1);
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    run(s2, 0.6);
+    expect(s2.pillars.length).toBe(1);
+    expect(s2.players.p1.hp).toBe(s2.players.p1.maxHp);
+  });
+
+  it('stage 2 ignores shields and mirror walls; a statue passes it through', () => {
+    // shield
+    const state = arena2((s, a, b) => { b.shieldT = 5; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, stage2T + 0.2);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    run(state, 0.8);
+    const b = state.players.p1;
+    expect(b.hp).toBeLessThan(b.maxHp);                          // hit THROUGH the shield
+    // mirror wall: the ball does not come back
+    const s2 = arena2((s, a, x) => {
+      s.walls.push({ x1: 10, y1: -5, x2: 10, y2: 5, nx: -1, ny: 0,
+        owner: x.id, until: s.time + 60 });
+    });
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, stage2T + 0.2);
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    run(s2, 0.8);
+    expect(s2.players.p1.hp).toBeLessThan(s2.players.p1.maxHp);  // straight through
+    // statue: unaffected while gold, hit when it thaws under the ball
+    const s3 = arena2((s, a, x) => { x.statueT = 0.35; x.x = 12; });
+    castSpell(s3, 'p0', 'genki', 20, 0);
+    charge(s3, stage2T + 0.2);
+    castSpell(s3, 'p0', 'genki', 12, 0);
+    run(s3, 0.28);                                               // ball inside the statue
+    expect(s3.players.p1.hp).toBe(s3.players.p1.maxHp);
+    run(s3, 0.4);                                                // stasis over
+    // the ball is huge and passes through: the thaw tick eats it
+    expect(s3.players.p1.hp).toBeLessThan(s3.players.p1.maxHp);
+  });
+
+  it('death and round start clear the charge', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 8);
+    const a = state.players.p0;
+    a.hp = 1;
+    const b = state.players.p1;
+    b.x = 6; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a.alive).toBe(false);
+    expect(a.genki).toBe(null);
+  });
+
+  it('the charge is public on the wire: radius, stage, damage', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 4);
+    const view = snapshot(state, 'p1').players.p0;   // the ENEMY sees it
+    expect(view.genkiR).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 2);
+    expect(view.genkiDmg).toBe(spec.dmgPerSec * 4);
+    expect(view.genkiStage).toBe(0);
+  });
+});
