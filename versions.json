@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 19,
+  "serial": 20,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v6: the ball identities decouple — Dark and Storm are independent fireball axes at 6 g a level (blind on the 2nd hit, a faster/smaller arcing ball, 3+ in the arc paralysed 1.5-2.75 s), Ricochet keeps its bounce and cooldown tax, plus the Vomit Puddle, Guardian Angel, craters and the grapple.",
+      "summary": "Ju's arsenal, v6.2: Dark and Storm are independent fireball axes at 6 g a level (blind on the 2nd hit for 1-2 s, a faster/smaller arcing ball, 3+ in the arc paralysed), Ricochet bounces for a flat 3.2 s cooldown, and the maxed boots finally announce their sprint. Plus the Vomit Puddle, Guardian Angel, craters and the grapple.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "543ad727b56a077da08a589d1fdf051a69f51bba"
+      "commit": "9e446b3aa25824e27d4f15cf86cf4a9522a19211"
     },
     {
       "slug": "trash-talk",
