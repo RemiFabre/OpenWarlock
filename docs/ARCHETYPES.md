@@ -136,7 +136,7 @@
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
   - tests: the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned
 
-## undefined
+## Family K: the Faker combo arsenals, on the Faker brain (issue #7)
 
 - **K1-faker-hookstorm** (150 g): The hook: Switcheroo into the bolt, the rock onto the landing point.
   - order: lightning3 → swap3 → meteor2 → ember2 → boots2 → cape1 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots3 → cape2 → cape3 → treads1 → treads2
@@ -150,4 +150,7 @@
 - **K4-faker-galeforce** (151 g): The wind: every third ball shoves, the bolt is already falling there.
   - order: gale3 → lightning3 → arcane2 → boots2 → sword1 → sword2 → sword3 → amulet1 → amulet2 → amulet3 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2
   - tests: gust-into-bolt chains; the weakest combo identity in the lab, priced here
+- **K5-faker-vendetta** (152 g): The grudge: max anger first, claim every mark, snowball forever.
+  - order: anger3 → amulet1 → sword1 → amulet2 → sword2 → amulet3 → sword3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
+  - tests: anger in Faker hands: B3's core (the best anger build on Hard) piloted by the top bot tier
 

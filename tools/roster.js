@@ -416,6 +416,15 @@ export const ROSTER = {
     tests: 'gust-into-bolt chains; the weakest combo identity in the lab, priced here',
     core: [['gale', 3], ['lightning', 3], ['arcane', 2], ['boots', 2], ['sword', 1]],
   },
+  // Round 23: B3-mutation-depth's exact core (the best anger row, r353) on the
+  // Faker brain: how strong is anger when the pilot is the top tier?
+  'K5-faker-vendetta': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The grudge: max anger first, claim every mark, snowball forever.',
+    tests: "anger in Faker hands: B3's core (the best anger build on Hard) piloted by the top bot tier",
+    core: [['anger', 3], ['amulet', 1], ['sword', 1], ['amulet', 2],
+      ['sword', 2], ['amulet', 3], ['sword', 3], ['boots', 2], ['cape', 1]],
+  },
 };
 
 // ---- cost check + doc generation -------------------------------------------
@@ -437,7 +446,8 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
           C: 'Family C: spell-scaling probes',
           D: 'Family D: play-style archetypes',
           E: 'Family E: cooldown reduction (question M)',
-          F: 'Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)' };
+          F: 'Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)',
+          K: 'Family K: the Faker combo arsenals, on the Faker brain (issue #7)' };
         out += `\n## ${titles[fam]}\n\n`;
       }
       const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
