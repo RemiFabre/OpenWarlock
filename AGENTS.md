@@ -1,9 +1,10 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-13, round 23 (Remi's voice list: polish, lava/treads,
-host-only lobby, chatter damper+toggle, Blood Debt and Genki ported to main,
-K5 faker+anger run, elemental study deleted; all shipped). Read this first,
-then REMI_NOTES.md (latest round only). That is the whole entry set.*
+*Last updated 2026-08-14, round 24 (Remi's voice list: vampire mark-and-feast
+rework, Golden Pillar avatar in the Gathering, bot ladder Dummy-first with
+Runner unlisted; all shipped, `docs/history/2026-08-14-round24-vampire-feast.md`).
+Read this first, then REMI_NOTES.md (latest round only). That is the whole
+entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 

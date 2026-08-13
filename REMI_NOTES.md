@@ -1,10 +1,11 @@
 # Notes for Remi (OpenWarlock & the open web MOBA)
 
-*Round 23.1, 2026-08-14 (your friend's jerkiness: the client-side half, found
-and shipped). Round 23 (polish, balance, issue ports, lobby rework) is
-archived at `docs/history/2026-08-13-remi-notes-round-23.md`.*
+*Rounds 23.1 + 24, 2026-08-14, two agents in parallel: the netcode agent's
+playout fix (23.1) and the vampire/lobby round (24), merged here in shipping
+order. Round 23 is archived at
+`docs/history/2026-08-13-remi-notes-round-23.md`.*
 
-## Your friend's jerk was a REWIND, and it was ours
+## 23.1: Your friend's jerk was a REWIND, and it was ours
 
 You two played on the current version and it was still bad for him. That
 matters: round 21.11 already fixed the wire (keyframes ride beside the deltas,
@@ -37,7 +38,7 @@ feel and I tune.
 actual measured trace through the real code; the old behavior fails them, the
 new one passes. Full story: `docs/history/2026-08-14-playout-rewind.md`.
 
-## Your two questions from the voice note
+## 23.1: Your two questions from the voice note
 
 - **Prediction: not now.** It fixes baseline delay (which nobody complains
   about), not spikes (his problem), and it is the biggest complexity injection
@@ -47,7 +48,7 @@ new one passes. Full story: `docs/history/2026-08-14-playout-rewind.md`.
   (hold the burst until its base arrives): it BACKFIRES in simulation, holding
   also withholds the acks and the host thinks the link is dying. Not shipped.
 
-## The one measurement still worth doing
+## 23.1: The one measurement still worth doing
 
 Play one full game with him and run the recorder I'll give you (it now tags
 the round number). If the trace thrashes from round 1, "fine early, bad late"
@@ -55,7 +56,63 @@ was perception; if it genuinely degrades late on current code, that is new
 signal we measure before theorizing. Either way he should FEEL the difference
 already: no more backward motion.
 
-## Still waiting on you (carried from round 23)
+## 24: Vampire mark-and-feast (the build you described, shipped)
 
-See the archived round 23 notes for the open list (mine name, sounds, team
-kill caps, Switcheroo names).
+Your diagnosis (damage-scaling made it a damage build, the flat heal made it
+a frequency build) is now designed around rather than retuned: the heal is
+gated on PROXIMITY and on your own missing hp, two axes no other purchase
+scales.
+
+- Every fireball hit banks a **blood mark** on that victim. Marks never fade
+  and never expire; they die when you die, when they die, or with the round.
+- Walk inside your **feast ring** (radius 7 = Hat of Aura lv3, your number)
+  and the whole pile on that enemy vacuums back: one mark per 0.1 s, each
+  healing **2/3/4** (vampire lv1/2/3) **x 1 to 3, linear on YOUR missing hp**,
+  re-read at every gulp. A started feast always finishes, even if they blink
+  away (your ruling); your death voids your marks and the rest of the drain.
+- No feast through Vanish or NOPE; reflections can never mark yourself.
+- You (and everyone) see your ring: dotted dark red, deliberately not the
+  Hat's warm solid ring. Marked bodies wear a blood pip + count; the vacuum
+  is animated (pips fly home one by one) with the slurp on trigger.
+- HUD chip: how many marks you have out, and what one mark pays right now.
+
+**Measured** (the standard 2000-game Elo run, seeds 1 and 2; 1500 = roster
+average, neighbours +/-40): D4-leech, the roster's vampire build, went
+**1397 to 1603/1605, rank 19 to 7 of 42**, level with the best non-Faker row,
+while the control rows moved <40. In a 400-game head-to-head it healed
+3083 hp/game vs 923 for a Blood-Sword build. WARNING, both flags point the
+same way: bots brawl INSIDE the ring all game and never burst a low vampire,
+so 1600 is bot-flattered; your feel verdict rules. One-line levers if it is
+too strong live: `markHeal` [2,3,4], `lowHpMax` 3.
+Full report: `docs/history/2026-08-14-round24-vampire-feast.md`.
+
+## 24: The Gathering
+
+- **Golden Pillar avatar**: the choose-avatar grid now has the gold moai
+  right after the stone one (NOPE's tint everywhere, including on the
+  battlefield body).
+- **Bot ladder**: Runner is no longer offered (it stays in the code for the
+  combo lab and the Faker arsenals); the picker and the explainer chart now
+  read Dummy, Easy, Normal, Hard, Extreme, Faker, sorted by difficulty.
+
+## 24: Your Frost question, answered (nothing was changed)
+
+The "frost freezes in place and banks the push" version is **NOT on main**.
+It lives only on the `issue-5-sharpshooter` branch (commit `9770f0c`, the
+published Sharpshooter version). Main's frost is unchanged: 3rd stack slows
+(lv1/2) or freezes solid 2 s (lv3), knockback still applies normally.
+
+## 24: Verified
+
+505 vitest green (8 new vampire cases), harness bots+coop, client-robustness
+chromium+webkit, solo-static, reconnect, arena 4p/8p, and screenshots of the
+ring, the pips, the gulp flight, the gold moai and the bot picker. Round 24
+touched no wire code; 23.1's own verification is in its history file.
+
+## Still waiting on you
+
+The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
+cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
+Faker returns to fresh lobbies, a feel pass on lava 16 + the treads nerf, a
+feel pass on the vampire feast numbers, and the one-game trace with your
+friend (23.1 above).

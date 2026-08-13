@@ -390,6 +390,27 @@ table above). Per-change reads, all two-seed:
 - **vampire**: could NOT be ablated (the % path was deleted from sim.js in
   22.5); the Elo table's D4-leech +219 is the only read.
 
+## Round 24: vampire mark-and-feast (shipped 2026-08-14)
+
+Remi's diagnosis: heal-per-damage made vampire a high-damage-only pick, the
+22.5 flat every-5th heal made it a high-frequency-only pick; both were the
+same over-tight synergy. The rework decouples the heal from BOTH axes: every
+fireball hit banks a MARK on that victim (never fades, dies with either
+party); stepping inside the feast ring (r 7 = Hat of Aura lv3) vacuums the
+whole pile back, one mark per 0.1 s, each healing `markHeal` [2,3,4] × a
+linear 1→3 multiplier on the vampire's OWN missing hp. A started feast always
+finishes. Full design, rulings and evidence:
+`docs/history/2026-08-14-round24-vampire-feast.md`.
+
+Measured (tools/elo.js standard 2000-game runs, seeds 1 AND 2; Elo 1500 =
+roster average, ±40 ≈ neighbour noise; D4-leech = vampire 3 + mosquito +
+sword/amulet): **D4-leech 1397 → 1603/1605 (+~206), rank 19 → 7 of 42**, now
+level with the best non-Faker row (C4) while the control rows moved <40 on
+both seeds. ⚠ BOT-FLATTERED:
+berserker brains brawl inside r 7 all game (permanent vacuum) and never
+burst a low vampire, which is the build's designed weakness. One-line
+levers if live play agrees it is too strong: `markHeal`, `lowHpMax`.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*
