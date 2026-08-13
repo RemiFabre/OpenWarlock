@@ -22,6 +22,16 @@ Process one issue at a time, then repeat from step 2 indefinitely; aim to ship
 several versions per session without carrying unnecessary context forward. When
 the queue is empty, wait 60 seconds and check again instead of stopping.
 
+**Arm a queue WATCHDOG before selecting any issue, and keep it alive for the
+whole session.** It is a persistent background process, separate from the issue
+loop: every 60 s it polls for untreated issues AND new issue comments, remembers
+what it already reported (so it never re-fires on the same thing), and NEVER
+exits — not on a hit, not while an issue is being worked. A watcher that exits
+on its first hit leaves the queue blind during implementation and depends on a
+re-arm step a busy or crashed session can forget; the never-exit design has no
+such gap. New arrivals during work are noted and taken in order after the
+current issue is delivered.
+
 ### 1. Start in the dedicated clone
 
 - Work in `/Users/remi/OpenWarlock-agent`, never Remi's active checkout.
