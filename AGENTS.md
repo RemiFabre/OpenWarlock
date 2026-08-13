@@ -1,8 +1,9 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-12, round 22 (Remi's request list, spec in
-docs/BRIEF-round22.md, all shipped). Read this first, then REMI_NOTES.md
-(latest round only). That is the whole entry set.*
+*Last updated 2026-08-13, round 23 (Remi's voice list: polish, lava/treads,
+host-only lobby, chatter damper+toggle, Blood Debt and Genki ported to main,
+K5 faker+anger run, elemental study deleted; all shipped). Read this first,
+then REMI_NOTES.md (latest round only). That is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 
@@ -31,15 +32,15 @@ Agent context usage on this project is **CRITICAL**. The rules:
 
 ## State right now
 
-- **Issue-agent session of 2026-08-12 shipped 10 deliverables** — all recorded
-  on their issues: Soul Harvest (#8, one-round mode, ON by default), the Faker
-  rework + held-bolt whiff fix (#7), Genki (#12), Ju's v2-v5 (#9/#11/#13, all
-  on `issue-3-ricochet-angel`, slug `ju-ricochet`, serial 10), the pinned
-  contributor guide (#10, `ai:ignore`), and the credential setup
-  (`scripts/agent-env.sh`, env `GITHUB_TOKEN_WARLOCK` in `~/.bashrc`).
-- ⚠ **Pending Remi's call**: main's merged Faker (round 22) still has the
-  held-bolt whiff — `git cherry-pick 1c10ff7` from `issue-7-faker` applies
-  cleanly (details: issue #7's closing comment). Branch + version are fixed.
+- **Round 23 (2026-08-13) shipped Remi's whole voice list**; details in
+  REMI_NOTES.md. Structural bits an agent must know: the lobby is HOST-ONLY
+  for rules/bots/kicks (engine `hostId()`, oldest seated conn, `host`/`chat`
+  ride the snap beside `bans`); **Blood Debt 🩶 (key Y) and Genki 💠 (key K)
+  are MAIN spells now** (#1/#12 closed); the arena `--mode=elemental` study is
+  DELETED (rank with elo.js only); Faker+anger is roster row `K5` and tops the
+  table at 2783 (`docs/history/2026-08-13-round23-elo-faker-anger.md`).
+- Issues #1, #7, #12, and Ju's #3/#9/#11 are closed (by Remi's instruction;
+  the agent itself still never closes issues).
 - **Issue #13 is Ju's living iteration thread** — he reopens/edits it for each
   new version. A reopen with NO new comment/body-edit is a no-op: ask, don't
   re-implement (runbook §7 note).
@@ -52,7 +53,9 @@ Agent context usage on this project is **CRITICAL**. The rules:
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   and must NEVER be bypassed; Pages lags pushes by up to ~10 min (CDN).
 - ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-22. Quote
-  `docs/history/2026-08-13-round22.5-elo.md` instead (r353, 41 strategies).
+  `docs/history/2026-08-13-round23-elo-faker-anger.md` (r368, 42 strategies,
+  current balance) or the deeper 8000x2 baseline in
+  `...round22.5-elo.md` (r353, pre-round-23 numbers).
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
   `tools/reconnect-test.js`). Vitest and the `tools/` labs are pure and safe.
@@ -154,7 +157,7 @@ build step, Node ESM, only dep is `ws`.
 | `tools/arena.js` | balance lab: `--isolate=` (points over a price-matched do-nothing; ⚠ saturates at the top in elemental since round 16), `--ladder=`, `--fx=key.field=a,b,c` (sweep without editing), `--mirror=`, self-test (trust it at ≥1600 games). The element-vs-element study was DELETED round 23 (not representative; rank with elo.js). ⚠ `--ruleset=` picks the RULESET and defaults to **elemental** since 21.8 (every arena table printed before that date was classic) |
 | `tools/strategy-study.js` | **the round-16 ranking instrument**: exhaustive shopping strategies in 4-seat mirrors. `--list`, `--kind=stalker`, `--only=`, `--json=` |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g). `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
-| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. STANDARD RUN: `--games=2000 --seed=1` (~5 min; Remi, 2026-08-13). Report RAW numbers only: never re-centre, adjust or otherwise manipulate the Elo in a report (same ruling). Latest table: `docs/history/2026-08-13-round22.5-elo.md` (41 strategies, r353) |
+| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. STANDARD RUN: `--games=2000 --seed=1` (~5 min; Remi, 2026-08-13). Report RAW numbers only: never re-centre, adjust or otherwise manipulate the Elo in a report (same ruling). Latest table: `docs/history/2026-08-13-round23-elo-faker-anger.md` (42 strategies, r368) |
 | `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%), the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
 | `tools/duel.js` | 1v1 gold-matched archetype kits at early/mid/late snapshots. Prices an UPGRADE PATH, blind to multi-target/economy |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity). The Elo table hides tier gaps |

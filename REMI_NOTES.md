@@ -1,67 +1,82 @@
 # Notes for Remi — OpenWarlock & the open web MOBA
 
-*Round 22.2 → 22.4, 2026-08-12 (your first-game feedback, then the shop/Tab
-pass, then the ice rework). Round 22.1 is archived at
-`docs/history/2026-08-12-remi-notes-round-22.1.md`.*
+*Round 23, 2026-08-13 (your voice list: polish, balance, two issue ports, the
+lobby rework, the Faker+anger run). Rounds 22.2-22.4 are archived at
+`docs/history/2026-08-13-remi-notes-rounds-22.2-22.4.md`.*
 
-## 22.4: the ice
+## The quick polish
 
-- **The shared-stacks bug was real, and it was the shield.** Stacks were
-  always private per attacker, but a reflected ball (Shield or Mirror Wall)
-  changed hands entirely, so its frost rider planted stacks under the
-  REFLECTOR's name. Reflect a frost player's balls and their element fed your
-  own freeze counter. Now a ball's riders stay keyed to whoever owns the
-  element (damage and kill credit still go to the reflector, per your
-  round-21.0 "reflect the ball as it was" ruling). Test-locked.
-- **Stack fade, exactly as you specced**: frost, gale and malady piles lose
-  one stack after 9 unfed seconds, the clock restarts after each loss, and
-  landing that element again resets it. Each attacker's pile fades on its own
-  clock. Midas marks and anger claims don't fade (different rhythms). The
-  knob is `STACK_DECAY` in constants.js if 9 s needs tuning after play.
-- ⚠ The old frost/gale/malady lab numbers and the ELO table predate the fade.
+- **Stats panel**: "games finished" is still counted by the relay, just not
+  displayed. The footer sentence stays.
+- **Tab scoreboard**: the backing rectangle is gone; the full-screen dim alone
+  carries readability.
+- **Shop key chips**: the row 1/2 vs row 3 difference was an accident. The
+  sideways OFFENSE/DEFENSE/SPECIAL label stretched each row by a per-word
+  amount and the chip was anchored to the stretched wrapper. Now every chip
+  deliberately overhangs the card edge by the same 6 px on all three rows.
 
-## 22.3: shop fits one screen, scoreboard on Tab
+## Balance (one knob each, both one-line revertible)
 
-The top stats table is gone; hold **Tab** (shop, countdown or battle) for the
-live standings. The whole shop now fits with zero scrolling at normal window
-sizes. Level pips replace the grey "lv N" text, names hold one line
-(Hourglass and Health Amulet got shorter), tooltips no longer flicker.
+- **Lava 14 → 16 DPS** (+~15%), `LAVA.DPS`.
+- **Lava Treads 25/50/65% → 25/40/50%** resist, the cape's exact curve
+  (`ITEM_FX.treads`).
 
-## The invisible-purchase bug: found, and it was a good one
+## Boomerang dodge: the premise was stale
 
-Your guests' gold moved but their boots stayed lv 1. Root cause: the game's
-snapshot hands the delta encoder the sim's LIVE objects (items, spells,
-elements), and the encoder remembered "what I last sent" by reference. A buy
-mutated that shared object, so the encoder's memory of the past changed with
-it, and the diff concluded nothing changed. Gold is a plain number (copied
-each frame), which is exactly the asymmetry you saw. The bug is as old as the
-delta wire but was masked: the every-2-s keyframe silently resynced everyone.
-The 21.11 echo change made healthy links drop those keyframes as duplicates,
-and the staleness became permanent. Fix: the encoder deep-copies its base (a
-few KB per frame, nothing). The regression test round-trips through real JSON,
-because the in-memory version of the same test passes even on broken code.
+Extreme and Faker already dodge boomerangs, both legs, recall included:
+`scanThreats` never filtered by projectile type. Two new tests lock that in,
+and the false claim in STRATEGIES.md is corrected. What remains true: Hard
+bots (the ELO lab's pilots) sidestep NOTHING by design, so boomerang rows in
+the Elo table stay bot-flattered. Per your own rule that is a flag, not a
+number to buff around.
 
-## Your three asks
+## Faker + anger: rank 1 of 42
 
-- **Level pips**: every shop card has a thin bar along its bottom edge, one
-  cell per level, owned cells lit green. Level 0/1/2/3 at a glance for spells,
-  elements and items.
-- **↩ Undo** next to Pause: refunds your last purchase, repeatable back to the
-  start of THIS shop. Buys from earlier rounds are final (the stack is wiped
-  when the round starts). It restores the whole pre-buy state, so side effects
-  like the amulet's max-HP reverse exactly (test-locked).
-- **Instant Continue**: clicking Continue puts YOU in the lobby immediately.
-  The others keep reading the standings (their screen pins the table until
-  they click too); the old 45-second wait-for-everyone is deleted.
+`K5-faker-vendetta` (Faker brain on B3's exact 152 g list: anger 3 first,
+amulet+sword to 3, boots 2, cape 1) lands **Elo 2783, mean place 1.07**,
++101 over the best combo arsenal (K2 2682) and ~+1200 over the same list on
+the Hard brain. It carries zero combo spells, so the tier's edge is the
+piloting, not the combos. No bot chases the anger mark, so 2783 is a floor.
+Standard 2000-game run, raw numbers, single seed (~±40 noise between
+neighbours): `docs/history/2026-08-13-round23-elo-faker-anger.md`.
+The element-vs-element study is DELETED (code and convention); elo.js at
+2000 games is the one ranking instrument now.
 
-## And the em dashes are gone
+## Two versions merged into main
 
-All ~1,690 of them, everywhere outside the append-only archive: full stops or
-brackets instead, judged one by one (data separators became "·"). The rule is
-in AGENTS.md and in my persistent memory, so they stay gone.
+- **Blood Debt 🩶** (issue #1, closed): Defense row, 2 levels 12/6 g, cd
+  15/12 s, absorb everything for 1.25 s, carry it as gray health, transfer it
+  all with your next fireball hit within 5 s or eat it push-less. The boots
+  buff from that version stayed out (it was a test).
+- **Genki 💠** (issue #12, closed), with your redesign: cast anything while
+  charging; a real hit still breaks the charge but is AMPLIFIED by the stored
+  damage (lethal amplify = attacker's kill), ticks still exempt; 3 levels
+  capping damage at 30/60/90 (12/6/6 g); 3 dmg/s; 30% bigger at every charge;
+  at the cap the ball floats until you recast. Pillar-smash (~4 s) and
+  unstoppable (~9 s) stages are reachable at every level. Default key K.
+
+## Lobby: the host owns the room (and avatars chat less)
+
+Rules, bots, kicks and unban now belong to the HOST (oldest seated
+connection; auto-promoted if they drop). Guests keep Playing/Watching, their
+avatar and their own team, and see every rule read-only with a hint line.
+Avatar reactions: every line is half as likely (`FREQ` in chatter.js), all
+bubbles render in one plain style (the bold shout variant is gone), and the
+lobby has a host-set **Reactions On/Off** toggle.
+
+## Issue housekeeping
+
+#1, #7, #12 closed (merged); Ju's #3/#9/#11 closed, #13 stays open as his
+living thread. Closing now belongs to whoever opened the issue; the agent
+only labels `ai:done`.
+
+## Verified
+
+494 vitest green + full ritual (bots/coop harness, client robustness,
+reconnect, arena 4p/8p, slowlink after the wire change). Version r369.
 
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
-cap, Switcheroo names), the Normal/Hard standoff verdict, and whether the demo
-Faker should return to fresh lobbies.
+cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
+Faker returns to fresh lobbies, and a feel pass on lava 16 + the treads nerf.
