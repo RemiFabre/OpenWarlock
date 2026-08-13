@@ -1,10 +1,10 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-14, round 24 (Remi's voice list: vampire mark-and-feast
-rework, Golden Pillar avatar in the Gathering, bot ladder Dummy-first with
-Runner unlisted; all shipped, `docs/history/2026-08-14-round24-vampire-feast.md`).
-Read this first, then REMI_NOTES.md (latest round only). That is the whole
-entry set.*
+*Last updated 2026-08-14, rounds 23.1 + 24, two agents in parallel: 23.1 =
+the playout rewind fix (`docs/history/2026-08-14-playout-rewind.md`), 24 =
+vampire mark-and-feast + Golden Pillar avatar + bot ladder Dummy-first
+(`docs/history/2026-08-14-round24-vampire-feast.md`); all shipped. Read this
+first, then REMI_NOTES.md (latest round only). That is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 
