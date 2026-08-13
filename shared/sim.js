@@ -571,27 +571,30 @@ export function castSpell(state, id, key, tx, ty) {
       // LEAD — kbScale 0 (zero knockback from every source: base, kbAdd riders
       // and gale's gust alike; damage and every on-hit rider are untouched) —
       // and the trailing ball is queued a beat behind on the same aim.
-      // issue #13 v5 (Ju): the owned ball identities STACK onto this cast.
-      // Physics base = Ricochet if owned (bounce rules ride the type), else
-      // Storm Ball, else Dark Ball; the other identities ride as FLAGS the
-      // on-hit hooks read (dark = blind marks, storm = the arc). Storm's
-      // smaller/faster body applies whenever it is owned; Ricochet's doubled
-      // cooldown likewise. Riders/pair/engorge stay off transformed balls.
-      const owned = ['ricochet', 'chainball', 'umbra'].filter(k => (pl.elements[k] || 0) > 0);
-      if (owned.length) {
-        const base = owned[0];
-        const tspec = SPELLS[base];
-        if (owned.includes('ricochet')) pl.cooldowns[key] = cd * ELEMENTS.ricochet.fx.cdMult;
-        const spd = tspec.speed * (base !== 'chainball' && owned.includes('chainball') ? 1.3 : 1);
+      // issue #13 v6 (Ju): the ball identities are INDEPENDENT axes now — no
+      // base-priority composition, nothing conditioned on what else is owned.
+      // Ricochet is the only one that still TRANSFORMS the cast (bouncing is
+      // a projectile type; its doubled cooldown is its own price). Dark and
+      // Storm ride whatever this key fires — flags on a transformed ball
+      // here, and spawnFireball derives the same flags for a real fireball,
+      // which keeps its damage, cadence, vampire/mosquito and stat elements.
+      const ricoLvl = pl.elements.ricochet || 0;
+      if (ricoLvl > 0) {
+        const tspec = SPELLS.ricochet;
+        const stormLvl = pl.elements.chainball || 0;
+        pl.cooldowns[key] = cd * ELEMENTS.ricochet.fx.cdMult;
+        const spd = tspec.speed *
+          (stormLvl ? efxV(ELEMENTS.chainball.fx.projSpeedMult, stormLvl) : 1);
         state.projectiles.push({
-          id: state.nextId++, type: base, owner: id, level: pl.elements[base],
+          id: state.nextId++, type: 'ricochet', owner: id, level: ricoLvl,
           x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
           vx: dx * spd, vy: dy * spd,
           traveled: 0, hit: {}, pierce: false, pierced: 0,
-          radius: tspec.radius * (base !== 'chainball' && owned.includes('chainball') ? 0.7 : 1),
-          ...(base === 'ricochet' ? { life: null } : {}),
-          ...(owned.includes('umbra') && base !== 'umbra' ? { dark: pl.elements.umbra } : {}),
-          ...(owned.includes('chainball') && base !== 'chainball' ? { storm: pl.elements.chainball } : {}),
+          radius: tspec.radius *
+            (stormLvl ? efxV(ELEMENTS.chainball.fx.projRadiusMult, stormLvl) : 1),
+          life: null,
+          ...(pl.elements.umbra > 0 ? { dark: pl.elements.umbra } : {}),
+          ...(stormLvl ? { storm: stormLvl } : {}),
         });
         break;
       }
@@ -939,10 +942,15 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     }
   }
   const radius = spec.radius * (elements && elements.terra
-    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1);
+    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1)
+    // issue #13 v6 (Ju): the Storm axis — 30% smaller, 30% faster, flat
+    * (elements && elements.chainball
+      ? efxV(ELEMENTS.chainball.fx.projRadiusMult, elements.chainball) : 1);
   // ghost lv1/2 (round 16): the fireball's SPEED axis — it just flies faster
   const speed = spec.speed * (elements && elements.ghost
-    ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
+    ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1)
+    * (elements && elements.chainball
+      ? efxV(ELEMENTS.chainball.fx.projSpeedMult, elements.chainball) : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
     // half a body ahead of the caster
@@ -964,6 +972,10 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
     pierced: 0,
     elements, radius,
+    // issue #13 v6 (Ju): Dark and Storm ride the real fireball as the same
+    // flags the on-hit hooks already read on a transformed ball
+    ...(elements && elements.umbra > 0 ? { dark: elements.umbra } : {}),
+    ...(elements && elements.chainball > 0 ? { storm: elements.chainball } : {}),
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
@@ -2860,9 +2872,9 @@ function mosquitoPair(state, pl, trailing) {
 
 // ---- dark ball & storm ball (issue #9, Ju v2) -------------------------------
 
-// Dark Ball: the third hit from the same attacker blacks the victim's screen
-// out. Marks are per attacker->victim (pl._dark) and a blinded victim cannot
-// be re-marked — the blind must be earned again from zero.
+// Dark Ball: the second hit from the same attacker (v6; was the third) blacks
+// the victim's screen out. Marks are per attacker->victim (pl._dark) and a
+// blinded victim cannot be re-marked — the blind must be earned again from zero.
 function umbraMark(state, pr, victim) {
   const spec = SPELLS.umbra;
   const dlvl = pr.dark || pr.level;   // v5: the identity may ride as a flag

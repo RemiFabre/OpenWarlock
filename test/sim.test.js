@@ -7337,11 +7337,11 @@ describe('Ju v2 (issue #9)', () => {
     }
   }
 
-  it('dark ball: the third hit blinds for the level duration; no re-mark while blind', () => {
+  it('dark ball: the second hit blinds for the level duration; no re-mark while blind', () => {
     const state = duo((s, a) => { a.spells.umbra = 2; });
     const b = state.players.p1;
-    umbraHit(state, 2);
-    expect(b._dark.p0).toBe(2);
+    umbraHit(state, 1);
+    expect(b._dark.p0).toBe(1);
     expect(b.blindT).toBe(0);
     umbraHit(state, 1);
     expect(b.blindT).toBeGreaterThan(SPELLS.umbra.blind[1] - 0.5); // lv2 = 2 s
@@ -7549,7 +7549,7 @@ describe('Ju v4 (issue #13)', () => {
     return state;
   }
 
-  it('the ball identities are mutations that STACK (v5), old spells unbuyable', () => {
+  it('the ball identities are INDEPENDENT axes (v6), old spells unbuyable', () => {
     const state = pitch();
     state.phase = 'shop';
     const a = state.players.p0;
@@ -7557,9 +7557,11 @@ describe('Ju v4 (issue #13)', () => {
     expect(buy(state, 'p0', 'ricochet').ok).toBe(true);
     expect(buy(state, 'p0', 'umbra').ok).toBe(true);
     expect(buy(state, 'p0', 'chainball').ok).toBe(true);
+    expect(a.gold).toBe(999 - ELEMENTS.ricochet.costs[0]
+      - ELEMENTS.umbra.costs[0] - ELEMENTS.chainball.costs[0]);  // 10 + 6 + 6
     expect(a.spells.ricochet || 0).toBe(0);   // never a spell any more
-    // one cast composes all three: ricochet physics, dark + storm as flags,
-    // storm's smaller/faster body applied
+    // owning all three: the ball is a ricochet (the one true transform), and
+    // each other axis applies its own effect — dark + storm flags, storm body
     state.phase = 'battle';
     a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 15, 0);
@@ -7571,20 +7573,37 @@ describe('Ju v4 (issue #13)', () => {
     expect(Math.hypot(pr.vx, pr.vy)).toBeCloseTo(SPELLS.ricochet.speed * 1.3, 1);
   });
 
-  it('an owned identity transforms the FIREBALL cast, cooldown rules included', () => {
+  it('v6: dark and storm alone ride a REAL fireball — damage, cadence and body', () => {
+    // storm alone: a true fireball, 30% faster and smaller, storm flag riding
+    const state = pitch((s, a) => { a.elements.chainball = 2; });
+    castSpell(state, 'p0', 'fireball', 15, 0);
+    const pr = state.projectiles.find(p => p.type === 'fireball');
+    expect(pr).toBeTruthy();
+    expect(pr.storm).toBe(2);
+    expect(pr.radius).toBeCloseTo(SPELLS.fireball.radius * 0.7, 5);
+    expect(Math.hypot(pr.vx, pr.vy)).toBeCloseTo(SPELLS.fireball.speed * 1.3, 1);
+    expect(state.players.p0.cooldowns.fireball)
+      .toBeCloseTo(SPELLS.fireball.cooldown[0], 1);   // no ricochet tax
+    // dark alone: an untouched fireball with the blind mark riding
+    const s2 = pitch((s, a) => { a.elements.umbra = 3; });
+    castSpell(s2, 'p0', 'fireball', 15, 0);
+    const pr2 = s2.projectiles.find(p => p.type === 'fireball');
+    expect(pr2).toBeTruthy();
+    expect(pr2.dark).toBe(3);
+    expect(pr2.storm).toBeUndefined();
+    expect(pr2.radius).toBeCloseTo(SPELLS.fireball.radius, 5);
+  });
+
+  it('an owned Ricochet transforms the FIREBALL cast, cooldown tax included', () => {
     const state = pitch((s, a) => { a.elements.ricochet = 2; });
     castSpell(state, 'p0', 'fireball', 15, 0);
     const pr = state.projectiles.find(p => p.type === 'ricochet');
     expect(pr).toBeTruthy();
     expect(pr.level).toBe(2);
+    expect(pr.dark).toBeUndefined();          // independence: no stray flags
     // ricochet's identity keeps its doubled cooldown
     expect(state.players.p0.cooldowns.fireball)
       .toBeCloseTo(SPELLS.fireball.cooldown[0] * 2, 1);
-    // a storm identity fires at the fireball's own cadence
-    const s2 = pitch((s, a) => { a.elements.chainball = 1; });
-    castSpell(s2, 'p0', 'fireball', 15, 0);
-    expect(s2.projectiles.find(p => p.type === 'chainball')).toBeTruthy();
-    expect(s2.players.p0.cooldowns.fireball).toBeCloseTo(SPELLS.fireball.cooldown[0], 1);
   });
 
   it('vomit: the puddle appears AT the cursor, instantly (v5)', () => {

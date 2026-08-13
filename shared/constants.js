@@ -242,19 +242,20 @@ export const SPELLS = {
     long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches, and a hit landed after a bounce deals 35% less. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too.',
   },
   umbra: {
-    // Issue #9 (Ju, v2): the Dark Ball — its third hit on the same victim
-    // BLACKS OUT their screen. The mark count is per attacker->victim pair
-    // (pl._dark), a blinded victim cannot be re-marked while blind, and a bot
-    // victim's perception is cut for the duration (rememberEnemies) so the
-    // effect is not humans-only. Damage is deliberately light: the blind IS
-    // the payload. tier 'power' = the bot shopping guard, like Ricochet.
+    // Issue #9 (Ju, v2): the Dark Ball — the SECOND hit on the same victim
+    // (v6: was the third) BLACKS OUT their screen. The mark count is per
+    // attacker->victim pair (pl._dark), a blinded victim cannot be re-marked
+    // while blind, and a bot victim's perception is cut for the duration
+    // (rememberEnemies) so the effect is not humans-only. Damage is
+    // deliberately light: the blind IS the payload. tier 'power' = the bot
+    // shopping guard, like Ricochet.
     shopHidden: true,   // issue #13 (Ju v4): sold as a MUTATION now
     name: 'Dark Ball', hotkey_retired: 'U', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2.1, speed: 41, radius: 0.8, range: Infinity,
     damage: [5, 6, 7], knockback: [40, 44, 48],
-    blind: [1.5, 2, 2.75], marksToBlind: 3,
-    desc: 'Third hit blinds them.',
-    long: 'A ball of darkness: the third hit on the same enemy blacks out their screen for 1.5 / 2 / 2.75 seconds — they see nothing but their own HUD. A blinded player cannot be marked again until they can see.',
+    blind: [1.5, 2, 2.75], marksToBlind: 2,
+    desc: 'Second hit blinds them.',
+    long: 'A ball of darkness: the second hit on the same enemy blacks out their screen for 1.5 / 2 / 2.75 seconds — they see nothing but their own HUD. A blinded player cannot be marked again until they can see.',
   },
   chainball: {
     // Issue #9 (Ju, v2): the Storm Ball — 70% of a fireball's size, 30%
@@ -266,7 +267,8 @@ export const SPELLS = {
     name: 'Storm Ball', hotkey_retired: 'J', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 2.1, speed: Math.round(41 * 1.3), radius: 0.56, range: Infinity,
     damage: [10, 10, 10], knockback: [40, 44, 48],
-    chainFrac: 0.3, chainRangeMult: 5, packCount: 3, packStun: [0.75, 1, 1.25],
+    // v6 (Ju): the levels buy a LONGER paralysis — same scale as the blind.
+    chainFrac: 0.3, chainRangeMult: 5, packCount: 3, packStun: [1.5, 2, 2.75],
     desc: 'Arcs to everyone nearby.',
     long: 'A small, fast orb (70% of a fireball, 30% quicker). Its hit sends lightning to every enemy within 1.5 victim-widths for 30% of the damage — and if three or more players stand in the arc, all of them are paralysed. It chains off pillars it pops on, too.',
   },
@@ -670,24 +672,25 @@ export const ELEMENTS = {
   // engine of the midas-cdr 86% auto-win (question J). +1 g cap unchanged
   // forever; levels still only buy back the damage/push penalty.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
-  // ---- Issue #13 (Ju v4): the BALL IDENTITIES — mutations that transform the
-  // fireball itself. v5 (Ju): they STACK — one fireball can bounce, arc and
-  // blind at once (castSpell composes them; physics base = ricochet, else
-  // storm, else dark). The physics stay on the hidden SPELLS entries of the
-  // same key; the level here IS the ball's level. Stat elements (ember, gale...) do NOT ride a transformed ball —
-  // the mutation replaces the ball wholesale (Ricochet's v1 rule, kept).
+  // ---- Issue #13 (Ju v4): the BALL IDENTITIES. v6 (Ju): they are INDEPENDENT
+  // fireball axes now — no composed physics, no shared cooldown, nothing
+  // conditioned on what else is owned. Ricochet is the only one that still
+  // TRANSFORMS the ball (bouncing is a projectile type; classic v1 rule: stat
+  // elements do not ride it). Dark and Storm ride ANY ball the fireball key
+  // casts — a real fireball keeps its damage, cadence, vampire/mosquito
+  // rhythms and every stat element. Physics stay on the hidden SPELLS entries.
   ricochet: { name: 'Ricochet', icon: '🎾', maxLevel: 3, costs: [10, 5, 5],
     desc: 'Your fireball bounces.',
-    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. Ball identities stack: they all ride one fireball.',
+    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. Independent of the other identities.',
     fx: { ballTransform: true, cdMult: 2 } },
-  umbra: { name: 'Dark Ball', icon: '🌑', maxLevel: 3, costs: [10, 5, 5],
-    desc: 'Third hit blinds them.',
-    long: 'Your fireball becomes the Dark Ball: the third hit on the same enemy blacks their screen out for 1.5/2/2.75 s. Ball identities stack: they all ride one fireball.',
-    fx: { ballTransform: true } },
-  chainball: { name: 'Storm Ball', icon: '🌩️', maxLevel: 3, costs: [10, 5, 5],
+  umbra: { name: 'Dark Ball', icon: '🌑', maxLevel: 3, costs: [6, 6, 6],
+    desc: 'Second hit blinds them.',
+    long: 'An axis of your fireball: the second hit on the same enemy blacks their screen out for 1.5/2/2.75 s. Independent of the other identities.',
+    fx: {} },
+  chainball: { name: 'Storm Ball', icon: '🌩️', maxLevel: 3, costs: [6, 6, 6],
     desc: 'Arcs to everyone nearby.',
-    long: 'Your fireball becomes the Storm Ball: smaller, 30% faster, and its hit arcs to every enemy within 5x the victim size for 30% of the damage — 3+ bodies in the arc are paralysed. Ball identities stack.',
-    fx: { ballTransform: true } },
+    long: 'An axis of your fireball: 30% faster but 30% smaller, and its hit arcs to every enemy within 5x the victim size for 30% of the damage — 3+ bodies in the arc are paralysed 1.5/2/2.75 s. It chains off pillars too. Independent of the other identities.',
+    fx: { projSpeedMult: 1.3, projRadiusMult: 0.7 } },
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
            long: 'Your first hit marks a target, the next hit on them cashes +1 g. The price: a weaker fireball, until lv3 lifts the penalty.',
