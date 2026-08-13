@@ -139,8 +139,9 @@ const FX = {
     tone({ type: 'sine', f0: 120, f1: 48, dur: 0.5, vol: 0.55 });
   },
 
-  // vampire drain: a wet upward slurp (rising body, breathy noise tail). The
-  // engorged ball is meant to be an event you HEAR land.
+  // vampire drain: a wet upward slurp (rising body, breathy noise tail). A
+  // feast starting is meant to be an event you HEAR (round 24); malady's
+  // infection reuses it.
   drain() {
     tone({ type: 'sawtooth', f0: 180, f1: 520, dur: 0.26, vol: 0.3 });
     tone({ type: 'sine', f0: 90, f1: 330, dur: 0.3, vol: 0.34, t0: 0.02 });

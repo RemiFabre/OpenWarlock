@@ -19,7 +19,7 @@ import {
 import { selectTransport, createRtcHostTransport } from './transport.js';
 import { createGapTracker } from '../shared/snapwire.js';
 import * as analytics from './analytics.js';
-import { $, fin, ICONS, esc, setVisible, toast, fmtNum, statAt } from './ui.js';
+import { $, fin, ICONS, esc, setVisible, toast, fmtNum, statAt, avatarHtml } from './ui.js';
 import {
   bindings, keyOf, keyLabel, spellForKey, isCapturing, closeKeysPanel, initKeys,
 } from './keys.js';
@@ -326,8 +326,15 @@ function onEvent(e) {
       fx.push({ ...e, type: 'infected', at: now, dur: 0.7 });
       playSfx('drain');
       break;
-    // vampire: the engorged ball just paid out. Loud on purpose; this element's
-    // whole design goal is "an EVENT, not a passive trickle"
+    // vampire (round 24): a feast just started; the slurp marks the EVENT.
+    // The per-gulp pips ride vampGulp below, the green +N the lifesteal floater.
+    case 'vampFeast':
+      playSfx('drain');
+      break;
+    // one mark flying home; render.js lerps it from the victim to the vampire
+    case 'vampGulp':
+      fx.push({ ...e, type: 'vampGulp', at: now, dur: 0.35 });
+      break;
     case 'lifesteal':
       pushFloater(e, 'lifesteal', 1.1, now);
       if (e.id === myId) playSfx('drain');
@@ -620,7 +627,8 @@ $('hostBtn').addEventListener('click', doHost);
   for (const av of AVATARS) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.textContent = av;
+    b.innerHTML = avatarHtml(av);   // the Golden Pillar needs its gold span
+    b.dataset.av = av;              // the VALUE, since innerHTML may be markup
     b.addEventListener('click', () => {
       myAvatar = av;
       try { localStorage.setItem('owAvatar', av); } catch { }
@@ -636,8 +644,8 @@ $('avatarBtn').addEventListener('click', () => {
   const taken = new Set(Object.values((s && s.players) || {})
     .filter((p) => p && p.id !== myId).map((p) => p.avatar));
   for (const b of $('avatarGrid').children) {
-    b.disabled = taken.has(b.textContent);
-    b.classList.toggle('sel', !!m && b.textContent === m.avatar);
+    b.disabled = taken.has(b.dataset.av);
+    b.classList.toggle('sel', !!m && b.dataset.av === m.avatar);
   }
   $('avatarPanel').classList.remove('hidden');
 });
@@ -805,12 +813,17 @@ $('againBtn').addEventListener('click', () => {
 // (🎲 random = the server rolls one of the six builds when the bot is seated).
 // The tiers are NAMED now (Easy / Normal / Hard / Extreme, round 12) instead of
 // wearing a star count: ★★ told you nothing about what the bot does, and there
-// are four of them. The list is BOTS in spec order, so a new tier appears here
-// (and in the 🎲 chart below) with no client change at all.
+// are four of them. Round 24 (Remi): SORTED by spec `difficulty` so the ladder
+// reads Dummy → Easy → … → Faker top to bottom, and an `unlisted` tier (the
+// Runner) is a lab tool, not an offer. A new tier still appears here (and in
+// the 🎲 chart below) with no client change at all.
 const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
+const listedBots = () => Object.entries(BOTS)
+  .filter(([, spec]) => !spec.unlisted)
+  .sort(([, a], [, b]) => a.difficulty - b.difficulty);
 {
   const wrap = $('botBtns');
-  for (const [kind, spec] of Object.entries(BOTS)) {
+  for (const [kind, spec] of listedBots()) {
     const group = document.createElement('span');
     group.className = 'botgroup';
     const b = document.createElement('button');
@@ -839,9 +852,8 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
 
 // strategy chart: what each difficulty does and what each build buys
 {
-  const rowsKinds = Object.values(BOTS)
-    .slice().sort((a, b) => a.difficulty - b.difficulty).map(b =>
-      `<tr><td class="stars">${esc(b.label || '')}</td><td>${esc(b.name)}</td><td>${esc(b.desc)}</td></tr>`).join('');
+  const rowsKinds = listedBots().map(([, b]) =>
+    `<tr><td class="stars">${esc(b.label || '')}</td><td>${esc(b.name)}</td><td>${esc(b.desc)}</td></tr>`).join('');
   const rowsBuilds = Object.values(BUILDS).map(b =>
     `<tr><td>${esc(b.name)}</td><td>${b.order.map(k => ICONS[k] || k).join(' ')}</td><td>${esc(b.desc)}</td></tr>`).join('');
   $('botHelpBody').innerHTML = `
@@ -1038,7 +1050,7 @@ function statsTable(fighters, specs, opts = {}) {
       <th class="c-kit">Kit</th></tr></thead>`;
   const who = (p) =>
     `<td class="who"><span class="dot" style="display:inline-block;background:${p.color}"></span>
-      ${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</td>`;
+      ${avatarHtml(p.avatar)} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</td>`;
   const row = (p, i) => {
     const direct = fin(+p.dmgDealt) ? +p.dmgDealt : null;
     const lava = fin(+p.dmgLava) ? +p.dmgLava : null;
@@ -1137,7 +1149,7 @@ function updateUi(s) {
         const div = document.createElement('div');
         div.className = 'pl';
         div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-          <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
+          <span class="who">${avatarHtml(p.avatar)} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
           <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
         // Team number (round 21.3). You set your OWN, plus the bots', so one
         // person can arrange a 2v2 without everybody clicking. Other humans show
@@ -1194,7 +1206,7 @@ function updateUi(s) {
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
-    $('myAvatar').textContent = (m && m.avatar) || '';
+    $('myAvatar').innerHTML = m ? avatarHtml(m.avatar) : '';
     // segmented config: light the segment matching the server's state
     const segOn = (id, val) => {
       for (const b of document.querySelectorAll(`#${id} button`))
@@ -1342,7 +1354,7 @@ function updateUi(s) {
       const rg = fin(+p.roundGold) ? +p.roundGold : null;
       return band + `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
+        <span class="who">${p.id === leadId ? '👑 ' : ''}${avatarHtml(p.avatar)} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">${p.kills || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
         <span class="rgold num ${rg ? '' : 'zero'}">${rg == null ? '' : `+${rg}`}</span>
@@ -1350,7 +1362,7 @@ function updateUi(s) {
     }).concat(specs.map(p =>
       `<div class="r spec ${p.id === myId ? 'me' : ''}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
+        <span class="who">${avatarHtml(p.avatar)} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">👁</span>
         <span class="gold num"></span><span class="rgold num"></span>
       </div>`)).join('');
@@ -1404,15 +1416,16 @@ function updateUi(s) {
     if (onMe && onMe.gale > 0)
       buffs.push(`<span class="buff frost">${ELEMENTS.gale.icon} ` +
         `${onMe.gale}/${ELEMENTS.gale.fx.stacksToTrigger}</span>`);
-    // vampire: count the casts down, so "the next one is the big one" is a thing
-    // you KNOW rather than something you notice afterwards
+    // vampire (round 24): how many marks you have banked across everyone, and
+    // what ONE mark pays right now (your missing hp scales it, live)
     const vampLv = (m.elements && m.elements.vampire) || 0;
     if (vampLv > 0) {
-      const every = ELEMENTS.vampire.fx.chargeEvery;
-      const n = Math.max(0, +m.vampN || 0) % every;
-      const heal = statAt(ELEMENTS.vampire.fx.chargeHeal, vampLv);
+      const vf = ELEMENTS.vampire.fx;
+      const out = playerList.reduce((n, p) => n + ((p.myStacks && p.myStacks.vampire) || 0), 0);
+      const mult = 1 + (vf.lowHpMax - 1) * (1 - Math.max(0, Math.min(1, (+m.hp || 0) / (+m.maxHp || 1))));
+      const gulp = statAt(vf.markHeal, vampLv) * mult;
       buffs.push(`<span class="buff vamp">${ELEMENTS.vampire.icon} ` +
-        (n === every - 1 ? `NEXT BALL · +${heal} hp` : `${n}/${every}`) + '</span>');
+        `${out} mark${out === 1 ? '' : 's'} · +${gulp.toFixed(1)}/gulp</span>`);
     }
     // Vanish: your own invisibility, counted down. `vanishT` is only ever on YOUR
     // player entry (snapshot() strips the whole position for everyone else), so

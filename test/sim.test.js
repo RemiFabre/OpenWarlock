@@ -1407,9 +1407,8 @@ describe('elemental mode', () => {
     expect(a.myStacks).toBeUndefined();
     expect(a.stacksOnMe).toBeUndefined();
     expect(a.angerMarks).toBeUndefined();
-    expect(a.vampN).toBeUndefined();
-    // ...and neither do classic PROJECTILES: pierce/pierced/engorged are all
-    // internal or elemental-only, so the projectile wire is unchanged
+    // ...and neither do classic PROJECTILES: pierce/pierced are internal or
+    // elemental-only, so the projectile wire is unchanged
     castSpell(state, 'p0', 'fireball', 20, 0);
     step(state, DT);
     const pr = snapshot(state, 'p0').projectiles[0];
@@ -2125,27 +2124,25 @@ describe('elemental mode', () => {
     expect(a.mosqDue).toBe(false);
   });
 
-  it('a trailing ball counts as a CAST for vampire, and can be the engorged one', () => {
-    // Remi (round 20.1): "the player should be rewarded for casting, all
-    // every-N counters count", so the trailing ball advances vampN and an
-    // on-threshold trailing ball flies engorged.
-    const f = ELEMENTS.mosquito.fx, vf = ELEMENTS.vampire.fx;
+  it('a trailing ball plants a vampire mark too: the pair banks two', () => {
+    // Round 24: every fireball HIT banks a mark, and Echo's trailing twin is a
+    // real fireball (round 20.1's "all every-N counters count" spirit).
+    const f = ELEMENTS.mosquito.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -20;
     state.pillars = [];
     a.elements = { mosquito: 1, vampire: 1 };
     a.mosqN = f.doubleEvery[0] - 1;      // this cast is the pair's lead
-    a.vampN = vf.chargeEvery - 2;        // lead -> N-1, trailing -> N (engorged)
-    a.hp = a.maxHp - 60;
     a.x = 0; a.y = 0; a.cooldowns = {};
-    b.x = 6; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    // outside feastR so the marks BANK instead of feeding straight back
+    b.x = ELEMENTS.vampire.fx.feastR + 5; b.y = 0;
+    b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 9999; b.hp = 9999;
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(!!state.projectiles[state.projectiles.length - 1].engorged).toBe(false);
+    castSpell(state, 'p0', 'fireball', 30, 0);
     run(state, 1);
-    expect(a.vampN).toBe(vf.chargeEvery);        // the trail advanced the counter
-    expect(a.healLifesteal).toBeCloseTo(vf.chargeHeal[0], 1); // FLAT since 22.5
+    expect(b.stacks.vampire.p0.n).toBe(2);       // lead + trailing, one each
+    expect(a.healLifesteal).toBe(0);             // banked, not paid: no feast yet
   });
 
   // ⚠ Two ROUND 21.0 RULINGS (Remi: "reflect the ball as it was" / "part of the
@@ -2556,42 +2553,197 @@ describe('elemental mode', () => {
 
   // ---- vampire 🧛 -----------------------------------------------------------
 
-  it('vampire 🧛: every Nth CAST is engorged and heals a FLAT amount (22.5)', () => {
+  it('vampire 🧛: hits bank marks that NEVER fade, and the wire shows them', () => {
+    // Round 24: no more every-5th rhythm. Each fireball hit = one mark on that
+    // victim, private like every stack, exempt from STACK_DECAY by design
+    // (Remi: "they stay there until you die or until they die").
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
     a.elements = { vampire: 1 };
-    const dmg = SPELLS.fireball.damage[0];
-    let healed = 0;
-    for (let n = 1; n <= f.chargeEvery; n++) {
+    for (let n = 1; n <= 2; n++) {
       a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
-      a.hp = a.maxHp - 60;                 // room to heal, and no overkill cap
-      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
-      const before = a.hp;
+      // parked OUTSIDE the feast ring, so the marks bank instead of paying out
+      b.x = f.feastR + 5; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+      b.hp = b.maxHp;
       expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
-      const ball = state.projectiles[state.projectiles.length - 1];
-      // only the Nth ball is engorged, and it says so on the wire
-      const engorgedNow = n % f.chargeEvery === 0;
-      expect(!!ball.engorged).toBe(engorgedNow);
-      const wire = snapshot(state, 'p0').projectiles.find(p => p.id === ball.id);
-      expect(wire.engorged).toBe(engorgedNow ? 1 : undefined);
       run(state, 0.4);
-      healed = a.hp - before;
-      if (!engorgedNow) {
-        // regen is the only healing on a plain ball (no Blood Sword owned)
-        expect(healed).toBeLessThan(1);
-      }
+      expect(b.stacks.vampire.p0.n).toBe(n);
+      expect(state.events.some(e => e.t === 'vampMark' && e.id === 'p1')).toBe(true);
     }
-    // the engorged one pays the flat chargeHeal, however hard the ball hits
-    expect(healed).toBeCloseTo(f.chargeHeal[0], 1);
-    expect(a.healLifesteal).toBeCloseTo(f.chargeHeal[0], 1);
+    // no heal has been paid yet: marks are a bank, not a trickle
+    expect(a.healLifesteal).toBe(0);
+    // ...and unlike frost/gale/malady, the pile survives the decay clock
+    b.x = f.feastR + 20; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    a.x = -20; a.y = 0; a.vx = a.vy = 0;
+    run(state, STACK_DECAY.seconds + 1);
+    expect(b.stacks.vampire.p0.n).toBe(2);
+    // the attacker sees their pile on the victim (the generic private-stack
+    // wire: myStacks on their entry), like frost/midas/malady
+    const wire = snapshot(state, 'p0').players.p1;
+    expect(wire.myStacks.vampire).toBe(2);
+  });
+
+  it('vampire 🧛: closing inside feastR vacuums the WHOLE pile, one gulp per tick, scaled by the vampire\'s own missing hp', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    a.hp = a.maxHp - 50;                    // room to heal; missing hp scales it
+    b.x = f.feastR + 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 3, t: 0 } } };   // a banked pile of 3
+    state.events = [];
+    // walk into range: the whole pile is committed at once
+    b.x = f.feastR - 1;
+    step(state, DT);
+    expect(b.stacks.vampire.p0).toBeUndefined();   // the pile left the body
+    expect(state.events.some(e => e.t === 'vampFeast' && e.id === 'p0' && e.n === 3)).toBe(true);
+    // gulps arrive one per gulpEvery seconds, not all at once
+    const afterFirst = a.hp;
+    expect(afterFirst).toBeGreaterThan(a.maxHp - 50);           // first gulp landed
+    run(state, f.gulpEvery * 0.4);
+    expect(a.hp).toBeCloseTo(afterFirst, 3);                    // ...and only the first
+    run(state, f.gulpEvery * 4);
+    // expected total: the spec's own formula, re-read at EVERY gulp (healing
+    // up during the feast damps the later gulps; that is the design)
+    let hp = a.maxHp - 50;
+    for (let i = 0; i < 3; i++) {
+      const mult = 1 + (f.lowHpMax - 1) * (1 - hp / a.maxHp);
+      hp = Math.min(a.maxHp, hp + f.markHeal[0] * mult);
+    }
+    expect(a.hp).toBeCloseTo(hp, 1);
+    expect(a.healLifesteal).toBeCloseTo(hp - (a.maxHp - 50), 1);
+    expect(state.events.filter(e => e.t === 'vampGulp' && e.id === 'p0').length).toBe(3);
+    // the heal pops green numbers like any lifesteal
     expect(state.events.some(e => e.t === 'lifesteal' && e.id === 'p0')).toBe(true);
   });
 
+  it('vampire 🧛: a gulp at death\'s door heals lowHpMax times the full-hp gulp', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 3 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    a.hp = 1;                                // ~all hp missing: the max gulp
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 1, t: 0 } } };
+    step(state, DT);
+    const gulp = a.hp - 1;
+    const mult = 1 + (f.lowHpMax - 1) * (1 - 1 / a.maxHp);
+    expect(gulp).toBeCloseTo(f.markHeal[2] * mult, 1);
+    expect(gulp).toBeGreaterThan(f.markHeal[2] * (f.lowHpMax - 0.2));
+  });
+
+  it('vampire 🧛: a started feast always finishes: escaping the ring pays anyway', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = a.maxHp - 60;
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 5, t: 0 } } };
+    step(state, DT);                          // committed: pile leaves the victim
+    b.x = 100; b.y = 100;                     // blink to the far side of the map
+    run(state, f.gulpEvery * 6);
+    expect(state.events.filter(e => e.t === 'vampGulp' && e.id === 'p0').length).toBe(5);
+    expect(b.stacks.vampire.p0).toBeUndefined(); // nothing grew back
+  });
+
+  it('vampire 🧛: the vampire\'s death voids their marks AND the rest of their feast', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    c.x = 40; c.y = 40; c.vx = c.vy = 0; c.moveTarget = null;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = 1;
+    // a banked pile on c (far away), and a feast just triggered off b (close)
+    c.stacks = { vampire: { p0: { n: 4, t: 0 } } };
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 30, t: 0 } } };
+    step(state, DT);                          // feast starts (and first gulp lands)
+    const gulped = state.events.filter(e => e.t === 'vampGulp').length;
+    expect(gulped).toBeGreaterThan(0);
+    // b turns around and kills the 1-hp vampire mid-drain
+    b.cooldowns = {};
+    a.hp = 0.5;
+    expect(castSpell(state, 'p1', 'fireball', -20, 0)).toBe(true);
+    run(state, 1);
+    expect(a.alive).toBe(false);
+    const gulpedAtDeath = state.events.filter(e => e.t === 'vampGulp').length;
+    run(state, 1);
+    // no gulp after death, and the far pile is gone with its owner
+    expect(state.events.filter(e => e.t === 'vampGulp').length).toBe(gulpedAtDeath);
+    expect(c.stacks.vampire.p0).toBeUndefined();
+  });
+
+  it('vampire 🧛: the victim\'s death does NOT stop a committed feast', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = a.maxHp - 60;
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 4, t: 0 } } };
+    step(state, DT);                          // committed
+    b.hp = 0.0001; b.alive = false;           // the blunt mid-drain death
+    run(state, f.gulpEvery * 5);
+    expect(state.events.filter(e => e.t === 'vampGulp' && e.id === 'p0').length).toBe(4);
+  });
+
+  it('vampire 🧛: no feast through a Vanish (an invisible body is not findable)', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = a.maxHp - 60;
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 3, t: 0 } } };
+    b.vanishT = 2;                            // invisible: the vacuum must not tell
+    run(state, 0.3);
+    expect(b.stacks.vampire.p0.n).toBe(3);
+    expect(a.healLifesteal).toBe(0);
+    b.vanishT = 0;                            // reappear: NOW the feast starts
+    run(state, f.gulpEvery * 5);
+    expect(b.stacks.vampire.p0).toBeUndefined();
+    expect(a.healLifesteal).toBeGreaterThan(0);
+  });
+
+  it('vampire 🧛: a reflected ball never marks the vampire themself', () => {
+    // Riders stay keyed to the element's owner on a reflection (22.4), and a
+    // self-mark would be a free heal battery standing inside your own ring.
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.shieldT = 5;                            // the ball comes straight back
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 2);
+    expect((a.stacks && a.stacks.vampire) || undefined).toBeUndefined();
+    // the shielded reflector was never HIT by the enemy ball, so no mark there
+    // either; nothing anywhere pays a heal
+    expect(a.healLifesteal).toBe(0);
+  });
+
   // Round 16 (Remi): "lifesteal needs a visual indicator". The Blood Sword used
-  // to be deliberately silent (only vampire's engorged ball got the green
+  // to be deliberately silent (only vampire's old engorged ball got the green
   // number) and read as broken because of it; now ANY lifesteal heal >= 1 hp
   // is an event the client turns into a green "+N" over the healed player.
   it('the Blood Sword pops the green lifesteal number too, on the healer', () => {
@@ -2621,57 +2773,21 @@ describe('elemental mode', () => {
     expect(ev.amount).toBeCloseTo(SPELLS.fireball.damage[0] * steal, 1);
   });
 
-  it('vampire pays its flat heal only when damage LANDS, and never from lava (22.5)', () => {
-    const f = ELEMENTS.vampire.fx;
-    const state = elementalBattle(3);
-    const a = state.players.p0, b = state.players.p1;
-    state.players.p2.x = 0; state.players.p2.y = -45;
-    state.pillars = [];
-    a.elements = { vampire: 3 };
-    a.vampN = f.chargeEvery - 1;          // the next cast is the engorged one
-    a.hp = 10;
-    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
-    // 1 hp AND 1 max hp: the rest of the hit is overkill, and regen cannot top
-    // the victim up in the ball's flight time (which would inflate the payout)
-    b.maxHp = 1; b.hp = 1;
-    const before = a.hp;
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(b.alive).toBe(false);
-    // FLAT by design since 22.5: a 1-hp overkill still pays the full heal —
-    // the payout no longer scales with damage at all. Some damage must land,
-    // which the lava half below is the negative case for.
-    const paid = a.healLifesteal;
-    expect(paid).toBeCloseTo(f.chargeHeal[2], 1);
-    expect(before + paid).toBeGreaterThan(a.hp - 1);
-    // ...and the lava pays nothing at all, however engorged you are
-    const hpNow = a.hp;
-    a.healLifesteal = 0;
-    state.arenaRadius = 1;                 // everyone is swimming
-    a.hp = hpNow;
-    run(state, 0.5);
-    expect(a.healLifesteal).toBe(0);
-  });
-
-  it('the vampire charge counter RESETS on a round boundary (unlike anger marks)', () => {
-    const f = ELEMENTS.vampire.fx;
+  it('vampire 🧛: marks and half-drunk feasts die on the round boundary', () => {
     const state = elementalBattle(2);
-    const a = state.players.p0;
+    const a = state.players.p0, b = state.players.p1;
     a.elements = { vampire: 1 };
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(a.vampN).toBe(1);
+    b.stacks = { vampire: { p0: { n: 7, t: 0 } } };
+    a._feasts = [{ from: 'p1', x: 0, y: 0, left: 3, next: state.time + 99 }];
     // end the round the blunt way, then run into the next one
-    state.players.p1.hp = 0.0001;
-    state.players.p1.alive = false;
+    b.hp = 0.0001;
+    b.alive = false;
     run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
     expect(state.round).toBeGreaterThan(1);
-    expect(a.vampN).toBe(0);
-    // and the first cast of the new round is charge 1 of chargeEvery again
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(a.vampN).toBe(1);
-    expect(f.chargeEvery).toBeGreaterThan(1);
+    // pl.stacks is wiped with everything else round-long, and the queue with it
+    expect(b.stacks.vampire).toBeUndefined();
+    expect(a._feasts.length).toBe(0);
+    expect(a.healLifesteal).toBe(0);   // the stale queue never paid
   });
 
   // ---- arcane 🔮 (round 16: cadence lv1/2, on-hit refund lv3) --------------
@@ -7285,17 +7401,16 @@ describe('decoy 👥 (the mirage)', () => {
     expect(state.phantoms.length).toBe(0);
   });
 
-  it('a phantom cast arms NOTHING: no vampire, echo, anger or malady counter', () => {
+  it('a phantom cast arms NOTHING: no echo, anger, malady or vampire effect', () => {
     const state = decoyBattle(2, 'elemental', 2);
     const a = state.players.p0;
     a.elements = { vampire: 1, mosquito: 1, anger: 1, malady: 1, midas: 1 };
     castSpell(state, 'p0', 'decoy', 5, 0);
     expect(state.clones.length).toBe(2);
-    const v0 = a.vampN || 0, m0 = a.mosqN || 0;
+    const m0 = a.mosqN || 0;
     expect(castSpell(state, 'p0', 'fireball', 40, 0)).toBe(true);
     // ONE keypress = ONE tick of every every-Nth counter, whatever the mirages
     // are doing on screen (two phantom balls flew)
-    expect(a.vampN - v0).toBe(1);
     expect(a.mosqN - m0).toBe(1);
     expect(state.phantoms.length).toBe(2);
     // …and the phantoms are not projectiles, so nothing downstream can see them

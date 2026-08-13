@@ -220,7 +220,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     poisonTick: 0,         // malady: damage per tick (flat 1 at every level)
     poisonBy: null,        // malady: who a lethal tick credits (creator or spreader)
     malady: null,          // malady: {inst, by}, the infection riding this body
-    vampN: 0,              // vampire: fireballs CAST this round (every 3rd is engorged)
+    _feasts: [],           // vampire: committed mark-drains in flight (feast engine)
     // anger: marks CLAIMED for the WHOLE GAME (the bonus is permanent;
     // deliberately NOT cleared in startRound, see ELEMENTS.anger)
     angerMarks: 0,
@@ -434,18 +434,6 @@ function worstStack(target, kind) {
   return max;
 }
 
-// Vampire's cast counter: advance it and return this ball's engorged
-// FLAT heal (0 = plain, 22.5). Shared by castSpell and mosquito's trailing
-// ball (round 20.1, Remi: every every-N counter counts the trailing ball).
-function vampireCharge(state, pl) {
-  const vampLv = state.mode === 'elemental' && pl.elements
-    ? (pl.elements.vampire || 0) : 0;
-  if (!vampLv) return 0;
-  pl.vampN = (pl.vampN || 0) + 1;
-  if (pl.vampN % ELEMENTS.vampire.fx.chargeEvery !== 0) return 0;
-  return efxV(ELEMENTS.vampire.fx.chargeHeal, vampLv); // FLAT heal since 22.5
-}
-
 // Ability Haste (round 17, ex-CDR percentages): cd = base / (1 + haste/100),
 // haste SUMS across sources. Additive stacking is the point: hourglass ×
 // arcane used to COMPOUND (midas-cdr 86%, BALANCE.md question J).
@@ -571,12 +559,9 @@ export function castSpell(state, id, key, tx, ty) {
 
   switch (key) {
     case 'fireball': {
-      // Vampire (elemental): the counter runs on YOUR CASTS; every
-      // chargeEvery'th fireball flies engorged and pays back a multiple of the
-      // damage it deals. Round 20.1 (Remi's ruling, "all every-N counters
-      // count"): a mosquito TRAILING ball counts as a cast here too, so it can
-      // itself be the engorged one (it won't render red, accepted; the green
-      // heal tells the story); see the delayed-shot queue in stepBattle.
+      // Vampire (elemental, round 24): no cast counter anymore; the mark rides
+      // the generic on-hit dispatch (applyElementsHit) like frost/midas, and
+      // the payout lives in stepBattle's feast engine.
       //
       // Mosquito (elemental): on the doubleEvery'th cast this ball is the PAIR's
       // LEAD: kbScale 0 (zero knockback from every source: base, kbAdd riders
@@ -584,7 +569,6 @@ export function castSpell(state, id, key, tx, ty) {
       // and the trailing ball is queued a beat behind on the same aim.
       const pair = mosquitoPair(state, pl, false);
       spawnFireball(state, pl, level, dx, dy, {
-        engorged: vampireCharge(state, pl),
         ...(pair ? { kbScale: 0 } : {}),
       });
       if (pair) {
@@ -806,8 +790,8 @@ function spawnClones(state, pl, level) {
 // projectile the real cast produced, offset to the clone's position.
 // ⚠ `phantom: true` is the harness tag; test/harness/check.js must not count
 // these against the caster's cooldown, exactly like mosquito's `trail: true`.
-// Nothing here calls spawnFireball/vampireCharge/mosquitoPair, so no real
-// counter (vampire, mosquito, anger, malady, midas) can ever advance on a mime.
+// Nothing here calls spawnFireball/mosquitoPair, so no real counter or on-hit
+// rider (mosquito, anger, malady, midas, vampire marks) can ever fire on a mime.
 function mimicCast(state, pl, clones, key, dx, dy, spawned) {
   if (!state.phantoms) state.phantoms = [];
   for (const c of clones) {
@@ -819,7 +803,6 @@ function mimicCast(state, pl, clones, key, dx, dy, spawned) {
         vx: pr.vx, vy: pr.vy, traveled: 0,
         ...(pr.radius != null ? { radius: pr.radius } : {}),
         ...(pr.elements ? { elements: pr.elements } : {}),
-        ...(pr.engorged ? { engorged: pr.engorged } : {}),
       });
     }
   }
@@ -893,9 +876,6 @@ function stepClones(state, dt) {
 // opts.kbScale scales this ball's KNOCKBACK only (unset = 1), applied after
 // every element multiplier and after gale's gust, so it is a true kill switch.
 // One user today: mosquito's pair LEAD passes 0 (ELEMENTS.mosquito).
-//
-// opts.engorged (ELEMENTS.vampire) is this ball's FLAT heal on landing
-// (22.5), resolved at cast time so the projectile carries everything it needs.
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
@@ -932,13 +912,12 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     pierced: 0,
     elements, radius,
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
-    ...(opts.engorged ? { engorged: opts.engorged } : {}),
   });
 }
 
 // A ball a mine swallowed, erupting back out point blank (round 21.8). It IS
-// the ball you shot (same level, elements, size, ghost passthrough, even a
-// vampire charge it was carrying); only its position, its aim and its push are
+// the ball you shot (same level, elements, size, ghost passthrough); only its
+// position, its aim and its push are
 // new. Reusing the projectile object is what makes every on-hit rider (ember,
 // malady, frost, gale, anger, midas) pay exactly as if you had landed the shot.
 function spawnStoredBall(state, sh, dx, dy) {
@@ -1225,9 +1204,9 @@ function applyKnockback(state, target, dx, dy, magnitude) {
 // damage (AGENTS.md scar: this element ramped correctly for weeks and still
 // read as broken because +0.45/hit is invisible). Visibility is the feature.
 // `lifesteal` is EXTRA lifesteal for this one hit, on top of whatever the
-// source's items pay (ELEMENTS.vampire's engorged ball). It obeys the same rule
-// as the Blood Sword and deliberately reuses its code path: paid on damage
-// actually dealt, so overkill is excluded, and lava (sourceId null) never pays.
+// source's items pay. It obeys the same rule as the Blood Sword and
+// deliberately reuses its code path: paid on damage actually dealt, so
+// overkill is excluded, and lava (sourceId null) never pays.
 // `procs` says what KIND of damage this is, for the Slow Spoon only:
 //   true    = a hit you landed: the full flat heal
 //   'tick'  = damage over time (malady's sickness, the Hat's burn): a TENTH of
@@ -1247,7 +1226,7 @@ const HEAL_FLOAT_MIN = 1;
 
 function applyDamage(state, target, amount, sourceId,
   { silent = false, stamp = true, bonus = 0, lifesteal: bonusLifesteal = 0,
-    flatHeal = 0, procs = true, bypassDebt = false, noRewards = false,
+    procs = true, bypassDebt = false, noRewards = false,
     unstoppable = false } = {}) {
   if (!target.alive) return false;
   // Statue (round 21.4): ZERO damage from everything while the gold holds:
@@ -1322,9 +1301,6 @@ function applyDamage(state, target, amount, sourceId,
       // proc per victim per hit, so a piercing ball through three bodies pays
       // three times; a DoT tick pays a tenth, rate-limited (see `procs`).
       let flat = 0;
-      // vampire's engorged ball (22.5): a FLAT heal, only if damage landed —
-      // it no longer scales with the damage that already wins games
-      if (flatHeal > 0 && effective > 0) flat += flatHeal;
       if (healOnHit > 0 && effective > 0) {
         if (procs === true) flat = healOnHit;
         else if (procs === 'tick' && spoonTickDue(state, src, target))
@@ -1415,6 +1391,11 @@ function kill(state, target, directSourceId) {
       if (c.owner === target.id) state.events.push({ t: 'decoyGone', id: c.id, x: c.x, y: c.y });
     state.clones = state.clones.filter(c => c.owner !== target.id);
   }
+  // vampire (round 24): your marks and your half-drunk feast die WITH you
+  // ("until you die or until they die"); a committed feast outlives the
+  // VICTIM instead, so only the owner side is cleaned here.
+  target._feasts = [];
+  for (const q of Object.values(state.players)) clearStacks(q, 'vampire', target.id);
   // credit: direct source, else last hitter within the window
   let killerId = directSourceId != null && directSourceId !== target.id ? directSourceId : null;
   // ⚠ RULING (Remi, round 21.8): NO TIME WINDOW. Whoever hit you last owns your
@@ -1577,14 +1558,9 @@ function startRound(state) {
     pl._burns = {};
     pl._spoonTick = {};   // Slow Spoon: the per-victim tick clock is per round
     pl.mosqN = 0; pl.mosqDue = false;
-    // vampire's charge counter resets with the round, exactly like mosquito's
-    // (the other "every Nth cast" mechanic). Deliberate: the rhythm you
-    // are asked to count is "my 3rd fireball of this fight", and carrying a
-    // half-charged counter across a shop would make the first shot of a round
-    // randomly engorged with nothing on screen having explained why. Anger is
-    // the one element that persists, and that is stated in its spec; this one
-    // is not, so it follows the local precedent. Test-locked.
-    pl.vampN = 0;
+    // vampire (round 24): the MARKS die with the round (pl.stacks, wiped
+    // above, like frost's), and so does a half-drunk feast. Test-locked.
+    pl._feasts = [];
     // pl.angerMarks is DELIBERATELY not reset: Anger's claimed-mark bonus is
     // permanent for the whole game (ELEMENTS.anger.fx.rampPermanent). Adding it
     // here would silently delete the element's entire point. The MARK itself
@@ -2113,6 +2089,56 @@ function stepBattle(state, dt) {
     }
   }
 
+  // Vampire feast engine (ELEMENTS.vampire, round 24). Marks are banked by
+  // applyElementsHit like every private stack; this engine does the paying.
+  // A marked enemy inside feastR commits their WHOLE pile at once (⚠ RULING,
+  // Remi: a started feast always finishes; escaping mid-drain changes
+  // nothing). Gulps then land one per gulpEvery seconds, each healing
+  // markHeal × (1 → lowHpMax linear on the vampire's missing hp), re-read at
+  // EVERY gulp, so healing up damps the tail of a big feast by design.
+  // A vanished victim is exempt while hidden (a vacuum that finds an
+  // invisible body is a wallhack tell) and so is a statue (immune to
+  // everything by contract). Death rules live in kill(): the vampire's death
+  // voids their marks and their queue; a committed feast outlives the VICTIM
+  // (the blood already left the body).
+  if (state.mode === 'elemental') {
+    const vf = ELEMENTS.vampire.fx;
+    for (const pl of players) {
+      const lv = pl.elements && pl.elements.vampire;
+      if (!pl.alive || !(lv > 0)) continue;
+      for (const q of players) {
+        if (q === pl || !q.alive || allied(state, pl, q)) continue;
+        if (q.vanishT > 0 || q.statueT > 0) continue;
+        const n = stackCount(q, 'vampire', pl.id);
+        if (!(n > 0)) continue;
+        if (Math.hypot(q.x - pl.x, q.y - pl.y) > vf.feastR) continue;
+        clearStacks(q, 'vampire', pl.id);
+        (pl._feasts = pl._feasts || []).push(
+          { from: q.id, x: q.x, y: q.y, left: n, next: state.time });
+        state.events.push({ t: 'vampFeast', id: pl.id, from: q.id, n, x: q.x, y: q.y });
+      }
+      if (!pl._feasts || !pl._feasts.length) continue;
+      for (const f of pl._feasts) {
+        const src = state.players[f.from];
+        if (src && src.alive) { f.x = src.x; f.y = src.y; } // follow while it can
+        while (f.left > 0 && state.time >= f.next - 1e-9) {
+          f.left--; f.next = state.time + vf.gulpEvery;
+          const mult = 1 + (vf.lowHpMax - 1) * (1 - clamp(pl.hp / pl.maxHp, 0, 1));
+          const before = pl.hp;
+          pl.hp = Math.min(pl.maxHp, pl.hp + efxV(vf.markHeal, lv) * mult);
+          const healed = pl.hp - before;
+          pl.healLifesteal += healed;   // scoreboard column, like all lifesteal
+          // one event per gulp: the client flies a blood pip from (x,y) to the
+          // vampire; the green +N rides the ordinary lifesteal floater below
+          state.events.push({ t: 'vampGulp', id: pl.id, from: f.from, x: round2(f.x), y: round2(f.y) });
+          if (healed >= HEAL_FLOAT_MIN)
+            state.events.push({ t: 'lifesteal', id: pl.id, amount: healed, x: pl.x, y: pl.y });
+        }
+      }
+      pl._feasts = pl._feasts.filter(f => f.left > 0);
+    }
+  }
+
   // Anger mark hunt (elemental VERSUS only; co-op never deals a mark, the
   // campaign is priced without it). Each anger owner has at most ONE mark out:
   // markDelay s into the round, then markEvery s after each claim or after the
@@ -2361,9 +2387,9 @@ function stepBattle(state, dt) {
 
   // Mosquito's TRAILING balls (elemental; the list is empty in classic: the
   // queue is the ex-Echo Stone's, which round 20.1 merged into the element).
-  // A trailing ball is a fully NORMAL fireball: knockback included, and it
-  // counts for BOTH every-N counters (vampire may engorge it, mosquito's own
-  // counter advances), but mosquitoPair's guard means it can never double.
+  // A trailing ball is a fully NORMAL fireball: knockback included, its hits
+  // plant every on-hit rider (a vampire mark too), and mosquito's own counter
+  // advances, but mosquitoPair's guard means it can never double.
   // ⚠ RULING (round 21.0): it leaves from the owner's CURRENT position on the
   // original aim; being moved inside trailDelay really does move the twin.
   if (state.delayedShots && state.delayedShots.length) {
@@ -2375,8 +2401,7 @@ function stepBattle(state, dt) {
       if (owner && owner.alive) {
         mosquitoPair(state, owner, true);
         const projFrom = state.projectiles.length;
-        spawnFireball(state, owner, ds.level, ds.dx, ds.dy,
-          { engorged: vampireCharge(state, owner) });
+        spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
         // decoy (21.6): the mirages throw the twin too, or an Echo owner's
         // pair would count the bodies for the enemy
         const miming = (state.clones || []).filter(c => c.owner === owner.id);
@@ -2736,7 +2761,7 @@ function stepProjectiles(state, dt) {
       // `landed` is false when the hit was absorbed (victim's debt window):
       // nothing happened, so element riders and the swap trade are gated too.
       const landed = applyDamage(state, other, dmg + ramp, pr.owner,
-        { bonus: ramp, flatHeal: pr.engorged || 0 });
+        { bonus: ramp });
       if (landed && pr.elements) applyElementsHit(state, pr, other);
       state.events.push({ t: 'boom', x: pr.x, y: pr.y, spell: pr.type });
 
@@ -2926,6 +2951,16 @@ function applyElementsHit(state, pr, target) {
     // below is frost-specific anyway (it names the 'frost' stack kind and pushes
     // frost/frostBreak events); gale's twin lives in galeHit(), because its
     // payload is knockback and that is resolved before the riders run.
+    // vampire (round 24): every fireball hit banks one mark on the victim,
+    // private like every stack and EXEMPT from STACK_DECAY (marks never fade;
+    // they die with either party, see kill() and the feast engine). Never on
+    // yourself: a reflection keeps riders keyed to the element's owner, and a
+    // self-mark would be a free heal battery inside your own feast ring.
+    if (ek === 'vampire' && eo != null && target.id !== eo) {
+      const n = addStack(target, 'vampire', eo);
+      state.events.push({ t: 'vampMark', id: target.id, by: eo, stacks: n,
+        x: target.x, y: target.y });
+    }
     if (ek === 'frost' && f.stacksToTrigger) {
       const n = addStack(target, 'frost', eo);
       state.events.push({
@@ -3173,9 +3208,6 @@ export function snapshot(state, viewerId = null) {
           maladyR: round2(efxV(ELEMENTS.malady.fx.auraR, p.malady.inst.level)),
         } : {}),
         angerMarks: p.angerMarks || 0, // HUD + scoreboard: claimed marks = the permanent bonus
-        // vampire: casts banked toward the next engorged ball, so the HUD can
-        // count it down for you (2/3 → the next one is the big one)
-        vampN: p.vampN || 0,
         // PRIVATE: only the stacks the VIEWER put on this body. This is the one
         // thing you need to see to play a stacking element (is my frost
         // detonation one hit away, is my midas mark waiting on that target?),
@@ -3251,9 +3283,6 @@ export function snapshot(state, viewerId = null) {
       id: p.id, type: p.type, x: round2(p.x), y: round2(p.y),
       vx: round2(p.vx), vy: round2(p.vy), owner: p.owner,
       ...(p.elements ? { elements: p.elements } : {}),
-      // vampire: the engorged ball must LOOK different; both fields can only
-      // ever be set in elemental mode, so a classic projectile is byte-identical
-      ...(p.engorged ? { engorged: 1 } : {}),
       // genki flies with the size and stage its charge earned (issue #12)
       ...(p.type === 'genki' ? { radius: round2(p.radius), stage: p.stage || 0 } : {}),
     })),

@@ -217,7 +217,11 @@ build step, Node ESM, only dep is `ws`.
   **[30,25,20] s**, slowed again in 22.5; claim = +0.5 fireball dmg forever),
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
   cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
-  vampire=every-5th engorged FLAT heal [10,20,30] (22.5: no damage scaling),
+  vampire=mark-and-feast (round 24: every hit banks a never-fading mark on the
+  victim; stepping inside feastR 7 vacuums the pile back at one mark per 0.1 s,
+  each healing [2,3,4] × 1→3 linear on the vampire's OWN missing hp; a started
+  feast always finishes; marks die with either party; no feast through
+  Vanish/NOPE),
   midas (dmgMult softened to [.7,.85,1] in 22.5). ⚠ FIREBALL RANGE IS 50 since
   22.5 (was infinite): balls fizzle past `SPELLS.fireball.range`, reflections
   restart the meter.

@@ -258,8 +258,8 @@ export const ROSTER = {
       ['amulet', 2], ['sword', 3], ['boots', 1]],
   },
   'D4-leech': {
-    family: 'D', fantasy: 'Every 5th ball is a feast, and the trap volley speeds the count.',
-    tests: 'the vampire×mosquito cast-counting ruling; sustain stacking',
+    family: 'D', fantasy: 'Every hit banks a blood mark; dive in low and drink the pile back.',
+    tests: 'the round-24 mark-and-feast vampire; pair volume as mark income',
     core: [['vampire', 2], ['mosquito', 1], ['sword', 1], ['vampire', 3],
       ['mosquito', 2], ['amulet', 1], ['sword', 2], ['amulet', 2], ['mosquito', 3], ['sword', 3], ['amulet', 3]],
   },

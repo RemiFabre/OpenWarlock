@@ -1,6 +1,6 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint, AVATAR_GOLD } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
@@ -68,14 +68,14 @@ const ELEM_CORE = {
   // anger: the red ball IS the brand; the core shifts hard toward red
   anger: '#ff5040',
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
-  // arterial red (and it also gets the engorged halo below)
+  // arterial red
   ghost: '#dcd6ff', vampire: '#e0405a',
 };
 
 // Round 17 §12: the fireball is ONE additive stack of layers, in draw order:
 //   base ball (terra sizes it, the strongest rider tints it)
 //   → element accents (one per element the ball carries, they compose)
-//   → event overlay (engorged, which also owns the BASE color).
+//   → element accents compose freely (no event overlay since round 24).
 // (The old momentum tier wings are GONE. Remi: the giant tier balls LOOKED
 // like they hit but didn't. Every accent stays near the true hitbox radius.)
 // Both readings matter: the owner sees the build they bought fly, a defender
@@ -180,9 +180,8 @@ const ACCENTS = {
       ctx.stroke();
     }
   },
-  // lifesteal: an arterial crescent. Every chargeEvery'th cast the ball also
-  // goes engorged, and that overlay is the loud one; this is the "I own
-  // vampire" tell on the ordinary balls between charges.
+  // the "I own vampire" tell: an arterial crescent riding every ball (round
+  // 24: hits bank blood marks; the feast ring around the BODY is the loud part)
   vampire: (ctx, x, y, r, lv, ang) => {
     ctx.strokeStyle = 'rgba(224, 64, 90, 0.8)';
     ctx.lineWidth = 2;
@@ -202,28 +201,6 @@ const ACCENTS = {
     }
   },
 };
-
-// Vampire's engorged ball (every chargeEvery'th cast; 5 since round 16): an
-// halo with a 🧛 rider. It keeps every other layer; only the base color is
-// taken over, because "this one heals them for a lot" outranks any tint.
-function drawEngorged(ctx, x, y, r, t) {
-  ctx.save();   // this block sets textAlign/baseline; the fx pass draws damage
-                // numbers without setting them itself
-  const pulse = 0.7 + 0.3 * Math.sin(t * 22);
-  ctx.strokeStyle = `rgba(255, 40, 70, ${0.65 + 0.35 * pulse})`;
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(x, y, r * 2.9 * pulse, 0, TAU); ctx.stroke();
-  const bg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.6);
-  bg.addColorStop(0, `rgba(255, 40, 70, ${0.42 * pulse})`);
-  bg.addColorStop(1, 'rgba(180, 0, 40, 0)');
-  ctx.fillStyle = bg;
-  ctx.beginPath(); ctx.arc(x, y, r * 3.6, 0, TAU); ctx.fill();
-  ctx.font = `${Math.round(Math.max(11, r * 1.6))}px serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🧛', x, y - r * 3.2);
-  ctx.textBaseline = 'alphabetic';
-  ctx.restore();
-}
 
 export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   if (vs) view.fitArena(vs.startRadius);   // arena size is per-game (round 21.2)
@@ -524,7 +501,6 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       // base tint: the strongest rider element, unless an event takes it over
       let core = '#ffab40', coreLv = 0;
       if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
-      if (pr.engorged) core = '#ff2340';
       // base ball: trail + core glow, both tinted (anger's red core comes from
       // ELEM_CORE; the earned bank never inflates the ball's apparent size)
       const tail = 4;
@@ -536,9 +512,9 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
       ctx.lineTo(x, y); ctx.stroke();
       const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
-      glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
+      glow.addColorStop(0, '#fff3c8');
       glow.addColorStop(0.35, core);
-      glow.addColorStop(1, pr.engorged ? 'rgba(200, 0, 30, 0)' : 'rgba(255, 90, 20, 0)');
+      glow.addColorStop(1, 'rgba(255, 90, 20, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
       // accents stack: every element the ball carries paints its own tell
@@ -546,7 +522,6 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         const accent = ACCENTS[k];
         if (accent && el[k] > 0) accent(ctx, x, y, r, el[k], ang, t);
       }
-      if (pr.engorged) drawEngorged(ctx, x, y, r, t);
     } else if (pr.type === 'genki') {
       // issue #12: the omega ball; radius-TRUE (its hitbox IS the show),
       // tinted by stage, with a slow inner swirl so it reads alive
@@ -676,6 +651,22 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.stroke();
     }
+    // Vampire feast ring (round 24): radius-TRUE like the Hat's, PUBLIC by
+    // design (Remi: "people see your range too"), and deliberately NOT the
+    // Hat's look, so owning both never confuses: dotted, dark blood red, no
+    // warm fill, and it breathes on its own slower clock. Skipped while
+    // vanished for the same stealth ruling as the Hat's ring.
+    const vampRingLv = pl.elements && pl.elements.vampire;
+    if (vampRingLv > 0 && !hidden) {
+      const vr = ELEMENTS.vampire.fx.feastR * scale;
+      const vb = 0.75 + 0.25 * Math.sin(now / 900);
+      ctx.save();
+      ctx.setLineDash([5, 6]);
+      ctx.strokeStyle = `rgba(200, 40, 70, ${0.38 * vb})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, vr, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
 
     // lava tint / shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -738,7 +729,17 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#fff';
-      ctx.fillText(String(pl.avatar || '🧙'), x, y);
+      // the Golden Pillar avatar: the moai through NOPE's gold filter. On an
+      // engine without ctx.filter the set is a silent no-op and the plain
+      // moai draws, which is an acceptable body, not a blank.
+      if (pl.avatar === AVATAR_GOLD) {
+        ctx.save();
+        ctx.filter = 'sepia(1) saturate(5.5) hue-rotate(-12deg) brightness(1.12)';
+        ctx.fillText('🗿', x, y);
+        ctx.restore();
+      } else {
+        ctx.fillText(String(pl.avatar || '🧙'), x, y);
+      }
       ctx.textBaseline = 'alphabetic';
     }
 
@@ -874,6 +875,27 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.arc(px - 1, py - 1, 1.1, 0, Math.PI * 2);
       ctx.fill();
     }
+    // Vampire blood marks (round 24): this body owes you a feast. Upper-LEFT
+    // diagonal (the last free slot around a body: frost top, gale bottom,
+    // midas right, malady left, anger upper-right). The pile is unbounded, so
+    // past 1 the count is a NUMBER next to the drop, not more dots.
+    if (mine && mine.vampire > 0) {
+      const px = x - r * 1.24, py = y - r * 1.24;
+      ctx.fillStyle = 'rgba(200, 40, 70, 0.95)';
+      ctx.strokeStyle = 'rgba(90, 5, 20, 0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      if (mine.vampire > 1) {
+        ctx.save();
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(255, 200, 210, 0.95)';
+        ctx.fillText(String(mine.vampire), px + 5, py);
+        ctx.restore();
+      }
+    }
     if (pl.charging) {
       // repulse wind-up: hard-blinking double ring; VERY visible on purpose
       const on = Math.sin(now / 70) > 0;
@@ -950,7 +972,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   }
 
   // --- fx ---
-  drawFx(view, fx, now, worldAlpha);
+  drawFx(view, fx, now, worldAlpha, vs);
 
   ctx.globalAlpha = 1;
   drawBanners(view, vs, players, myId);
@@ -1121,7 +1143,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.restore();
 }
 
-function drawFx(view, fx, now, baseAlpha = 1) {
+function drawFx(view, fx, now, baseAlpha = 1, vs = null) {
   const { ctx, scale } = view;
   for (const f of fx) {
     if (!f) continue;
@@ -1131,6 +1153,29 @@ function drawFx(view, fx, now, baseAlpha = 1) {
     if (!(fin(f.x) && fin(f.y))) continue; // skip malformed events
     const a = 1 - k;
     switch (f.type) {
+      case 'vampGulp': {
+        // one blood mark flying home: victim (f.x/f.y) → the vampire's CURRENT
+        // body, resolved every frame so the pip tracks a moving drinker; if the
+        // vampire left the wire (died mid-flight), the pip just fades in place
+        const dst = vs && Array.isArray(vs.players)
+          ? vs.players.find(p => p && p.id === f.id) : null;
+        const x0 = view.sx(f.x), y0 = view.sy(f.y);
+        const x1 = dst && fin(dst.x) ? view.sx(dst.x) : x0;
+        const y1 = dst && fin(dst.y) ? view.sy(dst.y) : y0;
+        const e = k * k * (3 - 2 * k);              // ease: leaves slow, lands fast
+        const px = x0 + (x1 - x0) * e, py = y0 + (y1 - y0) * e;
+        ctx.fillStyle = `rgba(220, 50, 80, ${0.9 * a + 0.1})`;
+        ctx.beginPath(); ctx.arc(px, py, 3.4 * (0.8 + 0.4 * a), 0, Math.PI * 2); ctx.fill();
+        // a short trailing streak back toward the victim
+        ctx.strokeStyle = `rgba(220, 50, 80, ${0.35 * a})`;
+        ctx.lineWidth = 2;
+        const bk = Math.max(0, e - 0.12);
+        ctx.beginPath();
+        ctx.moveTo(x0 + (x1 - x0) * bk, y0 + (y1 - y0) * bk);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        break;
+      }
       case 'boom': {
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.strokeStyle = `rgba(255, 150, 60, ${a})`;
@@ -1193,7 +1238,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       case 'lifesteal': {
         // lifesteal payout, on the HEALER's body: a big green "+N hp" and a
         // rising blood ring. Round 16 (Remi): EVERY lifesteal heal >= 1 hp gets
-        // this (Blood Sword included, not just vampire's engorged ball). The
+        // this (Blood Sword and vampire gulps included alike). The
         // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
         const amt = Math.round(+f.amount || 0);

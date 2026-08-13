@@ -7,6 +7,8 @@
 // not be a lint warning, it would be a blank page: an arrow-function `const`
 // read during module init throws when its module is still evaluating.
 
+import { AVATAR_GOLD } from '../shared/constants.js';
+
 export const $ = (id) => document.getElementById(id);
 
 export const fin = Number.isFinite;
@@ -36,6 +38,15 @@ export const ICONS = {
 
 export function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// One avatar needs markup: the Golden Pillar (AVATAR_GOLD) renders as NOPE's
+// gold-tinted moai everywhere HTML is injected. Use this instead of
+// esc(p.avatar) at every site that shows an avatar, or the gold one shows its
+// raw sparkle fallback there.
+export function avatarHtml(av) {
+  if (av === AVATAR_GOLD) return '<span class="goldicon">🗿</span>';
+  return esc(av || '🧙');
 }
 
 export function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }

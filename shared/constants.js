@@ -155,9 +155,14 @@ export const MULTIKILL_NAMES = [
 // SHARED because the engine assigns a random FREE one to a joiner who did not
 // pick, and refuses duplicates (one face per warlock in a lobby). The old 12
 // are all still here, so every saved owAvatar keeps working.
+// The Golden Pillar (round 24, Remi: "The Gathering has the pillar, add the
+// golden pillar too"). The VALUE carries a sparkle so an untranslated site
+// still shows something sensible; every real render site swaps it for NOPE's
+// gold-tinted moai (avatarHtml/.goldicon in HTML, ctx.filter on canvas).
+export const AVATAR_GOLD = '🗿✨';
 export const AVATARS = [
   '🧙', '🧙‍♀️', '🧝', '🧛', '🧞‍♂️', '🧜‍♀️', '🥷', '🦹', '🧚', '🧟',
-  '💀', '☠️', '👻', '🎃', '👹', '👺', '😈', '👿', '🤡', '🗿',
+  '💀', '☠️', '👻', '🎃', '👹', '👺', '😈', '👿', '🤡', '🗿', AVATAR_GOLD,
   '🤖', '👽', '🐉', '🐲', '🦂', '🐍', '🦇', '🦉', '🦅', '🦊',
   '🐺', '🐗', '🦈', '🐊', '🦖', '🦍', '🐙', '🕷️', '🐢', '🐸',
   '⚡', '🔥', '❄️', '🌪️', '☄️', '🌑', '🔮', '🧿', '🎭', '👁️',
@@ -706,17 +711,20 @@ export const ELEMENTS = {
            long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns (never the fireball\'s own).',
            fx: { haste: [18, 32, 32], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
-  // Every 5th fireball engorged: a flat heal on landing (22.5); an EVENT, not a
-  // trickle. As specced it won 74.7%; retuned across BOTH knobs (every 5 × 0.7).
-  // ⚠ Lifesteal pays only on damage ACTUALLY dealt (no lava/overkill); test it.
-  // ⚠ Probably bot-over-measured; chargeEvery/chargeHeal are one-line levers.
-  // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire
+  // Round 24 (Remi): mark-and-feast. Damage-scaled healing made vampire a
+  // high-damage-only pick (22.5's fix), the flat every-5th heal made it a
+  // high-FREQUENCY-only pick; both were the same too-strong synergy. Now the
+  // heal is gated on PROXIMITY and on the vampire's own missing hp instead:
+  // every fireball hit banks a mark on that victim (never fades, dies with
+  // either of you); stepping inside feastR vacuums the whole pile back, one
+  // mark per gulpEvery seconds, each healing markHeal × (1 → lowHpMax as your
+  // own hp runs out, linear, read at each gulp). feastR 7 = Hat of Aura lv3.
+  // ⚠ A started feast always finishes: escaping the ring mid-drain pays anyway.
+  // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire (old)
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Burst lifesteal.',
-           // Round 22.5 (Remi): the % of damage scaled too well with the
-           // high-damage builds that already dominate. FLAT heal now.
-           long: 'Every 5th fireball is engorged: landing it heals you a flat amount.',
-           fx: { chargeEvery: 5, chargeHeal: [10, 20, 30] } },
+           desc: 'Mark, then feast.',
+           long: 'Your fireball hits leave blood marks that never fade. Get close and every mark on that enemy flies back to you, healing 2/3/4 each, up to tripled the lower your own hp.',
+           fx: { markHeal: [2, 3, 4], feastR: 7, gulpEvery: 0.1, lowHpMax: 3 } },
   // (Chronos, refund on ANY landed spell, was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
   // c38730f:shared/constants.js.)
@@ -802,10 +810,13 @@ export const BOTS = {
   // Issue #7: the sparring partner, not a difficulty. It fights until the first
   // hit of the round lands on it, then runs from whoever hit it, and it NEVER
   // casts a mobility or defensive spell, so a combo that lands on it landed
-  // because it was a combo. Not in the lobby dropdown (see MODES/BOT list).
+  // because it was a combo.
+  // Round 24 (Remi): `unlisted` pulls it OUT of the lobby picker and chart (it
+  // muddied the difficulty ladder); the kind itself stays for the combo lab
+  // and the Faker arsenals. The engine still accepts addBot for it.
   runner:    { name: 'Runner', label: 'Runner', difficulty: 2, brain: 'runner',
                react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0,
-               spar: true,
+               spar: true, unlisted: true,
                desc: 'A sparring dummy (Remi\'s spec): it stands perfectly still until the first hit lands on it, then it just runs. It never casts anything, so whatever chains onto it was a real combo.' },
   // Round 22 (Remi): the immobile training tier. Unlike the Runner it never
   // reacts AT ALL: no step, no cast, hit or not. It still takes knockback,
@@ -877,7 +888,7 @@ export const BUILDS = {
     order: ['fireball', 'ember', 'ember', 'sword', 'amulet', 'ember', 'sword', 'amulet',
       'arcane', 'arcane', 'sword', 'amulet', 'boots', 'boots', 'cape'] },
   leech: { name: 'Leech',
-    desc: 'Heals off your face: every 5th ball is a feast, every tap trickles life back. Burst it down between feasts. Elemental picks: vampire, mosquito.',
+    desc: 'Heals off your face: hits bank blood marks, then it dives in to vacuum them back as healing. Burst it while it is low; that is when it feeds hardest. Elemental picks: vampire, mosquito.',
     order: ['fireball', 'vampire', 'vampire', 'mosquito', 'sword', 'vampire', 'mosquito',
       'spoon', 'amulet', 'sword', 'spoon', 'amulet', 'mosquito', 'sword', 'amulet', 'boots'] },
   executioner: { name: 'Executioner',
