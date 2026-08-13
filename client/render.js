@@ -877,14 +877,11 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const x = view.sx(pl.x);
     const y = view.sy(pl.y) - r - 30 - age * 8;   // drifts up as it fades
     // Remi (issue #4, second pass): "too visible and takes too much space";
-    // a bit smaller and just white letters with no background". So: no box, no
-    // border, no tail, no colour. The only thing left carrying the intensity is
-    // the WEIGHT (a shout is bold, an ordinary line is not), which is the same
-    // signal the upper/lower case already gives.
-    const shout = b.text === b.text.toUpperCase();
+    // a bit smaller and just white letters with no background". Round 23: one
+    // uniform plain style; the upper/lower case alone carries the intensity.
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.font = `${shout ? 'bold ' : ''}${shout ? 11 : 10}px ui-sans-serif, system-ui`;
+    ctx.font = '10px ui-sans-serif, system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';

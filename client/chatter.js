@@ -22,6 +22,10 @@ const FLY_GAP_MS = 3500;
 
 const pick = (list, rng) => list[Math.floor(rng() * list.length) % list.length];
 
+// Global damper on every line, rare ones included (Remi round 23: "a bit too
+// common"). 1 restores the issue-4 frequencies.
+const FREQ = 0.5;
+
 // The lines. Each entry: what is said, how likely, and whether it shouts.
 // ⚠ Remi (second pass): keep them SHORT (a long line eats the arena). Nothing
 // here goes past ~14 characters.
@@ -78,9 +82,9 @@ export function createChatter(rng = Math.random) {
     const spec = LINES[key];
     if (!spec || id == null) return;
     if (!spec.rare) {
-      if (rng() > spec.p) return;
+      if (rng() > spec.p * FREQ) return;
       if (now - (lastSpoke.get(id) || -Infinity) < SPEAKER_GAP_MS) return;
-    } else if (spec.p < 1 && rng() > spec.p) return;
+    } else if (rng() > spec.p * FREQ) return;
     lastSpoke.set(id, now);
     // one bubble per speaker: a new line replaces the old, never stacks on it
     const i = bubbles.findIndex(b => b.id === id);
