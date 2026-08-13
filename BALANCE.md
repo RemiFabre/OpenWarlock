@@ -180,12 +180,13 @@ stated, every number a one-line revert)**:
   low-damage utility builds that lifesteal ignores. Item shelf 126 → **147 g**.
 - **Meteor lv2 damage 24 → 30.** Gale's gust and the cape kept their 21.7 values.
 - 🔧 **Three labs were dead since round 20.2 and are fixed.** Retiring the legacy
-  six builds left `bruiser` named in the DEFAULTS of `arena.js --mode=elemental`,
-  `h2h.js` and `coop.js`; `BUILDS.bruiser` is undefined, so those runs threw
-  "not iterable" and nobody could have used them since. The elemental study now
-  rides `warlord` (`ELEMENTAL_STUDY_BUILD`), h2h defaults to it too, and an
-  unknown build name now THROWS BY NAME instead of resolving to an empty list.
-  A silent empty build is a table of numbers measuring seats that buy nothing.
+  six builds left `bruiser` named in lab DEFAULTS (`h2h.js`, `coop.js`, the
+  since-deleted elemental study); `BUILDS.bruiser` is undefined, so those runs
+  threw "not iterable" and nobody could have used them since. h2h defaults to
+  `warlord` now, and an unknown build name THROWS BY NAME instead of resolving
+  to an empty list. A silent empty build is a table of numbers measuring seats
+  that buy nothing. (Round 23, Remi: the element-vs-element study itself was
+  deleted; identical-build mirrors are not the game, rank with `tools/elo.js`.)
 - 🔧 **The arena lab now defaults to the ruleset the game defaults to.**
   `createGame` has defaulted to **elemental** for a long time; `arena.js` still
   played **classic**, so every Elo/mirror/item-pick table it has ever printed
@@ -263,7 +264,8 @@ A/B MUST use `caps: {other: 0}`. Without it the pair prices buy ORDER and
 produces a plausible, wrong table.
 
 ⚠ The paragraphs below this line describe the SUPERSEDED r219 table and are kept
-for the round-21 diffs they explain. Instrument: `node tools/elo.js --games=8000 --seed=1`: random
+for the round-21 diffs they explain. Instrument: `tools/elo.js` (that run used
+8000 games; ⚠ the STANDARD run is `--games=2000 --seed=1` since 2026-08-13): random
 4-of-roster Hard lobbies in elemental, Bradley-Terry over all pairwise
 placements, **1500 = roster average, +173 ≈ a 73% pairwise favourite**.
 ⚠ **It is a RANKING, not a strength meter**: the fit pins the average at 1500,
@@ -370,10 +372,11 @@ instead of 1.4/1.92/2.45 × damage, midas `dmgMult` [0.5,0.75,1] → [0.7,0.85,1
 
 **Measured: `docs/history/2026-08-13-round22.5-elo.md`** (r353, the standing
 table above). Per-change reads, all two-seed:
-- **anger**, elemental study win% vs a 25% baseline: **92.3/91.0 → 83.3/84.1**.
-  Real, and still 20 points clear of every other element. Question K stands:
-  flag it, do not number-nerf around it.
-- **stack fade**, same study, fade on vs off: **malady −4.9/−7.3**, frost and
+- **anger**, element-mirror win% vs a 25% baseline (⚠ instrument DELETED round
+  23, do not re-run): **92.3/91.0 → 83.3/84.1**. Real, and still 20 points
+  clear of every other element. Question K stands: flag it, do not number-nerf
+  around it.
+- **stack fade**, same deleted study, fade on vs off: **malady −4.9/−7.3**, frost and
   gale inside the instrument's churn (~7 points). ⚠ The fade punishes poke-and-
   leave, which bots never do (a Hard bot re-feeds a pile every ~2 s from a ring
   of 8.5), so this is a FLOOR.
@@ -447,12 +450,9 @@ draft; teaching bots to BUY them is still open.
 ## How to reproduce
 
 ```bash
-node tools/arena.js --mode=elemental --games=800 --seed=1     # the mixed table (and --seed=7)
 node tools/arena.js --ladder=all --games=1500 --seed=1        # the item ladder
 node tools/arena.js --ladder=sword --games=1500 --seed=1 --fx=sword.lifesteal=0.12,0.20,0.28
-node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markEvery=16,12,8
-node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markDmg=0.3
-node tools/elo.js --games=8000 --seed=1                       # THE strategy ranking (and --seed=2), ~20 min each
+node tools/elo.js --games=2000 --seed=1                       # THE strategy ranking, ~5 min (Remi's standard run)
 node tools/roster.js                                         # roster cost check (--doc regenerates docs/ARCHETYPES.md)
 node tools/strategy-study.js --games=4000 --seed=1            # the older strategy table (and --seed=7)
 node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme column

@@ -169,63 +169,10 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   };
 }
 
-// ---- elemental study --------------------------------------------------------
-// Sanity check for the experimental ruleset: mirror games (all seats the same
-// combat profile + build) where only the element pick differs, so any
-// degenerate element (e.g. a midas gold snowball) shows up as a win-rate or
-// gold outlier. Not a tuning tool; a smoke alarm.
-
-// the shared build every elemental-study seat runs, so the element is the only
-// difference between seats (round 21.8: `bruiser` retired, `warlord` replaces it)
-export const ELEMENTAL_STUDY_BUILD = 'warlord';
-
-export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, log = progress } = {}) {
-  const elements = Object.keys(ELEMENTS);
-  const wins = Object.fromEntries(elements.map(e => [e, 0]));
-  const played = Object.fromEntries(elements.map(e => [e, 0]));
-  const placeSum = Object.fromEntries(elements.map(e => [e, 0]));
-  const goldSum = Object.fromEntries(elements.map(e => [e, 0]));
-  const killSum = Object.fromEntries(elements.map(e => [e, 0]));
-  const rand = makeRng(seed);
-  let unfinished = 0;
-  const t0 = Date.now();
-
-  for (let g = 0; g < games; g++) {
-    const pool = [...elements];
-    const lineup = [];
-    for (let i = 0; i < playersPerGame; i++) {
-      const el = pool.splice(Math.floor(rand() * pool.length), 1)[0];
-      // ⚠ was `bruiser` (retired round 20.2, which is what broke this study).
-      // warlord is its successor: the plain damage-and-sustain yardstick, so
-      // the seats still differ ONLY by their element.
-      lineup.push({ id: `${kind}+${el}`, kind, build: ELEMENTAL_STUDY_BUILD, element: el });
-    }
-    const res = playGame(lineup, seed * 100000 + g, { mode: 'elemental' });
-    if (!res.finished) { unfinished++; continue; }
-    res.ranking.forEach((r, place) => {
-      const el = lineup[r.idx].element;
-      played[el]++;
-      placeSum[el] += place + 1;
-      goldSum[el] += r.gold;
-      killSum[el] += r.kills;
-      if (place === 0) wins[el]++;
-    });
-    if ((g + 1) % 50 === 0) log(`  ${g + 1}/${games} elemental games (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
-  }
-
-  const table = elements.map(e => ({
-    element: e, games: played[e],
-    winRate: played[e] ? wins[e] / played[e] : 0,
-    avgPlace: played[e] ? placeSum[e] / played[e] : 0,
-    avgGold: played[e] ? goldSum[e] / played[e] : 0,
-    avgKills: played[e] ? killSum[e] / played[e] : 0,
-  })).sort((a, b) => b.winRate - a.winRate);
-
-  return {
-    kind, games, playersPerGame, unfinished, expectedWinRate: 1 / playersPerGame,
-    seconds: (Date.now() - t0) / 1000, table,
-  };
-}
+// The old "elemental study" (--mode=elemental, element-vs-element mirror games)
+// was DELETED in round 23 (Remi): identical-build mirrors are not the game
+// people play and its tables kept getting quoted as balance evidence. Rank with
+// tools/elo.js instead.
 
 // ---- Elo ----------------------------------------------------------------------
 
@@ -698,20 +645,9 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     process.exit(1);
   }
 
-  const mode = (process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1];
-  if (mode === 'elemental') {
-    const kind = (process.argv.find(a => a.startsWith('--kind=')) || '').split('=')[1] || 'berserker';
-    console.error(`elemental study: ${games} games of ${playersPerGame} × ${kind}, elements only differ, seed ${seed}`);
-    const res = runElementalStudy({ kind, games, playersPerGame, seed });
-    console.log(`\n=== elemental: all ${kind}/${ELEMENTAL_STUDY_BUILD}, element pick differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
-    console.log('win%   avg-place  avg-gold  avg-kills  games  element');
-    for (const r of res.table)
-      console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${r.avgGold.toFixed(1).padStart(8)}  ${r.avgKills.toFixed(1).padStart(9)}  ${String(r.games).padEnd(6)} ${r.element}`);
-    if (res.unfinished) console.log(`(unfinished games: ${res.unfinished})`);
-    console.log(`${res.seconds.toFixed(1)}s total`);
-    const jsonPathE = (process.argv.find(a => a.startsWith('--json=')) || '').split('=')[1];
-    if (jsonPathE) fs.writeFileSync(jsonPathE, JSON.stringify(res, null, 2));
-    process.exit(0);
+  if ((process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1] === 'elemental') {
+    console.error('--mode=elemental was removed in round 23 (Remi): not representative; use tools/elo.js');
+    process.exit(1);
   }
 
   const mirror = (process.argv.find(a => a.startsWith('--mirror=')) || '').split('=')[1];
