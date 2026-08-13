@@ -215,9 +215,11 @@ export const SPELLS = {
     desc: 'Tap again to recall it early; catch it to halve the cooldown.',
   },
   ricochet: {
-    // Issue #3 (Biousere, "Version 1 de Ju"): a ball that BOUNCES. Its own
-    // spell, never a fireball — elements deliberately do not ride it (a rider
-    // surviving several bounces is a different, much bigger change).
+    // Issue #3 (Biousere, "Version 1 de Ju"): a ball that BOUNCES. Since v6.1
+    // (issue #13, Ju: "Ricochet ne doit pas supplanter") every element RIDES
+    // the bouncing ball exactly as it rides a fireball, whatever the buy
+    // order; ghost's lv3 pierce is the one exception (pop-on-first-body is
+    // the bounce identity).
     //  - bounces off an invisible circle at the CURRENT lava edge (it follows
     //    the shrink) and off pillars, at every level.
     //  - `bounceAll` at lv3: also mirror walls (any owner's, its own included)
@@ -681,7 +683,7 @@ export const ELEMENTS = {
   // rhythms and every stat element. Physics stay on the hidden SPELLS entries.
   ricochet: { name: 'Ricochet', icon: '🎾', maxLevel: 3, costs: [10, 5, 5],
     desc: 'Your fireball bounces.',
-    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. Independent of the other identities.',
+    long: 'Your fireball becomes the Ricochet: it bounces off the lava wall and the pillars (everything physical at level 3), lives 4/8/12 s after its first bounce, deals 35% less after bouncing, and your cooldown doubles. Every other element you own still rides the bouncing ball.',
     fx: { ballTransform: true, cdMult: 2 } },
   umbra: { name: 'Dark Ball', icon: '🌑', maxLevel: 3, costs: [6, 6, 6],
     desc: 'Second hit blinds them.',

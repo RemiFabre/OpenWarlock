@@ -66,6 +66,8 @@ const ELEM_CORE = {
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
   // arterial red (and it also gets the engorged halo below)
   ghost: '#dcd6ff', vampire: '#e0405a',
+  // issue #13 v6 (Ju): the storm ball reads white-gold, the dark ball violet
+  chainball: '#fff2b8', umbra: '#a276ff',
 };
 
 // Round 17 §12 — the fireball is ONE additive stack of layers, in draw order:
@@ -78,6 +80,29 @@ const ELEM_CORE = {
 // reads what is coming at them. Accents are cheap strokes on purpose — this
 // runs per projectile per frame, so no gradients and no allocations here.
 const ACCENTS = {
+  // issue #13 v6 (Ju): Storm and Dark are element AXES now — their tells
+  // compose on whatever ball carries them, like every other accent.
+  // storm: crackling white-gold sparks jittering off the body
+  chainball: (ctx, x, y, r, lv, ang, t) => {
+    ctx.strokeStyle = 'rgba(255, 245, 200, 0.9)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 1 + lv; i++) {
+      const a2 = t * 16 + i * 2.6;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a2) * r * 2.2, y + Math.sin(a2) * r * 2.2);
+      ctx.stroke();
+    }
+  },
+  // dark: a violet corona eating the light around the ball
+  umbra: (ctx, x, y, r, lv, ang, t) => {
+    const halo = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 2.2);
+    halo.addColorStop(0, 'rgba(30, 8, 50, 0.85)');
+    halo.addColorStop(0.6, 'rgba(90, 40, 160, 0.45)');
+    halo.addColorStop(1, 'rgba(90, 40, 160, 0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
+  },
   // damage axis: hot sparks shedding off the back
   ember: (ctx, x, y, r, lv, ang, t) => {
     ctx.fillStyle = 'rgba(255, 214, 120, 0.9)';
@@ -573,7 +598,9 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       const el = pr.elements || null;
       const terraMult = el && el.terra
         ? ELEMENTS.terra.fx.projRadiusMult[Math.min(el.terra, 3) - 1] : 1;
-      const r = SPELLS.fireball.radius * terraMult * scale;
+      // storm keeps the ball 30% smaller ON TOP of terra (issue #13 v6.1)
+      const stormMult = el && el.chainball ? ELEMENTS.chainball.fx.projRadiusMult : 1;
+      const r = SPELLS.fireball.radius * terraMult * stormMult * scale;
       const ang = Math.atan2(fin(pr.vy) ? pr.vy : 0, fin(pr.vx) ? pr.vx : 0);
       // base tint: the strongest rider element, unless an event takes it over
       let core = '#ffab40', coreLv = 0;
@@ -626,7 +653,12 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       // bouncing around the arena is always attributable. Once its clock is
       // armed (`life` on the wire) the ball dims towards the end and the halo
       // shrinks with the time left — the "when does that stop" feedback.
-      const r = SPELLS.ricochet.radius * scale;
+      // v6.1 (Ju): elements ride the bouncing ball — terra grows it, storm
+      // shrinks it, and every accent below composes on it like on a fireball
+      const rel = pr.elements || null;
+      const r = SPELLS.ricochet.radius * scale
+        * (rel && rel.terra ? ELEMENTS.terra.fx.projRadiusMult[Math.min(rel.terra, 3) - 1] : 1)
+        * (rel && rel.chainball ? ELEMENTS.chainball.fx.projRadiusMult : 1);
       const owner = players.find(p => p && p.id === pr.owner);
       const tint = (owner && owner.color) || '#cfe8ff';
       const full = SPELLS.ricochet.life[SPELLS.ricochet.life.length - 1];
@@ -648,6 +680,10 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, TAU); ctx.fill();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * (1 + 0.5 * frac), 0, TAU); ctx.stroke();
+      if (rel) for (const k in rel) {
+        const accent = ACCENTS[k];
+        if (accent && rel[k] > 0) accent(ctx, x, y, r, rel[k], ang, t);
+      }
       ctx.restore();
     } else if (pr.type === 'vomit') {
       const r = Math.max(4, SPELLS.vomit.radius * 1.4 * scale);

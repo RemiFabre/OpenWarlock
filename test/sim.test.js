@@ -7606,6 +7606,42 @@ describe('Ju v4 (issue #13)', () => {
       .toBeCloseTo(SPELLS.fireball.cooldown[0] * 2, 1);
   });
 
+  it('v6.1: elements FUSE onto the ricochet — never supplanted, any order', () => {
+    // Ju: "ricochet + gale = the balls bounce AND push harder"; terra grows
+    // the bouncing ball while storm keeps it 30% smaller ON TOP of terra
+    const state = pitch((s, a, b) => {
+      a.elements = { ricochet: 1, gale: 1, terra: 2, chainball: 1, frost: 1 };
+      b.x = 6; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    });
+    castSpell(state, 'p0', 'fireball', 15, 0);
+    const pr = state.projectiles.find(p => p.type === 'ricochet');
+    expect(pr).toBeTruthy();
+    expect(pr.elements.gale).toBe(1);
+    const terraMult = ELEMENTS.terra.fx.projRadiusMult[1];      // lv2
+    const stormMult = ELEMENTS.chainball.fx.projRadiusMult;      // flat 0.7
+    expect(pr.radius).toBeCloseTo(SPELLS.ricochet.radius * terraMult * stormMult, 5);
+    expect(Math.hypot(pr.vx, pr.vy)).toBeCloseTo(
+      SPELLS.ricochet.speed * ELEMENTS.chainball.fx.projSpeedMult, 1);
+    // the on-hit riders fuse too: the bouncing ball plants a frost stack
+    run(state, 0.4);
+    expect(state.events.some(e => e.t === 'frost')).toBe(true);
+  });
+
+  it('v6.1: a plain fireball with the Storm axis arcs to the neighbour', () => {
+    const state = pitch((s, a, b) => {
+      a.elements = { chainball: 1 };
+      b.x = 6; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    });
+    addPlayer(state, 'p2', 'C');
+    const c = state.players.p2;
+    c.alive = true; c.x = 6; c.y = 2.5; c.vx = 0; c.vy = 0; c.moveTarget = null;
+    const cHp = c.hp;
+    castSpell(state, 'p0', 'fireball', 6, 0);
+    run(state, 0.4);
+    expect(state.events.some(e => e.t === 'zap')).toBe(true);
+    expect(c.hp).toBeLessThan(cHp);
+  });
+
   it('vomit: the puddle appears AT the cursor, instantly (v5)', () => {
     const state = pitch((s, a) => { a.spells.vomit = 1; });
     castSpell(state, 'p0', 'vomit', 10, 8);

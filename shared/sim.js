@@ -571,30 +571,31 @@ export function castSpell(state, id, key, tx, ty) {
       // LEAD — kbScale 0 (zero knockback from every source: base, kbAdd riders
       // and gale's gust alike; damage and every on-hit rider are untouched) —
       // and the trailing ball is queued a beat behind on the same aim.
-      // issue #13 v6 (Ju): the ball identities are INDEPENDENT axes now — no
-      // base-priority composition, nothing conditioned on what else is owned.
-      // Ricochet is the only one that still TRANSFORMS the cast (bouncing is
-      // a projectile type; its doubled cooldown is its own price). Dark and
-      // Storm ride whatever this key fires — flags on a transformed ball
-      // here, and spawnFireball derives the same flags for a real fireball,
-      // which keeps its damage, cadence, vampire/mosquito and stat elements.
+      // issue #13 v6 (Ju): the ball identities are INDEPENDENT axes — no
+      // base-priority composition. Ricochet still TRANSFORMS the cast
+      // (bouncing is a projectile type; its doubled cooldown is its own
+      // price), but v6.1 (Ju, explicit): it must not SUPPLANT the others —
+      // every element rides the bouncing ball exactly as it rides a
+      // fireball, whatever the buy order: terra/ghost/storm bend its body,
+      // ember/gale/frost/dark/... fuse on hit. Ghost's lv3 pierce is the one
+      // exception (a ball cannot both pop-on-first-body and pass through).
       const ricoLvl = pl.elements.ricochet || 0;
       if (ricoLvl > 0) {
         const tspec = SPELLS.ricochet;
-        const stormLvl = pl.elements.chainball || 0;
         pl.cooldowns[key] = cd * ELEMENTS.ricochet.fx.cdMult;
-        const spd = tspec.speed *
-          (stormLvl ? efxV(ELEMENTS.chainball.fx.projSpeedMult, stormLvl) : 1);
+        let elements = null;
+        for (const [k, v] of Object.entries(pl.elements))
+          if (v > 0) (elements = elements || {})[k] = v;
+        const body = elemBodyMults(elements);
         state.projectiles.push({
           id: state.nextId++, type: 'ricochet', owner: id, level: ricoLvl,
           x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
-          vx: dx * spd, vy: dy * spd,
+          vx: dx * tspec.speed * body.speed, vy: dy * tspec.speed * body.speed,
           traveled: 0, hit: {}, pierce: false, pierced: 0,
-          radius: tspec.radius *
-            (stormLvl ? efxV(ELEMENTS.chainball.fx.projRadiusMult, stormLvl) : 1),
-          life: null,
+          radius: tspec.radius * body.radius,
+          life: null, elements,
           ...(pl.elements.umbra > 0 ? { dark: pl.elements.umbra } : {}),
-          ...(stormLvl ? { storm: stormLvl } : {}),
+          ...(pl.elements.chainball > 0 ? { storm: pl.elements.chainball } : {}),
         });
         break;
       }
@@ -932,6 +933,23 @@ function stepClones(state, dt) {
 //
 // opts.engorged (ELEMENTS.vampire) is the extra lifesteal FRACTION this ball
 // pays, resolved at cast time so the projectile carries everything it needs.
+// The ball-body element axes, fused multiplicatively whatever the buy order
+// (issue #13 v6.1, Ju): terra grows it, ghost speeds it, storm makes it 30%
+// smaller AND 30% faster on top of both. Shared by the fireball and the
+// ricochet casts so the two can never disagree.
+function elemBodyMults(elements) {
+  return {
+    radius: (elements && elements.terra
+      ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1)
+      * (elements && elements.chainball
+        ? efxV(ELEMENTS.chainball.fx.projRadiusMult, elements.chainball) : 1),
+    speed: (elements && elements.ghost
+      ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1)
+      * (elements && elements.chainball
+        ? efxV(ELEMENTS.chainball.fx.projSpeedMult, elements.chainball) : 1),
+  };
+}
+
 function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const spec = SPELLS.fireball;
   let elements = null;
@@ -941,16 +959,9 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       (elements = elements || {})[k] = v;
     }
   }
-  const radius = spec.radius * (elements && elements.terra
-    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1)
-    // issue #13 v6 (Ju): the Storm axis — 30% smaller, 30% faster, flat
-    * (elements && elements.chainball
-      ? efxV(ELEMENTS.chainball.fx.projRadiusMult, elements.chainball) : 1);
-  // ghost lv1/2 (round 16): the fireball's SPEED axis — it just flies faster
-  const speed = spec.speed * (elements && elements.ghost
-    ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1)
-    * (elements && elements.chainball
-      ? efxV(ELEMENTS.chainball.fx.projSpeedMult, elements.chainball) : 1);
+  const body = elemBodyMults(elements);
+  const radius = spec.radius * body.radius;
+  const speed = spec.speed * body.speed;
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
     // half a body ahead of the caster
