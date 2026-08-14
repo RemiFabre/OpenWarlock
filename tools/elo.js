@@ -14,8 +14,8 @@
 import fs from 'node:fs';
 import { playGame } from './arena.js';
 import { makeRng } from '../shared/sim.js';
-import { ROSTER, paddedCore, expandCore, coreCost } from './roster.js';
-import { EXHAUST_PASS } from './strategy-study.js';
+import { ROSTER, paddedCore, expandCore, coreCost, EXHAUST_PASS } from './roster.js';
+
 
 const progress = process.stderr.isTTY ? console.error : () => {};
 const arg = (name, def) => {

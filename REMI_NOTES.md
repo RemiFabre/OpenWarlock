@@ -177,6 +177,20 @@ Applied at +35% mark rate per level:
 - Repulse and the rest: accepted as they are (your call: low-frequency
   spells buying radius/length/damage instead is coherent).
 
+## 24.4: The instrument cleanup (your call after the sweep/elo confusion)
+
+Four tools, one question each, zero overlap now:
+- **elo.js** ranks the 42 builds (2000 games, ONE seed, the standard run).
+- **pair.js** explains a gap head-to-head (and carries the `--fx` sweep hook).
+- **arena.js** is the smoke + health lab, slimmed: games finish, lava share,
+  comebacks, focus, any seat count, seconds. Its `--isolate`, `--ladder`,
+  `--mirror` and `--probe` options are RETIRED (superseded).
+- **h2h.js** orders the bot tiers.
+Deleted outright: `strategy-study.js` (the round-16 ranking, superseded by
+elo.js; its shared `EXHAUST_PASS` tail moved to roster.js) and `duel.js`
+(pair.js answers it with real builds). Everything retired is one `git show
+ad9d54e` away.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target

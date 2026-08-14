@@ -11,12 +11,25 @@
 //
 // core entries are [key, level] pairs: ['frost', 2] = "buy frost UP TO lv2
 // here"; the runner expands to one buy per level step. Bots fall into the
-// study's shared exhaust tail after the core (see tools/strategy-study.js),
+// study's shared exhaust tail after the core (EXHAUST_PASS below),
 // and only into the in-game random fallback once even that is maxed.
 
 import { SPELLS, ELEMENTS, ITEMS, itemCost } from '../shared/constants.js';
 
 const AVG_EARNED = 145; // measured 2026-08-09, seed 1000-1039, 4 Hard seats
+
+// One canonical breadth pass: everything a berserker/stalker can use, sustain
+// and damage first. Repeated so every level of everything is eventually
+// reachable (a list entry buys at most one level per shop pass). Lived in
+// tools/strategy-study.js until round 24.4 (that instrument was RETIRED,
+// superseded by elo.js; this tail is the piece everything else shared).
+export const EXHAUST_PASS = [
+  'amulet', 'sword', 'boots', 'lightning', 'cape', 'treads',
+  'hourglass', 'brazier', 'spoon', 'ember', 'terra', 'arcane', 'gale', 'ghost', 'malady',
+  'vampire', 'anger', 'boomerang', 'rush', 'shield', 'teleport',
+  'frost', 'mosquito', 'midas',
+];
+
 export const COST_TARGET = [150, 185]; // core must land in this band
 
 // cost of buying `key` from level (from) to level (to), exclusive-from

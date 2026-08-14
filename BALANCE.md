@@ -517,14 +517,12 @@ draft; teaching bots to BUY them is still open.
 ## How to reproduce
 
 ```bash
-node tools/arena.js --ladder=all --games=1500 --seed=1        # the item ladder
-node tools/arena.js --ladder=sword --games=1500 --seed=1 --fx=sword.lifesteal=0.12,0.20,0.28
-node tools/elo.js --games=2000 --seed=1                       # THE strategy ranking, ~5 min (Remi's standard run)
+node tools/elo.js --games=2000 --seed=1                       # THE strategy ranking, ~5 min, ONE seed (Remi's standard run)
+node tools/pair.js <A> <B> --games=400 --seed=1               # why an Elo gap: what each side DID (+ --fx sweeps)
 node tools/roster.js                                         # roster cost check (--doc regenerates docs/ARCHETYPES.md)
-node tools/strategy-study.js --games=4000 --seed=1            # the older strategy table (and --seed=7)
-node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme column
-node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
-node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
+node tools/h2h.js --games=400 brawler grunt                   # bot tiers (then berserker/brawler, stalker/berserker)
+node tools/arena.js --games=60 --players=4                    # health: lava share, comebacks, focus metric
+# (retired round 24.4: strategy-study.js, duel.js, arena --isolate/--ladder/--mirror/--probe; git ad9d54e)
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
 npx vitest run                                                # 376 green
 node test/harness/run.js test/harness/scenarios/bots.js
