@@ -1,11 +1,13 @@
-Lobby UI art (portraits, difficulty icons, gems, decor, READY plaques) and the
-20 illustrated player avatars in avatars/.
+Lobby UI art (portraits, difficulty icons, gems, decor, READY plaques), the 20
+illustrated player avatars in avatars/, and the 37 shop artworks in shop/ (one
+per spell, element and item).
 
-Contributed by @SamKhosravi for issue #14 (the v4 lobby pack and the v5 avatar
-pack), generated at his request with OpenAI image generation. Confirmed on the
-issue (2026-08-14, both packs) as his to license: no third-party or licensed
+Contributed by @SamKhosravi for issue #14 (the v4 lobby pack, the v5 avatar pack
+and the v7 shop pack), generated at his request with OpenAI image generation. Confirmed on the issue
+(2026-08-14, all three packs) as his to license: no third-party or licensed
 game material. MIT, like the rest of the project.
 
 Downscaled for runtime: the two READY plaques, the crest, the small divider and
 the badge to twice their display size, the avatars to 128 px (also twice their
-largest use). 2.3 MB + 2.3 MB of source art ship as ~1.7 MB.
+largest use), the shop artwork to 144 px (three times its 48 px card slot).
+Roughly 70 MB of source art ships as ~2.8 MB.

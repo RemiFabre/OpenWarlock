@@ -328,6 +328,10 @@
   }
   .ware .art > img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .ware .art.noart { font-size: 26px; line-height: 1; }
+  /* the same artwork leads the tooltip */
+  .tname .tart { display: inline-grid; place-items: center; width: 34px; height: 34px; vertical-align: -10px; margin-right: 6px; }
+  .tname .tart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .tname .tart.noart { font-size: 22px; }
   .ware .cost { position: absolute; top: 6px; right: 10px; min-width: 0; }
   .ware .info ~ .cost, .warewrap .ware .cost { align-self: auto; }
   .ware .info { display: flex; flex-direction: column; gap: 2px; padding-right: 44px; }

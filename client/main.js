@@ -1602,7 +1602,15 @@ const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 // keeps its icon, drawn at the same size, so the shop is never half-empty while
 // artwork is still arriving. Filenames are matched to ids, never the reverse:
 // the game's entity names do not move to suit a file.
-const SHOP_ART = new Set([]);
+const SHOP_ART = new Set([
+  'amulet', 'anger', 'arcane', 'boomerang', 'boots', 'brazier',
+  'cape', 'debt', 'decoy', 'ember', 'fireball', 'firewalk',
+  'frost', 'gale', 'genki', 'ghost', 'hourglass', 'lightning',
+  'malady', 'meteor', 'midas', 'mosquito', 'nova', 'pillar',
+  'repulse', 'rush', 'shield', 'spoon', 'statue', 'swap',
+  'sword', 'teleport', 'terra', 'treads', 'vampire', 'vanish',
+  'wall',
+]);
 // elements carry their icon on the spec, spells and items in ICONS: check both
 // or an element card renders an empty box while it waits for artwork.
 const iconOf = (key) => ICONS[key] || (ELEMENTS[key] && ELEMENTS[key].icon) || '';
