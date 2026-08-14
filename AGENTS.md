@@ -95,6 +95,15 @@ build step, Node ESM, only dep is `ws`.
   baseline, measured how (repeated AT the table, not in a block far above).
   Strategy/build names are decoded where used (composition + buy order).
   State what the instrument CANNOT see next to its results.
+- **Study results are REPO FILES with ABSOLUTE links (Remi, 2026-08-14,
+  after three lost-results incidents).** Every run he asks for (elo, pair,
+  probes, sweeps) writes its full raw output to
+  `docs/history/YYYY-MM-DD-<study>.md` in the SAME batch of work, never
+  only to chat or to the session scratchpad (a temp dir he cannot find and
+  that dies with the session). Surfacing = 1-3 line summary + the ABSOLUTE
+  file path (never relative; from a worktree give the worktree path that
+  works right now AND the `/Users/remi/OpenWarlock/...` path) + the GitHub
+  blob URL once pushed.
 - Non-QWERTY keyboard → keybindings stay rebindable. He supplies art/music
   (`assets/`; `sips` JPEG q65, never downscale; `afconvert` AAC 96k).
 
