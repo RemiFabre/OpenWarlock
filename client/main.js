@@ -110,6 +110,27 @@ function keyLabel(k) {
   return KEY_LABELS[k] || (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1));
 }
 
+// Issue #14 (Sam, shop redesign): every shop entity gets illustrated artwork.
+// SHOP_ART lists the ids that have a file in assets/ui/shop; anything not in it
+// keeps its icon, drawn at the same size, so the shop is never half-empty while
+// artwork is still arriving. Filenames are matched to ids, never the reverse:
+// the game's entity names do not move to suit a file.
+const SHOP_ART = new Set([
+  'amulet', 'anger', 'arcane', 'boomerang', 'boots', 'brazier',
+  'cape', 'debt', 'decoy', 'ember', 'fireball', 'firewalk',
+  'frost', 'gale', 'genki', 'ghost', 'hourglass', 'lightning',
+  'malady', 'meteor', 'midas', 'mosquito', 'nova', 'pillar',
+  'repulse', 'rush', 'shield', 'spoon', 'statue', 'swap',
+  'sword', 'teleport', 'terra', 'treads', 'vampire', 'vanish',
+  'wall',
+]);
+// elements carry their icon on the spec, spells and items in ICONS: check both
+// or an element card renders an empty box while it waits for artwork.
+const iconOf = (key) => ICONS[key] || (ELEMENTS[key] && ELEMENTS[key].icon) || '';
+const artHtml = (key, cls = 'art') => (SHOP_ART.has(key)
+  ? `<span class="${cls}"><img src="../assets/ui/shop/${key}.png" alt=""></span>`
+  : `<span class="${cls} noart">${iconOf(key)}</span>`);
+
 // ---- avatar -----------------------------------------------------------------
 // issue #14 (Sam v5): an avatar is an illustrated tile now. ONE helper renders
 // it for every DOM site (roster, scoreboard, standings, picker, YOU frame), and
@@ -806,12 +827,12 @@ setInterval(async () => {
 $('shopIncome').textContent = goldRules;
 // the long-form rules live behind the 📜 Rules fold (round 22 declutter)
 $('lobbyRulesBody').innerHTML = [
-  `Pick the same team number as a friend and you fight as one: your spells ` +
-  `pass through each other, and a team of N races to ${ROUND.KILLS_TO_WIN} × N kills.`,
-  goldRules,
-  `You start with ${GOLD.START} gold. The shop opens after round 1. ` +
-  'Hover anything in the shop for its full per-level numbers.',
-].map((t) => `<p>${esc(t)}</p>`).join('');
+  ['Same team number', 'you fight as allies'],
+  ['Allied spells', 'pass straight through each other'],
+  ['To win', `first to ${ROUND.KILLS_TO_WIN} kills (a team of N races to ${ROUND.KILLS_TO_WIN} × N)`],
+  ['Gold', goldRules.replace(/^Gold: /, '')],
+  ['Shop', `you start with ${GOLD.START} g; it opens after round 1, and hovering anything shows its per-level numbers`],
+].map(([k, v]) => `<div><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join('');
 
 // ---- key bindings panel -------------------------------------------------------
 
@@ -821,7 +842,7 @@ const keyRows = {};
   for (const [spell, spec] of Object.entries(SPELLS)) {
     const row = document.createElement('div');
     row.className = 'krow';
-    row.innerHTML = `<span class="icon">${ICONS[spell]}</span><span class="kname">${spec.name}</span>`;
+    row.innerHTML = `${artHtml(spell, 'kart')}<span class="kname">${esc(spec.name)}</span>`;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'keybtn';
@@ -944,8 +965,13 @@ function refreshKeyUi() {
     chip.textContent = keyLabel(keyBindings[chip.dataset.spell]);
   // the one always-visible controls line in the lobby, LIVE binding, never a
   // hardcoded Q (non-QWERTY scar, round 21.7)
-  $('controlsHint').innerHTML =
-    `press <kbd>${esc(keyLabel(keyBindings.fireball))}</kbd> to throw your fireball · <kbd>right-click</kbd> to move · hold <kbd>Tab</kbd> in game for the scoreboard`;
+  // v7.2 (Sam): one line per control, the key first. Still LIVE bindings, never
+  // a hardcoded Q (the non-QWERTY scar, round 21.7).
+  $('controlsHint').innerHTML = [
+    [keyLabel(keyBindings.fireball), 'Throw your fireball'],
+    ['right click', 'Move'],
+    ['Tab', 'Scoreboard (hold, in game)'],
+  ].map(([k, what]) => `<div><kbd>${esc(k)}</kbd><span>${esc(what)}</span></div>`).join('');
 }
 
 $('readyBtn').addEventListener('click', () => {
@@ -970,6 +996,10 @@ $('testSet').addEventListener('click', () =>
   send({ t: 'testing', on: !(latest() || {}).testing, gold: +$('testingGold').value || 0 }));
 $('chatSet').addEventListener('click', () =>
   send({ t: 'chatter', on: (latest() || {}).chat === false }));
+// v7.2: the gold input sits INSIDE the Testing button, so swallow its clicks
+// (a click on the field must not flip testing off under the player's finger)
+for (const ev of ['click', 'mousedown', 'keydown'])
+  $('testingGoldWrap').addEventListener(ev, (e) => e.stopPropagation());
 $('testingGold').addEventListener('change', () => {
   const s = latest();
   if (s && s.testing)
@@ -1088,19 +1118,47 @@ const BOT_ICON = {
   }
 }
 
-// strategy chart: what each difficulty does and what each build buys
+// v7.2 (Sam): two tabs of compact cards instead of two tables of text. The
+// STRATEGIES tab shows what a build actually buys as the shop's own artwork
+// (the raw "midas mosquito midas ..." string was unreadable), deduped in buy
+// order, each icon titled so hovering names it.
 {
-  const rowsKinds = Object.values(BOTS)
-    .slice().sort((a, b) => a.difficulty - b.difficulty).map(b =>
-      `<tr><td class="stars">${esc(b.label || '')}</td><td>${esc(b.name)}</td><td>${esc(b.desc)}</td></tr>`).join('');
-  const rowsBuilds = Object.values(BUILDS).map(b =>
-    `<tr><td>${esc(b.name)}</td><td>${b.order.map(k => ICONS[k] || k).join(' ')}</td><td>${esc(b.desc)}</td></tr>`).join('');
-  $('botHelpBody').innerHTML = `
-    <p><b>Difficulty</b> is how the bot fights:</p>
-    <table class="helptable">${rowsKinds}</table>
-    <p><b>Strategy</b> is what it buys. Each shop it grabs the first thing on its list it can afford:</p>
-    <table class="helptable">${rowsBuilds}</table>
-    <p>🎲 random rolls one of the six strategies when the bot is added.</p>`;
+  const kindCard = (kind, b) => `
+    <div class="botcard">
+      ${BOT_ICON[kind] ? `<img class="dicon" src="../assets/ui/icons/difficulty/${BOT_ICON[kind]}.png" alt="">` : ''}
+      <div><div class="bcname">${esc(b.label || kind)}<span class="bcarch">${esc(b.name)}</span></div>
+      <div class="bcdesc">${esc(b.desc)}</div></div>
+    </div>`;
+  const buildCard = (b) => {
+    const seen = [];
+    for (const k of b.order) if (!seen.includes(k)) seen.push(k);
+    const icons = seen.slice(0, 8).map(k =>
+      `<span class="bi" title="${esc((SPELLS[k] || ELEMENTS[k] || ITEMS[k] || {}).name || k)}">${artHtml(k, 'biart')}</span>`).join('');
+    return `
+      <div class="botcard">
+        <div><div class="bcname">${esc(b.name)}</div>
+        <div class="bcdesc">${esc(b.desc)}</div>
+        <div class="bicons">${icons}</div></div>
+      </div>`;
+  };
+  const diff = Object.entries(BOTS)
+    .sort(([, a], [, b]) => a.difficulty - b.difficulty).map(([k, b]) => kindCard(k, b)).join('');
+  const strat = Object.values(BUILDS).map(buildCard).join('');
+  const panes = {
+    diff: `<div class="botcards">${diff}</div>
+      <p class="hint">Difficulty is how a bot FIGHTS. Its strategy is what it buys.</p>`,
+    strat: `<div class="botcards">${strat}</div>
+      <p class="hint">Each shop, a bot buys the first thing on its list it can afford.
+        A bot added with no strategy rolls one of these.</p>`,
+  };
+  const showTab = (name) => {
+    $('botHelpBody').innerHTML = panes[name] || panes.diff;
+    for (const t of document.querySelectorAll('#botTabs .tab'))
+      t.classList.toggle('on', t.dataset.tab === name);
+  };
+  for (const t of document.querySelectorAll('#botTabs .tab'))
+    t.addEventListener('click', () => showTab(t.dataset.tab));
+  showTab('diff');
 }
 
 // mute toggle (persisted in localStorage 'owMuted')
@@ -1597,27 +1655,6 @@ const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 // Build shop buttons once per container; refresh() updates them from state.
 // mode-aware: 'elemental' adds the Elements section and the elemental-only
 // combo items; 'classic' shows exactly the pre-elemental shop.
-// Issue #14 (Sam, shop redesign): every shop entity gets illustrated artwork.
-// SHOP_ART lists the ids that have a file in assets/ui/shop; anything not in it
-// keeps its icon, drawn at the same size, so the shop is never half-empty while
-// artwork is still arriving. Filenames are matched to ids, never the reverse:
-// the game's entity names do not move to suit a file.
-const SHOP_ART = new Set([
-  'amulet', 'anger', 'arcane', 'boomerang', 'boots', 'brazier',
-  'cape', 'debt', 'decoy', 'ember', 'fireball', 'firewalk',
-  'frost', 'gale', 'genki', 'ghost', 'hourglass', 'lightning',
-  'malady', 'meteor', 'midas', 'mosquito', 'nova', 'pillar',
-  'repulse', 'rush', 'shield', 'spoon', 'statue', 'swap',
-  'sword', 'teleport', 'terra', 'treads', 'vampire', 'vanish',
-  'wall',
-]);
-// elements carry their icon on the spec, spells and items in ICONS: check both
-// or an element card renders an empty box while it waits for artwork.
-const iconOf = (key) => ICONS[key] || (ELEMENTS[key] && ELEMENTS[key].icon) || '';
-const artHtml = (key, cls = 'art') => (SHOP_ART.has(key)
-  ? `<span class="${cls}"><img src="../assets/ui/shop/${key}.png" alt=""></span>`
-  : `<span class="${cls} noart">${iconOf(key)}</span>`);
-
 function buildShop(container, mode = 'classic') {
   const elemental = mode === 'elemental';
   container.innerHTML = '';
@@ -2303,7 +2340,6 @@ function updateUi(s) {
     $('matchLine').textContent = [
       s.mode === 'classic' ? 'Classic' : 'Elemental',
       `First to ${ROUND.KILLS_TO_WIN} kills`,
-      `${fighters} player${fighters === 1 ? '' : 's'}`,
     ].join(' · ');
     $('plCount').textContent = fighters ? `(${fighters})` : '';
     $('myName').textContent = (m && m.name) || '';

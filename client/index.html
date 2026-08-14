@@ -768,7 +768,7 @@
   /* v5 polish (Sam): steel blue-black instead of brown, and the loud ember top
      border becomes the same bronze as the rest of the frame. */
   .slab.gathering {
-    padding: 26px 28px 12px;
+    padding: 30px 34px 16px;
     background: linear-gradient(180deg, #08111b, #060d16);
     border: 1px solid rgba(197, 154, 88, .5);
     border-top: 1px solid rgba(197, 154, 88, .5);
@@ -795,15 +795,20 @@
   .gathering .seg .lbl { color: #bda77f; }
   .gathering .testinggold {
     background: #0c141d; border: 1px solid rgba(197, 154, 88, .38); color: #c3b292;
+    margin-left: auto; padding: 2px 6px; font-size: 11px; gap: 5px;
   }
+  .gathering .testinggold input[type=text] { width: 46px; padding: 2px 4px; font-size: 12px; }
+  /* Browse the shop: secondary to READY, wearing the Midas artwork */
+  .gathering .mini.browse { display: flex; align-items: center; gap: 7px; justify-content: center; }
+  .gathering .mini.browse img { width: 20px; height: 20px; object-fit: contain; }
   .slab.gathering > *:not(.gdecor) { position: relative; z-index: 1; }
   .gdecor { pointer-events: none; user-select: none; }
-  .gathering .corner { position: absolute; top: 0; width: 150px; z-index: 0; opacity: .95; }
-  .gathering .corner.left { left: 0; }
-  .gathering .corner.right { right: 0; }
+  .gathering .corner { position: absolute; top: 1px; width: 150px; z-index: 0; opacity: .95; }
+  .gathering .corner.left { left: 1px; }
+  .gathering .corner.right { right: 1px; }
   .gathering .crest {
-    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
-    width: 330px; z-index: 0; opacity: .95;
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    width: 340px; z-index: 0; opacity: .95;
   }
 
   .gathering .gtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -840,10 +845,13 @@
   /* v6.1 (Sam): the two ASSETS carry the state again, driven by the real ready
      flag (.primary = not ready yet). The active plate is damped a little so it
      reads as lit, not as a bloom. */
+  /* v7.2 (Sam): both plates render at the SAME width in the same box, so the
+     button never changes size when the state flips (the active art is taller
+     only because of its glow, which overflows harmlessly). */
   .gathering #readyBtn.plaque {
-    width: 186px; height: 62px; padding: 0; border: 0; background: transparent;
+    width: 190px; height: 66px; padding: 0; border: 0; background: transparent;
     background-image: url('../assets/ui/buttons/ready_active.png');
-    background-size: contain; background-repeat: no-repeat; background-position: center;
+    background-size: 190px auto; background-repeat: no-repeat; background-position: center;
     color: transparent; text-shadow: none; overflow: visible;
     filter: saturate(.92) brightness(.96);
   }
@@ -886,6 +894,59 @@
   #avatarGrid .avpick { display: block; width: 74px; height: 74px; overflow: hidden; border-radius: 4px; line-height: 0; }
   #avatarGrid .avpick > img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
   /* bot rows: Sam's v5 metrics (icon 24-26, row 40-44, select ~40) */
+  /* ---- v7.2 modals in The Gathering's language (Sam) ------------------- */
+  .slab.gpanel {
+    background: linear-gradient(180deg, #0a1420, #070f19);
+    border: 1px solid rgba(197, 154, 88, .5); border-top: 1px solid rgba(197, 154, 88, .5);
+    padding: 24px 28px;
+  }
+  .gpanel h1.display { color: #f2e3c2; }
+  .gpanel .secttl {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    font-size: 17px; letter-spacing: .1em; text-transform: none; color: #f0dcb6;
+    border-bottom: 1px solid rgba(197, 154, 88, .3); padding-bottom: 4px; margin-bottom: 8px;
+  }
+  /* key: meaning rows, used by both blocks of the rules modal */
+  .deflist > div {
+    display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px;
+    align-items: baseline; padding: 5px 2px; border-bottom: 1px solid rgba(197, 154, 88, .12);
+  }
+  .deflist kbd {
+    justify-self: start; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .38); border-radius: 3px; padding: 2px 7px;
+  }
+  .deflist b { color: #e6d3ac; font-weight: 600; }
+  .deflist span { color: #b9ab92; }
+  /* keys panel: illustrated spell art, layout presets */
+  .kart { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; }
+  .kart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .kart.noart { font-size: 20px; }
+  .gpanel .preset { border-color: rgba(197, 154, 88, .45); }
+  /* bot modal: tabs + compact cards */
+  .tabs { display: flex; gap: 6px; margin: 6px 0 12px; }
+  .tabs .tab {
+    padding: 7px 16px; background: linear-gradient(#141d27, #0d141b);
+    border: 1px solid rgba(197, 154, 88, .35); color: #b8ab93;
+  }
+  .tabs .tab.on {
+    background: linear-gradient(#4a4529, #262417); border-color: rgba(214, 173, 100, .85);
+    color: #f4e7c4; box-shadow: inset 0 -2px 0 #c8a05a;
+  }
+  .botcards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+  .botcard {
+    display: flex; gap: 11px; align-items: flex-start; padding: 9px 11px;
+    background: rgba(12, 20, 30, .6); border: 1px solid rgba(197, 154, 88, .25);
+  }
+  .botcard .dicon { width: 30px; height: 30px; object-fit: contain; flex: none; }
+  .bcname { font-size: 14px; color: #f0e2c0; font-weight: 600; }
+  .bcarch { color: #a0917a; font-weight: 400; font-size: 12px; margin-left: 7px; }
+  .bcdesc { color: #b3a58c; font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+  .bicons { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+  .biart { display: inline-grid; place-items: center; width: 26px; height: 26px;
+    border: 1px solid rgba(197, 154, 88, .25); background: rgba(255,255,255,.03); }
+  .biart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .biart.noart { font-size: 16px; }
+
   /* ---- v6.2 three-column lobby (Sam) ----------------------------------- */
   /* YOU | MATCH SETTINGS | ADD BOTS on one baseline; WARLOCKS spans below. The
      columns are ~34 / 30 / 36 and every one starts with title + divider, so the
@@ -1136,7 +1197,7 @@
   <!-- issue #14 (Sam v4): the ornate skin is decoration ONLY. Every control
        below keeps the id and the handler it already had; the art is
        pointer-events:none so it can never eat a click. -->
-  <div class="slab gathering" style="--w:1180px; position:relative">
+  <div class="slab gathering" style="--w:1260px; position:relative">
     <img class="gdecor corner left" src="../assets/ui/decor/corner_top_left.png" alt="">
     <img class="gdecor corner right" src="../assets/ui/decor/corner_top_right.png" alt="">
     <img class="gdecor crest" src="../assets/ui/decor/top_crest.png" alt="">
@@ -1174,13 +1235,12 @@
               <div class="seg" id="specSeg" title="Spectators watch from the sidelines and never spawn.">
                 <button type="button" data-v="play">Playing</button><button type="button" data-v="watch">Watching</button>
               </div>
+              <button id="shopBrowseBtn" class="mini browse" type="button"
+                title="Browse everything the shop sells (buying still happens between rounds)"><img src="../assets/ui/shop/midas.png" alt=""> Browse the shop</button>
             </div>
             <button id="readyBtn" class="primary plaque">I am ready</button>
           </div>
-          <div class="row" style="margin-top:8px">
-            <button id="shopBrowseBtn" class="mini" type="button"
-              title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Browse the shop</button>
-          </div>
+
         </div>
         <div class="gcol">
           <!-- v6 (Sam): one compact clickable state per setting. The button NAMES
@@ -1197,11 +1257,14 @@
               <span class="pclbl">Draft</span><b></b></button>
             <button class="setting" id="testSet" type="button"
               title="Testing sandbox: everyone starts with the gold you set and the game opens in an UNTIMED shop. Inspect anything, build a combo, ready up to fight.">
-              <span class="pclbl">Testing</span><b></b></button>
-            <label id="testingGoldWrap" class="testinggold hidden">Everyone starts with
-              <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
-                aria-label="Starting gold per player"> gold
-            </label>
+              <span class="pclbl">Testing</span><b></b>
+              <!-- v7.2 (Sam): the starting gold rides in the Testing row itself.
+                   It is a LABEL inside a button, so the input's clicks must not
+                   bubble up and toggle testing back off. -->
+              <span id="testingGoldWrap" class="testinggold hidden">Start gold:
+                <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
+                  aria-label="Starting gold per player">
+              </span></button>
             <button class="setting" id="chatSet" type="button"
               title="Avatars occasionally say short lines when things happen (hits, kills, a swim). Cosmetic only.">
               <span class="pclbl">Reactions</span><b></b></button>
@@ -1275,8 +1338,12 @@
      The key bindings stay reachable from here: a non-QWERTY player must always
      be able to rebind (round 21.7 scar). -->
 <div id="botHelpPop" class="overlay hidden">
-  <div class="slab" style="--w:640px">
-    <h1 class="display" style="font-size:22px">Bot difficulties &amp; strategies</h1>
+  <div class="slab gpanel" style="--w:860px">
+    <h1 class="display" style="font-size:24px">Bots</h1>
+    <div class="tabs" id="botTabs">
+      <button type="button" class="tab on" data-tab="diff">Difficulties</button>
+      <button type="button" class="tab" data-tab="strat">Strategies</button>
+    </div>
     <div class="scroller"><div id="botHelpBody"></div></div>
     <div class="row" style="margin-top:14px; justify-content:flex-end">
       <button id="botHelpCloseBtn" class="primary" type="button">Close</button>
@@ -1285,13 +1352,16 @@
 </div>
 
 <div id="rulesPop" class="overlay hidden">
-  <div class="slab" style="--w:560px">
-    <h1 class="display" style="font-size:22px">Rules &amp; controls</h1>
-    <p class="hint" id="controlsHint" style="margin:2px 0 10px"></p>
-    <div class="scroller"><div id="lobbyRulesBody"></div></div>
-    <div class="row" style="margin-top:14px">
-      <button id="lobbyKeysBtn" class="mini" type="button">&#9000; Key bindings</button>
-      <span style="flex:1"></span>
+  <div class="slab gpanel" style="--w:660px">
+    <h1 class="display" style="font-size:24px">Rules &amp; controls</h1>
+    <div class="scroller">
+      <h2 class="secttl">Controls</h2>
+      <div class="deflist" id="controlsHint"></div>
+      <button id="lobbyKeysBtn" class="mini" type="button" style="margin-top:10px">&#9000; Key bindings</button>
+      <h2 class="secttl" style="margin-top:18px">Match rules</h2>
+      <div class="deflist" id="lobbyRulesBody"></div>
+    </div>
+    <div class="row" style="margin-top:16px; justify-content:flex-end">
       <button id="rulesCloseBtn" class="primary" type="button">Close</button>
     </div>
   </div>
@@ -1309,13 +1379,14 @@
 </div>
 
 <div id="keysPanel" class="overlay hidden">
-  <div class="slab" style="--w:640px">
+  <div class="slab gpanel" style="--w:720px">
     <h1 class="display" style="font-size:24px">Spell Keys</h1>
     <p class="sub">Click a binding, then press any key. <kbd>Esc</kbd> cancels. A key already in use is swapped.</p>
     <div class="scroller"><div id="keyList"></div></div>
     <div class="row" style="margin-top:16px">
-      <button id="presetQwerty" type="button">QWERTY</button>
-      <button id="presetAzerty" type="button">AZERTY</button>
+      <span class="pclbl" style="align-self:center">Layout</span>
+      <button id="presetQwerty" class="preset" type="button">&#9000; QWERTY</button>
+      <button id="presetAzerty" class="preset" type="button">&#9000; AZERTY</button>
       <span style="flex:1"></span>
       <button id="keysCloseBtn" class="primary" type="button">Done</button>
     </div>
