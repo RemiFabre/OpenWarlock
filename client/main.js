@@ -116,9 +116,13 @@ function keyLabel(k) {
 // anything outside the roster (a co-op unit, an old saved emoji) still renders
 // as text, so no avatar can ever come out blank.
 const avatarSrc = (a) => `../assets/ui/avatars/${a}.png`;
-const avatarHtml = (a, cls = 'av') => (isAvatarArt(a)
-  ? `<img class="${cls}" src="${avatarSrc(a)}" alt="">`
-  : `<span class="${cls} avtext">${esc(a || '')}</span>`);
+// v5.1 (Sam): a face is ALWAYS an image, never text. The wrapper is what crops:
+// same round window at every size, and the tile is zoomed just past its own
+// painted frame so all 20 crop identically. Anything outside the roster (a
+// co-op campaign unit, an old saved emoji) falls back to the blank portrait
+// rather than printing its name inside the frame.
+const avatarHtml = (a, cls = 'av') => `<span class="${cls}"><img src="${
+  isAvatarArt(a) ? avatarSrc(a) : '../assets/ui/portraits/placeholder.png'}" alt=""></span>`;
 
 // null = no saved pick: the engine rolls a random FREE avatar at join (22.1)
 let myAvatar = localStorage.getItem('owAvatar') || null;

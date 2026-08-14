@@ -728,7 +728,7 @@
   /* v5 polish (Sam): steel blue-black instead of brown, and the loud ember top
      border becomes the same bronze as the rest of the frame. */
   .slab.gathering {
-    padding-top: 30px;
+    padding: 28px 28px 16px;
     background: linear-gradient(180deg, #08111b, #060d16);
     border: 1px solid rgba(197, 154, 88, .5);
     border-top: 1px solid rgba(197, 154, 88, .5);
@@ -744,7 +744,7 @@
      green fill anywhere (Sam, v5). */
   .gathering .seg button {
     background: linear-gradient(#141d27, #0d141b);
-    border: 1px solid rgba(197, 154, 88, .38); color: #9d9285;
+    border: 1px solid rgba(197, 154, 88, .38); color: #b8ab93;
     box-shadow: inset 0 1px 0 rgba(255, 240, 210, .05);
   }
   .gathering .seg button.on {
@@ -765,8 +765,7 @@
     position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
     width: 330px; z-index: 0; opacity: .95;
   }
-  .gathering .divider { display: block; width: 100%; max-width: 320px; height: 10px; object-fit: fill; margin: -4px 0 10px; opacity: .85; }
-  .gathering .divider.wide { max-width: 100%; }
+
   .gathering .gtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
   /* the copy stops short of the crest, and the gems drop below the rating
      stars: both live in the top-right corner and must not share a line */
@@ -774,39 +773,59 @@
   .gathering .gems { display: flex; gap: 5px; margin-top: 26px; flex: none; }
   .gathering .gems img { width: 18px; height: 18px; object-fit: contain; }
   /* YOU: portrait frame + actions + the READY plaque, one row that wraps */
-  .gathering .youblock { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .gathering .youblock { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 10px; }
   /* Sam, explicitly: the ornate EMPTY frame is the treatment, and the player's
      own avatar renders cleanly inside it. The painted characters stay demo art,
      they never replace or restrict the avatar system. */
   .gathering .portrait {
-    width: 96px; height: 96px; flex: none; display: grid; place-items: center;
+    width: 92px; height: 92px; flex: none; display: grid; place-items: center;
     background: url('../assets/ui/portraits/placeholder.png') center/contain no-repeat;
   }
   .gathering .portrait #myAvatar {
     line-height: 0; display: grid; place-items: center;
   }
-  .gathering .youacts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  /* v5.1 (Sam): Keys and Shop share one width, the avatar button spans both,
+     so the three read as one tidy block beside the portrait. */
+  .gathering .youacts {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px; align-content: center; min-width: 168px;
+  }
+  .gathering .youacts .mini { padding: 7px 8px; text-align: center; }
+  .gathering .youacts .mini.wide { grid-column: 1 / -1; }
   /* the plaque IS the button face: its two states are the two images, and the
      label stays in the DOM (screen readers, and main.js still writes it) */
+  /* v5.1 (Sam): the active plaque art carries a big orange bloom, so BOTH states
+     use the calm plaque and "ready" is a small gold halo around it instead. */
   .gathering #readyBtn.plaque {
-    width: 186px; height: 70px; padding: 0; border: 0; background: transparent;
-    background-image: url('../assets/ui/buttons/ready_active.png');
+    width: 186px; height: 62px; padding: 0; border: 0; background: transparent;
+    background-image: url('../assets/ui/buttons/ready_idle.png');
     background-size: contain; background-repeat: no-repeat; background-position: center;
-    color: transparent; text-shadow: none; overflow: hidden;
+    color: transparent; text-shadow: none; overflow: visible;
   }
-  .gathering #readyBtn.plaque.primary { background-image: url('../assets/ui/buttons/ready_idle.png'); }
-  .gathering #readyBtn.plaque:hover { filter: brightness(1.12); }
+  .gathering #readyBtn.plaque:not(.primary) {   /* .primary means NOT ready yet */
+    filter: brightness(1.1) drop-shadow(0 0 5px rgba(228, 175, 96, .55));
+  }
+  .gathering #readyBtn.plaque:hover { filter: brightness(1.14) drop-shadow(0 0 4px rgba(228, 175, 96, .4)); }
   .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
   /* illustrated avatars (Sam v5): one size per site, always a round face so a
      tile's own frame never fights the roster's rhythm */
-  .av { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; vertical-align: -8px; }
-  .av.avtext { width: auto; height: auto; border-radius: 0; font-size: 19px; }
-  #myAvatar .avbig {
-    width: 58px; height: 58px; border-radius: 50%; object-fit: cover;
-    box-shadow: 0 0 0 1px rgba(197, 154, 88, .5);
+  /* v5.1 (Sam): identical crop everywhere. The span is the round window, the
+     img fills it with object-fit: cover and a small zoom that pushes the
+     tile's own painted border out of frame. No text ever lives in here. */
+  .av, #myAvatar .avbig {
+    display: inline-block; overflow: hidden; border-radius: 50%;
+    line-height: 0; flex: none;
   }
-  #myAvatar .avbig.avtext { width: auto; height: auto; box-shadow: none; font-size: 34px; }
+  .av > img, #myAvatar .avbig > img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center;
+    transform: scale(1.13); display: block;
+  }
+  .av { width: 26px; height: 26px; vertical-align: -8px; }
+  #myAvatar .avbig {
+    width: 66px; height: 66px;
+    box-shadow: 0 0 0 1px rgba(197, 154, 88, .45);
+  }
   /* the picker is part of the lobby now: same bronze frame, same steel ground,
      no ember top edge (Sam v5) */
   #avatarPanel .slab {
@@ -815,9 +834,76 @@
   }
   #avatarGrid button { padding: 4px; line-height: 0; border-color: rgba(197, 154, 88, .3); background: #0c141d; }
   #avatarGrid button:disabled { opacity: .3; filter: grayscale(1); }
-  #avatarGrid .avpick { width: 74px; height: 74px; border-radius: 4px; object-fit: cover; }
-  #avatarGrid .avpick.avtext { line-height: 74px; font-size: 34px; display: inline-block; }
+  /* the ID above outranks .avgrid button.sel, so the chosen face needs its
+     own ID-level rule or the selection reads as nothing */
+  #avatarGrid button.sel { border-color: #d3a55e; box-shadow: 0 0 0 1px #d3a55e; background: #17202b; }
+  #avatarGrid .avpick { display: block; width: 74px; height: 74px; overflow: hidden; border-radius: 4px; line-height: 0; }
+  #avatarGrid .avpick > img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
   /* bot rows: Sam's v5 metrics (icon 24-26, row 40-44, select ~40) */
+  /* ---- v5.1 polish (Sam's passes: top area, hierarchy, typography,
+     alignment, density). Colour, spacing and type only: no control moved,
+     nothing renamed, no behaviour touched. ------------------------------- */
+  /* top area: the title breathes, the stars and the gems read as ONE cluster
+     pinned to the corner instead of two floating bits */
+  .gathering h1.display { font-size: 27px; letter-spacing: .11em; color: #f2e3c2; text-shadow: 0 2px 14px rgba(0,0,0,.6); }
+  .gathering .gtop { align-items: flex-start; }
+  .gathering .gtop .sub { margin: 5px 0 6px; line-height: 1.4; color: #b9ab92; }
+  .gathering .gems {
+    display: flex; gap: 6px; margin: 30px 0 0; padding: 5px 7px;
+    border: 1px solid rgba(197, 154, 88, .28); background: rgba(10, 18, 28, .75);
+  }
+  .gathering #rateBox { top: 10px; right: 14px; }
+  /* section hierarchy: serif small-caps title, then the divider, then content.
+     All three sections use the SAME divider art at the same height. */
+  .gathering .secttl {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    font-size: 17px; font-weight: 500; letter-spacing: .1em; text-transform: none;
+    color: #f0dcb6; margin: 0 0 5px;
+  }
+  .gathering .divider { display: block; width: auto; height: 13px; max-width: 100%;
+    object-fit: contain; object-position: left center; margin: 0 0 7px; }
+  /* ADD BOTS: one grid for the header and every row, so the two columns line
+     up exactly; tighter gaps for density */
+  .gathering .botpicker { max-width: 100%; }
+  .gathering .botcols, .gathering .botgroup { grid-template-columns: minmax(0, 152px) minmax(0, 1fr); gap: 8px; }
+  .gathering .botcols {
+    padding: 0 2px 5px; font-size: 10px; letter-spacing: .12em; color: #a0917a;
+  }
+  .gathering #botBtns { gap: 5px; }
+  .gathering .botadd { font-size: 14px; padding: 0 10px; }
+  /* WARLOCKS: stronger rows, even rhythm, secondary text lifted out of the mud */
+  .gathering #playerList .pl {
+    gap: 11px; padding: 7px 10px; min-height: 42px;
+    border-bottom: 1px solid rgba(197, 154, 88, .16);
+    background: linear-gradient(90deg, rgba(255,255,255,.022), rgba(255,255,255,0));
+  }
+  .gathering #playerList .pl:first-child { border-top: 1px solid rgba(197, 154, 88, .16); }
+  .gathering #playerList .who { font-size: 14px; color: #ecdcb8; }
+  .gathering #playerList .stars { color: #a2947c; font-size: 12px; }
+  .gathering #playerList .state { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #a89a83; }
+  .gathering #playerList .state.ready { color: #a8c77e; }
+  .gathering #playerList .teamsel, .gathering #playerList .teamchip { font-size: 12px; color: #a89a83; }
+  .gathering #playerList .pl::after { content: ''; width: 34px; flex: none; order: 99; }
+  .gathering #playerList .pl:has(button.kick)::after { display: none; }
+  .gathering #playerList .teamsel select {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .35); padding: 2px 4px;
+  }
+  /* footer: same frame language as the panel, sitting right under the roster */
+  .gathering .ideaPitch { gap: 12px; padding: 7px 12px 7px 68px; font-size: 12.5px; color: #b3a58c; margin-top: 8px; }
+  .gathering .ideaPitch a.ideaLink {
+    background: linear-gradient(#20262e, #11171d); border: 1px solid rgba(197, 154, 88, .45);
+    color: #efdcb6; padding: 7px 12px;
+  }
+  .gathering .ideaPitch a.ideaLink:hover { border-color: #d3a55e; color: #fff; }
+  /* density: the two columns start at the same baseline and the whole panel
+     loses the leftover vertical slack */
+  .gathering .cols2 { gap: 6px 30px; align-items: start; }
+  .gathering .cfgcol { gap: 5px; margin-top: 9px; max-width: 100%; }
+  /* the presence toggle has no label of its own: reserve the same label
+     column so every switch in the block starts on one vertical line */
+  .gathering #specSeg::before { content: ''; min-width: 64px; flex: none; }
+  .gathering #lobbyRules { margin-top: 6px; }
+  .gathering .hint { margin-top: 6px; }
   .gathering .botadd { white-space: nowrap; min-height: 42px; display: flex; align-items: center; }
   .gathering select.botsel { height: 40px; font-size: 13px; }
   .gathering #botBtns { gap: 6px; }
@@ -958,12 +1044,10 @@
               <span id="myAvatar"></span>
             </div>
             <div class="youacts">
-              <div class="row">
-                <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
-                <button id="shopBrowseBtn" class="mini" type="button"
-                  title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Shop</button>
-              </div>
-              <button id="avatarBtn" class="mini" type="button">Choose your avatar</button>
+              <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
+              <button id="shopBrowseBtn" class="mini" type="button"
+                title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Shop</button>
+              <button id="avatarBtn" class="mini wide" type="button">Choose your avatar</button>
             </div>
             <button id="readyBtn" class="primary plaque">I am ready</button>
           </div>
@@ -998,7 +1082,7 @@
         </div>
         <div id="botPanel">
           <h2 class="secttl">Add bots</h2>
-          <img class="gdecor divider" src="../assets/ui/decor/divider_small.png" alt="">
+          <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
           <div class="botpicker">
             <div class="botcols"><span>Difficulty</span><span>Strategy</span></div>
             <div id="botBtns"></div>
@@ -1020,7 +1104,7 @@
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
       <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
-      <img class="gdecor divider wide" src="../assets/ui/decor/divider_small.png" alt="">
+      <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
       <div id="playerList"></div>
       <div class="ideaPitch">
         <img class="gdecor seal" src="../assets/ui/decor/experimental_badge.png" alt="">
