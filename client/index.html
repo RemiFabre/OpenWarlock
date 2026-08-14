@@ -111,11 +111,12 @@
      scrollbar. Only the warlock list may scroll now; the config, the bots and
      the invite card stay put, because those are the things you came to click. */
   #lobby .scroller { display: flex; flex-direction: column; min-height: 0; }
-  /* The list is the flexible part, so it gives up its height first and the
-     config/bots/invite card stay put. ⚠ The scroller keeps overflow auto as a
-     FALLBACK: on a short window even a minimal list does not fit, and clipping
-     it would hide controls with no way to reach them. */
-  #lobby #playerList { flex: 1 1 auto; min-height: 64px; overflow-y: auto; }
+  /* The list RESERVES its height (flex-basis) and scrolls inside it: the slab
+     is vertically centered, so a list that grew the slab shifted the add-bot
+     buttons under the cursor (the round-22 no-shift rule; round 23 dropped the
+     reserve by mistake). It may still shrink to 64px on a short window, and
+     the outer scroller keeps overflow auto as the last fallback. */
+  #lobby #playerList { flex: 1 1 216px; min-height: 64px; overflow-y: auto; }
   #playerList .pl {
     display: flex; align-items: center; gap: 10px;
     padding: 7px 4px; border-bottom: 1px solid var(--line);
@@ -819,8 +820,8 @@
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
       <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
-      <!-- no inline min-height since round 23: it is the flex child that
-           absorbs the overflow, so it has to be free to shrink -->
+      <!-- reserved height lives in the CSS (#lobby #playerList flex-basis):
+           the list scrolls in place instead of moving the controls above -->
       <div id="playerList"></div>
       <div class="ideaPitch">
         <span class="experimental">experimental</span>

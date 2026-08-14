@@ -1101,6 +1101,9 @@ function statsTable(fighters, specs, opts = {}) {
   return `${head}<tbody>${rows}</tbody>`;
 }
 
+// last-built lobby list signature; see the rebuild guard in updateUi()
+let lobbySig = '';
+
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
   lastPings = (s.pings && typeof s.pings === 'object') ? s.pings : {};
@@ -1153,9 +1156,19 @@ function updateUi(s) {
     // the snap = solo or an old server: everyone keeps the controls)
     const amHost = !s.host || s.host === myId;
     const list = $('playerList');
+    // Rebuild ONLY when a rendered fact changes: wiping innerHTML at snapshot
+    // rate destroyed each row's ✕ between mousedown and mouseup, so single
+    // clicks never landed. Pings stay OUT of the signature (they move on their
+    // own 2 s stream and hold no listener); the badges refresh in place below.
+    const sig = JSON.stringify([amHost, s.mode, myId, playerList.map((p) =>
+      [p.id, p.name, p.color, p.avatar, p.spectator, p.bot, p.kind, p.build,
+        p.ready, p.team])]);
     // Replacing a focused native select closes its menu. Leave the list alone
     // until the player has picked a team, then the next snapshot refreshes it.
-    if (!(document.activeElement && document.activeElement.matches('#playerList .teamsel select'))) {
+    const teamMenuOpen = document.activeElement &&
+      document.activeElement.matches('#playerList .teamsel select');
+    if (sig !== lobbySig && !teamMenuOpen) {
+      lobbySig = sig;
       list.innerHTML = '';
       for (const p of playerList) {
         const div = document.createElement('div');
@@ -1215,6 +1228,16 @@ function updateUi(s) {
         }
         list.appendChild(div);
       }
+    } else if (sig === lobbySig) {
+      // ping badges live outside the rebuild: swap/insert/remove the span in
+      // place (outerHTML = '' removes it), the buttons are never touched
+      playerList.forEach((p, i) => {
+        const who = list.children[i] && list.children[i].querySelector('.who');
+        if (!who) return;
+        const badge = who.querySelector('.ping');
+        if (badge) badge.outerHTML = pingBadge(p.id).trim();
+        else who.insertAdjacentHTML('beforeend', pingBadge(p.id));
+      });
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
