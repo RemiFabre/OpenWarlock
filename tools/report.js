@@ -330,7 +330,9 @@ export function openInBrowser(file) {
 
 export function writeReport({ run = null, notes = '', title = null, out = null, open = false }) {
   const html = reportHtml({ run, notes, title });
-  const file = out || defaultOut(run ? `elo-${run.GAMES}g-seed${run.SEED}` : 'roster-review');
+  const file = out || defaultOut(run
+    ? `elo-${run.GAMES}g-seed${run.SEED}${run.KIND && run.KIND !== 'berserker' ? `-${run.KIND}` : ''}`
+    : 'roster-review');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, html);
   if (open) openInBrowser(file);

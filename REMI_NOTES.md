@@ -296,6 +296,30 @@ full reading in `docs/history/2026-08-14-round247-elo.md`):
 - D4-leech (frequency respec) 1520, mid-pack above D1; D13-bastion 1355 =
   buttons are worth ~170 over armor-only D8, defense still under average.
 
+## 24.7c: The all-Faker mirror table (your ask)
+
+Same roster, same 2500 games, every seat on the Faker brain. ⚠ Raw elo is
+not comparable across the two tables (the K rows hand back their driving
+edge and Bradley-Terry redistributes it); read each row against D1-warlord,
+which sits ~1470 in both. Full movement analysis:
+`docs/history/2026-08-14-round247-elo-faker.md`. The short version:
+- **The mark hunts explode with a real pilot**: D3-tycoon swings +862 vs D1
+  (rank 47 → 3), M5-midas is rank 2, M1-anger rank 1. Midas never needed a
+  buff, it needed hands. My earlier "D3 is a trap" verdict was a
+  Hard-pilot verdict; I withdraw it.
+- **The K combo arsenals collapse vs equals** (K1 rank 5 → 51): combos prey
+  on opponents who eat telegraphed bolts; vs peers only K5 (plain anger)
+  stays good. Not a live-play nerf signal: no human dodges like a Faker.
+- **Defense climbs when enemies aim** (D8, D13, sumo, the item rows all
+  up); **volume-sustain collapses** (D4-leech, spoon rows, the E family
+  down): dodgers dry up per-hit healing.
+- **Frost is vindicated** (−126 → +315 vs D1): Hard bots waste the freeze,
+  Fakers spend it. The two tables now BRACKET the skill spectrum.
+- **Stable on both tables, so most believable**: Debt/Shield are the two
+  best Warlord buys (Debt's +243 halves to +123, converging with Shield);
+  arcane is skippable in the Warlord shell; echo and C6-bolt-combo are
+  weak everywhere (the honest balance candidates).
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
