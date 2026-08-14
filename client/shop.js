@@ -100,7 +100,7 @@ const FX_FIELDS = {
   dotTime: ['sickness lasts', fmtSec],
   tickEvery: ['ticks every', fmtSec],
   auraR: ['contagion radius', fmtNum],
-  goldOnHit: ['gold per cashed mark', (v) => `+${fmtNum(v)} g`],
+  goldOnClaim: ['gold per claimed mark', (v) => `+${fmtNum(v)} g`],
   markEvery: ['a mark appears every', fmtSec],
   markDmg: ['each claimed mark', (v) => `+${fmtNum(v)} dmg, forever`],
   markHeal: ['each vacuumed mark heals', (v) => `${fmtNum(v)} hp`],

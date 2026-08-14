@@ -13,10 +13,15 @@ export const ARENA = {
   // (humans + bots, interpretation), frozen for the whole game: a late joiner
   // never resizes a live arena. Set ANCHOR huge = revert to a fixed arena.
   SCALE_ANCHOR_PLAYERS: 5,
-  // Round 18 (Remi): 4 portals out in the lava; touch one and you are
-  // teleported to the arena center. Fixed positions (diagonals, a bit beyond
-  // the starting rim), versus only; the swim there is priced in lava HP.
-  PORTALS: { COUNT: 4, DIST_FRAC: 1.25, RADIUS: 2.2, ANGLE: Math.PI / 4 },
+  // Round 18 (Remi): 4 portals out in the lava. Fixed positions (diagonals, a
+  // bit beyond the starting rim), versus only; the swim there is priced in
+  // lava HP. Round 24.1 (Remi): the exact-center exit was a mine magnet (one
+  // mine at 0,0 punished every arrival), so each portal now has its OWN exit:
+  // on the portal->center line, EXIT_DIST past the center (a bit more than a
+  // player diameter, and beyond a center mine's trigger ring + body). The
+  // four exits form a cross, marked on the floor by the client.
+  PORTALS: { COUNT: 4, DIST_FRAC: 1.25, RADIUS: 2.2, ANGLE: Math.PI / 4,
+             EXIT_DIST: 2.5 },
   // TEST flag (round 16): the ring shrinks continuously START→0 so the whole
   // arena becomes lava; MIN_RADIUS/OVERTIME_* bypassed. false = classic
   // hold-then-sudden-death, untouched.
@@ -337,7 +342,11 @@ export const SPELLS = {
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
     // Round 21.8 (Remi): lv2 24 → 30; the upgrade was not worth its 6 g.
     damage: [16, 30], knockback: [110, 130],
-    desc: 'Mark a spot, a rock falls on it: heavy damage and a radial blast.',
+    // Round 24.1 (Remi, from Ju's hole idea but WALKABLE): the impact breaks
+    // the ground into a permanent lava pool of craterR. It is real lava
+    // (LAVA.DPS, treads, Fire Walk, swim speed), not a hazard with an owner.
+    craterR: [3, 4],
+    desc: 'Mark a spot, a rock falls on it: heavy damage, a radial blast, and the ground breaks into lava.',
   },
   nova: {
     // Round 21.8 REWORK (Remi, voice; the Bomb was "unsatisfying: not much
@@ -643,16 +652,17 @@ export const ELEMENTS = {
                  burstKbAdd: [25, 50, 75] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now; the first hit on a target
   // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
-  // target cashes +1 g and clears it. Halves the income RATE, which was the
-  // engine of the midas-cdr 86% auto-win (question J). +1 g cap unchanged
-  // forever; levels still only buy back the damage/push penalty.
-  // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
+  // Round 24.1 (Remi): buying midas used to buy a MALUS (the -30/-15% fireball
+  // and the plant-then-cash chore). His ruling: spending gold must never make
+  // you weaker, even if it pays off later. Midas is Anger's twin now: every
+  // markEvery s a GOLD mark lands on a random enemy; your fireball hit on
+  // them claims +goldOnClaim g and re-arms the clock. Cadence = anger's exact
+  // numbers (his instruction); the flat 2 g is his first-try value.
+  // Old spec (tax + two-hit cash): git show ad9d54e:shared/constants.js.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
-           long: 'Your first hit marks a target, the next hit on them cashes +1 g. The price: a weaker fireball, until lv3 lifts the penalty.',
-           // Round 22.5 (Remi): the damage penalty was too extreme; -30/-15/-0%
-           // now (push penalty untouched, lv3 still lifts both)
-           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.7, 0.85, 1], kbMult: [0.5, 0.75, 1] } },
+           long: 'Every few seconds a gold mark appears on an enemy. Claim it with a fireball hit for +2 g.',
+           fx: { markEvery: [30, 25, 20], markDelay: 0.5, goldOnClaim: 2 } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else; the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -850,7 +860,13 @@ export const BOT_TARGETING = {
   WOUNDED: 0.35,       // per missing HP: finish what someone already started
   CROWD: 0.8,          // per unit of "how much backup this one has within 18"
   RIM: 8,              // full bonus for standing on the edge, 0 at the centre
-  MY_STACKS: 4,        // per frost/gale/midas/malady mark of MINE on the body
+  MY_STACKS: 4,        // per frost/gale/malady stack of MINE on the body
+  // Round 24.1 (Remi): Hard and above HUNT the anger/midas mark "whenever
+  // possible". 40 apparent units ≈ most of the arena: the marked enemy wins
+  // the draw unless someone else is drastically closer or nearly dead.
+  // Gated on BOTS[kind].difficulty >= Hard in pickPrey; Normal shares the
+  // brain but not the kind, so it is untouched by construction.
+  HUNT_MARK: 40,
 };
 
 // ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------
@@ -880,7 +896,7 @@ export const BUILDS = {
   // tournament.md), deliberately UNLABELED in the UI. Legacy six
   // (bruiser/sniper/escape/turtle/rusher/boomer) retired the same day.
   tycoon: { name: 'Tycoon',
-    desc: 'Gets rich, then out-shops everyone: every hit pays and its paired fireballs double the payroll. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
+    desc: 'Gets rich, then out-shops everyone: it hunts its gold mark and every claim pays. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
     order: ['fireball', 'midas', 'mosquito', 'midas', 'hourglass', 'midas', 'mosquito',
       'sword', 'amulet', 'sword', 'amulet', 'sword', 'boots', 'amulet', 'boots'] },
   warlord: { name: 'Warlord',

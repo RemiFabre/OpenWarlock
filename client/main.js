@@ -259,7 +259,17 @@ function onEvent(e) {
       fx.push({ ...e, type: 'grow', at: now, dur: 0.6 });
       playSfx('ding');
       break;
-    case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
+    case 'meteorHit':
+      fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 });
+      // 24.1: the ground breaks; a longer burst rides the same event (shards +
+      // a lava geyser over the fresh crater)
+      if (e.crater > 0) fx.push({ ...e, type: 'craterBurst', at: now, dur: 1.3 });
+      playSfx('boom'); playSfx('death'); break;
+    // midas (24.1): your gold mark was claimed; coin burst on the victim
+    case 'midasClaim':
+      fx.push({ ...e, type: 'midasMark', at: now, dur: 0.6 });
+      if (e.by === myId) playSfx('buy');
+      break;
     // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
     // charge is a soft click, the spring is a boom, and every stored ball
     // erupting is its own whoosh, so a loaded trap SOUNDS like the payoff.
@@ -493,6 +503,8 @@ function interpolated(now) {
     // with the seat count); older hosts don't send it, hence the fallback
     startRadius: fin(+s.startRadius) ? +s.startRadius : ARENA.START_RADIUS,
     pillars: Array.isArray(s.pillars) ? s.pillars : [],
+    // broken ground (24.1): craters never move either, straight off the snap
+    craters: Array.isArray(s.craters) ? s.craters : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
     // mines never move: no interpolation, straight off the snapshot
@@ -1404,6 +1416,13 @@ function updateUi(s) {
       const markUp = playerList.some(p => p.myStacks && p.myStacks.anger > 0);
       buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg` +
         (markUp ? ' · mark is OUT: hunt it' : '') + '</span>');
+    }
+    // midas (24.1): the same hunt, the reward is gold; confirm when it is out
+    const midLv = (m.elements && m.elements.midas) || 0;
+    if (midLv > 0) {
+      const goldUp = playerList.some(p => p.myStacks && p.myStacks.midas > 0);
+      buffs.push(`<span class="buff vamp">${ELEMENTS.midas.icon} ` +
+        (goldUp ? `mark is OUT: +${fmtNum(ELEMENTS.midas.fx.goldOnClaim)} g` : 'hunting…') + '</span>');
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)

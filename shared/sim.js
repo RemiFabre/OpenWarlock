@@ -58,6 +58,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     graceT: ARENA.OVERTIME_GRACE, // overtime grace left once radius hits MIN
     roundFighters: 0,      // fighters seated at round start (adaptive shrink)
     pillars: [],           // [{x, y, r, sunk}] set each round start
+    craters: [],           // broken ground (24.1): meteor impacts, LAVA pools; game-long like pillars
     players: {},
     projectiles: [],
     delayedShots: [],      // mosquito: trailing balls waiting to fire (elemental)
@@ -226,6 +227,8 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     angerMarks: 0,
     _angerTarget: null,    // anger: who carries my mark right now (round-scoped)
     _angerNext: Infinity,  // anger: state.time the next mark may land (startRound arms it)
+    _midasTarget: null,    // midas (24.1): the same hunt, the reward is gold
+    _midasNext: Infinity,
     mosqN: 0,              // mosquito: fireballs cast since the last pair
     mosqDue: false,        // mosquito: a threshold crossed on a trailing ball, owed to the next real cast
     dash: null,            // {dx, dy, left, hit:Set-as-object}
@@ -1532,10 +1535,16 @@ function startRound(state) {
   fs.forEach((pl, k) => {
     const i = seat[k];
     // co-op parties spawn together on one side (the waves come from the other)
-    const a = coop
+    let a = coop
       ? -Math.PI / 2 + (fs.length > 1 ? (i / (fs.length - 1) - 0.5) * (Math.PI / 3) : 0)
       : (i / fs.length) * Math.PI * 2 - Math.PI / 2;
     pl.x = Math.cos(a) * r; pl.y = Math.sin(a) * r;
+    // 24.1: broken ground never swallows a spawn seat: walk the seat around
+    // the ring in small steps until it is clear (40 steps sweep the circle)
+    for (let tries = 0; tries < 40 && inCrater(state, pl.x, pl.y, pl.radius); tries++) {
+      a += Math.PI / 20;
+      pl.x = Math.cos(a) * r; pl.y = Math.sin(a) * r;
+    }
     pl.vx = 0; pl.vy = 0;
     pl.moveTarget = null;
     pl.hp = pl.maxHp;
@@ -1567,6 +1576,8 @@ function startRound(state) {
     // dies with the round (stacks wiped above); the hunt re-arms below.
     pl._angerTarget = null;
     pl._angerNext = ELEMENTS.anger.fx.markDelay;
+    pl._midasTarget = null;
+    pl._midasNext = ELEMENTS.midas.fx.markDelay;
     pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
     pl.roundKills = 0;
@@ -1818,6 +1829,22 @@ export function step(state, dt) {
   }
 }
 
+// Broken ground (24.1): is this point inside a meteor crater's lava pool?
+// `pad` widens the test (spawn seats pass the body radius so nobody starts
+// with a toe in the fire).
+function inCrater(state, x, y, pad = 0) {
+  if (!state.craters || !state.craters.length) return false;
+  for (const c of state.craters)
+    if (Math.hypot(x - c.x, y - c.y) < c.r + pad) return true;
+  return false;
+}
+
+// The two mark-hunt elements and their per-player bookkeeping fields.
+const MARK_HUNTS = [
+  ['anger', '_angerTarget', '_angerNext'],
+  ['midas', '_midasTarget', '_midasNext'],
+];
+
 function stepBattle(state, dt) {
   state.time += dt;
 
@@ -1873,7 +1900,11 @@ function stepBattle(state, dt) {
       m.t -= dt;
       if (m.t > 0) { rest.push(m); continue; }
       const spec = SPELLS.meteor;
-      state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius, by: m.owner });
+      // 24.1 (Remi, from Ju's hole idea but WALKABLE): the rock breaks the
+      // ground; the crater is real lava (see the inLava read in stepBattle)
+      const craterR = lvl(spec, 'craterR', m.level);
+      (state.craters = state.craters || []).push({ x: m.x, y: m.y, r: craterR });
+      state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius, by: m.owner, crater: craterR });
       for (const pl of Object.values(state.players)) {
         // everyone under the rock eats it, the caster included, but never a
         // teammate (round 21.3: same team = spells ignore each other)
@@ -2139,32 +2170,40 @@ function stepBattle(state, dt) {
     }
   }
 
-  // Anger mark hunt (elemental VERSUS only; co-op never deals a mark, the
-  // campaign is priced without it). Each anger owner has at most ONE mark out:
-  // markDelay s into the round, then markEvery s after each claim or after the
-  // marked victim dies, a random LIVING opponent gets the red mark. Seeded rng:
-  // same seed, same hunt. The claim itself lives in applyElementsHit.
+  // Mark hunts (elemental VERSUS only; co-op never deals a mark, the campaign
+  // is priced without either). Anger and midas share one engine since 24.1:
+  // each owner has at most ONE mark out per element: markDelay s into the
+  // round, then markEvery s after each claim or after the marked victim dies,
+  // a random LIVING opponent gets the mark. Seeded rng: same seed, same hunt.
+  // The claims live in applyElementsHit (anger banks damage, midas pays gold).
   if (state.mode === 'elemental') {
-    const fA = ELEMENTS.anger.fx;
-    for (const pl of players) {
-      if (!pl.alive || !pl.elements || !(pl.elements.anger > 0)) continue;
-      if (pl._angerTarget != null) {
-        const tgt = state.players[pl._angerTarget];
-        if (tgt && tgt.alive) continue;              // the hunt is on
-        if (tgt) clearStacks(tgt, 'anger', pl.id);   // victim died (or left):
-        pl._angerTarget = null;                      // fresh roll after the cadence
-        pl._angerNext = state.time + efxV(fA.markEvery, pl.elements.anger);
-        continue;
+    for (const [ek, tKey, nKey] of MARK_HUNTS) {
+      const fH = ELEMENTS[ek].fx;
+      for (const pl of players) {
+        if (!pl.alive || !pl.elements || !(pl.elements[ek] > 0)) continue;
+        if (pl[tKey] != null) {
+          const tgt = state.players[pl[tKey]];
+          if (tgt && tgt.alive) continue;            // the hunt is on
+          if (tgt) clearStacks(tgt, ek, pl.id);      // victim died (or left):
+          pl[tKey] = null;                           // fresh roll after the cadence
+          pl[nKey] = state.time + efxV(fH.markEvery, pl.elements[ek]);
+          continue;
+        }
+        if (state.time < (pl[nKey] ?? fH.markDelay)) continue;
+        // a statue takes no marks either (nothing applies during the freeze);
+        // it just is not a candidate this tick; the roll retries next one
+        const cands = players.filter(
+          q => q !== pl && q.alive && q.statueT <= 0 && hostile(pl, q));
+        if (!cands.length) continue;                 // nobody to hunt: retry next tick
+        const victim = cands[Math.floor(rng(state) * cands.length)];
+        addStack(victim, ek, pl.id);
+        pl[tKey] = victim.id;
+        // midas keeps its mark event (the client sparkle and the chatter line
+        // predate the rework); anger has always dealt silently, the pip tells
+        if (ek === 'midas')
+          state.events.push({ t: 'midasMark', id: victim.id, by: pl.id,
+            x: victim.x, y: victim.y });
       }
-      if (state.time < (pl._angerNext ?? fA.markDelay)) continue;
-      // a statue takes no marks either (nothing applies during the freeze);
-      // it just is not a candidate this tick; the roll retries next one
-      const cands = players.filter(
-        q => q !== pl && q.alive && q.statueT <= 0 && hostile(pl, q));
-      if (!cands.length) continue;                   // nobody to hunt: retry next tick
-      const victim = cands[Math.floor(rng(state) * cands.length)];
-      addStack(victim, 'anger', pl.id);
-      pl._angerTarget = victim.id;
     }
   }
 
@@ -2358,12 +2397,15 @@ function stepBattle(state, dt) {
         const a = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
         const px = Math.cos(a) * d, py = Math.sin(a) * d;
         if (Math.hypot(pl.x - px, pl.y - py) > P.RADIUS + pl.radius) continue;
-        pl.x = 0; pl.y = 0;
+        // 24.1 (Remi): each portal's OWN exit, EXIT_DIST past the center on
+        // its own line (the exact-center exit was a one-mine kill box)
+        const ex = -Math.cos(a) * P.EXIT_DIST, ey = -Math.sin(a) * P.EXIT_DIST;
+        pl.x = ex; pl.y = ey;
         pl.vx = 0; pl.vy = 0;
         // a charging repulse SURVIVES the trip (round 21.0 ruling) and
-        // detonates at the center; everything else stale is cleared
+        // detonates at the exit; everything else stale is cleared
         pl.moveTarget = null; pl.dash = null;
-        state.events.push({ t: 'portal', id: pl.id, x: 0, y: 0, fx: px, fy: py });
+        state.events.push({ t: 'portal', id: pl.id, x: ex, y: ey, fx: px, fy: py });
         break;
       }
     }
@@ -2372,7 +2414,8 @@ function stepBattle(state, dt) {
     // and the damage stops; the price is only paid while swimming. Fire Walk
     // (round 22) zeroes the damage outright while its timer runs; the ×2 lava
     // speed in stats() is deliberately untouched.
-    const inLava = state.arenaRadius <= 0 || Math.hypot(pl.x, pl.y) > state.arenaRadius;
+    const inLava = state.arenaRadius <= 0 || Math.hypot(pl.x, pl.y) > state.arenaRadius
+      || inCrater(state, pl.x, pl.y);
     if (inLava && pl.fireWalkT <= 0)
       applyDamage(state, pl, LAVA.DPS * st.lavaMult * dt, null, { silent: true });
     if (pl.alive) pl.inLava = inLava;
@@ -2724,13 +2767,9 @@ function stepProjectiles(state, dt) {
             const own = state.players[pr.owner];
             ramp += ((own && own.angerMarks) || 0) * f.markDmg;
           }
-          if (f.dmgMult) { dmg *= efxV(f.dmgMult, el); ramp *= efxV(f.dmgMult, el); }
-          // flat knockback multiplier. Gale used to be the loud user of this;
-          // since the 2026-08-07 rework its push is a burst and lives below.
-          // midas still rides it (its levels buy back a push/damage penalty),
-          // so deleting this line silently un-nerfs midas; it did, and the
-          // midas test caught it.
-          if (f.kbMult) kb *= efxV(f.kbMult, el);
+          // (the generic fx.dmgMult / fx.kbMult taxes left with old midas,
+          // round 24.1: no element declares either any more. Remi's ruling:
+          // buying an element must never weaken the fireball. Revert: git.)
         }
         // Gale (round 19): stack-and-burst at EVERY level, and the gust is a
         // flat ADD, not a multiplier (a % gust scaled weirdly with other push
@@ -3002,26 +3041,23 @@ function applyElementsHit(state, pr, target) {
         addStack(target, 'malady', eo);
       }
     }
-    if (f.goldOnHit && eo != null) {
+    // midas (24.1): anger's twin, the reward is GOLD. A FIREBALL hit on your
+    // gold-marked target claims +goldOnClaim g and re-arms the hunt clock.
+    // FIREBALLS ONLY, the same round-12 ruling anger lives by.
+    if (f.goldOnClaim && eo != null && pr.type === 'fireball' &&
+        stackCount(target, 'midas', eo) > 0) {
       const owner = state.players[eo];
       if (owner) {
-        // Round 17 §5: a two-hit rhythm on the private-stack store. First hit
-        // plants a 🪙 mark on THIS target; the next hit on the same target
-        // cashes +1 g (still capped there forever) and clears it. Halves the
-        // income RATE, the midas-cdr engine (question J). Mosquito's pair is
-        // two real fireballs here: lead plants, trailing cashes.
-        if (stackCount(target, 'midas', eo) > 0) {
-          clearStacks(target, 'midas', eo);
-          const pay = efxV(f.goldOnHit, el);
-          owner.gold += pay;
-          owner.goldEarned += pay;
-          owner.roundGold += pay;
-          state.events.push({ t: 'gold', id: eo, amount: pay, x: pr.x, y: pr.y });
-        } else {
-          addStack(target, 'midas', eo);
-          state.events.push({ t: 'midasMark', id: target.id, by: eo,
-            x: target.x, y: target.y });
-        }
+        clearStacks(target, 'midas', eo);
+        const pay = f.goldOnClaim;
+        owner.gold += pay;
+        owner.goldEarned += pay;
+        owner.roundGold += pay;
+        owner._midasTarget = null;
+        owner._midasNext = state.time + efxV(f.markEvery, el);
+        state.events.push({ t: 'gold', id: eo, amount: pay, x: target.x, y: target.y });
+        state.events.push({ t: 'midasClaim', id: target.id, by: eo,
+          x: target.x, y: target.y });
       }
     }
     // anger: a FIREBALL hit on YOUR marked target claims the mark; +1 to the
@@ -3241,6 +3277,9 @@ export function snapshot(state, viewerId = null) {
     pillars: (state.pillars || []).map(p => ({
       x: round2(p.x), y: round2(p.y), r: round2(p.r), sunk: !!p.sunk,
     })),
+    // broken ground (24.1): meteor craters are PUBLIC lava pools, same for
+    // every viewer and present in every ruleset (meteor is a classic spell too)
+    craters: (state.craters || []).map(c => ({ x: round2(c.x), y: round2(c.y), r: round2(c.r) })),
     winner: state.winner,
     ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),
     roundSummary: state.roundSummary || null,
@@ -3953,6 +3992,19 @@ function leadPull(pl, e) {
   return killLead(pl, e) * BOT_TARGETING.LEADER_BIAS;
 }
 
+// Round 24.1 (Remi): Hard and above HUNT the enemy carrying their anger or
+// midas mark "whenever possible". Returned in apparent-distance units and
+// subtracted from a distance-shaped score, like leadPull. Gated on the bot's
+// KIND, not its brain: Normal is the berserker brain on the brawler kind and
+// must stay untouched (his instruction: below Hard, no behaviour change).
+function huntPull(state, pl, e) {
+  if (!pl.bot || !BOTS[pl.kind]) return 0;
+  if (BOTS[pl.kind].difficulty < BOTS.berserker.difficulty) return 0;
+  for (const [ek] of MARK_HUNTS)
+    if (stackCount(e, ek, pl.id) > 0) return BOT_TARGETING.HUNT_MARK;
+  return 0;
+}
+
 function nearestEnemy(state, pl, hpWeight = 0, leadBias = false) {
   // lowest (distance + hp*weight): weight 0 = strictly nearest,
   // small weight = prefer wounded targets among comparably close ones.
@@ -3961,7 +4013,8 @@ function nearestEnemy(state, pl, hpWeight = 0, leadBias = false) {
   let best = null, bestScore = Infinity;
   for (const other of enemiesSeen(state, pl)) {
     const d = Math.hypot(other.x - pl.x, other.y - pl.y);
-    const score = d + other.hp * hpWeight - (leadBias ? leadPull(pl, other) : 0);
+    const score = d + other.hp * hpWeight - (leadBias ? leadPull(pl, other) : 0)
+      - huntPull(state, pl, other);
     if (score < bestScore) { best = other; bestScore = score; }
   }
   return best;
@@ -4060,7 +4113,7 @@ function stepGrunt(state, pl, dt) {
 // every stacking element whose payoff comes from ITS OWN stacks piling up.
 // Private per attacker (stackCount), so this reads as "MY investment", never
 // "someone is about to pop this", which would be information nobody has.
-const PREY_MARKS = ['frost', 'gale', 'midas', 'malady'];
+const PREY_MARKS = ['frost', 'gale', 'malady'];   // midas left in 24.1: it is a HUNT mark now
 
 // Berserker target choice: closest wins, but wounded, isolated, rim-standing,
 // carrying my marks, or FAR AHEAD ON KILLS enemies are tastier. Every term is
@@ -4106,7 +4159,7 @@ export function pickPrey(state, pl) {
     const missing = Math.max(0, (e.maxHp || e.hp) - e.hp);
     const score = d * W.PROXIMITY + crowd * W.CROWD
       - missing * W.WOUNDED - rim * W.RIM - mine * W.MY_STACKS
-      - leadPull(pl, e) * W.PROXIMITY;
+      - leadPull(pl, e) * W.PROXIMITY - huntPull(state, pl, e);
     scores.push(score);
     if (score < bestScore) bestScore = score;
   }

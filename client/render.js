@@ -283,12 +283,47 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.beginPath(); ctx.arc(view.cx, view.cy, R * i / 3.4, 0, Math.PI * 2); ctx.stroke();
   }
 
+  // Broken ground (24.1): meteor craters are open lava. Radius-TRUE (the burn
+  // edge IS the drawn edge), molten core breathing on the lava's own slow
+  // clock, with a dark crusted lip so it reads as a HOLE in the rock, not a
+  // decal on top of it.
+  for (const c of (Array.isArray(vs.craters) ? vs.craters : [])) {
+    if (!fin(c.x) || !fin(c.y) || !fin(c.r)) continue;
+    const cx2 = view.sx(c.x), cy2 = view.sy(c.y), cr = c.r * scale;
+    const breath = 0.8 + 0.2 * Math.sin(now / 700 + c.x + c.y);
+    const g = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, cr);
+    g.addColorStop(0, `rgba(255, 170, 60, ${0.85 * breath})`);
+    g.addColorStop(0.55, `rgba(255, 93, 31, ${0.75 * breath})`);
+    g.addColorStop(1, 'rgba(140, 30, 8, 0.9)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx2, cy2, cr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(20, 10, 6, 0.85)';   // the crusted lip
+    ctx.lineWidth = Math.max(1.5, cr * 0.09);
+    ctx.beginPath(); ctx.arc(cx2, cy2, cr, 0, Math.PI * 2); ctx.stroke();
+  }
+
   // --- lava portals (round 18, versus only): touch one, surface at the center.
   // Cool-toned vortex so it can never be mistaken for lava FX; the swirl spins
   // so a static frame still reads as "this is a mechanism", not decoration.
   if (vs.mode !== 'coop' && ARENA.PORTALS) {
     const P = ARENA.PORTALS;
     const pd = R0 * P.DIST_FRAC;
+    // 24.1: each portal's landing spot (EXIT_DIST past the center on its own
+    // line; the four form a cross). A quiet cool-toned floor rune, same
+    // palette as the portals so "something arrives here" reads at a glance.
+    for (let i = 0; i < P.COUNT; i++) {
+      const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
+      const ex = view.sx(-Math.cos(pa) * P.EXIT_DIST);
+      const ey = view.sy(-Math.sin(pa) * P.EXIT_DIST);
+      const er = 0.9 * scale;
+      ctx.strokeStyle = 'rgba(140, 220, 255, 0.28)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();                       // a small cross-hair inside
+      ctx.moveTo(ex - er * 0.5, ey); ctx.lineTo(ex + er * 0.5, ey);
+      ctx.moveTo(ex, ey - er * 0.5); ctx.lineTo(ex, ey + er * 0.5);
+      ctx.stroke();
+    }
     for (let i = 0; i < P.COUNT; i++) {
       const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
       const x = view.sx(Math.cos(pa) * pd), y = view.sy(Math.sin(pa) * pd);
@@ -835,16 +870,22 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         ctx.stroke();
       }
     }
-    // Midas mark (round 17 §5): this body owes you gold; your next hit
-    // cashes it. One gold pip on the RIGHT side: frost owns the top arc and
-    // gale the bottom dashes.
+    // Midas mark (24.1): the gold HUNT orb, anger's look in gold ("a big
+    // yellow mark like the big red mark", Remi). Right side: frost owns the
+    // top arc, gale the bottom dashes, anger the upper-right diagonal.
     if (mine && mine.midas > 0) {
-      ctx.fillStyle = 'rgba(255, 208, 70, 0.95)';
+      const px2 = x + r * 1.75, py2 = y;
+      ctx.fillStyle = 'rgba(255, 200, 40, 0.95)';
       ctx.strokeStyle = 'rgba(120, 85, 0, 0.9)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(x + r * 1.75, y, 3.2, 0, Math.PI * 2);
+      ctx.arc(px2, py2, 3.4, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+      // the glint that makes it an orb, not a dot (anger's tell)
+      ctx.fillStyle = 'rgba(255, 245, 200, 0.9)';
+      ctx.beginPath();
+      ctx.arc(px2 - 1, py2 - 1, 1.1, 0, Math.PI * 2);
+      ctx.fill();
     }
     // Malady mark (round 19): your first hit planted the 🦠; your next one
     // infects. One sickly-green pip on the LEFT: midas owns the right, frost
@@ -1537,6 +1578,45 @@ function drawFx(view, fx, now, baseAlpha = 1, vs = null) {
         g3.addColorStop(1, 'rgba(255, 90, 20, 0)');
         ctx.fillStyle = g3;
         ctx.beginPath(); ctx.arc(x, y, R3, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'craterBurst': {
+        // 24.1: the ground gives way: dark rock shards fly out while a lava
+        // geyser climbs, hangs, and falls back into the fresh pool
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const cr = (fin(+f.crater) ? +f.crater : 3) * scale;
+        // shards: deterministic per-event fan (seeded by f.at), gone by k=0.5
+        if (k < 0.5) {
+          const ka = k / 0.5;
+          ctx.fillStyle = `rgba(30, 22, 18, ${1 - ka})`;
+          for (let i = 0; i < 9; i++) {
+            const ang = (i / 9) * Math.PI * 2 + (f.at % 7);
+            const d = cr * (0.4 + 1.6 * ka);
+            const sx2 = x + Math.cos(ang) * d, sy2 = y + Math.sin(ang) * d - 14 * ka * (1 - ka) * 4;
+            ctx.beginPath(); ctx.arc(sx2, sy2, 2.6 * (1 - ka) + 0.6, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        // the geyser: a column that rises fast and collapses (peak ~k=0.35)
+        const lift = Math.sin(Math.min(1, k / 0.7) * Math.PI);
+        const gh = cr * 2.2 * lift;
+        if (gh > 1) {
+          const gg = ctx.createLinearGradient(x, y, x, y - gh);
+          gg.addColorStop(0, `rgba(255, 120, 40, ${0.85 * a})`);
+          gg.addColorStop(0.6, `rgba(255, 170, 60, ${0.7 * a})`);
+          gg.addColorStop(1, 'rgba(255, 220, 120, 0)');
+          ctx.fillStyle = gg;
+          ctx.beginPath();
+          ctx.ellipse(x, y - gh / 2, cr * 0.35 * (1 - 0.4 * k), gh / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // droplets at the crown
+          ctx.fillStyle = `rgba(255, 190, 80, ${0.8 * a})`;
+          for (let i = 0; i < 5; i++) {
+            const ang = (i / 5) * Math.PI * 2 + k * 6;
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(ang) * cr * 0.5 * k * 2, y - gh + Math.sin(ang) * 3, 1.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
         break;
       }
       case 'mineHit': {
