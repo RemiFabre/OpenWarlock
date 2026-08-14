@@ -76,9 +76,12 @@ build step, Node ESM, only dep is `ws`.
 - Everything in the project is written in **English**.
 - **No em dashes** in any project text; full stops or brackets instead
   (Remi, 2026-08-12).
-- **Data-driven balance** (seeded headless games, sweeps, 2+ seeds, check
-  monotonicity). But bots can't price reactive skill: **flag bot artifacts,
-  never number-buff around them**. His feel report outranks every table.
+- **Data-driven balance** (seeded headless games; constant SWEEPS still want
+  2+ seeds and a monotonicity check). ⚠ elo.js is the exception (Remi,
+  re-affirmed 2026-08-14): **ONE seed, 2000 games, seed 1, always**; never
+  burn a second seed on it. Bots can't price reactive skill: **flag bot
+  artifacts, never number-buff around them**. His feel report outranks every
+  table.
 - **The 1/x ruling (Remi, 2026-08-14): levels that scale a cooldown-gated
   effect are computed in FREQUENCY space.** What a player feels is the RATE
   (1/CD), so "+p% per level" means `CD_next = CD / (1 + p)`, rounded to the
