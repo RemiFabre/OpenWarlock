@@ -1,9 +1,9 @@
 # Notes for Remi (OpenWarlock & the open web MOBA)
 
-*Rounds 23.1 + 24 + 24.1, 2026-08-14: the netcode agent's playout fix
-(23.1), the vampire/lobby round (24), and your second voice list (24.1:
-midas, mark-hunting bots, meteor craters, portal exits), merged here in
-shipping order. Round 23 is archived at
+*Rounds 23.1 + 24 + 24.1 + 24.2, 2026-08-14: the netcode agent's playout
+fix (23.1), the vampire/lobby round (24), your second voice list (24.1:
+midas, mark-hunting bots, meteor craters, portal exits), and the 1/x cadence
+ruling (24.2), merged here in shipping order. Round 23 is archived at
 `docs/history/2026-08-13-remi-notes-round-23.md`.*
 
 ## 23.1: Your friend's jerk was a REWIND, and it was ours
@@ -147,6 +147,22 @@ center (a bit more than a player diameter, and beyond a center mine's
 trigger ring). The four exits form a cross, each marked with a small floor
 rune so everyone knows something arrives there. One mine can no longer cover
 them all; camping now costs four mines on four telegraphed spots.
+
+## 24.2: The 1/x ruling, applied to both mark hunts
+
+Your rule is now in AGENTS.md (the handoff every session reads): levels that
+scale a cooldown-gated effect are computed in FREQUENCY space, because the
+felt thing is the rate (1/CD). "+p% per level" = divide the cooldown by
+(1+p), round to the integer; haste already behaves this way, hand-set
+cadences get hand-computed values with the formula in the comment.
+
+Applied at +35% mark rate per level:
+- **Anger markEvery [30,25,20] -> [30, 22, 16]** (30 / 1.35 = 22.2, / 1.35
+  again = 16.5). The old linear steps were +20% then +25%: uneven and
+  weaker.
+- **Midas markEvery [30,25,20] -> [20, 15, 11]** (your new 20 s base, same
+  +35% steps). Base income roughly +50% at lv1 on top of the rework, which
+  also answers yesterday's "midas gold is thin for bots" finding.
 
 ## Still waiting on you
 

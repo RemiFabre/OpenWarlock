@@ -662,7 +662,9 @@ export const ELEMENTS = {
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Gold generation.',
            long: 'Every few seconds a gold mark appears on an enemy. Claim it with a fireball hit for +2 g.',
-           fx: { markEvery: [30, 25, 20], markDelay: 0.5, goldOnClaim: 2 } },
+           // Round 24.2 (Remi): base 20 s (was anger's 30), +35% mark rate per
+           // level in FREQUENCY space (1/x ruling): 20 -> 14.8 -> 11.0, rounded.
+           fx: { markEvery: [20, 15, 11], markDelay: 0.5, goldOnClaim: 2 } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else; the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -685,8 +687,11 @@ export const ELEMENTS = {
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Infinite scaling.',
            long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
-           // Round 22.5 (Remi): still too strong; marks slowed [20,15,10] -> [30,25,20]
-           fx: { markEvery: [30, 25, 20], markDmg: 0.5, markDelay: 0.5,
+           // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
+           // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
+           // CD_next = CD / 1.35, rounded. 30 -> 22.2 -> 16.5.
+           // (22.5's linear [30,25,20] was +20%, +25% per level: uneven.)
+           fx: { markEvery: [30, 22, 16], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead

@@ -79,6 +79,13 @@ build step, Node ESM, only dep is `ws`.
 - **Data-driven balance** (seeded headless games, sweeps, 2+ seeds, check
   monotonicity). But bots can't price reactive skill: **flag bot artifacts,
   never number-buff around them**. His feel report outranks every table.
+- **The 1/x ruling (Remi, 2026-08-14): levels that scale a cooldown-gated
+  effect are computed in FREQUENCY space.** What a player feels is the RATE
+  (1/CD), so "+p% per level" means `CD_next = CD / (1 + p)`, rounded to the
+  integer, never a linear seconds cut. Haste already works this way; where
+  raw seconds stay (the anger/midas mark cadences, anything mark-shaped
+  later), hand-compute with the formula and say so in the comment.
+  Example: 30 s at +35%/lvl -> 30 / 1.35 -> 22 -> 16.
 - **Reports must explain themselves** (Remi, reinforced 2026-08-08 after
   three "what does this number mean" questions): EVERY section that shows
   numbers opens with 1-3 lines saying exactly what the number is, vs what
@@ -220,7 +227,8 @@ build step, Node ESM, only dep is `ws`.
   REFLECTED ball's riders stay keyed to the element's owner (`pr.elemOwner`),
   never the reflector (the game-night shared-ice bug),
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
-  **[30,25,20] s**, slowed again in 22.5; claim = +0.5 fireball dmg forever),
+  **[30,22,16] s** (24.2, frequency-space steps); claim = +0.5 fireball dmg
+  forever),
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
   cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
   vampire=mark-and-feast (round 24: every hit banks a never-fading mark on the
@@ -229,8 +237,8 @@ build step, Node ESM, only dep is `ws`.
   feast always finishes; marks die with either party; no feast through
   Vanish/NOPE),
   midas=anger's twin since 24.1 (gold mark on a random enemy every
-  [30,25,20] s, fireball claim = +2 g flat, NO malus of any kind; Remi's
-  ruling: buying an element must never weaken the fireball). ⚠ FIREBALL RANGE IS 50 since
+  **[20,15,11] s** (24.2), fireball claim = +2 g flat, NO malus of any kind;
+  Remi's ruling: buying an element must never weaken the fireball). ⚠ FIREBALL RANGE IS 50 since
   22.5 (was infinite): balls fizzle past `SPELLS.fireball.range`, reflections
   restart the meter.
   Classic keeps the 3-level fireball.
