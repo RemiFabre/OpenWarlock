@@ -1647,17 +1647,23 @@ function buildShop(container, mode = 'classic') {
     labels.push({ el, wares: [] });
   };
   const mkRow = (cat) => {
+    // v7.1 (Sam): the sideways OFFENSE/DEFENSE/SPECIAL rail is gone; each group
+    // wears a compact subheader above it so the section reads left to right.
+    // the subheader and its row SHARE one wares array, so a group emptied by
+    // the draft pool hides its heading with its cards
+    const mine = [];
+    if (cat) {
+      const sub = document.createElement('div');
+      sub.className = 'shopsub';
+      sub.textContent = cat;
+      container.appendChild(sub);
+      rows.push({ el: sub, wares: mine });
+    }
     const el = document.createElement('div');
     el.className = 'shoprow';
-    if (cat) {
-      const lab = document.createElement('span');
-      lab.className = 'catlabel';
-      lab.textContent = cat;
-      el.appendChild(lab);
-    }
     container.appendChild(el);
     curRow = el;
-    rows.push({ el, wares: [] });
+    rows.push({ el, wares: mine });
   };
   const inSection = (w) => {
     if (labels.length) labels[labels.length - 1].wares.push(w);
