@@ -325,9 +325,10 @@ build step, Node ESM, only dep is `ws`.
   Normal 18** (was 5/13). Ladder h2h after: 100 / **82** / 100 (the
   Hard-Normal gap WIDENED: Normal's loose aim lands little from 18 units),
   ⚠ awaiting Remi's feel verdict. Extreme/Faker boltDodge = 1 (24.4).
-  24.5: a vampire/Hat build drops the standoff to the old 8.5 ring
-  `CLOSE_SHARE` (0.5) of the time; measured no elo effect (8.5 is still
-  outside the 7-radius auras; the old feeder was the deleted dive). Targeting is a SOFTMAX draw
+  24.5: a vampire/Hat build DIVES to `CLOSE_RING` (1.5) `CLOSE_SHARE` (0.5)
+  of the time, re-rolled every `CLOSE_REROLL` (5) s. ⚠ Both cuts measured:
+  ring 8.5 = zero effect, the dive = about -100 elo on those rows (a bot
+  cannot time a dive; treat D4/D12 as design floors, per Remi). Targeting is a SOFTMAX draw
   (`BOT_TARGETING`, TEMPERATURE 6); sky-bolt dodge is a committed per-bolt
   roll (`boltDodge`; Remi set Hard's 50%); bots pressure the kill leader
   (`LEADER_BIAS 2.5`), and since 24.1 **Hard and above hunt their anger/midas
