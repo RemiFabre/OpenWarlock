@@ -16,7 +16,7 @@
 
 import { SPELLS, ELEMENTS, ITEMS, itemCost } from '../shared/constants.js';
 
-const AVG_EARNED = 145; // measured 2026-08-09, seed 1000-1039, 4 Hard seats
+export const AVG_EARNED = 145; // measured 2026-08-09, seed 1000-1039, 4 Hard seats
 
 // One canonical breadth pass: everything a berserker/stalker can use, sustain
 // and damage first. Repeated so every level of everything is eventually
@@ -84,6 +84,9 @@ export function paddedCore(entry) {
   while (coreCost(core) < COST_TARGET[0] && guard-- > 0) {
     let done = true;
     for (const k of FILLER) {
+      // a capped thing (caps {x: n}) is off the shelf for this build above n;
+      // without this the padder hands a "without x" probe the x back (24.7)
+      if (entry.caps && (lv[k] || 0) >= entry.caps[k]) continue;
       const max = ITEMS[k].maxLevel;
       if ((lv[k] || 0) < max) {
         lv[k] = (lv[k] || 0) + 1;
@@ -106,6 +109,38 @@ export function shelfExhausted(entry) {
   for (const [k, to] of core) lv[k] = Math.max(lv[k] || 0, to);
   return FILLER.every(k => (lv[k] || 0) >= ITEMS[k].maxLevel);
 }
+
+// Family G (round 24.7, Remi): D1-warlord is the base build (average power,
+// simple to play), and each G row changes exactly ONE thing about it, so the
+// Elo delta vs D1 prices that one choice. All G rows share D1's core verbatim
+// (edits marked); the auto-padder fills the tail, which may differ between
+// rows only past the ~145 g an average seat actually earns.
+const WARLORD_CORE = [['ember', 2], ['sword', 1], ['amulet', 1], ['ember', 3],
+  ['sword', 2], ['amulet', 2], ['arcane', 2], ['sword', 3], ['amulet', 3], ['boots', 2], ['cape', 1]];
+
+// Family M (round 24.7, Remi): one mutation maxed FIRST, then an identical
+// "normal stuff" scaffold (items, then lv1 of each stat element, then lv2,
+// then lv3; spells only from the exhaust tail). Every mutation costs 26 g, so
+// all six cores are 166 g and the ONLY difference between M rows is which
+// mutation leads. Elo deltas between M rows price the mutations directly.
+const MUT_SCAFFOLD = [['sword', 1], ['amulet', 1],
+  ['ember', 1], ['terra', 1], ['gale', 1], ['arcane', 1], ['ghost', 1],
+  ['sword', 2], ['amulet', 2],
+  ['ember', 2], ['terra', 2], ['gale', 2], ['arcane', 2], ['ghost', 2],
+  ['sword', 3], ['amulet', 3],
+  ['ember', 3], ['terra', 3], ['gale', 3], ['arcane', 3], ['ghost', 3]];
+
+export const FAMILY_TITLES = {
+  A: 'Family A: system purity (price each shelf as a class)',
+  B: 'Family B: depth vs breadth, per system',
+  C: 'Family C: spell-scaling probes',
+  D: 'Family D: play-style archetypes',
+  E: 'Family E: cooldown reduction (question M)',
+  F: 'Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)',
+  G: 'Family G: the Warlord, one variable at a time (control = D1-warlord; round 24.7)',
+  M: 'Family M: one mutation maxed first, identical scaffold after (round 24.7)',
+  K: 'Family K: the Faker combo arsenals, on the Faker brain (issue #7)',
+};
 
 export const ROSTER = {
   // ---- Family A: system purity (price each shelf as a class) --------------
@@ -253,9 +288,8 @@ export const ROSTER = {
   // ---- Family D: play-style archetypes --------------------------------------
   'D1-warlord': {
     family: 'D', fantasy: 'No tricks, bigger numbers: win every straight trade.',
-    tests: "ember's dominance + sword-by-structure (question L) in one kit",
-    core: [['ember', 2], ['sword', 1], ['amulet', 1], ['ember', 3],
-      ['sword', 2], ['amulet', 2], ['arcane', 2], ['sword', 3], ['amulet', 3], ['boots', 2], ['cape', 1]],
+    tests: "ember's dominance + sword-by-structure (question L) in one kit; ALSO the control every family-G variant is measured against (24.7)",
+    core: WARLORD_CORE,
   },
   'D2-executioner': {
     family: 'D', fantasy: 'The mark appears, someone dies: build entirely around claiming.',
@@ -263,18 +297,28 @@ export const ROSTER = {
     core: [['anger', 1], ['boots', 1], ['anger', 2], ['ghost', 1], ['anger', 3],
       ['boots', 2], ['ghost', 2], ['sword', 1], ['boots', 3], ['ghost', 3], ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3]],
   },
+  // Round 24.7 (Remi): the old premise (echo doubles midas per-hit gold) died
+  // with the 24.1 midas rework (a timed gold MARK, +2 g flat on the claim, no
+  // per-hit income to amplify). The gold build is a bounty hunt now: D2's
+  // exact chase shell with the gold mark instead of the red one, so D2 vs D3
+  // is itself a one-variable read (anger's +dmg forever vs midas's +2 g).
   'D3-tycoon': {
-    family: 'D', fantasy: 'Every hit pays, the amplifier doubles the payroll.',
-    tests: 'mosquito-as-gold-amp + midas with real shopping depth (question E)',
-    core: [['midas', 1], ['mosquito', 1], ['midas', 2], ['hourglass', 1],
-      ['midas', 3], ['mosquito', 2], ['sword', 1], ['amulet', 1], ['sword', 2],
-      ['amulet', 2], ['sword', 3], ['boots', 1]],
+    family: 'D', fantasy: 'Every mark is a paycheck: run it down, cash it, outspend the lobby.',
+    tests: "the reworked midas (24.1: timed hunt, +2 g flat claim) built for claim rate; D2's exact core with midas swapped for anger, so the two mark hunts price each other",
+    note: 'Redesigned round 24.7 (Remi): the midas-echo combo this build existed for no longer exists.',
+    core: [['midas', 1], ['boots', 1], ['midas', 2], ['ghost', 1], ['midas', 3],
+      ['boots', 2], ['ghost', 2], ['sword', 1], ['boots', 3], ['ghost', 3], ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3]],
   },
+  // Round 24.7 (Remi): vampire should be a FREQUENCY build, not a damage
+  // build; a feast heals per MARK and marks land per HIT, so cast rate is the
+  // whole income. Haste both ways + echo pairs, damage elements refused.
   'D4-leech': {
-    family: 'D', fantasy: 'Every hit banks a blood mark; dive in low and drink the pile back.',
-    tests: 'the round-24 mark-and-feast vampire; pair volume as mark income',
-    core: [['vampire', 2], ['mosquito', 1], ['sword', 1], ['vampire', 3],
-      ['mosquito', 2], ['amulet', 1], ['sword', 2], ['amulet', 2], ['mosquito', 3], ['sword', 3], ['amulet', 3]],
+    family: 'D', fantasy: 'Cast twice as often, bank twice the marks, wade in and drink the pile back.',
+    tests: 'the round-24 mark-and-feast fed by CAST RATE (arcane+hourglass haste, echo pairs) instead of raw damage (Remi, 24.7); the 24.5 dive logic keys on vampire, so this row dives half the time',
+    note: 'Respecced round 24.7 (Remi): marks scale with hit count, so the build now buys frequency (arcane, hourglass, echo), not damage.',
+    core: [['vampire', 2], ['arcane', 1], ['mosquito', 1], ['sword', 1],
+      ['vampire', 3], ['arcane', 2], ['hourglass', 1], ['mosquito', 2], ['amulet', 1],
+      ['arcane', 3], ['hourglass', 2], ['mosquito', 3], ['sword', 2], ['amulet', 2]],
   },
   'D5-plaguebearer': {
     family: 'D', fantasy: 'Wade into the pack; everyone leaves sick.',
@@ -329,6 +373,20 @@ export const ROSTER = {
     tests: "passive damage as a build: the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range",
     core: [['brazier', 1], ['malady', 1], ['brazier', 2], ['malady', 2],
       ['brazier', 3], ['malady', 3], ['treads', 1], ['amulet', 1], ['treads', 2], ['amulet', 2]],
+  },
+
+  // Round 24.7: the defensive-synergy probe 24.6 unlocked. Bots at Hard+
+  // pilot BOTH reactive windows (Shield always did; Blood Debt since 24.6,
+  // the understudy on the same imminent-ball read), so this is the first
+  // build that shops debt. D8 is armor with no buttons; this is armor WITH
+  // buttons.
+  'D13-bastion': {
+    family: 'D', fantasy: 'Nothing gets through: reflect it, or bank it and hand it back.',
+    tests: 'the two reactive windows stacked (24.6: Hard+ casts Shield, and Blood Debt as the understudy) on a max-armor shell; defense WITH buttons vs D8 (armor only)',
+    note: 'New round 24.7: answers 24.6\'s open question "which builds should shop Blood Debt".',
+    core: [['shield', 1], ['amulet', 1], ['cape', 1], ['debt', 1], ['sword', 1],
+      ['amulet', 2], ['shield', 2], ['treads', 1], ['debt', 2], ['cape', 2],
+      ['sword', 2], ['amulet', 3], ['treads', 2], ['cape', 3], ['sword', 3], ['treads', 3]],
   },
 
   // ---- Family E: cooldown reduction (Remi's question M) ---------------------
@@ -401,6 +459,71 @@ export const ROSTER = {
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['sword', 3], ['boots', 2], ['amulet', 2]],
   },
 
+  // ---- Family G: the Warlord, one variable at a time (round 24.7) -----------
+  // Read every G row against D1-warlord. G1 and G2 also read against each
+  // other: same cost, same slots, Shield vs Blood Debt head to head.
+  'G1-warlord-shield': {
+    family: 'G', fantasy: 'The Warlord who answers: every trade, plus a reflection window.',
+    tests: 'ONE variable vs D1: +Shield (12+6 g, bought early); is a piloted reactive worth 18 g of items?',
+    core: [['ember', 2], ['sword', 1], ['amulet', 1], ['shield', 1], ['ember', 3],
+      ['sword', 2], ['amulet', 2], ['arcane', 2], ['shield', 2], ['sword', 3], ['amulet', 3], ['boots', 2], ['cape', 1]],
+  },
+  'G2-warlord-debt': {
+    family: 'G', fantasy: 'The Warlord who banks the hit and mails it back.',
+    tests: 'ONE variable vs D1: +Blood Debt in the exact slots G1 gives Shield (same 12+6 g), so G1-G2 is Shield vs Debt on the same bot read (24.6)',
+    note: 'First roster row to shop Blood Debt (with D13), closing 24.6\'s open question.',
+    core: [['ember', 2], ['sword', 1], ['amulet', 1], ['debt', 1], ['ember', 3],
+      ['sword', 2], ['amulet', 2], ['arcane', 2], ['debt', 2], ['sword', 3], ['amulet', 3], ['boots', 2], ['cape', 1]],
+  },
+  'G3-warlord-no-sword': {
+    family: 'G', fantasy: 'The Warlord without the vampire sword: pure damage, no drain.',
+    tests: 'ONE variable vs D1: sword BANNED (caps, padder included); prices lifesteal-by-structure (question L) as an ablation, gold goes to the generic shelf instead',
+    caps: { sword: 0 },
+    core: [['ember', 2], ['amulet', 1], ['ember', 3], ['amulet', 2],
+      ['arcane', 2], ['amulet', 3], ['boots', 2], ['cape', 1]],
+  },
+  'G4-warlord-no-arcane': {
+    family: 'G', fantasy: 'The Warlord who never learns to cast faster.',
+    tests: 'ONE variable vs D1: arcane BANNED (caps); prices the haste axis inside the base build, its 12 g goes to the generic shelf instead',
+    caps: { arcane: 0 },
+    core: [['ember', 2], ['sword', 1], ['amulet', 1], ['ember', 3],
+      ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3], ['boots', 2], ['cape', 1]],
+  },
+
+  // ---- Family M: one mutation maxed first, identical scaffold (round 24.7) --
+  // All six cores cost 166 g (every mutation is 26 g, the scaffold is 140 g),
+  // so M row vs M row is a direct price on the mutations themselves.
+  'M1-anger-first': {
+    family: 'M', fantasy: 'Max the grudge, then build like everyone else.',
+    tests: 'anger isolated on the shared scaffold (vs its M siblings)',
+    core: [['anger', 3], ...MUT_SCAFFOLD],
+  },
+  'M2-frost-first': {
+    family: 'M', fantasy: 'Max the cold, then build like everyone else.',
+    tests: 'frost isolated on the shared scaffold; stack-fade (22.4) means bots must feed the pile',
+    core: [['frost', 3], ...MUT_SCAFFOLD],
+  },
+  'M3-malady-first': {
+    family: 'M', fantasy: 'Max the plague, then build like everyone else.',
+    tests: 'malady isolated on the shared scaffold; contagion still reads at a floor (bots do not cluster on purpose)',
+    core: [['malady', 3], ...MUT_SCAFFOLD],
+  },
+  'M4-echo-first': {
+    family: 'M', fantasy: 'Max the echo, then build like everyone else.',
+    tests: 'mosquito (Echo) isolated on the shared scaffold: every 4th cast pairs',
+    core: [['mosquito', 3], ...MUT_SCAFFOLD],
+  },
+  'M5-midas-first': {
+    family: 'M', fantasy: 'Max the gold mark, then build like everyone else.',
+    tests: 'midas isolated on the shared scaffold: its +2 g claims should show as a DEEPER tail, which is the whole value of gold',
+    core: [['midas', 3], ...MUT_SCAFFOLD],
+  },
+  'M6-vampire-first': {
+    family: 'M', fantasy: 'Max the feast, then build like everyone else.',
+    tests: 'vampire isolated on the shared scaffold (no frequency support here; D4 is the synergy build)',
+    core: [['vampire', 3], ...MUT_SCAFFOLD],
+  },
+
   // ---- Family K (issue #7): the Faker's combo arsenals, ON THE FAKER BRAIN.
   // `kind` overrides the tournament's per-seat bot (tools/elo.js); these four
   // rows answer Remi's question "do the combos PAY, or are they just
@@ -449,19 +572,12 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
     out += `**Core cost target**: ${lo}-${hi} g, a bit above the ~${AVG_EARNED} g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.\n`;
     out += `**After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.\n`;
     out += `**Fireball**: free at lv1 for everyone in elemental, never levels; not listed.\n`;
-    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button; hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
+    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, Blood Debt (24.6: Hard+ casts it on the imminent-ball read, Shield's understudy), blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button; hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
     let fam = '';
     for (const [id, s] of Object.entries(ROSTER)) {
       if (s.family !== fam) {
         fam = s.family;
-        const titles = { A: 'Family A: system purity (price each shelf as a class)',
-          B: 'Family B: depth vs breadth, per system',
-          C: 'Family C: spell-scaling probes',
-          D: 'Family D: play-style archetypes',
-          E: 'Family E: cooldown reduction (question M)',
-          F: 'Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)',
-          K: 'Family K: the Faker combo arsenals, on the Faker brain (issue #7)' };
-        out += `\n## ${titles[fam]}\n\n`;
+        out += `\n## ${FAMILY_TITLES[fam]}\n\n`;
       }
       const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
       const padded = paddedCore(s);
@@ -470,6 +586,7 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
       out += `- **${id}** (${coreCost(padded)} g${note}): ${s.fantasy}\n`;
       out += `  - order: ${order(padded)}\n`;
       out += `  - tests: ${s.tests}\n`;
+      if (s.note) out += `  - note: ${s.note}\n`;
     }
     console.log(out);
   } else {

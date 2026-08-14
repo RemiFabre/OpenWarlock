@@ -16,7 +16,9 @@ duel matrix; the intuition layer behind questions K, L and M).*
   point one seat gains is a point off the other three. The do-nothing floor is
   ~3%, not 25% (paying gold for nothing is actively bad).
 - **A strategy** is an exhaustive ordered buy list (identity core + shared
-  exhaust tail). The 25-strategy roster lives in **STRATEGIES.md**.
+  exhaust tail). The roster is CODE: `tools/roster.js` (53 rows since 24.7;
+  `docs/ARCHETYPES.md` is generated from it). Every elo run now opens its own
+  HTML report page (`tools/report.js`).
 - Bots never bait, aim bursts, or refuse trades, and a bot carrier lands a
   median **172 fireballs/game**, far above human pace: volume-scaling things
   (anger, ex-momentum) read inflated, aimed things read at their floor;
@@ -410,6 +412,9 @@ both seeds. ⚠ BOT-FLATTERED:
 berserker brains brawl inside r 7 all game (permanent vacuum) and never
 burst a low vampire, which is the build's designed weakness. One-line
 levers if live play agrees it is too strong: `markHeal`, `lowHpMax`.
+(24.7: D4-leech was respecced to a frequency core, vampire+arcane+hourglass+
+echo, per Remi's ruling that marks scale with hit count; the numbers above
+measured the OLD damage-adjacent core and are superseded by the next run.)
 
 ## Round 24.1: midas hunt, mark-hunting bots, meteor craters, portal cross (2026-08-14)
 

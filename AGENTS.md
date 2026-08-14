@@ -1,10 +1,11 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-14, rounds 23.1 + 24, two agents in parallel: 23.1 =
-the playout rewind fix (`docs/history/2026-08-14-playout-rewind.md`), 24 =
-vampire mark-and-feast + Golden Pillar avatar + bot ladder Dummy-first
-(`docs/history/2026-08-14-round24-vampire-feast.md`); all shipped. Read this
-first, then REMI_NOTES.md (latest round only). That is the whole entry set.*
+*Last updated 2026-08-14, rounds 23.1 + 24 through 24.7: playout rewind fix,
+vampire mark-and-feast, midas rework, instrument cleanup, and 24.7 = the elo
+report PAGE (tools/report.js) + the 53-row roster rework
+(`docs/history/2026-08-14-round247-roster-rework.md`, ⚠ awaiting Remi's
+review BEFORE the next standard elo run). Read this first, then
+REMI_NOTES.md (latest round only). That is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 
@@ -53,9 +54,10 @@ Agent context usage on this project is **CRITICAL**. The rules:
   to the private HF dataset openwarlock-stats. A pre-commit hook stamps
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   and must NEVER be bypassed; Pages lags pushes by up to ~10 min (CDN).
-- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-22. Quote
-  `docs/history/2026-08-13-round23-elo-faker-anger.md` (r368, 42 strategies,
-  current balance) or the deeper 8000x2 baseline in
+- ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-22, and every elo table
+  predates the 24.7 roster rework (53 rows, unmeasured until Remi approves
+  the review page). Latest measured: `docs/history/2026-08-13-round23-elo-faker-anger.md`
+  (r368, 42 strategies) or the deeper 8000x2 baseline in
   `...round22.5-elo.md` (r353, pre-round-23 numbers).
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
   before anything that spawns/kills servers (`test/client-robustness.js`,
@@ -177,8 +179,9 @@ build step, Node ESM, only dep is `ws`.
 | `tools/shot.js` | drives the real client and PROBES the canvas for a colour signature, so "did it render" costs one cropped screenshot instead of a burst (`--self-test`) |
 | `scripts/setup-agent.sh` | one idempotent command to make a fresh clone runnable (deps, browsers, hooks, main, token check) |
 | `tools/arena.js` | **the SMOKE + HEALTH lab** (slimmed round 24.4): games finish, sane kills, lava share, comeback rate, focus metric, at any seat count, in seconds; `--fx=key.field=a,b,c` sweeps a constant without editing. The retired options (`--isolate`, `--ladder`, `--mirror`, `--probe`) and the deleted element study live in git (ad9d54e). ⚠ `--ruleset=` defaults to **elemental** since 21.8 (every arena table printed before that date was classic) |
-| `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g) and, since 24.4, home of the shared `EXHAUST_PASS` tail. `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
-| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. STANDARD RUN: `--games=2000 --seed=1` (~5 min; Remi, 2026-08-13). Report RAW numbers only: never re-centre, adjust or otherwise manipulate the Elo in a report (same ruling). Latest table: `docs/history/2026-08-13-round23-elo-faker-anger.md` (42 strategies, r368) |
+| `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g; the padder honours `caps` since 24.7) and, since 24.4, home of the shared `EXHAUST_PASS` tail. 53 rows since 24.7: family G = one-variable D1-warlord variants, family M = one mutation maxed on an identical 166 g scaffold. `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
+| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. STANDARD RUN: `--games=2000 --seed=1` (~5 min; Remi, 2026-08-13). Report RAW numbers only: never re-centre, adjust or otherwise manipulate the Elo in a report (same ruling). Since 24.7 every run auto-writes an HTML report page into `docs/history/` and OPENS it (`--no-report` for smokes, `--no-open` headless). Latest table: `docs/history/2026-08-13-round23-elo-faker-anger.md` (42 strategies, r368, pre-24.7 roster) |
+| `tools/report.js` | the balance report PAGE (24.7): ranking left, hover/pin detail right (buy order as icon chips, agent notes, caps). `--roster` = the no-numbers review page; `--json=run.json` rebuilds a page from an elo payload. Zero agent context: elo.js calls it itself |
 | `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%), the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity). The Elo table hides tier gaps |
 | `tools/coop.js` | co-op lab: `--levels` is the tuning view. Co-op is mothballed. Re-run **only if its tests break** |

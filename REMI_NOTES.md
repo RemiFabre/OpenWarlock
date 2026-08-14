@@ -247,11 +247,51 @@ logic is live only in draft and testing lobbies until you say which builds
 should shop it (the roster review proposed nothing there; one word and I
 add it to a build or the shared tail).
 
+## 24.7: Balance runs are a web page now, and the roster speaks your questions
+
+**The page.** Every `tools/elo.js` run now ends by writing a small
+self-contained HTML page into `docs/history/` and opening it in your browser
+(no flags needed; `--no-open` exists). Ranking on the left; hover any row
+(click pins it) and the right panel shows the full build: what it isolates,
+agent notes, and the WHOLE buy order as spell/item symbols with the level as
+a small number, auto-fill dimmed, plus a marker at the ~145 g an average
+seat actually earns. Zero agent context is spent: the tool does it itself.
+`node tools/report.js --roster` renders the same page with no numbers, for
+reviewing builds (that page should be open in front of you now).
+
+**The roster** (42 -> 53 rows, full reasoning in
+`docs/history/2026-08-14-round247-roster-rework.md`):
+- **Family G**: D1-warlord is the base; each row changes ONE thing. G1
+  +Shield, G2 +Blood Debt (same slots as G1, so G1-G2 is also Shield vs
+  Debt), G3 no sword (banned, padder included, a hole I had to fix), G4 no
+  arcane. Read each against D1.
+- **Family M**: one mutation maxed FIRST, then an identical scaffold (items,
+  then elements lv1, lv2, lv3). All six cost 166 g exactly, so M vs M prices
+  the mutations directly.
+- **D3-tycoon redesigned**: the echo-amplifies-midas premise died with 24.1;
+  it is now D2-executioner's exact chase core with the gold mark instead of
+  the red one, so D2 vs D3 prices the two mark hunts against each other.
+- **D4-leech respecced** to your frequency read: vampire + arcane +
+  hourglass + echo, no damage elements. Marks land per hit; cast rate IS the
+  build.
+- **D13-bastion, new**: Shield 2 + Blood Debt 2 + armor. With G2 this closes
+  24.6's "which builds shop debt" question.
+- Faker family K untouched, as you asked. A, B, C, E, F kept (still
+  coherent post-reworks).
+
+**Not run yet, on purpose**: the 2000-game elo run waits for your review of
+the page. One honest cost: 53 rows means ~150 seats/row per standard run
+(was ~190), a little more neighbour noise. If you want some old rows
+retired to buy that back, say which.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
 cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
 Faker returns to fresh lobbies, a feel pass on lava 16 + the treads nerf, a
 feel pass on the vampire feast numbers, a feel pass on the 24.1 batch
-(midas +2 g, crater sizes, the portal cross), and the one-game trace with
-your friend (23.1 above).
+(midas +2 g, crater sizes, the portal cross), the one-game trace with
+your friend (23.1 above), and the 24.7 roster review (the open page): your
+verdict on families G/M, the D3/D4 respecs, D13, and whether any old rows
+retire; the 2000-game run fires after that. (24.6's "which builds shop
+debt" is answered: G2 and D13.)

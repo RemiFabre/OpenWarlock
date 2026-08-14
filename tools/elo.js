@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import { playGame } from './arena.js';
 import { makeRng } from '../shared/sim.js';
 import { ROSTER, paddedCore, expandCore, coreCost, EXHAUST_PASS } from './roster.js';
+import { writeReport } from './report.js';
 
 
 const progress = process.stderr.isTTY ? console.error : () => {};
@@ -96,4 +97,19 @@ for (const id of [...ids].sort((a, b) => elo[b] - elo[a])) {
   console.log(`${String(elo[id]).padStart(4)}   ${String(games[id]).padStart(5)}  ${(placeSum[id] / Math.max(1, games[id])).toFixed(2)}   ${String(cost).padStart(3)}g  ${id}`);
 }
 console.log(`\nunfinished games: ${unfinished}`);
-if (JSON_OUT) fs.writeFileSync(JSON_OUT, JSON.stringify({ GAMES, SEED, KIND, elo, games, wins }, null, 1));
+if (JSON_OUT) fs.writeFileSync(JSON_OUT, JSON.stringify({ GAMES, SEED, KIND, elo, games, placeSum, unfinished, wins }, null, 1));
+
+// Round 24.7 (Remi): every run ends as a web page that opens on his machine,
+// with the ranking + the full build (order included) one hover away. Costs the
+// agent zero context: it happens here. --no-report skips it (smoke runs),
+// --no-open writes without opening, --report=path / --notes=path override.
+if (!process.argv.includes('--no-report')) {
+  const notesPath = arg('notes', null);
+  const file = writeReport({
+    run: { GAMES, SEED, KIND, elo, games, placeSum, unfinished },
+    notes: notesPath ? fs.readFileSync(notesPath, 'utf8') : '',
+    out: arg('report', null),
+    open: !process.argv.includes('--no-open'),
+  });
+  console.log(`report: ${file}`);
+}

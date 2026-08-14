@@ -4,7 +4,7 @@
 **Core cost target**: 150-185 g, a bit above the ~145 g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.
 **After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.
 **Fireball**: free at lv1 for everyone in elemental, never levels; not listed.
-**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button; hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.
+**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, Blood Debt (24.6: Hard+ casts it on the imminent-ball read, Shield's understudy), blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button; hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.
 
 
 ## Family A: system purity (price each shelf as a class)
@@ -77,16 +77,18 @@
 
 - **D1-warlord** (155 g): No tricks, bigger numbers: win every straight trade.
   - order: ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → arcane2 → sword3 → amulet3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3
-  - tests: ember's dominance + sword-by-structure (question L) in one kit
+  - tests: ember's dominance + sword-by-structure (question L) in one kit; ALSO the control every family-G variant is measured against (24.7)
 - **D2-executioner** (156 g): The mark appears, someone dies: build entirely around claiming.
   - order: anger1 → boots1 → anger2 → ghost1 → anger3 → boots2 → ghost2 → sword1 → boots3 → ghost3 → sword2 → amulet2 → sword3 → amulet3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3
   - tests: anger's claim rate when built for the chase (question K's missing half)
-- **D3-tycoon** (152 g): Every hit pays, the amplifier doubles the payroll.
-  - order: midas1 → mosquito1 → midas2 → hourglass1 → midas3 → mosquito2 → sword1 → amulet1 → sword2 → amulet2 → sword3 → boots1 → amulet3 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass2 → hourglass3
-  - tests: mosquito-as-gold-amp + midas with real shopping depth (question E)
-- **D4-leech** (153 g): Every 5th ball is a feast, and the trap volley speeds the count.
-  - order: vampire2 → mosquito1 → sword1 → vampire3 → mosquito2 → amulet1 → sword2 → amulet2 → mosquito3 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2
-  - tests: the vampire×mosquito cast-counting ruling; sustain stacking
+- **D3-tycoon** (156 g): Every mark is a paycheck: run it down, cash it, outspend the lobby.
+  - order: midas1 → boots1 → midas2 → ghost1 → midas3 → boots2 → ghost2 → sword1 → boots3 → ghost3 → sword2 → amulet2 → sword3 → amulet3 → cape1 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3
+  - tests: the reworked midas (24.1: timed hunt, +2 g flat claim) built for claim rate; D2's exact core with midas swapped for anger, so the two mark hunts price each other
+  - note: Redesigned round 24.7 (Remi): the midas-echo combo this build existed for no longer exists.
+- **D4-leech** (150 g): Cast twice as often, bank twice the marks, wade in and drink the pile back.
+  - order: vampire2 → arcane1 → mosquito1 → sword1 → vampire3 → arcane2 → hourglass1 → mosquito2 → amulet1 → arcane3 → hourglass2 → mosquito3 → sword2 → amulet2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1
+  - tests: the round-24 mark-and-feast fed by CAST RATE (arcane+hourglass haste, echo pairs) instead of raw damage (Remi, 24.7); the 24.5 dive logic keys on vampire, so this row dives half the time
+  - note: Respecced round 24.7 (Remi): marks scale with hit count, so the build now buys frequency (arcane, hourglass, echo), not damage.
 - **D5-plaguebearer** (153 g): Wade into the pack; everyone leaves sick.
   - order: malady2 → terra1 → treads1 → malady3 → terra2 → amulet1 → treads2 → terra3 → amulet2 → sword2 → amulet3 → sword3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads3 → hourglass1 → hourglass2 → hourglass3
   - tests: contagion value (the lab is blind to it; this is the human entry)
@@ -111,6 +113,10 @@
 - **D12-hatburner** (152 g): Stand in the pack and cook: a burning ring that follows them out of it.
   - order: brazier1 → malady1 → brazier2 → malady2 → brazier3 → malady3 → treads1 → amulet1 → treads2 → amulet2 → sword1 → sword2 → sword3 → amulet3 → boots1 → boots2 → boots3 → cape1 → cape2 → cape3 → treads3 → hourglass1 → hourglass2 → hourglass3
   - tests: passive damage as a build: the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range
+- **D13-bastion** (150 g): Nothing gets through: reflect it, or bank it and hand it back.
+  - order: shield1 → amulet1 → cape1 → debt1 → sword1 → amulet2 → shield2 → treads1 → debt2 → cape2 → sword2 → amulet3 → treads2 → cape3 → sword3 → treads3 → boots1 → boots2 → boots3 → hourglass1 → hourglass2 → hourglass3 → brazier1
+  - tests: the two reactive windows stacked (24.6: Hard+ casts Shield, and Blood Debt as the understudy) on a max-armor shell; defense WITH buttons vs D8 (armor only)
+  - note: New round 24.7: answers 24.6's open question "which builds should shop Blood Debt".
 
 ## Family E: cooldown reduction (question M)
 
@@ -127,7 +133,7 @@
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → spoon3 → boots2 → amulet2
   - tests: the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)
 - **F3-spoon-burst** (150 g): Big hits, and a flat crumb of healing per hit that barely notices them.
-  - order: ember3 → lightning2 → meteor2 → terra3 → spoon3 → amulet2 → hourglass2 → boots3 → treads2 → sword1
+  - order: ember3 → lightning2 → meteor2 → terra3 → spoon3 → amulet2 → hourglass2 → boots3 → treads2 → amulet3
   - tests: the Slow Spoon where lifesteal SHOULD win: few, large hits (vs F4)
 - **F4-sword-burst** (150 g): Big hits, and a percentage of every one of them.
   - order: ember3 → lightning2 → meteor2 → terra3 → sword3 → amulet2 → hourglass2 → boots3 → treads2 → amulet3
@@ -135,6 +141,43 @@
 - **F2-sword-volume** (156 g): The same barrage, paid for in lifesteal instead.
   - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
   - tests: the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned
+
+## Family G: the Warlord, one variable at a time (control = D1-warlord; round 24.7)
+
+- **G1-warlord-shield** (155 g): The Warlord who answers: every trade, plus a reflection window.
+  - order: ember2 → sword1 → amulet1 → shield1 → ember3 → sword2 → amulet2 → arcane2 → shield2 → sword3 → amulet3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3
+  - tests: ONE variable vs D1: +Shield (12+6 g, bought early); is a piloted reactive worth 18 g of items?
+- **G2-warlord-debt** (155 g): The Warlord who banks the hit and mails it back.
+  - order: ember2 → sword1 → amulet1 → debt1 → ember3 → sword2 → amulet2 → arcane2 → debt2 → sword3 → amulet3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3
+  - tests: ONE variable vs D1: +Blood Debt in the exact slots G1 gives Shield (same 12+6 g), so G1-G2 is Shield vs Debt on the same bot read (24.6)
+  - note: First roster row to shop Blood Debt (with D13), closing 24.6's open question.
+- **G3-warlord-no-sword** (155 g): The Warlord without the vampire sword: pure damage, no drain.
+  - order: ember2 → amulet1 → ember3 → amulet2 → arcane2 → amulet3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1 → spoon2 → spoon3
+  - tests: ONE variable vs D1: sword BANNED (caps, padder included); prices lifesteal-by-structure (question L) as an ablation, gold goes to the generic shelf instead
+- **G4-warlord-no-arcane** (150 g): The Warlord who never learns to cast faster.
+  - order: ember2 → sword1 → amulet1 → ember3 → sword2 → amulet2 → sword3 → amulet3 → boots2 → cape1 → boots3 → cape2 → cape3 → treads1 → treads2 → treads3 → hourglass1 → hourglass2 → hourglass3 → brazier1 → brazier2 → brazier3 → spoon1
+  - tests: ONE variable vs D1: arcane BANNED (caps); prices the haste axis inside the base build, its 12 g goes to the generic shelf instead
+
+## Family M: one mutation maxed first, identical scaffold after (round 24.7)
+
+- **M1-anger-first** (166 g): Max the grudge, then build like everyone else.
+  - order: anger3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+  - tests: anger isolated on the shared scaffold (vs its M siblings)
+- **M2-frost-first** (166 g): Max the cold, then build like everyone else.
+  - order: frost3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+  - tests: frost isolated on the shared scaffold; stack-fade (22.4) means bots must feed the pile
+- **M3-malady-first** (166 g): Max the plague, then build like everyone else.
+  - order: malady3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+  - tests: malady isolated on the shared scaffold; contagion still reads at a floor (bots do not cluster on purpose)
+- **M4-echo-first** (166 g): Max the echo, then build like everyone else.
+  - order: mosquito3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+  - tests: mosquito (Echo) isolated on the shared scaffold: every 4th cast pairs
+- **M5-midas-first** (166 g): Max the gold mark, then build like everyone else.
+  - order: midas3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+  - tests: midas isolated on the shared scaffold: its +2 g claims should show as a DEEPER tail, which is the whole value of gold
+- **M6-vampire-first** (166 g): Max the feast, then build like everyone else.
+  - order: vampire3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+  - tests: vampire isolated on the shared scaffold (no frequency support here; D4 is the synergy build)
 
 ## Family K: the Faker combo arsenals, on the Faker brain (issue #7)
 
