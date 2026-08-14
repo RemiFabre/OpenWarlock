@@ -5,6 +5,26 @@ import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
 
+// Issue #14 (Sam v8): the arena artwork is the world's backdrop. It is DECOR:
+// nothing here feeds geometry. The arena radius, the shrink, the pillars and
+// every hitbox stay exactly what the simulation says they are.
+const ARENA_ART = new Image();
+ARENA_ART.src = new URL('../assets/ui/arena/floor.png', import.meta.url).href;
+const ROUND_ART = {};
+for (const k of ['victory', 'defeat', 'gold']) {
+  const img = new Image();
+  img.src = new URL(`../assets/ui/arena/${k}.png`, import.meta.url).href;
+  ROUND_ART[k] = img;
+}
+// cover-fit: fill the viewport, keep the aspect, centre the overflow
+function drawCover(ctx, img, w, h) {
+  if (!img.complete || !img.naturalWidth) return false;
+  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  return true;
+}
+
 // Issue #14 (Sam v5): warlocks wear their illustrated avatar in the arena. The
 // tiles are decoded once, lazily, and drawn CLIPPED to the warlock's disc: the
 // tile carries its own frame, which at this size would read as a smudge. A face
@@ -284,7 +304,11 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   } catch { /* a broken image must never break the frame */ }
 
   // --- drifting lava blobs: painted small offscreen, stretched up ---
-  drawBackdrop(view, worldAlpha, t);
+  // the artwork sits UNDER everything and does NOT fade with the world: when
+  // the round ends and the world dissolves, the art is what remains (Sam v8)
+  const hasArt = drawCover(ctx, ARENA_ART, w, h);
+  if (!hasArt) { ctx.fillStyle = '#1a0a06'; ctx.fillRect(0, 0, w, h); }
+  drawBackdrop(view, worldAlpha * (hasArt ? 0.55 : 1), t);
   ctx.drawImage(view.back, 0, 0, w, h);
 
   if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
@@ -304,20 +328,35 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(view.cx, view.cy, R0 * scale, 0, Math.PI * 2); ctx.stroke();
 
-  // molten rim
-  const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.92, view.cx, view.cy, R * 1.10);
+  // molten rim (v8, Sam): stronger and wider OUTSIDE the edge...
+  const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.90, view.cx, view.cy, R * 1.22);
   rim.addColorStop(0, 'rgba(255, 93, 31, 0)');
-  rim.addColorStop(0.55, 'rgba(255, 120, 40, 0.55)');
-  rim.addColorStop(1, 'rgba(255, 93, 31, 0)');
+  rim.addColorStop(0.42, 'rgba(255, 130, 45, 0.72)');
+  rim.addColorStop(0.72, 'rgba(255, 90, 25, 0.34)');
+  rim.addColorStop(1, 'rgba(255, 70, 15, 0)');
   ctx.fillStyle = rim;
-  ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.24, 0, Math.PI * 2); ctx.fill();
 
+  // the floor: the artwork reads through a calm dark wash, so the play area
+  // stays the quietest part of the screen (bodies and balls must win)
   const rock = ctx.createRadialGradient(view.cx, view.cy, 0, view.cx, view.cy, R);
-  rock.addColorStop(0, '#3a322c');
-  rock.addColorStop(0.75, '#2c2521');
-  rock.addColorStop(1, '#1c1512');
+  rock.addColorStop(0, 'rgba(24, 20, 18, 0.80)');
+  rock.addColorStop(0.75, 'rgba(20, 17, 15, 0.84)');
+  rock.addColorStop(1, 'rgba(14, 11, 10, 0.88)');
   ctx.fillStyle = rock;
   ctx.beginPath(); ctx.arc(view.cx, view.cy, R, 0, Math.PI * 2); ctx.fill();
+
+  // ...and a thin white-hot line just INSIDE the dark edge: the rock is so hot
+  // it glows. Kept subtle on purpose; the orange outside stays dominant.
+  ctx.save();
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R, 0, Math.PI * 2); ctx.clip();
+  const hot = ctx.createRadialGradient(view.cx, view.cy, R * 0.955, view.cx, view.cy, R);
+  hot.addColorStop(0, 'rgba(255, 240, 210, 0)');
+  hot.addColorStop(0.7, 'rgba(255, 236, 198, 0.22)');
+  hot.addColorStop(1, 'rgba(255, 250, 235, 0.55)');
+  ctx.fillStyle = hot;
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 
   // faint concentric cracks
   ctx.strokeStyle = 'rgba(0,0,0,0.18)';
@@ -1092,7 +1131,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.globalAlpha = alpha;
 
   // dark band so the text stays readable over the arena
-  const bandH = 130;
+  const bandH = 190;   // v8: room for the painted crest, in its own row
   const band = ctx.createLinearGradient(0, view.cy - bandH, 0, view.cy + bandH);
   band.addColorStop(0, 'rgba(10, 6, 4, 0)');
   band.addColorStop(0.28, 'rgba(10, 6, 4, 0.78)');
@@ -1107,7 +1146,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   while (size > 18 && ctx.measureText(title).width > w * 0.92);
   ctx.fillStyle = '#e8d9b0';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'; ctx.shadowBlur = 14;
-  ctx.fillText(title, view.cx, view.cy - 34);
+  ctx.fillText(title, view.cx, view.cy - 78);
   ctx.shadowBlur = 0;
 
   // my verdict + income (fighters only; a spectator gets a neutral note)
@@ -1116,20 +1155,39 @@ function drawRoundEndBanner(view, vs, players, myId) {
     if (rs.final) {
       ctx.font = 'small-caps 700 30px Georgia, serif';
       ctx.fillStyle = '#9a8d80';
-      ctx.fillText('Game over', view.cx, view.cy + 24);
+      ctx.fillText('Game over', view.cx, view.cy + 14);
     }
   } else if (myId && income && fin(+income[myId])) {
     // a surviving TEAMMATE won it too; `winners` is every survivor paid the
     // round-win gold, so the verdict never says "defeat" to a winner
     const won = Array.isArray(rs.winners) ? rs.winners.includes(myId) : rs.winner === myId;
-    ctx.font = 'small-caps 700 30px Georgia, serif';
-    ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';
-    if (won) { ctx.shadowColor = 'rgba(240, 182, 74, 0.5)'; ctx.shadowBlur = 18; }
-    ctx.fillText(won ? 'victory' : 'defeat', view.cx, view.cy + 24);
-    ctx.shadowBlur = 0;
+    // v8 (Sam): the painted VICTORY / DEFEAT crest, with the drawn words as the
+    // fallback so the verdict is never missing while the art loads
+    const crest = ROUND_ART[won ? 'victory' : 'defeat'];
+    if (crest && crest.complete && crest.naturalWidth) {
+      const cw = Math.min(190, w * 0.34), ch = cw * crest.naturalHeight / crest.naturalWidth;
+      ctx.drawImage(crest, view.cx - cw / 2, view.cy + 4 - ch / 2, cw, ch);
+    } else {
+      ctx.font = 'small-caps 700 30px Georgia, serif';
+      ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';
+      if (won) { ctx.shadowColor = 'rgba(240, 182, 74, 0.5)'; ctx.shadowBlur = 18; }
+      ctx.fillText(won ? 'victory' : 'defeat', view.cx, view.cy + 24);
+      ctx.shadowBlur = 0;
+    }
+    // the gold coin rides beside the amount
+    const coin = ROUND_ART.gold;
+    const amount = `+${+income[myId]} gold`;
     ctx.font = '15px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = '#f0b64a';
-    ctx.fillText(`+${+income[myId]} gold`, view.cx, view.cy + 56);
+    if (coin && coin.complete && coin.naturalWidth) {
+      const cs = 26, tw = ctx.measureText(amount).width;
+      ctx.drawImage(coin, view.cx - (tw + cs + 6) / 2, view.cy + 62, cs, cs);
+      ctx.textAlign = 'left';
+      ctx.fillText(amount, view.cx - (tw + cs + 6) / 2 + cs + 6, view.cy + 80);
+      ctx.textAlign = 'center';
+    } else {
+      ctx.fillText(amount, view.cx, view.cy + 74);
+    }
     // itemized: exactly where this round's gold came from
     const d = rs.detail && typeof rs.detail === 'object' ? rs.detail[myId] : null;
     if (d && typeof d === 'object') {
@@ -1142,7 +1200,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
       if (parts.length > 1) {
         ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
         ctx.fillStyle = '#9a8d80';
-        ctx.fillText(parts.join(' · '), view.cx, view.cy + 76);
+        ctx.fillText(parts.join(' · '), view.cx, view.cy + 106);
       }
     }
   }
