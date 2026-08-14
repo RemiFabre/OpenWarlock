@@ -881,12 +881,15 @@ export const BOT_TARGETING = {
   // Gated on BOTS[kind].difficulty >= Hard in pickPrey; Normal shares the
   // brain but not the kind, so it is untouched by construction.
   HUNT_MARK: 40,
-  // Round 24.5 (Remi): a build that WANTS melee range (vampire's feast, the
-  // Hat's burn) ignores the tier standoff and prowls the old close ring (8.5)
-  // this share of the time, re-rolled on a slow clock. 24.4's wider rings
-  // starved those builds of their own auras 100% of the time; this gives the
-  // benefit back HALF the time without re-crowning face-camping.
+  // Round 24.5 (Remi, second cut): a build that WANTS melee range (vampire's
+  // feast, the Hat's burn) DIVES to the old wounded-dive ring CLOSE_SHARE of
+  // the time, re-rolled every CLOSE_REROLL s. The first cut used the old 8.5
+  // prowl ring and measured ZERO effect (8.5 never reached the 7-radius
+  // auras); the dive is what feeds them, so payload builds get the dive back
+  // half-time while everyone else keeps 24.4's no-dive rule.
   CLOSE_SHARE: 0.5,
+  CLOSE_RING: 1.5,
+  CLOSE_REROLL: 5,
 };
 
 // ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------

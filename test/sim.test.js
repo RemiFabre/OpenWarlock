@@ -4567,7 +4567,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       if (elements) bot.elements = elements;
       let below = 0, at = 0;
       for (let i = 0; i < 40; i++) {
-        state.time += 3.5;                 // a fresh 2-4 s re-roll window
+        state.time += BOT_TARGETING.CLOSE_REROLL + 0.5;   // a fresh window
         bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
         h.x = 4; h.y = 0; h.vx = h.vy = 0; h.hp = h.maxHp; h.moveTarget = null;
         bot._botT = 0; bot.cooldowns.fireball = 99;
@@ -4578,7 +4578,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       return { below, at };
     };
     const vamp = ringsSeen({ vampire: 1 });
-    expect(vamp.below).toBeGreaterThan(5);    // closes in a real share of windows
+    expect(vamp.below).toBeGreaterThan(5);    // DIVES in a real share of windows
     expect(vamp.at).toBeGreaterThan(5);       // ...and still backs off in others
     const plain = ringsSeen(null);
     expect(plain.below).toBe(0);              // no payload: the standoff always holds
