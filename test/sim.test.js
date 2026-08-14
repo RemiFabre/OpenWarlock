@@ -1787,9 +1787,11 @@ describe('elemental mode', () => {
     const h0 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(h0.bonus).toBeUndefined();
     expect(h0.amount).toBeCloseTo(base, 5);
-    // next fireball: base red number + markDmg white bonus, split on the event
+    // 24.9: the bank is RELEASE-GATED. A FULL bar (here: forced) pays the
+    // whole bank on one ball, split on the event as before.
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     a.x = 0; a.y = 0; a.cooldowns = {};
+    a._angerFireT = -Infinity;               // a patient bar: charged full
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
@@ -1797,6 +1799,20 @@ describe('elemental mode', () => {
     expect(h1.bonus).toBeCloseTo(f.markDmg, 5);
     expect(h1.amount - h1.bonus).toBeCloseTo(base, 5);
     expect(a.angerMarks).toBe(1);   // the unmarked hit banked nothing
+    // ...and a SPAMMED follow-up releases only the sliver refilled since:
+    // bonus = bank x (time since last cast) / (chargeCds x default fireball CD)
+    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    a.x = 0; a.y = 0; a.cooldowns = {};
+    const tPrev = a._angerFireT;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    const frac = Math.min(1, (a._angerFireT - tPrev) /
+      (f.chargeCds * SPELLS.fireball.cooldown[0]));
+    expect(frac).toBeGreaterThan(0);
+    expect(frac).toBeLessThan(0.5);          // 0.4 s into a 4.2 s bar
+    run(state, 0.4);
+    const h2 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h2.bonus).toBeCloseTo(f.markDmg * frac, 5);
   });
 
   it('a hit on a NON-marked target grants nothing: no mark, no bonus, no event', () => {
@@ -1903,7 +1919,27 @@ describe('elemental mode', () => {
     };
     expect(hunt(7)).toBe(hunt(7));
     expect(hunt(7).split(',').length).toBe(10);
-    expect(f.markDelay).toBeGreaterThan(0);   // and the delay is a real number
+    expect(f.markDelay).toBe(0);   // 24.9: the round's first mark is IMMEDIATE
+  });
+
+  it('anger 24.9: the round\'s FIRST mark is REVENGE (your last killer), then random again', () => {
+    const state = elementalBattle(4);
+    const b = state.players.p1;
+    b.elements = { anger: 1 };
+    // hand-place the memory: p3 killed p1 last (any earlier round)
+    b.lastKillerId = 'p3';
+    b._angerRevenge = true; b._angerTarget = null; b._angerNext = 0;
+    run(state, 3 * DT);
+    expect(b._angerTarget).toBe('p3');        // not a random roll
+    expect(stacksOf(state.players.p3, 'anger', 'p1')).toBe(1);
+    expect(b._angerRevenge).toBe(false);      // one shot per round
+    // fallback: no killer on file -> the roll is random among the living
+    const s2 = elementalBattle(4);
+    const c = s2.players.p1;
+    c.elements = { anger: 1 };
+    c.lastKillerId = null; c._angerRevenge = true; c._angerTarget = null; c._angerNext = 0;
+    run(s2, 3 * DT);
+    expect(['p0', 'p2', 'p3']).toContain(c._angerTarget);
   });
 
   it('co-op: anger marks never spawn (the campaign stays untouched)', () => {
@@ -2351,89 +2387,131 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(true);
   });
 
-  it('midas 🪙 (24.1): a gold mark hunts like anger; a fireball claim pays +goldOnClaim g', () => {
+  it('midas 🪙 (24.9): a fireball hit can shake out a coin, dropped where the victim STOOD', () => {
     const f = ELEMENTS.midas.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
-    a.elements = { midas: 1 };
-    b.stacks = { midas: { p0: { n: 1, t: 9 } } };  // hand-place: this test is the claim
-    a._midasTarget = 'p1';
-    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
-    state.events = [];
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(a.gold).toBe(GOLD.START + f.goldOnClaim);
-    expect(a.roundGold).toBe(f.goldOnClaim);
-    expect(stacksOf(b, 'midas', 'p0')).toBe(0);        // consumed
+    a.elements = { midas: 3 };                 // 45%/hit: a few tries always land one
+    let dropped = null, victimAt = null;
+    for (let i = 0; i < 30 && !dropped; i++) {
+      a.x = 0; a.y = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      victimAt = { x: b.x, y: b.y };
+      state.events = [];
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.4);
+      dropped = (state.coins || []).find(c => c.owner === 'p0') || null;
+    }
+    expect(dropped).toBeTruthy();
+    // the coin lies where the victim was HIT (the push carries them off it)
+    expect(Math.hypot(dropped.x - victimAt.x, dropped.y - victimAt.y)).toBeLessThan(1.5);
+    expect(state.events.some(e => e.t === 'coinDrop' && e.by === 'p0' && e.id === 'p1')).toBe(true);
+    // dropping pays NOTHING yet: the walk is the mechanic
+    expect(a.roundGold).toBe(0);
+    // pickup: the owner walks onto it and the coin pays coinValue
+    const before = a.gold;
+    a.x = dropped.x; a.y = dropped.y;
+    run(state, 2 * DT);
+    expect(a.gold).toBe(before + f.coinValue);
+    expect(a.roundGold).toBe(f.coinValue);
+    expect((state.coins || []).length).toBe(0);
+    expect(state.events.some(e => e.t === 'coinTake' && e.id === 'p0')).toBe(true);
     expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
-    expect(state.events.some(e => e.t === 'midasClaim' && e.id === 'p1' && e.by === 'p0')).toBe(true);
-    // the clock re-arms markEvery from the claim, and the hunt rolls fresh
-    expect(a._midasTarget == null).toBe(true);
-    expect(a._midasNext).toBeGreaterThan(state.time + f.markEvery[0] - 1);
-    // flat reward at every level: levels buy FREQUENCY, never a bigger claim
-    expect(Array.isArray(f.goldOnClaim)).toBe(false);
-    expect(f.markEvery[2]).toBeLessThan(f.markEvery[0]);
+    // flat value at every level: levels buy drop CHANCE, never a bigger coin
+    expect(Array.isArray(f.coinValue)).toBe(false);
+    expect(f.coinChance[2]).toBeGreaterThan(f.coinChance[0]);
   });
 
-  it('midas 🪙: the first mark lands markDelay in, on ONE living opponent, never self', () => {
+  it('midas 🪙: a coin is OWNER-ONLY and dies with the round', () => {
     const f = ELEMENTS.midas.fx;
     const state = elementalBattle(3);
-    state.players.p0.elements = { midas: 1 };
-    state.players.p1.x = 10; state.players.p1.y = 0;
-    state.players.p2.x = -10; state.players.p2.y = 5;
-    run(state, f.markDelay - 3 * DT);
-    const total = (who) => ['p0', 'p1', 'p2']
-      .reduce((n, id) => n + stacksOf(state.players[id], 'midas', who), 0);
-    expect(total('p0')).toBe(0);
+    const a = state.players.p0, b = state.players.p1;
+    // hand-place a coin owned by p0 under p1's feet: nothing happens
+    b.x = 12; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    state.coins.push({ id: 900, x: b.x, y: b.y, owner: 'p0' });
+    const bGold = b.gold;
     run(state, 5 * DT);
-    expect(total('p0')).toBe(1);
-    expect(stacksOf(state.players.p0, 'midas', 'p0')).toBe(0);
-    expect(['p1', 'p2']).toContain(state.players.p0._midasTarget);
-    // one mark out per owner: cadences pass, unclaimed, still one
-    run(state, 2 * f.markEvery[0] + 1);
-    expect(total('p0')).toBe(1);
-    // the mark event fired for the client (sparkle + chatter ride it)
-    expect(state.events.some(e => e.t === 'midasMark' && e.by === 'p0')).toBe(true);
+    expect(b.gold).toBe(bGold);
+    expect(state.coins.length).toBe(1);
+    // a statue cannot collect (nothing applies during the freeze)
+    a.x = 12; a.y = 0; a.statueT = 1;
+    run(state, 2 * DT);
+    expect(state.coins.length).toBe(1);
+    a.statueT = 0;
+    run(state, 2 * DT);
+    expect(state.coins.length).toBe(0);
+    expect(a.roundGold).toBe(f.coinValue);
+    // uncollected coins die on the round boundary, like stacks. Move the
+    // owner away first so the pickup engine cannot race the boundary.
+    a.x = -30; a.y = -30;
+    state.coins.push({ id: 901, x: 30, y: 30, owner: 'p0' });
+    b.hp = 0.0001; b.alive = false;
+    state.players.p2.hp = 0.0001; state.players.p2.alive = false;
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.round).toBeGreaterThan(1);
+    expect(state.coins.length).toBe(0);
   });
 
-  it('midas 🪙: the marked victim dying re-rolls the hunt after the cadence', () => {
-    const f = ELEMENTS.midas.fx;
+  it('midas 🪙: no coin off your own body (a reflected ball hitting yourself)', () => {
+    // Riders stay keyed to the element's owner on a reflection (22.4). A
+    // self-coin would be free gold for eating your own reflected ball.
+    // midas 3 = 45%/hit: 25 reflected self-hits with zero coins says guard.
     const state = elementalBattle(3);
-    const a = state.players.p0;
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
     a.elements = { midas: 3 };
-    state.players.p1.x = 10; state.players.p1.y = 0;
-    state.players.p2.x = -10; state.players.p2.y = 5;
-    run(state, f.markDelay + 2 * DT);
-    const vid = a._midasTarget;
-    expect(vid).toBeTruthy();
-    state.players[vid].hp = 0.0001; state.players[vid].alive = false;
-    run(state, f.markEvery[2] + 1);
-    const other = vid === 'p1' ? 'p2' : 'p1';
-    expect(a._midasTarget).toBe(other);
-    expect(stacksOf(state.players[other], 'midas', 'p0')).toBe(1);
+    for (let i = 0; i < 25; i++) {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.hp = a.maxHp;
+      a.cooldowns = {};
+      b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      b.shieldT = 5;                          // the ball comes straight back
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 2);
+    }
+    expect(state.coins.filter(c => c.owner === 'p0').length).toBe(0);
   });
 
-  it('Hard and above HUNT their gold/red mark; Normal (same brain) does not (24.1)', () => {
+  it('Hard and above HUNT their red mark; Normal (same brain) does not (24.1)', () => {
     // Geometry: the marked enemy is far (30), a decoy enemy is near (8).
     // HUNT_MARK must flip the softmax for a berserker KIND, and must not
-    // exist for the brawler KIND, which shares the brain.
+    // exist for the brawler KIND, which shares the brain. (24.9: midas has
+    // no marks anymore; anger is the one hunt left.)
     const draws = (kind) => {
       const state = elementalBattle(3);
       const bot = state.players.p0, marked = state.players.p1, near = state.players.p2;
       bot.bot = true; bot.kind = kind;
-      bot.elements = { midas: 1 };
+      bot.elements = { anger: 1 };
       bot.x = 0; bot.y = 0;
       marked.x = 30; marked.y = 0;
       near.x = 8; near.y = 0;
-      marked.stacks = { midas: { p0: { n: 1, t: 9 } } };
+      marked.stacks = { anger: { p0: { n: 1, t: 9 } } };
       let hits = 0;
       for (let i = 0; i < 100; i++) if (pickPrey(state, bot).id === 'p1') hits++;
       return hits;
     };
     expect(draws('berserker')).toBeGreaterThan(75);   // the hunt is on
     expect(draws('brawler')).toBeLessThan(25);        // Normal: distance still rules
+  });
+
+  it('midas 🪙: a Hard+ owner WALKS to its own coin; Normal and strangers do not (24.9)', () => {
+    const walk = (kind, owner) => {
+      const state = elementalBattle(3);
+      const bot = state.players.p0;
+      bot.bot = true; bot.kind = kind;
+      bot.x = 0; bot.y = 0; bot.hp = bot.maxHp;
+      state.players.p1.x = 40; state.players.p1.y = 0;
+      state.players.p2.x = -40; state.players.p2.y = 0;
+      state.coins.push({ id: 1, x: 15, y: 3, owner });
+      for (let i = 0; i < 30; i++) { step(state, DT); stepBot(state, 'p0', DT); }
+      const mt = bot.moveTarget;
+      return mt ? Math.hypot(mt.x - 15, mt.y - 3) : Infinity;
+    };
+    expect(walk('berserker', 'p0')).toBeLessThan(2);    // detours to collect
+    expect(walk('brawler', 'p0')).toBeGreaterThan(4);   // Normal: untouched brain
+    expect(walk('berserker', 'p1')).toBeGreaterThan(4); // not my coin, not my walk
   });
 
 

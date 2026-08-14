@@ -660,19 +660,16 @@ export const ELEMENTS = {
                  burstKbAdd: [25, 50, 75] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now; the first hit on a target
   // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
-  // Round 24.1 (Remi): buying midas used to buy a MALUS (the -30/-15% fireball
-  // and the plant-then-cash chore). His ruling: spending gold must never make
-  // you weaker, even if it pays off later. Midas is Anger's twin now: every
-  // markEvery s a GOLD mark lands on a random enemy; your fireball hit on
-  // them claims +goldOnClaim g and re-arms the clock. Cadence = anger's exact
-  // numbers (his instruction); the flat 2 g is his first-try value.
-  // Old spec (tax + two-hit cash): git show ad9d54e:shared/constants.js.
+  // Round 24.9 (Remi): the mark hunt is GONE; midas is a COIN mini-game now.
+  // Every fireball HIT rolls coinChance: success drops a 1 g coin exactly
+  // where the victim stood (the push carries them off it). Everyone SEES the
+  // coin, only the owner can pick it up: a telegraphed mini-objective.
+  // coinChance napkin: docs/history/2026-08-14-round249-mark-reworks.md.
+  // Old mark spec (24.1): git log this file.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Gold generation.',
-           long: 'Every few seconds a gold mark appears on an enemy. Claim it with a fireball hit for +2 g.',
-           // Round 24.2 (Remi): base 20 s (was anger's 30), +35% mark rate per
-           // level in FREQUENCY space (1/x ruling): 20 -> 14.8 -> 11.0, rounded.
-           fx: { markEvery: [20, 15, 11], markDelay: 0.5, goldOnClaim: 2 } },
+           desc: 'Hits shake out coins.',
+           long: 'Every fireball hit has a 20/32/45% chance to knock a 1 gold coin out of the victim, dropped where they stood. Everyone sees it; only you can pick it up.',
+           fx: { coinChance: [0.20, 0.32, 0.45], coinValue: 1, coinRadius: 1.4 } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else; the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -693,14 +690,20 @@ export const ELEMENTS = {
   // again; revert is [15, 10, 5] (round 19.3, itself from [10,7,5]).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Infinite scaling.',
-           long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
+           desc: 'Patient, infinite scaling.',
+           long: 'A red mark hunts whoever killed you last; a fireball hit on them banks +0.5 damage forever. Your anger bar fills over 4.2 s: every fireball you throw releases it, adding the banked damage scaled by the charge.',
            // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
            // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
            // CD_next = CD / 1.35, rounded. ANCHORED at lv3 = 20 s, the 22.5
            // value ("we don't want to buff anger"): 20 x 1.35^2 = 36.45.
-           fx: { markEvery: [36, 27, 20], markDmg: 0.5, markDelay: 0.5,
-                 rampPermanent: true } },
+           // Round 24.9 (Remi): the bank is RELEASE-GATED. The bar fills over
+           // chargeCds x the DEFAULT (unhasted lv1) fireball cooldown; each
+           // cast releases it and the ball adds bank x charge fraction. Spam
+           // = crumbs, patience = the full hit; anti-synergy with haste/echo
+           // BY DESIGN. markDelay 0 + revenge targeting (the round's first
+           // mark = your last killer): docs/history/2026-08-14-round249-mark-reworks.md.
+           fx: { markEvery: [36, 27, 20], markDmg: 0.5, markDelay: 0,
+                 chargeCds: 2, rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead
   // ball (your own cast) carries ZERO knockback, the trailing one leaves
@@ -879,7 +882,7 @@ export const BOT_TARGETING = {
   CROWD: 0.8,          // per unit of "how much backup this one has within 18"
   RIM: 8,              // full bonus for standing on the edge, 0 at the centre
   MY_STACKS: 4,        // per frost/gale/malady stack of MINE on the body
-  // Round 24.1 (Remi): Hard and above HUNT the anger/midas mark "whenever
+  // Round 24.1 (Remi): Hard and above HUNT the anger mark "whenever
   // possible". 40 apparent units ≈ most of the arena: the marked enemy wins
   // the draw unless someone else is drastically closer or nearly dead.
   // Gated on BOTS[kind].difficulty >= Hard in pickPrey; Normal shares the
@@ -894,6 +897,9 @@ export const BOT_TARGETING = {
   CLOSE_SHARE: 0.5,
   CLOSE_RING: 1.5,
   CLOSE_REROLL: 5,
+  // Round 24.9 (midas coins): a Hard+ owner detours to collect its own coin
+  // when it lies within this many units; the walk itself is the counterplay.
+  COIN_SEEK: 30,
 };
 
 // ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------

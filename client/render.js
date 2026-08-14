@@ -474,6 +474,38 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.restore();
   }
 
+  // --- midas coins (24.9): ground loot everyone can SEE, only the owner can
+  // take. YOUR coin is the desirable one: bright gold, glinting, a pulsing
+  // pickup ring. Someone else's is a small dull disc (read: "the midas player
+  // will walk here", i.e. a free pre-aim spot), never confusable with yours.
+  const coins = Array.isArray(vs.coins) ? vs.coins : [];
+  for (const c of coins) {
+    if (!c || !fin(c.x) || !fin(c.y)) continue;
+    const x = view.sx(c.x), y = view.sy(c.y);
+    const mine = myId != null && c.owner === myId;
+    const r = Math.max(3, 0.42 * scale);
+    ctx.save();
+    if (mine) {
+      const glint = 0.5 + 0.5 * Math.sin(now / 220);
+      ctx.globalAlpha = 0.35 + 0.25 * glint;
+      ctx.strokeStyle = '#ffd76a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r * (1.8 + 0.5 * glint), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffcf4d';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#8a6a1a'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.45 * glint})`;
+      ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.28, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = '#8f7f57';
+      ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#5c5138'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
   // Same blink language as the meteor's, but in the bolt's per-level tint;
   // the zone appears the INSTANT of the cast; the dodge window IS the spell.

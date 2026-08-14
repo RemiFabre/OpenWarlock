@@ -68,6 +68,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     clones: [],            // mirages: {id, owner, x, y, vx, vy, hp, maxHp, r, speed, left, ...}
     phantoms: [],          // the balls those mirages "throw": motion + culling only
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
+    coins: [],             // midas coins (24.9): {id,x,y,owner}; round-long, owner-only pickup
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     // Mine (round 21.8, SPELLS.nova; key unchanged, the artillery bomb is gone)
     mines: [],             // planted traps: {id,x,y,r,owner,level,charges:[ball payloads]}
@@ -227,8 +228,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     angerMarks: 0,
     _angerTarget: null,    // anger: who carries my mark right now (round-scoped)
     _angerNext: Infinity,  // anger: state.time the next mark may land (startRound arms it)
-    _midasTarget: null,    // midas (24.1): the same hunt, the reward is gold
-    _midasNext: Infinity,
+    lastKillerId: null,    // anger 24.9: game-long "who killed me last" (revenge mark)
     mosqN: 0,              // mosquito: fireballs cast since the last pair
     mosqDue: false,        // mosquito: a threshold crossed on a trailing ball, owed to the next real cast
     dash: null,            // {dx, dy, left, hit:Set-as-object}
@@ -571,8 +571,20 @@ export function castSpell(state, id, key, tx, ty) {
       // and gale's gust alike; damage and every on-hit rider are untouched),
       // and the trailing ball is queued a beat behind on the same aim.
       const pair = mosquitoPair(state, pl, false);
+      // Anger 24.9 (Remi): the bank is release-gated. The bar fills over
+      // chargeCds x the DEFAULT lv1 fireball cooldown (haste never speeds
+      // it: spam = crumbs, patience = the full hit, BY DESIGN), every cast
+      // drains it, and the released fraction rides THIS cast's own ball only
+      // (an echo trail or a decoy phantom never carries a second release).
+      let angerCharge = null;
+      if (state.mode === 'elemental' && pl.elements && pl.elements.anger > 0) {
+        const full = ELEMENTS.anger.fx.chargeCds * SPELLS.fireball.cooldown[0];
+        angerCharge = Math.min(1, (state.time - (pl._angerFireT ?? -Infinity)) / full);
+        pl._angerFireT = state.time;
+      }
       spawnFireball(state, pl, level, dx, dy, {
         ...(pair ? { kbScale: 0 } : {}),
+        ...(angerCharge != null ? { angerCharge } : {}),
       });
       if (pair) {
         // ⚠ RULING (round 21.0, Remi: "part of the game physics"): only the AIM
@@ -915,6 +927,11 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     pierced: 0,
     elements, radius,
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
+    // anger 24.9: the released charge fraction (0..1) this ball carries.
+    // Absent on echo trails and any ball not fired by the owner's own cast,
+    // and the ramp treats absent as 0, so a missed spawn path fails LOUD
+    // (anger deals nothing) instead of silently keeping the old always-on.
+    ...(opts.angerCharge != null ? { angerCharge: opts.angerCharge } : {}),
   });
 }
 
@@ -1417,6 +1434,9 @@ function kill(state, target, directSourceId) {
     state.events.push({ t: 'teamkill', id: killer.id, victim: target.id, x: target.x, y: target.y });
   }
   if (killer && killer !== target && !teamKill) {
+    // anger 24.9: remember who killed you LAST (game-long, hostile kills
+    // only); next round your first red mark hunts them (the revenge lore)
+    target.lastKillerId = killer.id;
     // bounty: pays only when the victim was AHEAD of the killer on kills
     // (gap taken before this kill counts). The leader can never collect one,
     // which is what keeps the 2x income hard cap in constants.js intact.
@@ -1515,6 +1535,7 @@ function startRound(state) {
   state.mineShots = [];
   state.bolts = [];
   state.walls = [];
+  state.coins = [];        // midas coins die with the round, like stacks
   const coop = state.mode === 'coop';
   if (coop) coopPrepareRound(state);   // clears last level's monsters, sets teams
   const fs = fighters(state);
@@ -1576,8 +1597,10 @@ function startRound(state) {
     // dies with the round (stacks wiped above); the hunt re-arms below.
     pl._angerTarget = null;
     pl._angerNext = ELEMENTS.anger.fx.markDelay;
-    pl._midasTarget = null;
-    pl._midasNext = ELEMENTS.midas.fx.markDelay;
+    // anger 24.9: the round's FIRST mark is revenge (your last killer); the
+    // bar starts FULL, so the opening ball can carry the whole bank
+    pl._angerRevenge = true;
+    pl._angerFireT = -Infinity;
     pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
     pl.roundKills = 0;
@@ -1839,10 +1862,10 @@ function inCrater(state, x, y, pad = 0) {
   return false;
 }
 
-// The two mark-hunt elements and their per-player bookkeeping fields.
+// The mark-hunt elements and their per-player bookkeeping fields. Midas left
+// in 24.9 (its rework is the coin drop in applyElementsHit); anger remains.
 const MARK_HUNTS = [
   ['anger', '_angerTarget', '_angerNext'],
-  ['midas', '_midasTarget', '_midasNext'],
 ];
 
 function stepBattle(state, dt) {
@@ -2198,16 +2221,42 @@ function stepBattle(state, dt) {
         const cands = players.filter(
           q => q !== pl && q.alive && q.statueT <= 0 && hostile(pl, q));
         if (!cands.length) continue;                 // nobody to hunt: retry next tick
-        const victim = cands[Math.floor(rng(state) * cands.length)];
+        // anger 24.9 (Remi): the round's FIRST mark is REVENGE: it lands on
+        // whoever killed you last (any earlier round), if they are a valid
+        // candidate right now; random otherwise (won the round, round 1, or
+        // the killer left/died/is golden). One shot per round: the flag drops
+        // whichever way the roll went, so later marks this round stay random.
+        let victim = null;
+        if (ek === 'anger' && pl._angerRevenge) {
+          pl._angerRevenge = false;
+          victim = cands.find(q => q.id === pl.lastKillerId) || null;
+        }
+        if (!victim) victim = cands[Math.floor(rng(state) * cands.length)];
         addStack(victim, ek, pl.id);
         pl[tKey] = victim.id;
-        // midas keeps its mark event (the client sparkle and the chatter line
-        // predate the rework); anger has always dealt silently, the pip tells
-        if (ek === 'midas')
-          state.events.push({ t: 'midasMark', id: victim.id, by: pl.id,
-            x: victim.x, y: victim.y });
       }
     }
+  }
+
+  // midas coins (24.9): owner-only pickup on walkover. The coin pays the
+  // moment the OWNER's body reaches it; everyone else walks straight through
+  // (their read is the ambush: the owner WILL come for it). A statue cannot
+  // collect (nothing applies during the freeze); an invisible owner can
+  // (their gamble to take). Uncollected coins die with the round (startRound).
+  if (state.coins.length) {
+    const reach = ELEMENTS.midas.fx.coinRadius;
+    const keep = [];
+    for (const c of state.coins) {
+      const owner = state.players[c.owner];
+      if (owner && owner.alive && owner.statueT <= 0 &&
+          Math.hypot(owner.x - c.x, owner.y - c.y) <= reach) {
+        const pay = ELEMENTS.midas.fx.coinValue;
+        owner.gold += pay; owner.goldEarned += pay; owner.roundGold += pay;
+        state.events.push({ t: 'gold', id: owner.id, amount: pay, x: c.x, y: c.y });
+        state.events.push({ t: 'coinTake', id: owner.id, x: c.x, y: c.y });
+      } else keep.push(c);
+    }
+    if (keep.length !== state.coins.length) state.coins = keep;
   }
 
   for (const pl of players) {
@@ -2766,9 +2815,11 @@ function stepProjectiles(state, dt) {
           if (f.markDmg) {
             // anger: every CLAIMED mark is +markDmg, banked ALL GAME (linear,
             // uncapped). Damage only; knockback untouched so a big bank melts,
-            // never launches.
+            // never launches. 24.9: RELEASE-GATED: the ball pays bank x the
+            // charge it carried at cast (pr.angerCharge, absent = 0), so a
+            // spammer gets crumbs and a patient full bar hits for everything.
             const own = state.players[pr.owner];
-            ramp += ((own && own.angerMarks) || 0) * f.markDmg;
+            ramp += ((own && own.angerMarks) || 0) * f.markDmg * (pr.angerCharge ?? 0);
           }
           // (the generic fx.dmgMult / fx.kbMult taxes left with old midas,
           // round 24.1: no element declares either any more. Remi's ruling:
@@ -3044,24 +3095,16 @@ function applyElementsHit(state, pr, target) {
         addStack(target, 'malady', eo);
       }
     }
-    // midas (24.1): anger's twin, the reward is GOLD. A FIREBALL hit on your
-    // gold-marked target claims +goldOnClaim g and re-arms the hunt clock.
-    // FIREBALLS ONLY, the same round-12 ruling anger lives by.
-    if (f.goldOnClaim && eo != null && pr.type === 'fireball' &&
-        stackCount(target, 'midas', eo) > 0) {
-      const owner = state.players[eo];
-      if (owner) {
-        clearStacks(target, 'midas', eo);
-        const pay = f.goldOnClaim;
-        owner.gold += pay;
-        owner.goldEarned += pay;
-        owner.roundGold += pay;
-        owner._midasTarget = null;
-        owner._midasNext = state.time + efxV(f.markEvery, el);
-        state.events.push({ t: 'gold', id: eo, amount: pay, x: target.x, y: target.y });
-        state.events.push({ t: 'midasClaim', id: target.id, by: eo,
-          x: target.x, y: target.y });
-      }
+    // midas (24.9, Remi): a FIREBALL hit rolls coinChance; success knocks a
+    // 1 g coin out of the victim, dropped exactly where they STOOD (the push
+    // carries them off it). Owner-only pickup, in stepBattle. Seeded rng.
+    // No coin off your own body (a reflected ball hitting yourself), the
+    // same self-guard vampire's marks live by. FIREBALLS ONLY (round-12 ruling).
+    if (f.coinChance && eo != null && pr.type === 'fireball' &&
+        target.id !== eo && rng(state) < efxV(f.coinChance, el)) {
+      state.coins.push({ id: state.nextId++, x: target.x, y: target.y, owner: eo });
+      state.events.push({ t: 'coinDrop', id: target.id, by: eo,
+        x: target.x, y: target.y });
     }
     // anger: a FIREBALL hit on YOUR marked target claims the mark; +1 to the
     // permanent bank (never reset in startRound), and the next mark waits
@@ -3247,6 +3290,13 @@ export function snapshot(state, viewerId = null) {
           maladyR: round2(efxV(ELEMENTS.malady.fx.auraR, p.malady.inst.level)),
         } : {}),
         angerMarks: p.angerMarks || 0, // HUD + scoreboard: claimed marks = the permanent bonus
+        // anger 24.9: YOUR OWN bar's charge fraction (0..1), for the HUD bar.
+        // Never on anyone else's entry: reading an enemy's charge would be a
+        // free "his next ball is loaded" wallhack.
+        ...(p.id === viewerId && p.elements && p.elements.anger > 0 ? {
+          angerCharge: round2(Math.min(1, (state.time - (p._angerFireT ?? -Infinity)) /
+            (ELEMENTS.anger.fx.chargeCds * SPELLS.fireball.cooldown[0]))),
+        } : {}),
         // PRIVATE: only the stacks the VIEWER put on this body. This is the one
         // thing you need to see to play a stacking element (is my frost
         // detonation one hit away, is my midas mark waiting on that target?),
@@ -3283,6 +3333,12 @@ export function snapshot(state, viewerId = null) {
     // broken ground (24.1): meteor craters are PUBLIC lava pools, same for
     // every viewer and present in every ruleset (meteor is a classic spell too)
     craters: (state.craters || []).map(c => ({ x: round2(c.x), y: round2(c.y), r: round2(c.r) })),
+    // midas coins (24.9): PUBLIC by design (the telegraphed mini-objective:
+    // everyone sees where the owner wants to walk). Absent when none exist,
+    // so classic snapshots stay byte-identical.
+    ...(state.coins && state.coins.length ? {
+      coins: state.coins.map(c => ({ x: round2(c.x), y: round2(c.y), owner: c.owner })),
+    } : {}),
     winner: state.winner,
     ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),
     roundSummary: state.roundSummary || null,
@@ -4307,6 +4363,23 @@ function stepBerserker(state, pl, dt) {
     const cd = Math.hypot(cx, cy);
     if (cd > arena - 2.5) { cx *= (arena - 3) / cd; cy *= (arena - 3) / cd; }
     setMoveTarget(state, id, cx, cy);
+  }
+
+  // midas coins (24.9): a Hard+ owner DETOURS for its own coins (overrides
+  // the prowl walk this tick; shooting below is untouched, so it fires while
+  // it walks). The telegraphed walk IS the counterplay Remi wants: everyone
+  // sees the coin and knows the owner is coming. Normal (same brain) is
+  // gated out on KIND, the 24.1 mark-hunt precedent. Never walks into lava.
+  if (!fleeing && state.coins && state.coins.length && BOTS[pl.kind] &&
+      BOTS[pl.kind].difficulty >= BOTS.berserker.difficulty) {
+    let best = null, bd = BOT_TARGETING.COIN_SEEK;
+    for (const c of state.coins) {
+      if (c.owner !== pl.id) continue;
+      if (Math.hypot(c.x, c.y) > arena - 1.5) continue;
+      const d = Math.hypot(c.x - pl.x, c.y - pl.y);
+      if (d < bd) { bd = d; best = c; }
+    }
+    if (best) setMoveTarget(state, id, best.x, best.y);
   }
 
   // fireball with intercept aim; near the rim, aim past the target toward

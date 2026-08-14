@@ -241,9 +241,11 @@ build step, Node ESM, only dep is `ws`.
   `STACK_DECAY.seconds` (9), reapply resets; midas/anger never fade. A
   REFLECTED ball's riders stay keyed to the element's owner (`pr.elemOwner`),
   never the reflector (the game-night shared-ice bug),
-  anger=ex-momentum MARK HUNT (red mark on a random enemy every
-  **[36,27,20] s** (24.2, frequency-space steps anchored at lv3 = 20 s, the
-  22.5 value); claim = +0.5 fireball dmg forever),
+  anger=REVENGE MARK + RELEASE BAR (24.9): first mark of the round lands
+  IMMEDIATELY on your last killer (random if you didn't die), later marks
+  random every **[36,27,20] s**; claim = +0.5 banked forever, but the bank is
+  RELEASE-GATED: a bar fills over 2× the default fireball CD (4.2 s), every
+  cast drains it, the ball adds bank × charge. Spam = crumbs, BY DESIGN,
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
   cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
   vampire=mark-and-feast (round 24: every hit banks a never-fading mark on the
@@ -251,9 +253,11 @@ build step, Node ESM, only dep is `ws`.
   each healing [2,3,4] × 1→3 linear on the vampire's OWN missing hp; a started
   feast always finishes; marks die with either party; no feast through
   Vanish/NOPE),
-  midas=anger's twin since 24.1 (gold mark on a random enemy every
-  **[20,15,11] s** (24.2), fireball claim = +2 g flat, NO malus of any kind;
-  Remi's ruling: buying an element must never weaken the fireball). ⚠ FIREBALL RANGE IS 50 since
+  midas=COIN MINI-GAME (24.9, marks deleted): every fireball hit rolls
+  **[20,32,45]%**; success drops a 1 g coin where the victim stood, PUBLIC,
+  owner-only pickup on walkover; coins die with the round; Hard+ bots detour
+  to collect (`COIN_SEEK`); no malus of any kind
+  (Remi's ruling: buying an element must never weaken the fireball). ⚠ FIREBALL RANGE IS 50 since
   22.5 (was infinite): balls fizzle past `SPELLS.fireball.range`, reflections
   restart the meter.
   Classic keeps the 3-level fireball.

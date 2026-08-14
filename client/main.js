@@ -265,10 +265,16 @@ function onEvent(e) {
       // a lava geyser over the fresh crater)
       if (e.crater > 0) fx.push({ ...e, type: 'craterBurst', at: now, dur: 1.3 });
       playSfx('boom'); playSfx('death'); break;
-    // midas (24.1): your gold mark was claimed; coin burst on the victim
-    case 'midasClaim':
+    // midas (24.9): a coin dropped out of your victim (gold sparkle where it
+    // now lies), and the pickup pays with the coin sound. The +1 g popup is
+    // the generic 'gold' floater above.
+    case 'coinDrop':
       fx.push({ ...e, type: 'midasMark', at: now, dur: 0.6 });
-      if (e.by === myId) playSfx('buy');
+      if (e.by === myId) playSfx('catch');
+      break;
+    case 'coinTake':
+      fx.push({ ...e, type: 'midasMark', at: now, dur: 0.4 });
+      if (e.id === myId) playSfx('buy');
       break;
     // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
     // charge is a soft click, the spring is a boom, and every stored ball
@@ -318,8 +324,6 @@ function onEvent(e) {
       break;
     }
     case 'frost': pushFloater(e, 'frost', 0.7, now); break;
-    // midas: the mark planted (quiet; the cash's +1 g popup is the loud half)
-    case 'midasMark': fx.push({ ...e, type: 'midasMark', at: now, dur: 0.5 }); break;
     // gale: a gust stacked. Silent on purpose; it fires on every gale hit, and
     // a sound on each one would drown the burst it is counting down to.
     case 'gale': pushFloater(e, 'gale', 0.7, now); break;
@@ -509,6 +513,8 @@ function interpolated(now) {
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
     // mines never move: no interpolation, straight off the snapshot
     mines: Array.isArray(s.mines) ? s.mines : [],
+    // midas coins (24.9): ground loot never moves either
+    coins: Array.isArray(s.coins) ? s.coins : [],
     bolts: Array.isArray(s.bolts) ? s.bolts : [],
     walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
@@ -1432,20 +1438,23 @@ function updateUi(s) {
   if (inGame && m && !m.spectator) {
     const angLv = (m.elements && m.elements.anger) || 0;
     if (angLv > 0) {
-      // anger: the earned damage bank, plus whether your mark is out right now
-      // (the red pip on the enemy's body is the real UI; this just confirms it)
+      // anger (24.9): the bank + the BAR. The bank is release-gated now, so
+      // the bar is the thing to play: full bar = the whole bonus on one ball.
       const f = ELEMENTS.anger.fx;
       const marks = Math.max(0, +m.angerMarks || 0);
       const markUp = playerList.some(p => p.myStacks && p.myStacks.anger > 0);
+      const ch = Math.max(0, Math.min(1, +m.angerCharge || 0));
       buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg` +
+        `<span class="angerbar${ch >= 1 ? ' full' : ''}"><i style="width:${Math.round(ch * 100)}%"></i></span>` +
         (markUp ? ' · mark is OUT: hunt it' : '') + '</span>');
     }
-    // midas (24.1): the same hunt, the reward is gold; confirm when it is out
+    // midas (24.9): coins waiting on the ground, or the odds while none are
     const midLv = (m.elements && m.elements.midas) || 0;
     if (midLv > 0) {
-      const goldUp = playerList.some(p => p.myStacks && p.myStacks.midas > 0);
+      const mine = (Array.isArray(s.coins) ? s.coins : []).filter(c => c.owner === m.id).length;
       buffs.push(`<span class="buff vamp">${ELEMENTS.midas.icon} ` +
-        (goldUp ? `mark is OUT: +${fmtNum(ELEMENTS.midas.fx.goldOnClaim)} g` : 'hunting…') + '</span>');
+        (mine > 0 ? `${mine} coin${mine > 1 ? 's' : ''} on the ground: go collect`
+          : `${Math.round(statAt(ELEMENTS.midas.fx.coinChance, midLv) * 100)}% coin per hit`) + '</span>');
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)

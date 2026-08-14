@@ -347,6 +347,37 @@ short version:
   stays; your chunky-payout idea comes free with it). Nothing implemented;
   your call.
 
+## 24.9: Midas coins + the Anger release bar (your final designs, shipped)
+
+Everything as dictated; full design, napkin math and both tables in
+`docs/history/2026-08-14-round249-mark-reworks.md`.
+
+- **Midas**: marks deleted. Every fireball hit rolls **20/32/45%** to drop
+  a 1 g coin exactly where the victim stood; everyone sees it, only you can
+  take it, your own coin is shiny gold with a glint ring, foreign coins are
+  small dull discs. Coins die with the round. Hard+ bots detour to collect.
+  The napkin: level 1 breaks even ~round 5-6 for a bot, ~round 8 for a
+  human (slightly past your mid-game target: raise lv1 to 25% if it feels
+  thin; one-line lever).
+- **Anger**: the bank stays +0.5/claim forever, but it is RELEASE-GATED:
+  the bar fills over 4.2 s (2x the default fireball cooldown, haste never
+  helps), every cast drains it, the ball adds bank x charge. Spam = crumbs
+  BY DESIGN (your negative-synergy call). The round's first mark lands
+  instantly on YOUR LAST KILLER (random if you didn't die), and the bar
+  starts full: the opening revenge ball carries the whole bank. HUD chip
+  has a live charge bar (glows at full); screenshot-verified in the client.
+- **Both tables rerun** (2565 g, seed 1, pages auto-named `-2`): the bar
+  works. On Faker, anger is still #1 but the auto-win died (mean place
+  1.12 -> 1.25) and the top 5 is finally DIVERSE (anger, elements,
+  vampire, malady) instead of five mark builds. On Hard, anger-heavy rows
+  fell as designed (bots spam, so they release ~50%). Midas holds top-8 on
+  Faker without the old rank-2 dominance. D14-hyperscaler deflated
+  (1940 -> 1392 on Faker): the freeload is over.
+- ⚠ New roster floor on both tables: A4-mutations-only and
+  B4-mutation-breadth (~960-1015). They lost anger carry AND midas marks in
+  one round; flagged, not buffed (they price the shelf, and the shelf's
+  price really fell).
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
@@ -354,8 +385,9 @@ cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
 Faker returns to fresh lobbies, a feel pass on lava 16 + the treads nerf, a
 feel pass on the vampire feast numbers, a feel pass on the 24.1 batch
 (midas +2 g, crater sizes, the portal cross), the one-game trace with
-your friend (23.1 above), and the 24.7 follow-ups: a live feel-check on
-Blood Debt (the table's best non-Faker purchase, possibly bot-flattered),
-whether D3-tycoon's 1205 asks for a midas value bump or just a different
-home, whether frost-last is expected, and whether any old rows retire.
-(24.6's "which builds shop debt" is answered: G2 and D13.)
+your friend (23.1 above), a live feel-check on Blood Debt (still the best
+non-Faker purchase on Hard, possibly bot-flattered), and the 24.9 feel
+passes: the coin walk (fun mini-game or a chore?), the anger bar (does
+holding a full bar feel like a decision?), the revenge mark lore, and
+whether A4/B4 sitting on the roster floor bothers you. (24.6's "which
+builds shop debt" is answered: G2 and D13.)

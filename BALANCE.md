@@ -417,6 +417,20 @@ echo, per Remi's ruling that marks scale with hit count; the numbers above
 measured the OLD core. New baseline: D4 1520, M6-vampire-first 1479, both
 mid-pack, `docs/history/2026-08-14-round247-elo.md`.)
 
+**Round 24.9 (2026-08-14, Remi's design pass on both mark mechanics)**:
+scaling in long games is ACCEPTED as the fantasy (the FFA lobby turning on
+the leader is the auto-balancer); what changed is visibility and setup.
+**Midas = coins**: marks deleted; every fireball hit rolls [20,32,45]% to
+drop a PUBLIC 1 g coin where the victim stood, owner-only pickup, coins die
+with the round, Hard+ bots detour to collect (napkin + tables:
+`docs/history/2026-08-14-round249-mark-reworks.md`). **Anger = release bar**:
+claims still bank +0.5 forever, but a bar fills over 2× the default fireball
+CD (4.2 s), every cast drains it, and the ball adds bank × charge; spam pays
+crumbs BY DESIGN (deliberate anti-synergy with haste/echo). The round's
+first mark lands immediately on your LAST KILLER (random if you didn't die).
+Echo cadence [5,4,3] since 24.8. All levers one-line: `coinChance`,
+`chargeCds`, `markEvery`.
+
 ## Round 24.1: midas hunt, mark-hunting bots, meteor craters, portal cross (2026-08-14)
 
 Same-day follow-up to round 24; full report
