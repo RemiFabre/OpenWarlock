@@ -36,7 +36,7 @@ Agent context usage on this project is **CRITICAL**. The rules:
 - **Round 23 (2026-08-13) shipped Remi's whole voice list**; details in
   REMI_NOTES.md. Structural bits an agent must know: the lobby is HOST-ONLY
   for rules/bots/kicks (engine `hostId()`, oldest seated conn, `host`/`chat`
-  ride the snap beside `bans`); **Blood Debt 🩶 (key Y) and Genki 💠 (key K)
+  ride the snap beside `bans`); **Blood Debt 🩶 (key Y) and Genki ⚛️ (key K)
   are MAIN spells now** (#1/#12 closed); the arena `--mode=elemental` study is
   DELETED (rank with elo.js only); Faker+anger is roster row `K5` and tops the
   table at 2783 (`docs/history/2026-08-13-round23-elo-faker-anger.md`).

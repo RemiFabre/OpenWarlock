@@ -33,7 +33,9 @@ export const ICONS = {
   // Hat of Aura (round 21.7 rename): a hat, since 🔥 belongs to ember.
   // Slow Spoon (21.8): Remi's joke, the slowest murder in history.
   hourglass: '⏳', brazier: '🎩', spoon: '🥄',
-  genki: '💠',   // issue #12: the omega ball
+  // Round 24.2 (Remi): the omega ball wears a BALL of energy; 💠 read as
+  // "squares in it", off the idea. Same blue family.
+  genki: '⚛️',   // issue #12
 };
 
 export function esc(s) {
