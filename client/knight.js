@@ -62,8 +62,7 @@ const state = new Map();
 function stateFor(id) {
   let st = state.get(id);
   if (!st) {
-    st = { row: 2, want: 2, since: 0, name: 'idle', t: 0, one: null, oneT: 0,
-           hp: null, x: null, y: null, projSeen: 0, dead: false };
+    st = { row: 2, t: 0, one: null, oneT: 0, x: null, y: null, vx: null, vy: null };
     state.set(id, st);
   }
   return st;
@@ -73,6 +72,14 @@ function stateFor(id) {
 export function knightLoaded() {
   const i = SHEETS.idle.img;
   return !!(i.complete && i.naturalWidth);
+}
+// test/debug hook, in the same family as window.__phase and window.__keys: the
+// row a warlock is currently facing, so a browser test can assert all eight
+// directions instead of eyeballing them.
+if (typeof window !== 'undefined') {
+  window.__knightRow = (id) => (state.get(id) || {}).row;
+  window.__knightDirs = ['W', 'SW', 'S', 'SE', 'E', 'NE', 'N', 'NW'];
+  window.__knightPos = (id) => { const st = state.get(id); return st ? { x: st.x, y: st.y } : null; };
 }
 export function forgetKnights(keep) {
   for (const id of [...state.keys()]) if (!keep.has(id)) state.delete(id);
@@ -106,12 +113,20 @@ export function drawKnight(ctx, pl, x, y, r, dt, opts = {}) {
   const idle = SHEETS.idle;
   if (!idle.img.complete || !idle.img.naturalWidth) return false;
 
-  // facing follows real movement; standing still keeps the last direction
-  const vx = fin(pl.vx) ? pl.vx : (st.x == null ? 0 : pl.x - st.x);
-  const vy = fin(pl.vy) ? pl.vy : (st.y == null ? 0 : pl.y - st.y);
+  // ⚠ the snapshot carries NO velocity for players, so facing comes from the
+  // position delta. That delta is PER FRAME: it has to be divided by dt before
+  // it can be compared to a speed in units per second (the first cut compared
+  // ~0.18 u/frame against 0.6 u/s, so nobody ever turned). A low pass on top
+  // keeps one jittery frame from flipping the direction.
+  const dts = Math.max(dt, 1 / 240);
+  const rawX = st.x == null ? 0 : (pl.x - st.x) / dts;
+  const rawY = st.y == null ? 0 : (pl.y - st.y) / dts;
   st.x = pl.x; st.y = pl.y;
-  const speed = Math.hypot(vx, vy);
-  if (speed > 0.6) st.row = rowFor(vx, vy, st.row);
+  st.vx = st.vx == null ? rawX : st.vx * 0.7 + rawX * 0.3;
+  st.vy = st.vy == null ? rawY : st.vy * 0.7 + rawY * 0.3;
+  const speed = Math.hypot(st.vx, st.vy);          // world units per second
+  const MOVING = 1.2;                              // walking speed is ~11 u/s
+  if (speed > MOVING) st.row = rowFor(st.vx, st.vy, st.row);
 
   // one-shot states (death > hit > cast) ride over the looping ones
   if (opts.dead && st.one !== 'die') { st.one = 'die'; st.oneT = 0; }
@@ -121,7 +136,7 @@ export function drawKnight(ctx, pl, x, y, r, dt, opts = {}) {
     else if (opts.cast && st.one !== 'hit') { st.one = 'cast'; st.oneT = 0; }
   }
 
-  let key = st.one || (speed > 0.6 ? 'run' : 'idle');
+  let key = st.one || (speed > MOVING ? 'run' : 'idle');
   let sheet = SHEETS[key];
   if (!sheet.img.complete || !sheet.img.naturalWidth) { key = 'idle'; sheet = idle; }
 
@@ -131,7 +146,7 @@ export function drawKnight(ctx, pl, x, y, r, dt, opts = {}) {
     frame = Math.floor(st.oneT * sheet.fps);
     if (frame >= sheet.frames) {
       if (key === 'die') frame = sheet.frames - 1;         // hold the last pose
-      else { st.one = null; st.oneT = 0; key = speed > 0.6 ? 'run' : 'idle'; sheet = SHEETS[key]; frame = 0; }
+      else { st.one = null; st.oneT = 0; key = speed > MOVING ? 'run' : 'idle'; sheet = SHEETS[key]; frame = 0; }
     }
   } else {
     st.t += dt;

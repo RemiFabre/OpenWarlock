@@ -246,6 +246,7 @@ function connect(name) {
 function onMessage(m) {
   if (m.t === 'welcome') {
     myId = m.id;
+    window.__myId = myId;   // test/debug hook, like __phase and __keys
     snaps.length = 0; fx.length = 0; // drop state from any previous connection
     gapEst = 1000 / SNAPSHOT_RATE; renderDelay = BASE_DELAY; // ...and its lag estimate
     setConnBanner(null);
@@ -1649,6 +1650,20 @@ function refreshTip() {
   try { paintTip(); } catch { hideTip(); }
 }
 
+// v9.1 (Sam): a shop card that becomes disabled under the cursor stops firing
+// mouseleave, which used to strand the tooltip on screen. The pointer is the
+// authority now: on every move, if it is not over the owning card, the tip goes.
+document.addEventListener('mousemove', (e) => {
+  if (!tipOwner) return;
+  const el = tipOwner.el;
+  if (!el.isConnected) { hideTip(); return; }
+  const r = el.getBoundingClientRect();
+  const inside = e.clientX >= r.left - 2 && e.clientX <= r.right + 2
+    && e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2;
+  if (!inside) hideTip();
+}, { passive: true });
+document.addEventListener('mouseleave', () => hideTip(), { passive: true });
+
 function attachTip(el, build) {
   const show = () => showTip(el, build);
   el.addEventListener('mouseenter', show);
@@ -2005,7 +2020,7 @@ function buildShop(container, mode = 'classic') {
       b.dataset.key = key;      // stable hook for the UI tests
       const chosen = off.picked ? off.picked === key : i === 0;
       b.classList.toggle('sel', chosen);
-      b.innerHTML = `<span class="icon">${thingIcon(key)}</span>
+      b.innerHTML = `${artHtml(key, 'art')}
         <span class="info"><span class="name">${esc(thingName(key))}
           <span class="lv">${chosen ? (off.picked ? '✓ drafted' : '✓ pre-selected') : ''}</span></span>
         <span class="desc">${esc(thingDesc(key))}</span></span>
@@ -2046,7 +2061,9 @@ const spellEls = {};
   for (const key of Object.keys(SPELLS)) {
     const el = document.createElement('div');
     el.className = 'spell';
-    el.innerHTML = `<span class="key"></span>${ICONS[key]}
+    // v9.1 (Sam): ONE canonical mapping. The bar shows the shop's artwork, never
+    // an emoji where art exists. (The projectile itself keeps its own VFX.)
+    el.innerHTML = `<span class="key"></span>${artHtml(key, 'sart')}
       <span class="lv"></span><span class="elem"></span><span class="cd hidden"></span>`;
     bar.appendChild(el);
     spellEls[key] = el;
