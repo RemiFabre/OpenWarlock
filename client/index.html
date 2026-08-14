@@ -920,6 +920,67 @@
   #avatarGrid .avpick { display: block; width: 74px; height: 74px; overflow: hidden; border-radius: 4px; line-height: 0; }
   #avatarGrid .avpick > img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
   /* bot rows: Sam's v5 metrics (icon 24-26, row 40-44, select ~40) */
+  /* ---- v7.4 the entry screen (Sam) ------------------------------------- */
+  .slab.entry { padding: 30px 34px 24px; }
+  .entry h1.display {
+    font-size: 42px; letter-spacing: .1em; color: #f4e7c9;
+    text-shadow: 0 2px 26px rgba(255, 93, 31, .28);
+  }
+  .entry .sub {
+    margin: 8px 0 20px; font-size: 14.5px; line-height: 1.5; color: #b9ab92; max-width: 46ch;
+  }
+  /* the name is where the flow starts, so it reads as one block with the doors */
+  .entry .namefield {
+    display: block; padding: 9px 12px 10px;
+    background: #0b131d; border: 1px solid rgba(197, 154, 88, .4);
+    border-bottom: 0;
+  }
+  .entry .namefield .pclbl { display: block; margin-bottom: 3px; }
+  .entry .namefield input[type=text] {
+    width: 100%; padding: 4px 0; background: none; border: 0; font-size: 17px; color: #f2e6c8;
+  }
+  .entry .namefield:focus-within { border-color: #d3a55e; }
+  .entry .doors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px;
+    background: #0b131d; border: 1px solid rgba(197, 154, 88, .4); border-top: 0; }
+  .entry .door {
+    padding: 14px 12px; font-size: 15.5px; font-weight: 600; letter-spacing: .02em;
+    background: linear-gradient(180deg, #5a4a2c, #2c2418);
+    border: 1px solid rgba(214, 173, 100, .8); color: #f6e8c6;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .16);
+  }
+  .entry .door:hover {
+    background: linear-gradient(180deg, #6d5a34, #3a2f1d); border-color: #e8c65a; color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .22), 0 0 14px rgba(232, 198, 90, .22);
+  }
+  .entry .door:active { transform: translateY(1px); }
+  .entry .nosrv { font-size: 13px; color: #a8998a; margin-top: 12px; }
+  /* the version picker: quieter than the doors, and in the panel's own palette
+     (version-menu.js injects its style at runtime, so this needs the #join id
+     to win without touching the shared platform file) */
+  #join #owv-join {
+    margin-top: 14px; padding: 9px 12px; gap: 10px;
+    background: rgba(12, 20, 30, .6); border: 1px solid rgba(197, 154, 88, .3);
+    color: #b3a58c; font: 13px ui-sans-serif, system-ui, sans-serif;
+  }
+  #join #owv-join button {
+    padding: 7px 12px; font-size: 13.5px; color: #ecdab8;
+    background: linear-gradient(#141d27, #0d141b); border: 1px solid rgba(197, 154, 88, .45);
+  }
+  #join #owv-join button:hover { border-color: #d3a55e; color: #fff; }
+  /* the AI panel stays available and stops competing with the doors */
+  .entry .ideaPitch {
+    margin-top: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45;
+    background: rgba(12, 20, 30, .55); border: 1px solid rgba(197, 154, 88, .22);
+    color: #ab9d8a;
+  }
+  .entry .ideaPitch a.ideaLink {
+    background: linear-gradient(#171f27, #0f151c); border-color: rgba(197, 154, 88, .35);
+    color: #e2d1af; font-size: 12.5px;
+  }
+  .entry #manifesto { margin-top: 12px; font-size: 12.5px; }
+  .entry #manifesto summary { color: #93867a; }
+  .entry #manifesto p { color: #ab9d8a; line-height: 1.5; }
+
   /* ---- v7.2 modals in The Gathering's language (Sam) ------------------- */
   .slab.gpanel {
     background: linear-gradient(180deg, #0a1420, #070f19);
@@ -1173,18 +1234,22 @@
 <div id="tip" class="tipbox hidden"></div>
 
 <div id="join" class="overlay">
-  <div class="slab" style="--w:560px">
+  <!-- v7.4 (Sam): the front door. Title block, one line of pitch, the name as
+       the start of the flow, then the two doors; everything else is quieter
+       than they are. Visual only: the ids and the flow are untouched. -->
+  <div class="slab gpanel entry" style="--w:600px">
     <h1 class="display">Open<span class="flame">Warlock</span></h1>
-    <p class="sub">Last warlock standing wins the round. The lava is patient.</p>
-    <div class="row">
-      <input id="name" type="text" maxlength="16" placeholder="Your warlock's name" autocomplete="off" style="flex:1">
-    </div>
+    <p class="sub">A duel of fireballs on a shrinking island. Last warlock standing wins the round, and the lava is patient.</p>
+    <label class="namefield">
+      <span class="pclbl">Your warlock</span>
+      <input id="name" type="text" maxlength="16" placeholder="Name yourself" autocomplete="off">
+    </label>
     <!-- Two equal-billing doors (Remi, round 19.4): one big Enter buried the
          host flow; you clicked it and had already missed your chance to
          host. joinBtn's label is set honestly per the probed transport. -->
-    <div class="row" style="margin-top:10px">
-      <button id="joinBtn" class="primary" style="flex:1">Play</button>
-      <button id="hostBtn" class="primary" style="flex:1"
+    <div class="doors">
+      <button id="joinBtn" class="primary door">Play</button>
+      <button id="hostBtn" class="primary door"
         title="Open a room and get a link your friends can join over peer-to-peer. This tab becomes the game server, so keep it open">📡 Host online</button>
     </div>
     <p class="hint hidden" id="netMode"></p>
@@ -1192,12 +1257,8 @@
          keys and control hints live in the lobby, where players settle in.
          Joining a friend's game needs no button: it is a link. Exact wording
          below is Remi's. -->
-    <p class="hint">No server here, by design! You either:</p>
-    <ul class="hint" style="margin:2px 0 0; padding-left:22px">
-      <li>Play solo</li>
-      <li>Host a game for your friends</li>
-      <li>Get invited by someone who hosts a game</li>
-    </ul>
+    <p class="hint nosrv">No server here, by design: play solo, host for your
+      friends, or get invited by someone who hosts.</p>
     <div class="ideaPitch">
       <span class="experimental">experimental</span>
       <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
