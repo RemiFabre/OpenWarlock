@@ -72,6 +72,11 @@
   }
   .slab h1 .flame { color: var(--ember); }
   .slab .sub { color: var(--ash); margin: 4px 0 16px; }
+  /* v8.4 (Sam): the shop header stops costing a card row */
+  #shop .slab .head { margin-bottom: 2px; }
+  #shop .slab h1.display { font-size: 24px; }
+  #shop .slab .sub { margin: 2px 0 4px; font-size: 12.5px; }
+  #shop #shopIncome { margin: 0 0 4px; font-size: 12px; }
   .hidden { display: none !important; }
   .secttl {
     font-size: 12px; font-weight: 600; color: var(--ash);
@@ -261,7 +266,7 @@
   #shop .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
   /* the shop must fit WITHOUT scrolling at ordinary window heights (round
      22.3, Remi) — tighter chrome than the other slabs */
-  #shop .slab { padding: 12px 22px 10px; }
+  #shop .slab { padding: 10px 16px 8px; }
   #shop h1 { font-size: 22px; }
   #shop .sub { margin: 2px 0 6px; }
   #shop .head h1 { font-size: 26px; flex: 1; }
@@ -323,18 +328,18 @@
      Each block owns its heading, a subtle orientation tint and its own card
      grid, so the whole shop fits a desktop screen without a long stack. */
   .shopblocks {
-    display: grid; gap: 10px; margin-bottom: 10px;
+    display: grid; gap: 8px; margin-bottom: 8px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   @media (max-width: 1100px) { .shopblocks { grid-template-columns: minmax(0, 1fr); } }
   .shopblock {
-    border: 1px solid rgba(197, 154, 88, .26); padding: 7px 9px 8px;
+    border: 1px solid rgba(197, 154, 88, .26); padding: 5px 8px 6px;
     background: rgba(12, 20, 30, .5); min-width: 0;
   }
   .blockhead {
     font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
-    font-size: 16px; letter-spacing: .08em; color: #f0dcb6;
-    padding-bottom: 5px; margin-bottom: 8px;
+    font-size: 15px; letter-spacing: .08em; color: #f0dcb6;
+    padding-bottom: 3px; margin-bottom: 5px;
     border-bottom: 1px solid rgba(197, 154, 88, .28);
   }
   /* orientation tints: a hint of hue on the block ground, never a bright panel */
@@ -349,11 +354,11 @@
      same height, the gaps are uniform, and the row fills the available width
      instead of leaving ragged holes at the end. */
   .shoprow {
-    display: grid; gap: 10px;
+    display: grid; gap: 7px;
     grid-template-columns: repeat(auto-fill, minmax(206px, 1fr));
   }
   .shoprow > .ware, .shoprow > .warewrap { width: 100%; min-width: 0; }
-  .shoprow .ware { height: 76px; }
+  .shoprow .ware { height: 68px; }
   /* compact horizontal group heading (was a sideways rail on the row's edge) */
   .shopsub {
     font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
@@ -362,7 +367,7 @@
   .ware {
     display: flex; gap: 9px; align-items: center; position: relative;
     background: linear-gradient(180deg, #141b24, #0e141c);
-    border: 1px solid #2b3946; padding: 7px 10px 12px 7px;
+    border: 1px solid #2b3946; padding: 5px 10px 11px 6px;
     text-align: left; width: 100%; min-height: 38px; overflow: hidden;
   }
   /* level pips (round 22.2; thicker since issue #14): one cell per level along
@@ -376,7 +381,7 @@
      image never stretches (contain, centred) and an entity still waiting for
      its artwork shows its icon in the same box. */
   .ware .art {
-    flex: none; width: 54px; height: 54px; display: grid; place-items: center;
+    flex: none; width: 50px; height: 50px; display: grid; place-items: center;
     background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.07), rgba(255,255,255,0) 70%);
     border: 1px solid rgba(197, 154, 88, .28);
   }
@@ -951,9 +956,9 @@
      rounds. Both plates share a canvas, so the same box renders both with no
      jump; the label stays in the DOM for screen readers. */
   button.plaque2, .gathering #readyBtn.plaque {
-    width: 196px; height: 74px; padding: 0; border: 0; background: transparent;
+    width: 170px; height: 60px; padding: 0; border: 0; background: transparent;
     background-image: url('../assets/ui/buttons/ready_off.png');
-    background-size: 196px auto; background-repeat: no-repeat; background-position: center;
+    background-size: 170px auto; background-repeat: no-repeat; background-position: center;
     color: transparent; text-shadow: none; overflow: visible; flex: none;
   }
   /* .primary means NOT ready yet, in both screens */
@@ -967,7 +972,7 @@
   button.plaque2:focus-visible, .gathering #readyBtn.plaque:focus-visible {
     outline: 2px solid var(--ember); outline-offset: 2px;
   }
-  .shopfoot { margin-top: 10px; align-items: center; gap: 12px; min-height: 80px; }
+  .shopfoot { margin-top: 4px; align-items: center; gap: 12px; min-height: 60px; }
   .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
   /* illustrated avatars (Sam v5): one size per site, always a round face so a
@@ -1122,7 +1127,7 @@
      three headings and the three ornaments line up across the row. */
   .gathering .cols3 {
     display: grid; gap: 10px 26px; align-items: start;
-    grid-template-columns: 34fr 30fr 36fr;
+    grid-template-columns: 38fr 34fr 28fr;
   }
   .gathering .gcol { display: flex; flex-direction: column; min-width: 0; }
   .gathering .gcol > .secttl { margin-top: 0; }
@@ -1482,7 +1487,7 @@
 </div>
 
 <div id="shop" class="overlay hidden">
-  <div class="slab" style="--w:1500px">
+  <div class="slab" style="--w:1860px">
     <div class="head">
       <h1 class="display">The Shop</h1>
       <span id="shopGold" class="num">0 g</span>
