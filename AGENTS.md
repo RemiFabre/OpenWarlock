@@ -319,9 +319,12 @@ build step, Node ESM, only dep is `ws`.
   never reacts; round 22). Faker (issue #7) = stalker brain + a combo layer;
   its four combo BUILDS (`kinds:['faker']`) are two-way exclusive. Per-kind
   NAME POOLS in engine.js `BOT_NAMES` (classic six = Hard; own pool first,
-  then borrow). Round-22 `standoff` (Normal 13 / Hard 5) floors the prowl
-  ring so Normal never face-camps. Ladder h2h now 100 / **66-69** / 100,
-  ⚠ awaiting Remi's feel verdict. Targeting is a SOFTMAX draw
+  then borrow). Round-24.4 (Remi): the berserker
+  brain's wounded-prey DIVE is DELETED (rushing a low target point-blank was
+  shield-or-die) and `standoff` floors the whole prowl ring at **Hard 12 /
+  Normal 18** (was 5/13). Ladder h2h after: 100 / **82** / 100 (the
+  Hard-Normal gap WIDENED: Normal's loose aim lands little from 18 units),
+  ⚠ awaiting Remi's feel verdict. Extreme/Faker boltDodge = 1 (24.4). Targeting is a SOFTMAX draw
   (`BOT_TARGETING`, TEMPERATURE 6); sky-bolt dodge is a committed per-bolt
   roll (`boltDodge`; Remi set Hard's 50%); bots pressure the kill leader
   (`LEADER_BIAS 2.5`), and since 24.1 **Hard and above hunt their anger/midas

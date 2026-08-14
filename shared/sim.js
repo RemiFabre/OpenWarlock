@@ -4261,9 +4261,11 @@ function stepBerserker(state, pl, dt) {
     else if (rng(state) < 0.14) pl._strafe = -pl._strafe;
     // Round 22 standoff (Remi: "less point-blank oppression"): BOTS[kind]
     // .standoff is a preferred MINIMUM engagement distance; it floors the
-    // ring, wounded-prey dive included, so the bot backs off between casts
-    // instead of camping a face nobody can out-react. Revert = drop the knob.
-    let ring = target.hp <= 30 ? 1.5 : 8.5; // wounded prey gets no breathing room
+    // ring so the bot backs off between casts instead of camping a face
+    // nobody can out-react. Round 24.4 (Remi): the wounded-prey DIVE (ring
+    // 1.5 at prey <= 30 hp) is DELETED: rushing a low target to point-blank
+    // was an unreactable kill, shield-or-die. One ring at every hp now.
+    let ring = 8.5;
     ring = Math.max(ring, (BOTS[pl.kind] || {}).standoff || 0);
     const tCenter = Math.hypot(target.x, target.y) || 1;
     // blend "our side of the prey" with "the center side of the prey"

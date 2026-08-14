@@ -800,10 +800,10 @@ export const BOTS = {
   // prowl ring is untouched, the 1.5 finish dive stops at 5). Extreme/Faker
   // kite on their own brain and take no knob. Revert = delete the fields.
   brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
-               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35, standoff: 13,
+               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35, standoff: 18,   // 24.4: 13 -> 18
                desc: 'Hunts you and trades, but it reads you slowly, its aim is loose, and it keeps a respectful distance. Walks out of a lightning mark only a third of the time. A fair fight.' },
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
-               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5, standoff: 5,
+               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5, standoff: 12,   // 24.4: 5 -> 12 (and the wounded dive is gone)
                desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well. Dodges your lightning half the time (a coin flip, not an oracle).' },
   // ⚠ stalker aimErr is [0.4, 0.05] on purpose (bigger floor, much flatter
   // distance term = accurate at range), NOT the berserker's pair; 65f5597

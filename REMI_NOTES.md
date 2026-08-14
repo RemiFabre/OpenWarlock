@@ -191,6 +191,34 @@ elo.js; its shared `EXHAUST_PASS` tail moved to roster.js) and `duel.js`
 (pair.js answers it with real builds). Everything retired is one `git show
 ad9d54e` away.
 
+## 24.4b: The Gathering regression, root-caused and fixed (your report)
+
+Both bugs were real and both were regressions, found by a review agent and
+verified with automated spam-click tests:
+- **The picker drift**: round 23's lobby-scroll commit (ae577ab) accidentally
+  deleted the round-22 "reserved height" rule, so the vertically centered
+  slab GREW with each bot row and everything above the list slid up. The
+  reserve is back (one CSS token); the add-bot buttons now sit at pixel-
+  identical positions before and after adding 4 bots.
+- **The unreliable cross**: the warlock list was wiped and rebuilt on EVERY
+  snapshot (15 times a second), so the ✕ you pressed was usually destroyed
+  between mousedown and mouseup and no click ever fired. The list now
+  rebuilds only when a rendered fact actually changes (ping badges update in
+  place); four single clicks removed four bots in the test, no retries.
+The fix DELETED per-frame DOM churn instead of adding machinery.
+
+## 24.4c: Bots (your feel pass)
+
+- **Extreme and Faker never eat a telegraphed bolt** (boltDodge 0.85/0.95
+  -> 1, your ruling).
+- **The wounded-prey dive is deleted**: the berserker brain used to close to
+  1.5 units on any target under 30 hp, an unreactable shield-or-die kill.
+  One prowl ring at every hp now.
+- **Prowl rings: Hard 12, Normal 18** (was effectively 8.5 / 13). ⚠ Measured
+  side effect: the Hard-vs-Normal h2h gap WIDENED to 82% (was 66-69),
+  because Normal's loose aim lands little from 18 units. If Normal now feels
+  too passive, its standoff (or aimErr) is the lever.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
