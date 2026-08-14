@@ -1414,28 +1414,60 @@ function tipUpgrade(lines, from, to) {
 }
 
 function tipBody(lines, cur, max, costAt, previewLv) {
-  // v8.1 (Sam): the whole upgrade path SIDE BY SIDE again. LV 1 establishes the
-  // base, every later column shows ONLY what it changes, and a mechanic that
-  // appears at a level wears the gold NEW badge. At MAX the path is history:
-  // the tooltip becomes the final form and nothing else.
+  // v8.3 (Sam): ONE compact comparison. Stats that never change are stated once
+  // in BASE; the ones that do become a matrix, one stat per row and one level
+  // per column, so a value never moves when your level changes. At MAX there is
+  // no decision left, so the matrix goes and the final form is all that shows.
   const maxed = cur >= max;
   let h = tipProg(cur, max, maxed ? 0 : cur + 1);
+  const shown = lines.filter((ln) => ln.at(1) != null || ln.at(max) != null);
+  const txt = (ln, lv) => { const v = ln.at(lv); return v == null ? null : String(ln.fmt(v)); };
+
   if (maxed) {
-    h += `<div class="lvhead final l${Math.min(cur, 3)}">FINAL FORM · LV ${cur} · MAX</div>` +
-      `<div class="stats">${tipStatList(lines, cur)}</div>`;
-    return h;
+    return h + `<div class="lvhead final l${Math.min(cur, 3)}">FINAL FORM · LV ${cur} · MAX</div>` +
+      `<div class="stats">${tipStatList(shown, cur)}</div>`;
   }
-  let cols = '';
-  for (let t = 1; t <= max; t++) {
-    const tag = t === cur ? ' · CURRENT' : t === cur + 1 ? ' · NEXT' : '';
-    const cls = t === cur ? ' is-cur' : t === cur + 1 ? ' is-next' : '';
-    cols += `<div class="lvcol${cls}">` +
-      `<div class="lvhead l${t}">LV ${t}${tag}` +
-      `${t > cur ? ` <span class="cost">${esc(costAt(t))}</span>` : ''}</div>` +
-      `<div class="stats">${t === 1 ? tipStatList(lines, 1) : tipUpgrade(lines, t - 1, t)}</div>` +
+
+  const constant = [], varying = [];
+  for (const ln of shown) {
+    const first = txt(ln, 1);
+    let same = true;
+    for (let lv = 2; lv <= max; lv++) if (txt(ln, lv) !== first) { same = false; break; }
+    (same ? constant : varying).push(ln);
+  }
+
+  if (constant.length) {
+    h += `<div class="lvhead">BASE</div><div class="baseline">` +
+      constant.map((ln) => `<span>${esc(ln.label)} <b>${esc(txt(ln, 1) ?? '')}</b></span>`).join('') +
       `</div>`;
   }
-  return h + `<div class="lvcols c${max}">${cols}</div>`;
+  if (!varying.length) return h;
+
+  // header: every level is a column, the one you own and the one you would buy
+  // are marked in place (never a different layout)
+  let head = '<th></th>';
+  for (let lv = 1; lv <= max; lv++) {
+    const st = lv === cur ? 'cur' : lv === cur + 1 ? 'next' : lv < cur ? 'past' : 'future';
+    head += `<th class="${st}">LV ${lv}` +
+      `${lv === cur ? '<i>current</i>' : lv === cur + 1 ? '<i>next</i>' : ''}` +
+      `${lv > cur ? `<span class="cost">${esc(costAt(lv))}</span>` : ''}</th>`;
+  }
+  let rows = '';
+  for (const ln of varying) {
+    let tds = '';
+    for (let lv = 1; lv <= max; lv++) {
+      const st = lv === cur ? 'cur' : lv === cur + 1 ? 'next' : lv < cur ? 'past' : 'future';
+      const now = txt(ln, lv);
+      const before = lv > 1 ? ln.at(lv - 1) : null;
+      // a mechanic that did not exist below this level wears the badge HERE
+      const fresh = lv > 1 && ln.at(lv) && (before == null || before === 0 || before === false);
+      tds += `<td class="${st}">${now == null ? '<span class="dim">–</span>'
+        : `${fresh ? '<i class="newb">NEW</i>' : ''}${esc(now)}`}</td>`;
+    }
+    rows += `<tr><th class="rl">${esc(ln.label)}</th>${tds}</tr>`;
+  }
+  return h + `<div class="lvhead">UPGRADES</div>` +
+    `<table class="lvmatrix"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function tipShell(icon, name, sub, desc, body, foot, lv = 0, max = 3) {
