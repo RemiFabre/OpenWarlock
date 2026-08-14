@@ -1,7 +1,11 @@
-Lobby UI art (portraits, difficulty icons, gems, decor, READY plaques).
+Lobby UI art (portraits, difficulty icons, gems, decor, READY plaques) and the
+20 illustrated player avatars in avatars/.
 
-Contributed by @SamKhosravi for issue #14 ("The Gathering" lobby v4 pack) and
-generated at his request with OpenAI image generation. Confirmed on the issue
-(2026-08-14) as his to license: no third-party or licensed game material. MIT,
-like the rest of the project. The two READY plaques, the crest, the small
-divider and the badge were downscaled to twice their display size.
+Contributed by @SamKhosravi for issue #14 (the v4 lobby pack and the v5 avatar
+pack), generated at his request with OpenAI image generation. Confirmed on the
+issue (2026-08-14, both packs) as his to license: no third-party or licensed
+game material. MIT, like the rest of the project.
+
+Downscaled for runtime: the two READY plaques, the crest, the small divider and
+the badge to twice their display size, the avatars to 128 px (also twice their
+largest use). 2.3 MB + 2.3 MB of source art ship as ~1.7 MB.

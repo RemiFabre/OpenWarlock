@@ -1,9 +1,28 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, AVATARS, isAvatarArt, teamTint } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
+
+// Issue #14 (Sam v5): warlocks wear their illustrated avatar in the arena. The
+// tiles are decoded once, lazily, and drawn CLIPPED to the warlock's disc: the
+// tile carries its own frame, which at this size would read as a smudge. A face
+// still loading (or an avatar outside the roster, e.g. a co-op unit) falls back
+// to the old text draw, so a warlock is never faceless.
+const AVATAR_IMG = new Map();
+function avatarImage(name) {
+  if (!isAvatarArt(name)) return null;
+  let img = AVATAR_IMG.get(name);
+  if (!img) {
+    img = new Image();
+    img.src = new URL(`../assets/ui/avatars/${name}.png`, import.meta.url).href;
+    AVATAR_IMG.set(name, img);
+  }
+  return img.complete && img.naturalWidth ? img : null;
+}
+// warm the cache at load so the first round is not a wave of pop-in
+for (const a of AVATARS) avatarImage(a);
 
 // Sky-bolt tint per spell level (round 17 §2: the color shift IS the level
 // read): pale electric blue, deeper blue, storm violet. "r, g, b" strings.
@@ -734,12 +753,21 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
 
-      ctx.font = `${Math.round(r * 1.6)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(String(pl.avatar || '🧙'), x, y);
-      ctx.textBaseline = 'alphabetic';
+      const face = avatarImage(pl.avatar);
+      if (face) {
+        const d = r * 1.9;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.95, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(face, x - d / 2, y - d / 2, d, d);
+        ctx.restore();
+      } else {
+        ctx.font = `${Math.round(r * 1.6)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(String(pl.avatar || '🧙'), x, y);
+        ctx.textBaseline = 'alphabetic';
+      }
     }
 
     if (pl.inLava && !statue) {

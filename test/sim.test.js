@@ -10,7 +10,7 @@ import {
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, AVATARS, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { createEngine } from '../shared/engine.js';
@@ -34,6 +34,25 @@ function freshBattle(nPlayers = 2) {
   expect(state.phase).toBe('battle');
   return state;
 }
+
+describe('avatars', () => {
+  // issue #14 (Sam v5): the avatar cap in addPlayer was 8 characters, sized for
+  // emoji, and it silently truncated the longer illustrated names
+  // ('elemental_fire' -> 'elementa'), leaving those players faceless.
+  it('every avatar in the roster survives addPlayer intact', () => {
+    for (const av of AVATARS) {
+      const state = createGame();
+      addPlayer(state, 'pX', 'w', { avatar: av });
+      expect(state.players.pX.avatar).toBe(av);
+    }
+  });
+
+  it('a player who picked nothing still gets a face from the roster', () => {
+    const state = createGame();
+    addPlayer(state, 'pY', 'w', {});
+    expect(AVATARS).toContain(state.players.pY.avatar);
+  });
+});
 
 describe('game flow', () => {
   it('starts in lobby and transitions countdown -> battle', () => {

@@ -1,7 +1,7 @@
 // Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
 
 import {
-  SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS, AVATARS,
+  SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS, AVATARS, isAvatarArt,
   SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, teamTint, itemCost,
 } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
@@ -111,6 +111,14 @@ function keyLabel(k) {
 }
 
 // ---- avatar -----------------------------------------------------------------
+// issue #14 (Sam v5): an avatar is an illustrated tile now. ONE helper renders
+// it for every DOM site (roster, scoreboard, standings, picker, YOU frame), and
+// anything outside the roster (a co-op unit, an old saved emoji) still renders
+// as text, so no avatar can ever come out blank.
+const avatarSrc = (a) => `../assets/ui/avatars/${a}.png`;
+const avatarHtml = (a, cls = 'av') => (isAvatarArt(a)
+  ? `<img class="${cls}" src="${avatarSrc(a)}" alt="">`
+  : `<span class="${cls} avtext">${esc(a || '')}</span>`);
 
 // null = no saved pick: the engine rolls a random FREE avatar at join (22.1)
 let myAvatar = localStorage.getItem('owAvatar') || null;
@@ -711,7 +719,9 @@ $('hostBtn').addEventListener('click', doHost);
   for (const av of AVATARS) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.textContent = av;
+    b.dataset.av = av;
+    b.title = av.replace(/_/g, ' ');
+    b.innerHTML = avatarHtml(av, 'avpick');
     b.addEventListener('click', () => {
       myAvatar = av;
       try { localStorage.setItem('owAvatar', av); } catch { }
@@ -727,8 +737,8 @@ $('avatarBtn').addEventListener('click', () => {
   const taken = new Set(Object.values((s && s.players) || {})
     .filter((p) => p && p.id !== myId).map((p) => p.avatar));
   for (const b of $('avatarGrid').children) {
-    b.disabled = taken.has(b.textContent);
-    b.classList.toggle('sel', !!m && b.textContent === m.avatar);
+    b.disabled = taken.has(b.dataset.av);
+    b.classList.toggle('sel', !!m && b.dataset.av === m.avatar);
   }
   $('avatarPanel').classList.remove('hidden');
 });
@@ -2052,7 +2062,7 @@ function statsTable(fighters, specs, opts = {}) {
       <th class="c-kit">Kit</th></tr></thead>`;
   const who = (p) =>
     `<td class="who"><span class="dot" style="display:inline-block;background:${p.color}"></span>
-      ${esc(p.avatar || '🧙')} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</td>`;
+      ${avatarHtml(p.avatar)} ${esc(p.name)}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</td>`;
   const row = (p, i) => {
     const direct = fin(+p.dmgDealt) ? +p.dmgDealt : null;
     const lava = fin(+p.dmgLava) ? +p.dmgLava : null;
@@ -2151,7 +2161,7 @@ function updateUi(s) {
         const div = document.createElement('div');
         div.className = 'pl';
         div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-          <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
+          <span class="who">${avatarHtml(p.avatar)} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
           <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
         // Team number (round 21.3). You set your OWN, plus the bots', so one
         // person can arrange a 2v2 without everybody clicking. Other humans show
@@ -2208,7 +2218,7 @@ function updateUi(s) {
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
-    $('myAvatar').textContent = (m && m.avatar) || '';
+    $('myAvatar').innerHTML = m ? avatarHtml(m.avatar, 'avbig') : '';
     // segmented config: light the segment matching the server's state
     const segOn = (id, val) => {
       for (const b of document.querySelectorAll(`#${id} button`))
@@ -2356,7 +2366,7 @@ function updateUi(s) {
       const rg = fin(+p.roundGold) ? +p.roundGold : null;
       return band + `<div class="r ${p.id === myId ? 'me' : ''} ${p.alive || s.phase !== 'battle' ? '' : 'dead'}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${p.id === leadId ? '👑 ' : ''}${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
+        <span class="who">${p.id === leadId ? '👑 ' : ''}${avatarHtml(p.avatar)} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">${p.kills || 0}</span>
         <span class="gold num">${p.gold || 0}g</span>
         <span class="rgold num ${rg ? '' : 'zero'}">${rg == null ? '' : `+${rg}`}</span>
@@ -2364,7 +2374,7 @@ function updateUi(s) {
     }).concat(specs.map(p =>
       `<div class="r spec ${p.id === myId ? 'me' : ''}">
         <span class="dot" style="background:${p.color}"></span>
-        <span class="who">${esc(p.avatar || '🧙')} ${esc(p.name)}${pingBadge(p.id)}</span>
+        <span class="who">${avatarHtml(p.avatar)} ${esc(p.name)}${pingBadge(p.id)}</span>
         <span class="score num">👁</span>
         <span class="gold num"></span><span class="rgold num"></span>
       </div>`)).join('');

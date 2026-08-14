@@ -725,7 +725,37 @@
      the controls (z-index 0 vs 1) and never takes a pointer, so every button
      keeps the hit box it had. Sizes are in CSS pixels, so a wider window
      shows the same panel, not bigger art. */
-  .slab.gathering { padding-top: 30px; }
+  /* v5 polish (Sam): steel blue-black instead of brown, and the loud ember top
+     border becomes the same bronze as the rest of the frame. */
+  .slab.gathering {
+    padding-top: 30px;
+    background: linear-gradient(180deg, #08111b, #060d16);
+    border: 1px solid rgba(197, 154, 88, .5);
+    border-top: 1px solid rgba(197, 154, 88, .5);
+    box-shadow: 0 16px 50px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255, 222, 164, .05);
+  }
+  .gathering .secttl {
+    color: #ebd7b2; font-size: 13px; letter-spacing: .16em;
+    border-bottom: 0; padding-bottom: 2px;
+  }
+  .gathering .sub, .gathering .hint { color: #b3a58c; }
+  .gathering .divider { opacity: 1; filter: saturate(1.15) brightness(1.1); }
+  /* segmented controls: dark steel when idle, olive-bronze when lit. No flat
+     green fill anywhere (Sam, v5). */
+  .gathering .seg button {
+    background: linear-gradient(#141d27, #0d141b);
+    border: 1px solid rgba(197, 154, 88, .38); color: #9d9285;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .05);
+  }
+  .gathering .seg button.on {
+    background: linear-gradient(#4a4529, #262417);
+    border-color: rgba(214, 173, 100, .85); color: #f4e7c4;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .14), inset 0 -2px 0 #c8a05a;
+  }
+  .gathering .seg .lbl { color: #bda77f; }
+  .gathering .testinggold {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .38); color: #c3b292;
+  }
   .slab.gathering > *:not(.gdecor) { position: relative; z-index: 1; }
   .gdecor { pointer-events: none; user-select: none; }
   .gathering .corner { position: absolute; top: 0; width: 150px; z-index: 0; opacity: .95; }
@@ -749,19 +779,17 @@
      own avatar renders cleanly inside it. The painted characters stay demo art,
      they never replace or restrict the avatar system. */
   .gathering .portrait {
-    width: 88px; height: 88px; flex: none; display: grid; place-items: center;
+    width: 96px; height: 96px; flex: none; display: grid; place-items: center;
     background: url('../assets/ui/portraits/placeholder.png') center/contain no-repeat;
   }
   .gathering .portrait #myAvatar {
-    font-size: 34px; line-height: 1; width: 52px; height: 52px;
-    display: grid; place-items: center; border-radius: 50%;
-    background: radial-gradient(circle, rgba(6,12,20,.96) 55%, rgba(6,12,20,0) 78%);
+    line-height: 0; display: grid; place-items: center;
   }
   .gathering .youacts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
   /* the plaque IS the button face: its two states are the two images, and the
      label stays in the DOM (screen readers, and main.js still writes it) */
   .gathering #readyBtn.plaque {
-    width: 152px; height: 58px; padding: 0; border: 0; background: transparent;
+    width: 186px; height: 70px; padding: 0; border: 0; background: transparent;
     background-image: url('../assets/ui/buttons/ready_active.png');
     background-size: contain; background-repeat: no-repeat; background-position: center;
     color: transparent; text-shadow: none; overflow: hidden;
@@ -770,12 +798,36 @@
   .gathering #readyBtn.plaque:hover { filter: brightness(1.12); }
   .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
-  .gathering .botadd { white-space: nowrap; }
-  .gathering .botadd .dicon { width: 22px; height: 22px; object-fit: contain; vertical-align: -5px; margin-right: 6px; }
+  /* illustrated avatars (Sam v5): one size per site, always a round face so a
+     tile's own frame never fights the roster's rhythm */
+  .av { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; vertical-align: -8px; }
+  .av.avtext { width: auto; height: auto; border-radius: 0; font-size: 19px; }
+  #myAvatar .avbig {
+    width: 58px; height: 58px; border-radius: 50%; object-fit: cover;
+    box-shadow: 0 0 0 1px rgba(197, 154, 88, .5);
+  }
+  #myAvatar .avbig.avtext { width: auto; height: auto; box-shadow: none; font-size: 34px; }
+  /* the picker is part of the lobby now: same bronze frame, same steel ground,
+     no ember top edge (Sam v5) */
+  #avatarPanel .slab {
+    background: linear-gradient(180deg, #0a1420, #070f19);
+    border: 1px solid rgba(197, 154, 88, .5); border-top: 1px solid rgba(197, 154, 88, .5);
+  }
+  #avatarGrid button { padding: 4px; line-height: 0; border-color: rgba(197, 154, 88, .3); background: #0c141d; }
+  #avatarGrid button:disabled { opacity: .3; filter: grayscale(1); }
+  #avatarGrid .avpick { width: 74px; height: 74px; border-radius: 4px; object-fit: cover; }
+  #avatarGrid .avpick.avtext { line-height: 74px; font-size: 34px; display: inline-block; }
+  /* bot rows: Sam's v5 metrics (icon 24-26, row 40-44, select ~40) */
+  .gathering .botadd { white-space: nowrap; min-height: 42px; display: flex; align-items: center; }
+  .gathering select.botsel { height: 40px; font-size: 13px; }
+  .gathering #botBtns { gap: 6px; }
+  .gathering .botadd .dicon { width: 25px; height: 25px; object-fit: contain; margin-right: 8px; }
   .gathering .botpicker { max-width: 340px; }
   .gathering .botcols, .gathering .botgroup { grid-template-columns: 148px minmax(0, 1fr); }
   /* the seal IS the experimental mark here, so the text chip stands down */
-  .gathering .ideaPitch { position: relative; min-height: 62px; padding-left: 68px; }
+  .gathering #playerList { margin-bottom: 0; }
+  .gathering .ideaPitch { position: relative; min-height: 62px; padding-left: 68px; margin-top: 10px;
+    background: rgba(197, 154, 88, .05); border-color: rgba(197, 154, 88, .35); }
   .gathering .ideaPitch .experimental { display: none; }
   .gathering .ideaPitch .seal { position: absolute; left: -4px; top: 50%; transform: translateY(-50%); width: 66px; }
   @media (max-width: 700px) {
@@ -969,7 +1021,7 @@
       </div>
       <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
       <img class="gdecor divider wide" src="../assets/ui/decor/divider_small.png" alt="">
-      <div id="playerList" style="min-height:216px"></div>
+      <div id="playerList"></div>
       <div class="ideaPitch">
         <img class="gdecor seal" src="../assets/ui/decor/experimental_badge.png" alt="">
         <span class="experimental">experimental</span>

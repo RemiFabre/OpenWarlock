@@ -155,14 +155,19 @@ export const MULTIKILL_NAMES = [
 // SHARED because the engine assigns a random FREE one to a joiner who did not
 // pick, and refuses duplicates (one face per warlock in a lobby). The old 12
 // are all still here, so every saved owAvatar keeps working.
+// Issue #14 (Sam v5): the roster is his 20 ILLUSTRATED avatars now, one file
+// each in assets/ui/avatars. An avatar is still just a string on the player, so
+// the wire, the free-avatar roll and the no-duplicates rule are untouched; a
+// value that is not in this list (a co-op campaign unit, an old saved emoji)
+// still renders, as text, everywhere avatars are drawn.
 export const AVATARS = [
-  '🧙', '🧙‍♀️', '🧝', '🧛', '🧞‍♂️', '🧜‍♀️', '🥷', '🦹', '🧚', '🧟',
-  '💀', '☠️', '👻', '🎃', '👹', '👺', '😈', '👿', '🤡', '🗿',
-  '🤖', '👽', '🐉', '🐲', '🦂', '🐍', '🦇', '🦉', '🦅', '🦊',
-  '🐺', '🐗', '🦈', '🐊', '🦖', '🦍', '🐙', '🕷️', '🐢', '🐸',
-  '⚡', '🔥', '❄️', '🌪️', '☄️', '🌑', '🔮', '🧿', '🎭', '👁️',
-  '⚔️', '🛡️', '🏹', '🪓', '🥶', '😱',
+  'mage', 'archer', 'demon', 'ninja', 'robot', 'spider', 'warrior',
+  'elemental_fire', 'dragon', 'alien', 'wolf', 'vampire', 'pumpkin',
+  'living_rock', 'clown', 'ghost', 'turtle', 'meteorite', 'divine',
+  'necromancer',
 ];
+// True for an AVATARS entry (an image file), false for a stray emoji.
+export const isAvatarArt = (a) => AVATARS.includes(a);
 
 export const GOLD = {
   START: 12,

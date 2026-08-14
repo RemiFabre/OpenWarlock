@@ -31,7 +31,9 @@ export const BOT_NAMES = {
   runner:    TARGET_NAMES,
   dummy:     TARGET_NAMES, // the two sparring tiers share the target-practice pool
 };
-const BOT_AVATARS = ['👹', '💀', '👺', '🧟', '🐉', '😈'];
+// issue #14 (Sam v5): bots wear illustrated faces too, from the same set, so
+// the roster is not half painted and half emoji.
+const BOT_AVATARS = ['demon', 'ghost', 'spider', 'necromancer', 'dragon', 'wolf'];
 
 export const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16);
 
@@ -109,10 +111,12 @@ export function createEngine({
   // a face already worn in this lobby) gets a random FREE one instead.
   function freeAvatar(want) {
     const taken = new Set(Object.values(game.players).map(p => p.avatar));
-    const w = typeof want === 'string' ? want.trim().slice(0, 8) : '';
+    // only a face from the roster is honoured: a stale emoji from an older
+    // client rolls a free illustrated one instead of sticking as text
+    const w = AVATARS.includes(want) ? want : '';
     if (w && !taken.has(w)) return w;
     const free = AVATARS.filter(a => !taken.has(a));
-    return free.length ? free[(Math.random() * free.length) | 0] : (w || '🧙');
+    return free.length ? free[(Math.random() * free.length) | 0] : (w || AVATARS[0]);
   }
 
   function maybeAutoStart() {

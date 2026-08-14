@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, STACK_DECAY, itemCost,
+  DRAFT, TEAMS, STACK_DECAY, AVATARS, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -144,7 +144,10 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
   state.players[id] = {
     id, name: String(name).slice(0, 16) || 'warlock', bot,
     color: color || COLORS[n % COLORS.length],
-    avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 8) : '🧙',
+    // ⚠ issue #14 (Sam v5): this cap must FIT THE ROSTER. It was 8, sized for
+    // emoji, which silently truncated 'elemental_fire' to 'elementa' and left
+    // those players faceless. Test-locked against AVATARS now.
+    avatar: typeof avatar === 'string' && avatar.trim() ? avatar.trim().slice(0, 24) : AVATARS[0],
     // team: in versus a NUMBER, defaulting to your own unique one; everyone
     // solo is exactly the old free-for-all (round 21.3). Same number = allies:
     // their spells ignore each other and they win the round together. In co-op
