@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { readdirSync } from 'node:fs';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   undoBuy, refundBuy,
@@ -45,6 +46,28 @@ describe('avatars', () => {
       addPlayer(state, 'pX', 'w', { avatar: av });
       expect(state.players.pX.avatar).toBe(av);
     }
+  });
+
+  // Sam asked for this one by name: every illustrated avatar, end to end, from
+  // the pick message to what the client is actually SENT, plus the file that
+  // has to exist for it to render. One loop over all 20, no sampling.
+  it('all 20 avatars survive pick -> snapshot, and each has its asset file', () => {
+    const dir = new URL('../assets/ui/avatars/', import.meta.url);
+    const files = new Set(readdirSync(dir).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)));
+    const broken = [];
+    for (const av of AVATARS) {
+      const sent = [];
+      const eng = createEngine({ seed: 7, onSend: (cid, msg) => sent.push([cid, msg]) });
+      eng.join('c1', { name: 'picky' });
+      eng.message('c1', { t: 'avatar', avatar: av });
+      eng.pushSnapshots();
+      const snap = sent.map(([, m]) => m).reverse().find(m => m && m.s && m.s.players);
+      const mine = snap && Object.values(snap.s.players).find(p => !p.bot);
+      if (!mine) broken.push(`${av}: no snapshot`);
+      else if (mine.avatar !== av) broken.push(`${av}: snapshot says ${mine.avatar}`);
+      if (!files.has(av)) broken.push(`${av}: assets/ui/avatars/${av}.png is missing`);
+    }
+    expect(broken).toEqual([]);
   });
 
   it('picking any roster avatar over the wire keeps it whole', () => {

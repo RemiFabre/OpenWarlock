@@ -780,7 +780,10 @@
   .gathering .portrait {
     width: 92px; height: 92px; flex: none; display: grid; place-items: center;
     background: url('../assets/ui/portraits/placeholder.png') center/contain no-repeat;
+    border: 0; padding: 0; cursor: pointer;
   }
+  .gathering .portrait:hover { filter: brightness(1.12); }
+  .gathering .portrait:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   .gathering .portrait #myAvatar {
     line-height: 0; display: grid; place-items: center;
   }
@@ -794,18 +797,21 @@
   .gathering .youacts .mini.wide { grid-column: 1 / -1; }
   /* the plaque IS the button face: its two states are the two images, and the
      label stays in the DOM (screen readers, and main.js still writes it) */
-  /* v5.1 (Sam): the active plaque art carries a big orange bloom, so BOTH states
-     use the calm plaque and "ready" is a small gold halo around it instead. */
+  /* v6.1 (Sam): the two ASSETS carry the state again, driven by the real ready
+     flag (.primary = not ready yet). The active plate is damped a little so it
+     reads as lit, not as a bloom. */
   .gathering #readyBtn.plaque {
     width: 186px; height: 62px; padding: 0; border: 0; background: transparent;
-    background-image: url('../assets/ui/buttons/ready_idle.png');
+    background-image: url('../assets/ui/buttons/ready_active.png');
     background-size: contain; background-repeat: no-repeat; background-position: center;
     color: transparent; text-shadow: none; overflow: visible;
+    filter: saturate(.92) brightness(.96);
   }
-  .gathering #readyBtn.plaque:not(.primary) {   /* .primary means NOT ready yet */
-    filter: brightness(1.1) drop-shadow(0 0 5px rgba(228, 175, 96, .55));
+  .gathering #readyBtn.plaque.primary {
+    background-image: url('../assets/ui/buttons/ready_idle.png');
+    filter: none;
   }
-  .gathering #readyBtn.plaque:hover { filter: brightness(1.14) drop-shadow(0 0 4px rgba(228, 175, 96, .4)); }
+  .gathering #readyBtn.plaque:hover { filter: brightness(1.1); }
   .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
   /* illustrated avatars (Sam v5): one size per site, always a round face so a
@@ -877,14 +883,16 @@
   .gathering .setting.on { border-color: rgba(214, 173, 100, .7); box-shadow: inset 0 -2px 0 #c8a05a; }
   .gathering .setting.locked { pointer-events: none; opacity: .6; }
   /* ADD BOTS without the strategy column */
-  .gathering .botcols, .gathering .botgroup { grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; }
-  .gathering .botcols span:last-child { text-align: center; }
-  .gathering .botplus {
-    height: 40px; font-size: 18px; line-height: 1; padding: 0;
-    background: linear-gradient(#141d27, #0d141b); border: 1px solid rgba(197, 154, 88, .38);
-    color: #e8d09a;
+  .gathering .botgroup { grid-template-columns: minmax(0, 1fr); }
+  /* v6.1 (Sam): the rows are the add action, so they no longer need the full
+     column: roughly half the old width, still comfortably clickable. */
+  .gathering .botpicker { max-width: 196px; }
+  .gathering .infobtn {
+    padding: 0 6px; margin-left: 6px; font-size: 13px; line-height: 1.4;
+    background: none; border: 1px solid rgba(197, 154, 88, .38); color: #cbbb9c;
+    vertical-align: 2px;
   }
-  .gathering .botplus:hover { border-color: #d3a55e; color: #fff; }
+  .gathering .infobtn:hover { border-color: #d3a55e; color: #fff; }
   /* WARLOCKS: bigger faces, ready-only light, per-bot strategy */
   .gathering #playerList .av.big { width: 38px; height: 38px; vertical-align: -12px; }
   .gathering #playerList .dot {
@@ -922,7 +930,6 @@
     object-fit: contain; object-position: left center; margin: 0 0 6px; }
   /* ADD BOTS: one grid for the header and every row, so the two columns line
      up exactly; tighter gaps for density */
-  .gathering .botpicker { max-width: 100%; }
   .gathering .botcols {
     padding: 0 2px 5px; font-size: 10px; letter-spacing: .12em; color: #a0917a;
   }
@@ -965,7 +972,6 @@
   .gathering select.botsel { height: 40px; font-size: 13px; }
   .gathering #botBtns { gap: 6px; }
   .gathering .botadd .dicon { width: 25px; height: 25px; object-fit: contain; margin-right: 8px; }
-  .gathering .botpicker { max-width: 340px; }
   /* the seal IS the experimental mark here, so the text chip stands down */
   .gathering #playerList { margin-bottom: 0; }
   .gathering .ideaPitch { position: relative; min-height: 58px; padding-left: 66px; margin-top: 8px;
@@ -1091,15 +1097,14 @@
           <h2 class="secttl">You</h2>
           <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
           <div class="youblock">
-            <div class="portrait" title="Your avatar (assigned free at join)">
+            <!-- v6.1 (Sam): the portrait itself is the avatar picker button, and
+                 team lives only on your row in the warlock list. -->
+            <button id="avatarBtn" class="portrait" type="button"
+              title="Your avatar: click to change it">
               <span id="myAvatar"></span>
-            </div>
+            </button>
             <div class="youacts">
               <div class="pcname" id="myName"></div>
-              <div class="pcrow">
-                <span class="pclbl">Team</span><span id="myTeamSlot"></span>
-                <button id="avatarBtn" class="mini" type="button">Change avatar</button>
-              </div>
               <div class="seg" id="specSeg" title="Spectators watch from the sidelines and never spawn.">
                 <button type="button" data-v="play">Playing</button><button type="button" data-v="watch">Watching</button>
               </div>
@@ -1136,10 +1141,11 @@
           </div>
         </div>
         <div id="botPanel">
-          <h2 class="secttl">Add bots</h2>
+          <h2 class="secttl">Add bots
+            <button id="botHelpBtn" class="infobtn" type="button"
+              title="Bot difficulties &amp; strategies explained">&#9432;</button></h2>
           <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
           <div class="botpicker">
-            <div class="botcols"><span>Difficulty</span><span>Add</span></div>
             <div id="botBtns"></div>
           </div>
           <div class="row" id="botRow" style="margin-top:8px">
@@ -1147,10 +1153,7 @@
                  row in the Warlocks list carries its own ✕ -->
             <button id="unbanBtn" class="mini hidden" type="button" title="Lift all lobby bans">Unban all</button>
           </div>
-          <details id="botHelp" class="hint">
-            <summary>Bot difficulties &amp; strategies explained</summary>
-            <div id="botHelpBody"></div>
-          </details>
+
         </div>
       </div>
       <div id="lobbyHost" class="hostcard hidden">
@@ -1203,6 +1206,16 @@
 <!-- v6 (Sam): the rules wall and the control line live behind one button now.
      The key bindings stay reachable from here: a non-QWERTY player must always
      be able to rebind (round 21.7 scar). -->
+<div id="botHelpPop" class="overlay hidden">
+  <div class="slab" style="--w:640px">
+    <h1 class="display" style="font-size:22px">Bot difficulties &amp; strategies</h1>
+    <div class="scroller"><div id="botHelpBody"></div></div>
+    <div class="row" style="margin-top:14px; justify-content:flex-end">
+      <button id="botHelpCloseBtn" class="primary" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="rulesPop" class="overlay hidden">
   <div class="slab" style="--w:560px">
     <h1 class="display" style="font-size:22px">Rules &amp; controls</h1>

@@ -76,9 +76,9 @@ try {
   await page.waitForSelector('#lobby:not(.hidden)', { timeout: 5000 });
   console.log('joined the in-tab lobby');
 
-  // v6 (issue #14, Sam): your own team selector lives in the YOU player card
-  // now; the bots' selectors stay on their rows in the warlock list.
-  const teamSel = '#myTeamSlot select';
+  // issue #14 (Sam): the team selector lives on your own row in the warlock
+  // list (it moved into the YOU card in v6 and straight back out in v6.1).
+  const teamSel = '#playerList .teamsel select';
   await page.focus(teamSel);
   await page.evaluate((s) => { document.querySelector(s).dataset.focusProbe = 'kept'; }, teamSel);
   await sleep(300);

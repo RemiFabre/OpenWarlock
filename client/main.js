@@ -730,6 +730,11 @@ $('hostBtn').addEventListener('click', doHost);
       myAvatar = av;
       try { localStorage.setItem('owAvatar', av); } catch { }
       send({ t: 'avatar', avatar: av });
+      // v6.1: paint the new face NOW instead of waiting for the next snapshot.
+      // The picker closes instantly, so a one-frame delay reads as "my pick did
+      // not take"; the snapshot still has the last word (a face already worn in
+      // this lobby is refused, and the echo puts the old one back).
+      $('myAvatar').innerHTML = avatarHtml(av, 'avbig');
       $('avatarPanel').classList.add('hidden');
     });
     grid.appendChild(b);
@@ -871,6 +876,11 @@ $('lobbyKeysBtn').addEventListener('click', () => {
 });
 // v6 (Sam): rules, controls and the way into the key bindings live in one popover
 $('rulesBtn').addEventListener('click', () => $('rulesPop').classList.remove('hidden'));
+$('botHelpBtn').addEventListener('click', () => $('botHelpPop').classList.remove('hidden'));
+$('botHelpCloseBtn').addEventListener('click', () => $('botHelpPop').classList.add('hidden'));
+$('botHelpPop').addEventListener('click', (e) => {
+  if (e.target === $('botHelpPop')) $('botHelpPop').classList.add('hidden');
+});
 $('rulesCloseBtn').addEventListener('click', () => $('rulesPop').classList.add('hidden'));
 $('rulesPop').addEventListener('click', (e) => {
   if (e.target === $('rulesPop')) $('rulesPop').classList.add('hidden');
@@ -1071,16 +1081,9 @@ const BOT_ICON = {
     // v6 (Sam): no strategy dropdown here. A new bot rolls a random build (the
     // engine does that when none is named) and its row in the warlock list is
     // where the strategy is chosen afterwards.
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'botplus';
-    add.id = `addBotPlus-${kind}`;
-    add.title = `Add a ${botLabel(kind)} bot`;
-    add.textContent = '+';
-    const seat = () => send({ t: 'addBot', kind, build: 'random' });
-    b.addEventListener('click', seat);
-    add.addEventListener('click', seat);
-    group.append(b, add);
+    // v6.1 (Sam): the difficulty row IS the add action, nothing beside it
+    b.addEventListener('click', () => send({ t: 'addBot', kind, build: 'random' }));
+    group.append(b);
     wrap.appendChild(group);
   }
 }
@@ -2209,7 +2212,7 @@ function updateUi(s) {
         // person can arrange a 2v2 without everybody clicking. Other humans show
         // a read-only chip: their side is theirs to pick.
         if (s.mode !== 'coop') {
-          if (p.bot && amHost) {
+          if (p.id === myId || (p.bot && amHost)) {
             const wrap = document.createElement('span');
             wrap.className = 'teamsel';
             wrap.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
@@ -2222,7 +2225,7 @@ function updateUi(s) {
             sel.value = String(p.team || 1);
             sel.style.color = teamTint(p.team);
             sel.addEventListener('change', () => {
-              send({ t: 'team', n: +sel.value, id: p.id });
+              send({ t: 'team', n: +sel.value, ...(p.bot ? { id: p.id } : {}) });
               sel.blur();
             });
             wrap.append('team', sel);
@@ -2277,24 +2280,7 @@ function updateUi(s) {
     ].join(' · ');
     $('plCount').textContent = fighters ? `(${fighters})` : '';
     $('myName').textContent = (m && m.name) || '';
-    // my team moved into the player card (v6, Sam). Everyone sets their own
-    // there; the host still sets the bots' teams from their rows.
-    const slot = $('myTeamSlot');
-    if (s.mode !== 'coop' && m && document.activeElement !== slot.firstChild) {
-      if (!slot.firstChild) {
-        const sel = document.createElement('select');
-        for (let n = 1; n <= TEAMS.MAX; n++) {
-          const o = document.createElement('option');
-          o.value = String(n); o.textContent = String(n);
-          sel.appendChild(o);
-        }
-        sel.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
-        sel.addEventListener('change', () => { send({ t: 'team', n: +sel.value }); sel.blur(); });
-        slot.appendChild(sel);
-      }
-      slot.firstChild.value = String(m.team || 1);
-      slot.firstChild.style.color = teamTint(m.team);
-    }
+
     const setState = (id, on, text) => {
       const b = $(id);
       b.querySelector('b').textContent = text;
