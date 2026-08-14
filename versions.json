@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 21,
+  "serial": 22,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -92,11 +92,11 @@
       "slug": "sam-hud",
       "name": "Sam's Clear Shop",
       "author": "@SamKhosravi",
-      "summary": "A pure readability pass, no gameplay changes: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds, plus right-click to refund this shop's purchases card by card.",
+      "summary": "A pure readability pass, no gameplay changes. The Gathering lobby now wears Sam's ornate v4 skin (crest and corner filigree, painted difficulty icons, an ornate portrait frame around your own avatar, a READY plaque, an EXPERIMENTAL seal), with every existing control untouched. Plus the shop pass: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds, plus right-click to refund this shop's purchases card by card.",
       "issue": 14,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/14",
       "branch": "issue-14-hud-readability",
-      "commit": "4ffc544e94ed88dc4d73e8047dc69b5d756d2c77"
+      "commit": "b9d4c1255e10a6dc91114c2465bd523b71bf1b85"
     }
   ]
 }
