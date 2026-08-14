@@ -3779,6 +3779,18 @@ function pilotOwnedSpells(state, pl, dt) {
     if (threat && castSpell(state, pl.id, 'shield', threat.pr.x, threat.pr.y)) return;
   }
 
+  // Blood Debt (24.6, Remi): the SAME imminent-ball read as Shield; absorb
+  // now, and the transfer rides the pilot's ordinary next fireball. Hard and
+  // above only (the timing read is a skill marker); fires when Shield is
+  // absent or cooling, so owning both stacks the two windows, never wastes
+  // one. ⚠ Nothing in BUILDS or the roster BUYS debt yet: this is the cast
+  // logic, live in draft/testing lobbies and ready for any build that adds it.
+  if (pl.kind !== 'stalker' && owns('debt') &&
+      BOTS[pl.kind] && BOTS[pl.kind].difficulty >= BOTS.berserker.difficulty) {
+    const threat = scanThreats(state, pl, 0.4, 2.0);
+    if (threat && castSpell(state, pl.id, 'debt', pl.x, pl.y)) return;
+  }
+
   // Statue (round 21.4): shield's heuristic, mirrored; the ONE reading a bot
   // can make of a 2 s total-invulnerability root. Panic button only: hurt, a
   // ball about to land, and standing somewhere the closing ring will not have
@@ -4383,6 +4395,10 @@ function stepStalker(state, pl, dt) {
     if (threat.t < 0.35 && threat.miss < 1.9 &&
         (pl.spells.shield || 0) > 0 && (pl.cooldowns.shield || 0) <= 0) {
       castSpell(state, id, 'shield', threat.pr.x, threat.pr.y);
+    } else if (threat.t < 0.35 && threat.miss < 1.9 &&
+        (pl.spells.debt || 0) > 0 && (pl.cooldowns.debt || 0) <= 0) {
+      // Blood Debt (24.6): the no-time fallback when Shield cannot answer
+      castSpell(state, id, 'debt', pl.x, pl.y);
     } else {
       const v = Math.hypot(threat.pr.vx, threat.pr.vy) || 1;
       const nx = -threat.pr.vy / v, ny = threat.pr.vx / v; // perpendicular

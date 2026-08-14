@@ -4557,6 +4557,27 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
     }
   });
 
+  it('Hard+ casts Blood Debt on an imminent ball when Shield cannot answer (24.6); Normal never does', () => {
+    const tryDebt = (kind) => {
+      const state = tierBattle(kind);
+      const bot = state.players.b, h = state.players.h;
+      bot.spells.debt = 1;                 // owns debt, owns NO shield
+      bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+      h.x = 10; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+      castSpell(state, 'h', 'fireball', -20, 0);   // a ball inbound at the bot
+      let cast = false;
+      for (let i = 0; i < 12 && !cast; i++) {
+        bot._botT = 0;
+        stepBot(state, 'b', DT);
+        step(state, DT);
+        cast = bot.debtT > 0;
+      }
+      return cast;
+    };
+    expect(tryDebt('berserker')).toBe(true);   // Hard reads the window
+    expect(tryDebt('brawler')).toBe(false);    // Normal: no change, per Remi
+  });
+
   it('a melee-payload build (vampire/Hat) drops the standoff about half the time (24.5)', () => {
     // Sample the prowl point over many re-roll windows: a vampire owner must
     // sometimes prowl the close ring (below its standoff) and sometimes honour

@@ -234,6 +234,19 @@ the feel is off: close ring 6 (inside the auras, outside point-blank).
 Tables: `docs/history/2026-08-14-round245-elo-close-in.md` and
 `...round245b-elo-dive.md`.
 
+## 24.6: Bots and Blood Debt (your ask, with one correction)
+
+Correction first: bots ALREADY pilot the reflection Shield, at every tier
+that owns one; any inbound ball inside the threat window triggers it (the
+stalker even chooses between sidestepping and shielding). So the gap was
+only Blood Debt, and it is closed: Hard and above now cast Debt on the same
+imminent-ball read, as the understudy when Shield is absent or cooling
+(owning both stacks the two windows). Normal and below unchanged, per your
+spec. ⚠ One honest catch: no build or roster row BUYS debt yet, so this
+logic is live only in draft and testing lobbies until you say which builds
+should shop it (the roster review proposed nothing there; one word and I
+add it to a build or the shared tail).
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
