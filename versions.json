@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 27,
+  "serial": 28,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -92,11 +92,11 @@
       "slug": "sam-hud",
       "name": "Sam's Clear Shop",
       "author": "@SamKhosravi",
-      "summary": "A pure readability pass, no gameplay changes. The Gathering lobby is rebuilt around Sam's information hierarchy: one match summary line, rules and controls behind a button, YOU as a player card, a MATCH SETTINGS block whose buttons name their own state, bots added in one click with their strategy chosen on their roster row, and 20 illustrated avatars worn in the lobby, on the scoreboard and in the arena itself. Plus the shop pass: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds, plus right-click to refund this shop's purchases card by card.",
+      "summary": "A pure readability pass, no gameplay changes. The shop is illustrated now: 37 painted artworks, one per spell, element and item, on image-first cards that wear their state (dimmed when unaffordable, green when owned, gold when the next level is affordable, quiet at MAX). The Gathering lobby is rebuilt around Sam's information hierarchy: one match summary line, rules and controls behind a button, YOU as a player card, a MATCH SETTINGS block whose buttons name their own state, bots added in one click with their strategy chosen on their roster row, and 20 illustrated avatars worn in the lobby, on the scoreboard and in the arena itself. Plus the shop pass: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds, plus right-click to refund this shop's purchases card by card.",
       "issue": 14,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/14",
       "branch": "issue-14-hud-readability",
-      "commit": "472f1bf36773670fe98778a698b7c797d8bbe705"
+      "commit": "aafc1e0a7545df94c58edc91a861541c6958cfbb"
     }
   ]
 }
