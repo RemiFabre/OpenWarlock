@@ -81,21 +81,22 @@ export function paddedCore(entry) {
   const lv = {};
   for (const [k, to] of core) lv[k] = Math.max(lv[k] || 0, to);
   let guard = 40;
+  // BREADTH-first fill (Remi, 24.8): always bump the LOWEST-level filler
+  // (FILLER order breaks ties), so a build gets every lv1 before any lv2 and
+  // every lv2 before any lv3. The old walk maxed items one by one, which is
+  // how a tail ended up buying boots lv3 before owning a single amulet.
   while (coreCost(core) < COST_TARGET[0] && guard-- > 0) {
-    let done = true;
+    let pick = null;
     for (const k of FILLER) {
       // a capped thing (caps {x: n}) is off the shelf for this build above n;
       // without this the padder hands a "without x" probe the x back (24.7)
       if (entry.caps && (lv[k] || 0) >= entry.caps[k]) continue;
-      const max = ITEMS[k].maxLevel;
-      if ((lv[k] || 0) < max) {
-        lv[k] = (lv[k] || 0) + 1;
-        core.push([k, lv[k]]);
-        done = false;
-        break;
-      }
+      if ((lv[k] || 0) >= ITEMS[k].maxLevel) continue;
+      if (pick === null || (lv[k] || 0) < (lv[pick] || 0)) pick = k;
     }
-    if (done) break; // every filler maxed; shelf exhaustion
+    if (pick === null) break; // every filler maxed or capped; shelf exhaustion
+    lv[pick] = (lv[pick] || 0) + 1;
+    core.push([pick, lv[pick]]);
   }
   return core;
 }
@@ -387,6 +388,17 @@ export const ROSTER = {
     core: [['shield', 1], ['amulet', 1], ['cape', 1], ['debt', 1], ['sword', 1],
       ['amulet', 2], ['shield', 2], ['treads', 1], ['debt', 2], ['cape', 2],
       ['sword', 2], ['amulet', 3], ['treads', 2], ['cape', 3], ['sword', 3], ['treads', 3]],
+  },
+
+  // Round 24.8 (Remi): both mark hunts on one body, leveled in lockstep.
+  // The all-Faker table put the two mark builds at ranks 1-3, so this asks
+  // whether stacking the engines compounds or whether the two clocks compete
+  // for the same fireball hits (one ball can only claim one mark).
+  'D14-hyperscaler': {
+    family: 'D', fantasy: 'Two marks, two clocks, one snowball: claim everything, forever.',
+    tests: 'anger + midas leveled in lockstep (lv1 both, lv2 both, lv3 both): do the two mark engines compound or contend? Read vs M1/M5 (each engine alone on a full scaffold)',
+    core: [['anger', 1], ['midas', 1], ['anger', 2], ['midas', 2], ['anger', 3], ['midas', 3],
+      ['sword', 1], ['amulet', 1], ['sword', 2], ['amulet', 2]],
   },
 
   // ---- Family E: cooldown reduction (Remi's question M) ---------------------

@@ -4,7 +4,7 @@
 // does not depend on game order), reported on the familiar Elo scale
 // (1500 = the roster's average; +173 ≈ a 73% pairwise favourite).
 // STANDARD RUN (Remi, 24.7): ONE seed, seed 1; --games scaled to ~190
-// seats/row (rows × 47.5), so 2500 at the 53-row roster.
+// seats/row (rows × 47.5), so 2565 at the 54-row roster.
 //
 //   node tools/elo.js --games=6000 --seed=1 [--kind=berserker] [--json=path]
 //

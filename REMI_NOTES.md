@@ -320,6 +320,33 @@ which sits ~1470 in both. Full movement analysis:
   arcane is skippable in the Warlord shell; echo and C6-bolt-combo are
   weak everywhere (the honest balance candidates).
 
+## 24.8: The spread audit (no bug), your three asks, and the scaling finding
+
+Everything in `docs/history/2026-08-14-round248-scaling-audit.md`; the
+short version:
+- **No bug.** Equal pilots make outcomes near-deterministic (M1-anger beats
+  3 warlords 111/120 on Hard, 120/120 on Faker) and elo is log-odds, so it
+  explodes as win rates hit 100%. Read MEAN PLACE on the Faker table.
+- **Shipped**: breadth-first auto-fill (all lv1s, then lv2s, then lv3s),
+  echo pair cadence [6,5,4] -> [5,4,3] (M4 on Hard: 1417 -> 1516; flat vs
+  fakers, who dodge the pairs too), and D14-hyperscaler.
+- **Your D14 prediction: confirmed.** Rank 5 of 54 on the Faker table
+  (mean place 1.38). Ranks 1-5 there are ALL mark builds now. But each
+  engine alone on a full scaffold still beats both on half a scaffold: the
+  two clocks contend for the same fireball more than they compound.
+- **The structural finding is worse than the elo tables show**: bots
+  essentially never play human-length games (3 of 400 probe games ended
+  by round 11, your human average), so every bot table lives in the
+  regime where scaling already ran away. And surprise: MORE seats make
+  games SHORTER under current rules (D1 mirrors: 16.3 rounds at 4 seats,
+  12.8 at 8), so the danger formats are teams / higher kill targets /
+  defensive metas, not the 10-player lobby per se.
+- Design options for length-insensitive scaling are laid out in the
+  history file (my recommendation: anchor marks to ROUNDS, one per round
+  start, so the scaling budget is bounded by the round cap and the fantasy
+  stays; your chunky-payout idea comes free with it). Nothing implemented;
+  your call.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target

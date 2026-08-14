@@ -82,7 +82,7 @@ build step, Node ESM, only dep is `ws`.
   2+ seeds and a monotonicity check). ⚠ elo.js is the exception (Remi,
   re-affirmed 2026-08-14): **ONE seed, seed 1, always**; never burn a second
   seed on it. The game COUNT is per-build, not fixed (Remi, 24.7): keep
-  ~190 seats/row, i.e. games ≈ rows × 47.5 (53 rows → 2500). Bots can't price reactive skill: **flag bot
+  ~190 seats/row, i.e. games ≈ rows × 47.5 (54 rows → 2565). Bots can't price reactive skill: **flag bot
   artifacts, never number-buff around them**. His feel report outranks every
   table.
 - **The 1/x ruling (Remi, 2026-08-14): levels that scale a cooldown-gated
@@ -181,7 +181,7 @@ build step, Node ESM, only dep is `ws`.
 | `scripts/setup-agent.sh` | one idempotent command to make a fresh clone runnable (deps, browsers, hooks, main, token check) |
 | `tools/arena.js` | **the SMOKE + HEALTH lab** (slimmed round 24.4): games finish, sane kills, lava share, comeback rate, focus metric, at any seat count, in seconds; `--fx=key.field=a,b,c` sweeps a constant without editing. The retired options (`--isolate`, `--ladder`, `--mirror`, `--probe`) and the deleted element study live in git (ad9d54e). ⚠ `--ruleset=` defaults to **elemental** since 21.8 (every arena table printed before that date was classic) |
 | `tools/roster.js` | the ELO strategy roster AS CODE (level-explicit cores, auto-pad to 150-185 g; the padder honours `caps` since 24.7) and, since 24.4, home of the shared `EXHAUST_PASS` tail. 53 rows since 24.7: family G = one-variable D1-warlord variants, family M = one mutation maxed on an identical 166 g scaffold. `docs/ARCHETYPES.md` is GENERATED from it: `node tools/roster.js --doc` |
-| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. STANDARD RUN: seed 1, games scaled to ~190 seats/row (24.7 ruling: rows × 47.5, so `--games=2500 --seed=1` at 53 rows, ~6 min). Report RAW numbers only: never re-centre, adjust or otherwise manipulate the Elo in a report (same ruling). Since 24.7 every run auto-writes an HTML report page into `docs/history/` and OPENS it (`--no-report` for smokes, `--no-open` headless). Latest table: `docs/history/2026-08-14-round247-elo.md` (53 rows) |
+| `tools/elo.js` | **the strategy ranking instrument**: random 4-of-roster Hard lobbies (⚠ family K pins its own Faker brain), Bradley-Terry over pairwise placements, Elo-scaled around 1500. STANDARD RUN: seed 1, games scaled to ~190 seats/row (24.7 ruling: rows × 47.5, so `--games=2565 --seed=1` at 54 rows, ~6 min). Report RAW numbers only: never re-centre, adjust or otherwise manipulate the Elo in a report (same ruling). Since 24.7 every run auto-writes an HTML report page into `docs/history/` and OPENS it (`--no-report` for smokes, `--no-open` headless). Latest table: `docs/history/2026-08-14-round247-elo.md` (53 rows) |
 | `tools/report.js` | the balance report PAGE (24.7): ranking left, hover/pin detail right (buy order as icon chips, agent notes, caps). `--roster` = the no-numbers review page; `--json=run.json` rebuilds a page from an elo payload. Zero agent context: elo.js calls it itself |
 | `tools/pair.js` | two roster strategies head-to-head, 2 seats each: reports what each side DID (healing, damage, kills, win%), the "why" behind an Elo gap. ⚠ honours roster `caps`, which a one-variable A/B needs |
 | `tools/h2h.js` | difficulty-ladder check (2v2 seats, 50% = parity). The Elo table hides tier gaps |

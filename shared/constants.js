@@ -719,10 +719,14 @@ export const ELEMENTS = {
   // never rename it.
   // Round 21.7 (Remi wanted "the ripple a drop makes on water"): icon 👯 → 🫧.
   // Alternates, one line each: 💧 🌊 (🌀 is Blink's, ◎ is not an emoji).
+  // Round 24.8 (Remi approved the agent's read): weakest volume mutation for
+  // its 26 g on BOTH the Hard and the all-Faker table (M4-echo-first mid-low
+  // twice, docs/history/2026-08-14-round247-elo-faker.md), so the pair rate
+  // steps up: doubleEvery [6,5,4] -> [5,4,3] (pair chance 20/25/33%).
   mosquito: { name: 'Echo', icon: '🫧', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Doubled casts.',
-           long: 'Every 6/5/4th fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
-           fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
+           long: 'Every 5/4/3rd fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
+           fx: { doubleEvery: [5, 4, 3], trailDelay: 0.15 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
   // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).
