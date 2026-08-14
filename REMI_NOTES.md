@@ -279,10 +279,22 @@ reviewing builds (that page should be open in front of you now).
 - Faker family K untouched, as you asked. A, B, C, E, F kept (still
   coherent post-reworks).
 
-**Not run yet, on purpose**: the 2000-game elo run waits for your review of
-the page. One honest cost: 53 rows means ~150 seats/row per standard run
-(was ~190), a little more neighbour noise. If you want some old rows
-retired to buy that back, say which.
+**Measured** (you approved; your per-build ruling applied: 2500 games keeps
+~190 seats/row at 53 rows, one seed as always; page auto-opened, raw table +
+full reading in `docs/history/2026-08-14-round247-elo.md`):
+- Faker rows still own ranks 1-5 (K5 2919); the driving gap you wanted
+  visible is ~+1000 elo over the same builds on Hard.
+- Warlord variants vs D1 (1479): **+Blood Debt +243** (best non-Faker row),
+  +Shield +159, no-sword -94, no-arcane -23 (noise). ⚠ Debt/Shield are
+  bot-timed since 24.6, so those two are likely FLATTERED: feel before
+  pricing.
+- Mutations on the identical scaffold: anger 1650 > malady 1611 > midas
+  1581 > vampire 1479 > echo 1417 > frost 1353.
+- The two mark hunts, same chase shell: anger (D2 1407) out-earns midas
+  (D3 1205) by ~200; midas prefers the M scaffold (1581), where its gold
+  feeds a real curve.
+- D4-leech (frequency respec) 1520, mid-pack above D1; D13-bastion 1355 =
+  buttons are worth ~170 over armor-only D8, defense still under average.
 
 ## Still waiting on you
 
@@ -291,7 +303,8 @@ cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
 Faker returns to fresh lobbies, a feel pass on lava 16 + the treads nerf, a
 feel pass on the vampire feast numbers, a feel pass on the 24.1 batch
 (midas +2 g, crater sizes, the portal cross), the one-game trace with
-your friend (23.1 above), and the 24.7 roster review (the open page): your
-verdict on families G/M, the D3/D4 respecs, D13, and whether any old rows
-retire; the 2000-game run fires after that. (24.6's "which builds shop
-debt" is answered: G2 and D13.)
+your friend (23.1 above), and the 24.7 follow-ups: a live feel-check on
+Blood Debt (the table's best non-Faker purchase, possibly bot-flattered),
+whether D3-tycoon's 1205 asks for a midas value bump or just a different
+home, whether frost-last is expected, and whether any old rows retire.
+(24.6's "which builds shop debt" is answered: G2 and D13.)

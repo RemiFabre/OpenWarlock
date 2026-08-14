@@ -414,7 +414,8 @@ burst a low vampire, which is the build's designed weakness. One-line
 levers if live play agrees it is too strong: `markHeal`, `lowHpMax`.
 (24.7: D4-leech was respecced to a frequency core, vampire+arcane+hourglass+
 echo, per Remi's ruling that marks scale with hit count; the numbers above
-measured the OLD damage-adjacent core and are superseded by the next run.)
+measured the OLD core. New baseline: D4 1520, M6-vampire-first 1479, both
+mid-pack, `docs/history/2026-08-14-round247-elo.md`.)
 
 ## Round 24.1: midas hunt, mark-hunting bots, meteor craters, portal cross (2026-08-14)
 
