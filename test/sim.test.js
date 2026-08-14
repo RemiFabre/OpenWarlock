@@ -3395,19 +3395,25 @@ describe('power spells & pillar', () => {
     expect(Math.abs(b.vx) + Math.abs(b.vy)).toBeGreaterThan(20); // blasted
   });
 
-  it('meteor 24.1: the impact breaks the ground into a walkable lava crater', () => {
+  it('meteor: the LV2 impact breaks the ground into a walkable lava crater (lv1 does not, 24.3)', () => {
     const state = freshBattle(3);            // classic on purpose: craters are not elemental
     const a = state.players.p0, b = state.players.p1;
     a.spells.meteor = 1;
     state.pillars = [];
     a.x = 0; a.y = 0; b.x = 30; b.y = 0; b.vx = 0; b.moveTarget = null;
     state.players.p2.y = -40;
+    // lv1: heavy rock, intact floor (the ground-break is the lv2 special)
+    castSpell(state, 'p0', 'meteor', 20, 0);
+    run(state, SPELLS.meteor.delay + 0.1);
+    expect(state.craters.length).toBe(0);
+    a.spells.meteor = 2;
+    a.cooldowns = {};
     castSpell(state, 'p0', 'meteor', 20, 0);
     run(state, SPELLS.meteor.delay + 0.1);
     expect(state.craters.length).toBe(1);
     const c = state.craters[0];
     expect(c.x).toBeCloseTo(20, 1);
-    expect(c.r).toBeCloseTo(SPELLS.meteor.craterR[0], 5);
+    expect(c.r).toBeCloseTo(SPELLS.meteor.craterR[1], 5);
     // the impact event tells the client to play the ground-break
     expect(state.events.some(e => e.t === 'meteorHit' && e.crater > 0)).toBe(true);
     // standing in the crater IS standing in lava: burn + double swim speed
@@ -6040,7 +6046,9 @@ describe('mine 💣 (the trap, round 21.8)', () => {
       a.spells.nova = level;
       a.cooldowns = {};
       expect(castSpell(state, 'p0', 'nova', 20, 0)).toBe(true);
-      expect(a.cooldowns.nova).toBeCloseTo(spec.cooldown[level - 1], 5);
+      // 24.3: the cd is FLAT (a scalar); keep the test level-shaped anyway
+      const cd = Array.isArray(spec.cooldown) ? spec.cooldown[level - 1] : spec.cooldown;
+      expect(a.cooldowns.nova).toBeCloseTo(cd, 5);
     }
   });
 

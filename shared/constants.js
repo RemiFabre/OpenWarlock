@@ -255,7 +255,7 @@ export const SPELLS = {
   },
   shield: {
     name: 'Shield', hotkey: 'D', maxLevel: 2, costs: [12, 6],
-    cooldown: [15, 12], duration: 1.25,
+    cooldown: [15, 11], duration: 1.25,   // 24.3: +35%/lvl frequency step
     desc: 'Reflects projectiles back at their owner.',
     // round 21.0 (Remi): say what it does NOT stop. Energy = anything that
     // flies as a projectile (fireball, boomerang, Switcheroo) plus the bolt and
@@ -268,13 +268,13 @@ export const SPELLS = {
     // hit within `repay` s dumps it on the victim; otherwise the caster takes
     // it, push-less. lv2 buys cooldown; duration and repay never level.
     name: 'Blood Debt', hotkey: 'Y', maxLevel: 2, costs: [12, 6],
-    cooldown: [15, 12], duration: 1.25, repay: 5,
+    cooldown: [15, 11], duration: 1.25, repay: 5,   // 24.3: +35%/lvl step
     desc: 'Absorb, then transfer.',
     long: 'For a moment, all damage and push become gray health. Hit an enemy with a fireball within 5 seconds to give them the stored damage; otherwise you take it yourself, without pushback.',
   },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 5],
-    cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
+    cooldown: [10, 7], distance: 16, speed: 60, hitRadius: 1.6,   // 24.3
     damage: [5, 8], knockback: [79, 79],
     desc: 'Dash through enemies: damage and knockback on the way. Casting cancels your momentum.',
   },
@@ -283,7 +283,8 @@ export const SPELLS = {
     name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [8, 4],
     // Round 21.2 (Remi): pillars are PERMANENT; `duration` is inert (kept as
     // the revert path, see the cast in shared/sim.js), so lv2 buys cooldown.
-    cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
+    // Round 24.3 (Remi): the pure-frequency family normalizes near +35%/lvl
+    cooldown: [14, 10], range: Infinity, radius: 2.2, duration: [10, 16],
     desc: 'Raise a permanent obsidian pillar: it blocks projectiles, bodies and knockback.',
   },
   statue: {
@@ -342,12 +343,15 @@ export const SPELLS = {
     // Round 21.1: 14 was off the tier ladder; expensive tier is 12.
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
-    // Round 21.8 (Remi): lv2 24 → 30; the upgrade was not worth its 6 g.
-    damage: [16, 30], knockback: [110, 130],
+    // Round 24.3 (Remi): [16,30] doubled for no reason; flatter step, net
+    // BUFF (dps +61%/lvl, was +116%).
+    damage: [25, 35], knockback: [110, 130],
     // Round 24.1 (Remi, from Ju's hole idea but WALKABLE): the impact breaks
     // the ground into a permanent lava pool of craterR. It is real lava
     // (LAVA.DPS, treads, Fire Walk, swim speed), not a hazard with an owner.
-    craterR: [3, 4],
+    // Round 24.3 (Remi): the ground-break is the LEVEL 2 special (craterR 0
+    // = lv1 leaves the floor intact).
+    craterR: [0, 4],
     desc: 'Mark a spot, a rock falls on it: heavy damage, a radial blast, and the ground breaks into lava.',
   },
   nova: {
@@ -380,7 +384,9 @@ export const SPELLS = {
     //    (healing, arcane's refund), which the existing `src.alive` guards in
     //    applyDamage already handle. Contrast Decoy, whose clones die with you.
     name: 'Mine', hotkey: 'B', tier: 'power', maxLevel: 2, costs: [10, 5],
-    cooldown: [9, 8], radius: 1.32, damage: [10, 15], knockback: 100,
+    // Round 24.3 (Remi): cd FLAT (lv2 already buys damage + the 2nd stored
+    // ball, "almost the entire gimmick"; the cd trim on top was excessive)
+    cooldown: 9, radius: 1.32, damage: [10, 15], knockback: 100,
     stores: [1, 2], ballDelay: 1 / TICK_RATE,
     desc: 'Plant a trap. Feed it your own fireballs.',
     long: 'Drops an armed trap where you stand. Your own fireballs are swallowed by it and stored; when an enemy steps on the mine it hits them, and every stored fireball fires into them point blank.',

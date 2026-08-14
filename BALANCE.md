@@ -448,6 +448,15 @@ full account is the gold-probe analysis in this round's notes). A full CD
 audit against the 35% default was reported to Remi in-chat; no other CDs
 were changed.
 
+## Round 24.3: the normalization pass (2026-08-14, Remi's numbers)
+
+Pillar [14,10], Shield [15,11], Blood Debt [15,11], Rush [10,7] (the
+pure-frequency levels near the +35% default); meteor dmg [16,30] -> [25,35]
+(flatter step, net buff) with the ground-break moved to LV2 only (craterR
+[0,4]); mine cd FLAT 9 (lv2 keeps damage + the second ball). Anger anchored
+[36,27,20] the same day (lv3 = the 22.5 cadence, no buff). Elo tables for
+the full 24.x batch: `docs/history/2026-08-14-round24x-elo-tables.md`.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*

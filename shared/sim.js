@@ -1901,10 +1901,13 @@ function stepBattle(state, dt) {
       if (m.t > 0) { rest.push(m); continue; }
       const spec = SPELLS.meteor;
       // 24.1 (Remi, from Ju's hole idea but WALKABLE): the rock breaks the
-      // ground; the crater is real lava (see the inLava read in stepBattle)
+      // ground; the crater is real lava (see the inLava read in stepBattle).
+      // 24.3: the break is the LEVEL 2 special (craterR[0] is 0: no crater).
       const craterR = lvl(spec, 'craterR', m.level);
-      (state.craters = state.craters || []).push({ x: m.x, y: m.y, r: craterR });
-      state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius, by: m.owner, crater: craterR });
+      if (craterR > 0)
+        (state.craters = state.craters || []).push({ x: m.x, y: m.y, r: craterR });
+      state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius, by: m.owner,
+        ...(craterR > 0 ? { crater: craterR } : {}) });
       for (const pl of Object.values(state.players)) {
         // everyone under the rock eats it, the caster included, but never a
         // teammate (round 21.3: same team = spells ignore each other)

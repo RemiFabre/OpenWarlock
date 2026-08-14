@@ -164,6 +164,19 @@ Applied at +35% mark rate per level:
   +35% steps). Base income roughly +50% at lv1 on top of the rework, which
   also answers yesterday's "midas gold is thin for bots" finding.
 
+## 24.3: The normalization pass (your numbers)
+
+- Pure-frequency family near the 35% default: Pillar [14,10], Shield
+  [15,11], Blood Debt [15,11], Rush [10,7].
+- **Meteor dmg [16,30] -> [25,35]**: the doubling is gone, lv1 is a real
+  buff (dps step +116% -> +61%), and **the ground-break is the LEVEL 2
+  special now** (craterR [0,4]): lv1 leaves the floor intact.
+- **Mine cd flat 9** (was [9,8]): lv2 already buys damage + the second
+  stored ball, which is almost the whole gimmick; the cd trim on top was
+  excessive. Damage kept at [10,15].
+- Repulse and the rest: accepted as they are (your call: low-frequency
+  spells buying radius/length/damage instead is coherent).
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target

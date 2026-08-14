@@ -202,9 +202,10 @@ build step, Node ESM, only dep is `ws`.
   only): touch → teleport, dead stop (round 18). Since 24.1 each portal has
   its OWN exit (EXIT_DIST 5 past the center on its line; the four form a
   marked cross), because the exact-center exit was a one-mine kill box.
-  **Meteor breaks the ground** (24.1, from Ju's hole idea but WALKABLE):
-  impact leaves a permanent lava crater (`SPELLS.meteor.craterR` [3,4]), real
-  lava rules (DPS/treads/Fire Walk/swim), spawn seats auto-slide off it.
+  **Meteor breaks the ground at LV2** (24.1, from Ju's hole idea but
+  WALKABLE; 24.3 made the break the lv2 special, dmg [25,35]): a permanent
+  lava crater (`craterR` [0,4]), real lava rules (DPS/treads/Fire Walk/swim),
+  spawn seats auto-slide off it.
 - **NO PASSIVE REGEN** (round 17, measured): `PLAYER.REGEN 0`, the Ring is
   deleted, the regen-lock machinery is inert-but-kept as the revert path.
   Damage is permanent within a round; the Blood Sword is the ONLY healing.
