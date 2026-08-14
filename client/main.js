@@ -1675,33 +1675,33 @@ function buildShop(container, mode = 'classic') {
   const labels = [];
   const rows = [];
   let curRow = null;
-  const mkLabel = (txt, kind) => {
-    const el = document.createElement('div');
-    // iteration 2 (Sam): per-section accent hue, understated (sl-* in the CSS)
-    el.className = 'shoplabel' + (kind ? ` sl-${kind}` : '');
-    el.textContent = txt;
-    container.appendChild(el);
-    labels.push({ el, wares: [] });
+  // v7.3 (Sam): the shop is six BLOCKS on two rows of three, not one long
+  // stack. Each block owns its heading, its tint and its own card grid, and
+  // hides itself when the draft pool empties it.
+  let curWrap = null;
+  const mkWrap = () => {
+    curWrap = document.createElement('div');
+    curWrap.className = 'shopblocks';
+    container.appendChild(curWrap);
   };
-  const mkRow = (cat) => {
-    // v7.1 (Sam): the sideways OFFENSE/DEFENSE/SPECIAL rail is gone; each group
-    // wears a compact subheader above it so the section reads left to right.
-    // the subheader and its row SHARE one wares array, so a group emptied by
-    // the draft pool hides its heading with its cards
+  const mkBlock = (txt, kind) => {
+    const block = document.createElement('section');
+    block.className = 'shopblock' + (kind ? ` t-${kind}` : '');
+    const head = document.createElement('div');
+    head.className = 'blockhead';
+    head.textContent = txt;
+    const grid = document.createElement('div');
+    grid.className = 'shoprow';
+    block.append(head, grid);
+    (curWrap || container).appendChild(block);
+    curRow = grid;
     const mine = [];
-    if (cat) {
-      const sub = document.createElement('div');
-      sub.className = 'shopsub';
-      sub.textContent = cat;
-      container.appendChild(sub);
-      rows.push({ el: sub, wares: mine });
-    }
-    const el = document.createElement('div');
-    el.className = 'shoprow';
-    container.appendChild(el);
-    curRow = el;
-    rows.push({ el, wares: mine });
+    labels.push({ el: block, wares: mine });   // the whole block hides together
+    rows.push({ el: grid, wares: mine });
   };
+  const mkLabel = () => {};   // superseded by mkBlock; kept so nothing else breaks
+  const mkRow = () => {};   // superseded by mkBlock
+
   const inSection = (w) => {
     if (labels.length) labels[labels.length - 1].wares.push(w);
     if (rows.length) rows[rows.length - 1].wares.push(w);
@@ -1748,15 +1748,16 @@ function buildShop(container, mode = 'classic') {
   // and the draft-offer filter, never as a shelf. Round 20: three quiet
   // Offense / Defense / Special rows; a spell missing from SPELL_ROWS lands in
   // the last row so nothing can silently vanish from the shop.
-  mkLabel('Spells 📜', 'spells');
+  mkWrap();                       // row 1: OFFENSE | DEFENSE | SPECIAL
   for (let i = 0; i < SPELL_ROWS.length; i++) {
     const [cat, keys] = SPELL_ROWS[i];
-    mkRow(cat);
+    mkBlock(cat, ['offense', 'defense', 'special'][i] || 'spells');
     for (const key of keys) if (SPELLS[key]) mkSpell(key, SPELLS[key]);
     if (i === SPELL_ROWS.length - 1)
       for (const [key, spec] of Object.entries(SPELLS))
         if (!SPELL_ROW_KEYS.has(key)) mkSpell(key, spec);
   }
+  mkWrap();                       // row 2: ELEMENTS | MUTATIONS | ITEMS
   // elements carry their 2-4 word tag ON the card (round 20.1, Remi: the
   // no-text doctrine went one step too far here; a tag is parseable at a
   // glance; spells stay text-free because theirs are not)
@@ -1788,8 +1789,7 @@ function buildShop(container, mode = 'classic') {
   if (elemental) {
     for (let i = 0; i < ELEMENT_ROWS.length; i++) {
       const [label, keys] = ELEMENT_ROWS[i];
-      mkLabel(label, i === 0 ? 'elements' : 'mutations');
-      mkRow();
+      mkBlock(label.replace(/\s*\(.*$/, ''), i === 0 ? 'elements' : 'mutations');
       for (const key of keys) if (ELEMENTS[key]) mkElement(key, ELEMENTS[key]);
       // the last row also catches anything added to ELEMENTS but not named
       // above, so a new element can never be silently missing from the shop
@@ -1798,8 +1798,7 @@ function buildShop(container, mode = 'classic') {
           if (!ROW_KEYS.has(key)) mkElement(key, spec);
     }
   }
-  mkLabel('Items 🎒 (passive boosts)', 'items');
-  mkRow();
+  mkBlock('Items', 'items');
   for (const [key, spec] of Object.entries(ITEMS)) {
     if (spec.mode === 'elemental' && !elemental) continue;
     const b = document.createElement('button');
