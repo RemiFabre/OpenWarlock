@@ -20,8 +20,9 @@ export const ARENA = {
   // on the portal->center line, EXIT_DIST past the center (a bit more than a
   // player diameter, and beyond a center mine's trigger ring + body). The
   // four exits form a cross, marked on the floor by the client.
+  // Remi (same day): 2.5 landed too bunched; doubled to 5.
   PORTALS: { COUNT: 4, DIST_FRAC: 1.25, RADIUS: 2.2, ANGLE: Math.PI / 4,
-             EXIT_DIST: 2.5 },
+             EXIT_DIST: 5 },
   // TEST flag (round 16): the ring shrinks continuously START→0 so the whole
   // arena becomes lava; MIN_RADIUS/OVERTIME_* bypassed. false = classic
   // hold-then-sudden-death, untouched.

@@ -142,10 +142,10 @@ gamble on crossing.
 ## 24.1: Portal exits form a cross (the mine-camp fix)
 
 Exact-center exits meant one mine at 0,0 punished every arrival. Each portal
-now has its OWN exit: on its portal-to-center line, 2.5 units PAST the
-center (a bit more than a player diameter, and beyond a center mine's
-trigger ring). The four exits form a cross, each marked with a small floor
-rune so everyone knows something arrives there. One mine can no longer cover
+now has its OWN exit: on its portal-to-center line, 5 units PAST the center
+(your same-day correction: 2.5 was too bunched) and beyond a center mine's
+trigger ring. The four exits form a cross, each marked with a small "x"
+floor rune so everyone knows something arrives there. One mine can no longer cover
 them all; camping now costs four mines on four telegraphed spots.
 
 ## 24.2: The 1/x ruling, applied to both mark hunts

@@ -319,9 +319,10 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.strokeStyle = 'rgba(140, 220, 255, 0.28)';
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath();                       // a small cross-hair inside
-      ctx.moveTo(ex - er * 0.5, ey); ctx.lineTo(ex + er * 0.5, ey);
-      ctx.moveTo(ex, ey - er * 0.5); ctx.lineTo(ex, ey + er * 0.5);
+      const dg = er * 0.42;                  // an "x" inside (Remi: not a "+")
+      ctx.beginPath();
+      ctx.moveTo(ex - dg, ey - dg); ctx.lineTo(ex + dg, ey + dg);
+      ctx.moveTo(ex - dg, ey + dg); ctx.lineTo(ex + dg, ey - dg);
       ctx.stroke();
     }
     for (let i = 0; i < P.COUNT; i++) {

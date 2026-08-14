@@ -200,7 +200,7 @@ build step, Node ESM, only dep is `ws`.
   co-op keeps the classic ring. Lava kill share: keep reporting, no target.
   **4 portals** in the lava (diagonals, 1.25× rim, `ARENA.PORTALS`, versus
   only): touch → teleport, dead stop (round 18). Since 24.1 each portal has
-  its OWN exit (EXIT_DIST 2.5 past the center on its line; the four form a
+  its OWN exit (EXIT_DIST 5 past the center on its line; the four form a
   marked cross), because the exact-center exit was a one-mine kill box.
   **Meteor breaks the ground** (24.1, from Ju's hole idea but WALKABLE):
   impact leaves a permanent lava crater (`SPELLS.meteor.craterR` [3,4]), real
