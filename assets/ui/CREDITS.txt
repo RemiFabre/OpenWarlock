@@ -12,3 +12,8 @@ Downscaled for runtime: the two READY plaques, the crest, the small divider and
 the badge to twice their display size, the avatars to 128 px (also twice their
 largest use), the shop artwork to 144 px (three times its 48 px card slot).
 Roughly 70 MB of source art ships as ~2.8 MB.
+
+The arena character sheets in knight/ are the "2D HD Character Knight" pack
+supplied by @SamKhosravi for issue #14 (v9 animation prototype): Idle, Walk,
+Run, CastSpell, TakeDamage and Die, 1920x1024 sheets of 128px cells, 15 frames
+by 8 directions. Shipped as delivered, no re-encode.

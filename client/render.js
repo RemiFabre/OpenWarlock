@@ -4,12 +4,16 @@ import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, AVATARS, isAvatarArt, teamTint 
 import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
+import { drawKnight, forgetKnights, knightLoaded } from './knight.js';
 
 // Issue #14 (Sam v8): the arena artwork is the world's backdrop. It is DECOR:
 // nothing here feeds geometry. The arena radius, the shrink, the pillars and
 // every hitbox stay exactly what the simulation says they are.
 const ARENA_ART = new Image();
 ARENA_ART.src = new URL('../assets/ui/arena/floor.png', import.meta.url).href;
+let lastDrawAt = 0;
+let seenProjectiles = new Set();
+const lastHp = new Map();
 const BLANK_FACE = new Image();
 BLANK_FACE.src = new URL('../assets/ui/portraits/placeholder.png', import.meta.url).href;
 const ROUND_ART = {};
@@ -321,6 +325,28 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   const R0 = fin(vs.startRadius) ? vs.startRadius : ARENA.START_RADIUS; // un-shrunk
   const players = Array.isArray(vs.players) ? vs.players : [];
   const projectiles = Array.isArray(vs.projectiles) ? vs.projectiles : [];
+  // ---- v9 (Sam): what the animated character needs to REACT to, all of it read
+  // off state the game already sends. Nothing here can change the game.
+  const knightReady = knightLoaded();
+  const kdt = Math.min(0.1, Math.max(0, now - (lastDrawAt || now)));
+  lastDrawAt = now;
+  const casters = new Set();     // a projectile of theirs appeared this frame
+  const hurtNow = new Set();     // their hp went down since the last frame
+  if (knightReady) {
+    const live = new Set();
+    for (const pr of projectiles) {
+      live.add(pr.id);
+      if (pr.owner != null && !seenProjectiles.has(pr.id)) casters.add(pr.owner);
+    }
+    seenProjectiles = live;
+    for (const p of players) {
+      if (!p || p.id == null) continue;
+      const was = lastHp.get(p.id);
+      if (was != null && fin(p.hp) && p.hp < was - 0.01) hurtNow.add(p.id);
+      lastHp.set(p.id, fin(p.hp) ? p.hp : was);
+    }
+    forgetKnights(new Set(players.map((p) => p && p.id).filter(Boolean)));
+  }
   // my team number, for the ally ring on the bodies below (round 21.3)
   const myTeam = vs.me && vs.me.team != null ? vs.me.team : null;
 
@@ -767,6 +793,19 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath(); ctx.arc(x, y, sr * 0.78, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
       ctx.fillStyle = 'rgba(255, 255, 235, 0.9)';
       ctx.beginPath(); ctx.arc(x - sr * 0.34, y - sr * 0.42, sr * 0.14, 0, Math.PI * 2); ctx.fill();
+    } else if (knightReady) {
+      // v9 (Sam): the warlock IS an animated character now. Its identity stays
+      // readable as a coloured disc on the ground UNDER the feet (the old body
+      // disc is not drawn over the sprite), and the collision circle is
+      // untouched: this is paint, not physics.
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = pl.color;
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.92, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = pl.id === myId ? 'rgba(255,255,255,.8)' : 'rgba(0,0,0,0.45)';
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.92, r * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
     } else {
       ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
@@ -790,7 +829,11 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     }
     // hood highlight + avatar emoji; a statue has neither: it is stone now,
     // and the status rings below are all things it is immune to anyway
-    if (!statue) {
+    if (!statue && knightReady) {
+      drawKnight(ctx, pl, x, y, r, kdt, {
+        cast: casters.has(pl.id), hurt: hurtNow.has(pl.id), dead: !pl.alive,
+      });
+    } else if (!statue) {
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
 
