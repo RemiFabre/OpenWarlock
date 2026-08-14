@@ -306,7 +306,7 @@
   .shoprow > .ware, .shoprow > .warewrap {
     flex: 0 0 224px; width: 224px; min-width: 0;
   }
-  .shoprow .ware { height: 58px; }
+  .shoprow .ware { height: 70px; }
   .ware {
     display: flex; gap: 8px; align-items: center; position: relative;
     background: var(--obsidian); border: 1px solid #2e241c; padding: 6px 12px 13px;
@@ -317,6 +317,23 @@
   .ware .pips { position: absolute; left: 8px; right: 8px; bottom: 3px; display: flex; gap: 3px; pointer-events: none; }
   .ware .pips i { flex: 1; height: 5px; background: #33291f; }
   .ware .pips i.on { background: #699b54; }
+  /* ---- v7 shop cards (issue #14, Sam): image first --------------------
+     [art] Name / LV · MAX / progression, price top-right in gold. The art box
+     is one fixed square on every card so the column of pictures lines up; the
+     image never stretches (contain, centred) and an entity still waiting for
+     its artwork shows its icon in the same box. */
+  .ware .art {
+    flex: none; width: 48px; height: 48px; display: grid; place-items: center;
+    background: rgba(255, 255, 255, .03); border: 1px solid rgba(197, 154, 88, .22);
+  }
+  .ware .art > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .ware .art.noart { font-size: 26px; line-height: 1; }
+  .ware .cost { position: absolute; top: 6px; right: 10px; min-width: 0; }
+  .ware .info ~ .cost, .warewrap .ware .cost { align-self: auto; }
+  .ware .info { display: flex; flex-direction: column; gap: 2px; padding-right: 44px; }
+  .ware .info .name { font-size: 13px; }
+  .ware .info ~ .lvbadge, .ware .lvbadge { position: static; }
+  .ware .info .lvbadge { font-size: 10px; }
   .ware:hover:not(:disabled) { border-color: var(--ember); }
   .ware .icon { font-size: 20px; width: 25px; text-align: center; flex: none; }
   .ware .info { flex: 1; min-width: 0; }
@@ -348,11 +365,11 @@
      badge floats in the card's top-right corner instead of the flow */
   .ware .info ~ .lvbadge { position: absolute; top: 2px; right: 6px; }
   .ware .info ~ .cost { margin-top: 8px; }
-  .ware.poor { opacity: .35; filter: grayscale(.6); }
+  .ware.poor { opacity: .3; filter: grayscale(.75); }
   .ware.poor .cost { color: var(--ash); }
   .ware.sel { border-color: #567a42; background: #17150f; }
-  .ware.up { border-color: var(--gold, #e8c65a); box-shadow: 0 0 9px rgba(232, 198, 90, .30); }
-  .ware.maxed { border-color: #3d5731; background: #141810; opacity: .9; }
+  .ware.up { border-color: #e8c65a; box-shadow: 0 0 10px rgba(232, 198, 90, .32), inset 0 0 0 1px rgba(232, 198, 90, .25); }
+  .ware.maxed { border-color: #3d5731; background: #121a12; opacity: .92; box-shadow: none; }
   /* the cost rides the top-right on spell cards so the key chip below it
      keeps its corner to itself */
   .warewrap .ware .cost { align-self: flex-start; }
@@ -389,6 +406,16 @@
   .shoplabel { grid-column: 1 / -1; color: var(--parchment); font-size: 13.5px;
     font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
     margin-top: 12px; border-bottom: 2px solid #4a3a2c; padding-bottom: 4px; }
+  /* v7 (Sam): the four families wear The Gathering's language: serif small-caps
+     over a bronze hairline on blue-black, distinct without becoming a
+     colourful dashboard. */
+  #shop .shoplabel {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    text-transform: none; font-size: 16px; letter-spacing: .1em; color: #f0dcb6;
+    background: linear-gradient(90deg, rgba(197,154,88,.14), rgba(197,154,88,0));
+    border-left: 2px solid rgba(197, 154, 88, .55); border-bottom: 0;
+    padding: 4px 10px; margin: 6px 0 4px;
+  }
   .shoplabel::before {
     content: ''; display: inline-block; width: 9px; height: 9px;
     margin-right: 8px; background: #4a3a2c; transform: rotate(45deg);

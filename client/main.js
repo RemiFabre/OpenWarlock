@@ -1408,7 +1408,7 @@ function spellTip(key, spec, level, maxLevel, previewLv) {
     myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
-  return tipShell(ICONS[key], spec.name, sub, spec.long || spec.desc,
+  return tipShell(artHtml(key, 'tart'), spec.name, sub, spec.long || spec.desc,
     tipBody(lines, level, maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
     foot, level, maxLevel);
 }
@@ -1422,7 +1422,7 @@ function elementTip(key, spec, level, previewLv) {
     myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
-  return tipShell(spec.icon, spec.name, sub, spec.long || spec.desc,
+  return tipShell(artHtml(key, 'tart'), spec.name, sub, spec.long || spec.desc,
     tipBody(lines, level, spec.maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
     foot, level, spec.maxLevel);
 }
@@ -1442,7 +1442,7 @@ function itemTip(key, spec, level, previewLv) {
     myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
-  return tipShell(ICONS[key], spec.name, sub, spec.long || spec.desc,
+  return tipShell(artHtml(key, 'tart'), spec.name, sub, spec.long || spec.desc,
     tipBody(lines, cur, spec.maxLevel, (lv) => fmtGold(itemCost(key, lv - 1)), previewLv),
     foot, level, spec.maxLevel);
 }
@@ -1597,6 +1597,19 @@ const SPELL_ROW_KEYS = new Set(SPELL_ROWS.flatMap(([, keys]) => keys));
 // Build shop buttons once per container; refresh() updates them from state.
 // mode-aware: 'elemental' adds the Elements section and the elemental-only
 // combo items; 'classic' shows exactly the pre-elemental shop.
+// Issue #14 (Sam, shop redesign): every shop entity gets illustrated artwork.
+// SHOP_ART lists the ids that have a file in assets/ui/shop; anything not in it
+// keeps its icon, drawn at the same size, so the shop is never half-empty while
+// artwork is still arriving. Filenames are matched to ids, never the reverse:
+// the game's entity names do not move to suit a file.
+const SHOP_ART = new Set([]);
+// elements carry their icon on the spec, spells and items in ICONS: check both
+// or an element card renders an empty box while it waits for artwork.
+const iconOf = (key) => ICONS[key] || (ELEMENTS[key] && ELEMENTS[key].icon) || '';
+const artHtml = (key, cls = 'art') => (SHOP_ART.has(key)
+  ? `<span class="${cls}"><img src="../assets/ui/shop/${key}.png" alt=""></span>`
+  : `<span class="${cls} noart">${iconOf(key)}</span>`);
+
 function buildShop(container, mode = 'classic') {
   const elemental = mode === 'elemental';
   container.innerHTML = '';
@@ -1645,9 +1658,9 @@ function buildShop(container, mode = 'classic') {
   const mkSpell = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
-    b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="name">${spec.name}</span>
-      <span class="lvbadge"></span>
+    b.innerHTML = `${artHtml(key)}
+      <span class="info"><span class="name">${esc(spec.name)}</span>
+      <span class="lvbadge"></span></span>
       <span class="cost num"></span>`;
     b.dataset.key = key;   // stable hook for the UI tests
     b.addEventListener('click', () => {
@@ -1699,8 +1712,8 @@ function buildShop(container, mode = 'classic') {
   const mkElement = (key, spec) => {
     const b = document.createElement('button');
     b.className = 'ware';
-    b.innerHTML = `<span class="icon">${spec.icon}</span>
-      <span class="info"><span class="name">${spec.name}</span>
+    b.innerHTML = `${artHtml(key)}
+      <span class="info"><span class="name">${esc(spec.name)}</span>
       <span class="tag">${esc(spec.desc)}</span></span>
       <span class="lvbadge"></span>
       <span class="cost num"></span>`;
@@ -1742,8 +1755,8 @@ function buildShop(container, mode = 'classic') {
     b.className = 'ware';
     // items carry a one-value stat tag (round 20.1, Remi: "a very short
     // description of the stats it gives"); refresh() repaints it per level
-    b.innerHTML = `<span class="icon">${ICONS[key]}</span>
-      <span class="info"><span class="name">${spec.name}</span>
+    b.innerHTML = `${artHtml(key)}
+      <span class="info"><span class="name">${esc(spec.name)}</span>
       <span class="tag"></span></span>
       <span class="lvbadge"></span>
       <span class="cost num"></span>`;
