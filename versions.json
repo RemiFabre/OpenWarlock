@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 37,
+  "serial": 38,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -96,7 +96,7 @@
       "issue": 14,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/14",
       "branch": "issue-14-hud-readability",
-      "commit": "6762926616f27e6287cd67727334d14ef20b1b08"
+      "commit": "7d0b52ee25070333c8039bba20e905d1a0d1eb77"
     }
   ]
 }
