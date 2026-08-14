@@ -874,18 +874,27 @@
   /* v7.2 (Sam): both plates render at the SAME width in the same box, so the
      button never changes size when the state flips (the active art is taller
      only because of its glow, which overflows harmlessly). */
-  .gathering #readyBtn.plaque {
-    width: 190px; height: 66px; padding: 0; border: 0; background: transparent;
-    background-image: url('../assets/ui/buttons/ready_active.png');
-    background-size: 190px auto; background-repeat: no-repeat; background-position: center;
-    color: transparent; text-shadow: none; overflow: visible;
-    filter: saturate(.92) brightness(.96);
+  /* v7.5 (Sam): ONE ready plaque, two states, used in the lobby and between
+     rounds. Both plates share a canvas, so the same box renders both with no
+     jump; the label stays in the DOM for screen readers. */
+  button.plaque2, .gathering #readyBtn.plaque {
+    width: 196px; height: 74px; padding: 0; border: 0; background: transparent;
+    background-image: url('../assets/ui/buttons/ready_off.png');
+    background-size: 196px auto; background-repeat: no-repeat; background-position: center;
+    color: transparent; text-shadow: none; overflow: visible; flex: none;
   }
-  .gathering #readyBtn.plaque.primary {
-    background-image: url('../assets/ui/buttons/ready_idle.png');
-    filter: none;
+  /* .primary means NOT ready yet, in both screens */
+  button.plaque2:not(.primary), .gathering #readyBtn.plaque:not(.primary) {
+    background-image: url('../assets/ui/buttons/ready_on.png');
   }
-  .gathering #readyBtn.plaque:hover { filter: brightness(1.1); }
+  button.plaque2:hover:not(:disabled), .gathering #readyBtn.plaque:hover {
+    filter: brightness(1.09) drop-shadow(0 0 6px rgba(150, 220, 120, .3));
+  }
+  button.plaque2:disabled { opacity: 1; }
+  button.plaque2:focus-visible, .gathering #readyBtn.plaque:focus-visible {
+    outline: 2px solid var(--ember); outline-offset: 2px;
+  }
+  .shopfoot { margin-top: 10px; align-items: center; gap: 12px; min-height: 80px; }
   .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
   /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
   /* illustrated avatars (Sam v5): one size per site, always a round face so a
@@ -1408,9 +1417,13 @@
       <p class="hint" id="shopIncome" style="margin:0 0 6px"></p>
       <div class="shopgrid" id="shopGrid"></div>
     </div>
-    <div class="row" style="margin-top:6px; align-items:center">
-      <button id="shopReadyBtn" class="primary" style="flex:1">Ready: next round</button>
+    <!-- v7.5 (Sam): no full-width bar. The between-round ready action is the
+         same plaque as the lobby's, compact, on the right. -->
+    <div class="row shopfoot">
       <span class="hint" style="margin:0">Hold <kbd>Tab</kbd> for the scoreboard</span>
+      <span style="flex:1"></span>
+      <span class="hint" id="shopReadyCount" style="margin:0"></span>
+      <button id="shopReadyBtn" class="primary plaque2">Ready: next round</button>
     </div>
   </div>
 </div>

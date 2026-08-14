@@ -2397,17 +2397,16 @@ function updateUi(s) {
       // only fighting humans are counted/shown
       const humans = playerList.filter(p => !p.bot && !p.spectator);
       const readyN = humans.filter(p => p.shopReady).length;
+      // v7.5 (Sam): the plaque carries the STATE and the line beside it carries
+      // the count that used to live in the button's label. `.primary` = not
+      // ready yet, exactly as in the lobby, so both screens share one rule.
       const btn = $('shopReadyBtn');
-      if (m && m.shopReady) {
-        btn.disabled = true;
-        btn.classList.remove('primary');
-        btn.textContent = `Waiting for others… (${readyN}/${humans.length} ready)`;
-      } else {
-        btn.disabled = false;
-        btn.classList.add('primary');
-        btn.textContent = humans.length > 1
-          ? `Ready: next round (${readyN}/${humans.length} ready)` : 'Ready: next round';
-      }
+      const mine = !!(m && m.shopReady);
+      btn.disabled = mine;
+      btn.classList.toggle('primary', !mine);
+      btn.textContent = mine ? 'Waiting for the others' : 'Ready: next round';
+      $('shopReadyCount').textContent = humans.length > 1
+        ? `${readyN}/${humans.length} ready` : '';
     }
   }
 
