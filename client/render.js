@@ -10,6 +10,8 @@ import { currentLevel } from './music.js';
 // every hitbox stay exactly what the simulation says they are.
 const ARENA_ART = new Image();
 ARENA_ART.src = new URL('../assets/ui/arena/floor.png', import.meta.url).href;
+const BLANK_FACE = new Image();
+BLANK_FACE.src = new URL('../assets/ui/portraits/placeholder.png', import.meta.url).href;
 const ROUND_ART = {};
 for (const k of ['victory', 'defeat', 'gold']) {
   const img = new Image();
@@ -799,12 +801,21 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         ctx.beginPath(); ctx.arc(x, y, r * 0.95, 0, Math.PI * 2); ctx.clip();
         ctx.drawImage(face, x - d / 2, y - d / 2, d, d);
         ctx.restore();
-      } else {
+      } else if (BLANK_FACE.complete && BLANK_FACE.naturalWidth) {
+        // v8.2 (Sam): an unresolved face falls back to the blank portrait at the
+        // SAME size. Never draw the avatar id as text in the arena.
+        const d = r * 1.9;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.95, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(BLANK_FACE, x - d / 2, y - d / 2, d, d);
+        ctx.restore();
+      } else if (typeof pl.avatar === 'string' && pl.avatar.length <= 3) {
+        // a co-op campaign unit still wears an emoji: that is a glyph, not an id
         ctx.font = `${Math.round(r * 1.6)}px serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#fff';
-        ctx.fillText(String(pl.avatar || '🧙'), x, y);
+        ctx.fillText(pl.avatar, x, y);
         ctx.textBaseline = 'alphabetic';
       }
     }

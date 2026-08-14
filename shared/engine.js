@@ -33,7 +33,10 @@ export const BOT_NAMES = {
 };
 // issue #14 (Sam v5): bots wear illustrated faces too, from the same set, so
 // the roster is not half painted and half emoji.
-const BOT_AVATARS = ['demon', 'ghost', 'spider', 'necromancer', 'dragon', 'wolf'];
+// ⚠ every entry MUST exist in AVATARS: a name outside the roster has no
+// artwork, and the arena used to fall back to drawing the id as text
+// ('ghost' after the v8 roster swap). Test-locked.
+const BOT_AVATARS = ['demon', 'spectre', 'spider', 'necromancer', 'dragon', 'wolf'];
 
 export const normName = (n) => String(n || '').trim().toLowerCase().slice(0, 16);
 

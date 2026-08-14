@@ -85,6 +85,17 @@ describe('avatars', () => {
     }
   });
 
+  it('every bot face exists in the avatar roster', () => {
+    // v8.2 (Sam): a bot wearing a name outside AVATARS has no artwork, and the
+    // arena fell back to painting the raw id ('ghost') next to the warlock.
+    const eng = createEngine({ seed: 11 });
+    eng.join('h1', { name: 'Host' });
+    for (const kind of Object.keys(BOTS)) eng.message('h1', { t: 'addBot', kind });
+    const bots = Object.values(eng.game.players).filter(p => p.bot);
+    expect(bots.length).toBeGreaterThan(3);
+    for (const b of bots) expect(AVATARS).toContain(b.avatar);
+  });
+
   it('a player who picked nothing still gets a face from the roster', () => {
     const state = createGame();
     addPlayer(state, 'pY', 'w', {});
