@@ -1,8 +1,9 @@
 # Notes for Remi (OpenWarlock & the open web MOBA)
 
-*Rounds 23.1 + 24, 2026-08-14, two agents in parallel: the netcode agent's
-playout fix (23.1) and the vampire/lobby round (24), merged here in shipping
-order. Round 23 is archived at
+*Rounds 23.1 + 24 + 24.1, 2026-08-14: the netcode agent's playout fix
+(23.1), the vampire/lobby round (24), and your second voice list (24.1:
+midas, mark-hunting bots, meteor craters, portal exits), merged here in
+shipping order. Round 23 is archived at
 `docs/history/2026-08-13-remi-notes-round-23.md`.*
 
 ## 23.1: Your friend's jerk was a REWIND, and it was ours
@@ -109,10 +110,49 @@ chromium+webkit, solo-static, reconnect, arena 4p/8p, and screenshots of the
 ring, the pips, the gulp flight, the gold moai and the bot picker. Round 24
 touched no wire code; 23.1's own verification is in its history file.
 
+## 24.1: Midas pays, it never taxes
+
+Your ruling (spending gold must never make you weaker) is in: the -30/-15%
+fireball malus and the plant-then-cash chore are deleted. Midas is Anger's
+twin now: every 30/25/20 s (anger's exact cadence, your instruction) a BIG
+gold mark lands on a random enemy; your fireball hit on them claims **+2 g
+flat** and re-arms the clock. The mark is anger's orb restyled in gold, the
+HUD confirms "mark is OUT: +2 g", and a coin burst plays on the claim.
+
+## 24.1: Hard and above hunt their marks
+
+Berserker, stalker and faker targeting now treats the enemy carrying YOUR
+anger or midas mark as drastically closer than it is (`HUNT_MARK 40`
+apparent units; softmax, so it is a strong pull, not a scripted override).
+Gated on the bot KIND: Normal shares the Hard brain but keeps the old
+behaviour exactly, as you asked. Consequence you should expect in the table:
+anger rows (K5 above all) climb, because the mark no longer sits unclaimed.
+
+## 24.1: Meteor breaks the ground (Ju's idea, made walkable)
+
+The rock now leaves a permanent lava crater where it lands (radius 3, or 4
+at lv2; the blast radius stays 6). It is REAL lava: 16 DPS, treads resist
+it, Fire Walk ignores it, you swim faster through it, and a shove into it
+credits the shover. Impact plays a ground-break: rock shards fly and a lava
+geyser climbs and falls back into the fresh pool. Craters persist across
+rounds like pillars; spawn seats slide sideways so nobody starts a round in
+one. Ju's version made holes you cannot enter; yours is terrain you can
+gamble on crossing.
+
+## 24.1: Portal exits form a cross (the mine-camp fix)
+
+Exact-center exits meant one mine at 0,0 punished every arrival. Each portal
+now has its OWN exit: on its portal-to-center line, 2.5 units PAST the
+center (a bit more than a player diameter, and beyond a center mine's
+trigger ring). The four exits form a cross, each marked with a small floor
+rune so everyone knows something arrives there. One mine can no longer cover
+them all; camping now costs four mines on four telegraphed spots.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
 cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
 Faker returns to fresh lobbies, a feel pass on lava 16 + the treads nerf, a
-feel pass on the vampire feast numbers, and the one-game trace with your
-friend (23.1 above).
+feel pass on the vampire feast numbers, a feel pass on the 24.1 batch
+(midas +2 g, crater sizes, the portal cross), and the one-game trace with
+your friend (23.1 above).

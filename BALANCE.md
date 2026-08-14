@@ -411,6 +411,26 @@ berserker brains brawl inside r 7 all game (permanent vacuum) and never
 burst a low vampire, which is the build's designed weakness. One-line
 levers if live play agrees it is too strong: `markHeal`, `lowHpMax`.
 
+## Round 24.1: midas hunt, mark-hunting bots, meteor craters, portal cross (2026-08-14)
+
+Same-day follow-up to round 24; full report
+`docs/history/2026-08-14-round241-midas-meteor-portals.md`. Midas pays +2 g
+per claimed hunt mark (anger's cadence, NO malus of any kind; Remi's ruling
+that buying must never weaken you). Hard+ bots hunt anger/midas marks
+(`HUNT_MARK 40`; Normal untouched). Meteor leaves a permanent walkable lava
+crater (`craterR` [3,4], real lava rules). Portal exits sit 2.5 past the
+center on each portal's line (the four form a marked cross; the one-mine
+center camp is dead).
+
+Measured (standard 2000-game elo, seeds 1+2, vs the round-24 table):
+**D3-tycoon 1434 → 1199/1189** (the midas build; mostly the END of a bot
+artifact: bots volume-farmed the old +1 g-per-two-hits at 172 hits/game,
+the new income is cadence-capped, humans lose far less), **K5 flat at
+~2775/2753** (already at place 1.08: no headroom, the hunt cannot raise a
+ceiling), B3 +40 on one seed, everything else within noise, 4000/4000 games
+finished with craters in play. Levers if live play disagrees: `goldOnClaim`
+2, `markEvery`, `craterR`, `EXIT_DIST`.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*

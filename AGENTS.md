@@ -192,14 +192,19 @@ build step, Node ESM, only dep is `ws`.
 - **Lava** 14 DPS, ×2 swim speed; versus ring **never stops** (`NEVER_STOPS`);
   co-op keeps the classic ring. Lava kill share: keep reporting, no target.
   **4 portals** in the lava (diagonals, 1.25× rim, `ARENA.PORTALS`, versus
-  only): touch → teleport to center, dead stop (round 18).
+  only): touch → teleport, dead stop (round 18). Since 24.1 each portal has
+  its OWN exit (EXIT_DIST 2.5 past the center on its line; the four form a
+  marked cross), because the exact-center exit was a one-mine kill box.
+  **Meteor breaks the ground** (24.1, from Ju's hole idea but WALKABLE):
+  impact leaves a permanent lava crater (`SPELLS.meteor.craterR` [3,4]), real
+  lava rules (DPS/treads/Fire Walk/swim), spawn seats auto-slide off it.
 - **NO PASSIVE REGEN** (round 17, measured): `PLAYER.REGEN 0`, the Ring is
   deleted, the regen-lock machinery is inert-but-kept as the revert path.
   Damage is permanent within a round; the Blood Sword is the ONLY healing.
 - **Knockback is CONSTANT** (`KB_CONSTANT_MISSING 0.30`; `null` = revert).
 - **Anti-snowball economy**: 8 g/round + 2/kill + 2 win + 1 first death; 2×
-  earn-spread cap test-enforced. Midas is a mark-then-cash rhythm (question J
-  closed).
+  earn-spread cap test-enforced. Midas is a timed gold-mark HUNT since 24.1
+  (question J stays closed: income is cadence-capped, not hit-capped).
 - **Fireball locked at lv1 in elemental** (default ruleset). The 11 elements are
   its progression, all private-stacked riders: ember=damage [1,2,4],
   terra=size (lv3 SMASHES pillars, ball consumed; round 20.2),
@@ -223,7 +228,9 @@ build step, Node ESM, only dep is `ws`.
   each healing [2,3,4] × 1→3 linear on the vampire's OWN missing hp; a started
   feast always finishes; marks die with either party; no feast through
   Vanish/NOPE),
-  midas (dmgMult softened to [.7,.85,1] in 22.5). ⚠ FIREBALL RANGE IS 50 since
+  midas=anger's twin since 24.1 (gold mark on a random enemy every
+  [30,25,20] s, fireball claim = +2 g flat, NO malus of any kind; Remi's
+  ruling: buying an element must never weaken the fireball). ⚠ FIREBALL RANGE IS 50 since
   22.5 (was infinite): balls fizzle past `SPELLS.fireball.range`, reflections
   restart the meter.
   Classic keeps the 3-level fireball.
@@ -298,7 +305,9 @@ build step, Node ESM, only dep is `ws`.
   ⚠ awaiting Remi's feel verdict. Targeting is a SOFTMAX draw
   (`BOT_TARGETING`, TEMPERATURE 6); sky-bolt dodge is a committed per-bolt
   roll (`boltDodge`; Remi set Hard's 50%); bots pressure the kill leader
-  (`LEADER_BIAS 2.5`).
+  (`LEADER_BIAS 2.5`), and since 24.1 **Hard and above hunt their anger/midas
+  mark** (`HUNT_MARK 40`, gated on the bot's KIND so Normal, the same brain,
+  is untouched).
 
 ## Co-op campaign (mode `coop`): MOTHBALLED
 
