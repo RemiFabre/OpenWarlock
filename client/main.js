@@ -797,7 +797,7 @@ setInterval(async () => {
 }, 60_000);
 // teams (round 21.3): one sentence, because the selector on your row is the
 // only place the feature is discoverable and "same number = allies" is the rule
-$('lobbyFormat').textContent = `First to ${ROUND.KILLS_TO_WIN} kills wins.`;
+
 $('shopIncome').textContent = goldRules;
 // the long-form rules live behind the 📜 Rules fold (round 22 declutter)
 $('lobbyRulesBody').innerHTML = [
@@ -865,7 +865,16 @@ $('presetQwerty').addEventListener('click', () => applyPreset('qwerty'));
 $('presetAzerty').addEventListener('click', () => applyPreset('azerty'));
 function closeKeysPanel() { cancelCapture(); $('keysPanel').classList.add('hidden'); }
 $('keysCloseBtn').addEventListener('click', closeKeysPanel);
-$('lobbyKeysBtn').addEventListener('click', () => $('keysPanel').classList.remove('hidden'));
+$('lobbyKeysBtn').addEventListener('click', () => {
+  $('rulesPop').classList.add('hidden');
+  $('keysPanel').classList.remove('hidden');
+});
+// v6 (Sam): rules, controls and the way into the key bindings live in one popover
+$('rulesBtn').addEventListener('click', () => $('rulesPop').classList.remove('hidden'));
+$('rulesCloseBtn').addEventListener('click', () => $('rulesPop').classList.add('hidden'));
+$('rulesPop').addEventListener('click', (e) => {
+  if (e.target === $('rulesPop')) $('rulesPop').classList.add('hidden');
+});
 
 // ---- rebinding: ONE rule, both entry points ---------------------------------
 // Round 21.7 (Remi): "any key just works". Esc or a click outside cancels;
@@ -940,12 +949,17 @@ const seg = (id, fn) => {
     b.addEventListener('click', () => fn(b.dataset.v));
 };
 seg('specSeg', (v) => send({ t: 'spectate', on: v === 'watch' }));
-seg('modeSeg', (v) => send({ t: 'mode', mode: v }));
-// draft is an INDEPENDENT flag, not a fourth ruleset: it rides on top of
-// whichever ruleset is selected (docs/ROUND12.md S7)
-seg('draftSeg', (v) => send({ t: 'draft', on: v === 'on' }));
-seg('testSeg', (v) => send({ t: 'testing', on: v === 'on', gold: +$('testingGold').value || 0 }));
-seg('chatSeg', (v) => send({ t: 'chatter', on: v === 'on' }));
+// v6 (Sam): each setting is ONE button showing its current state; a click asks
+// the server for the other one. draft is an INDEPENDENT flag, not a fourth
+// ruleset: it rides on top of whichever ruleset is selected (docs/ROUND12.md S7)
+$('modeSet').addEventListener('click', () =>
+  send({ t: 'mode', mode: (latest() || {}).mode === 'classic' ? 'elemental' : 'classic' }));
+$('draftSet').addEventListener('click', () =>
+  send({ t: 'draft', on: !(latest() || {}).draft }));
+$('testSet').addEventListener('click', () =>
+  send({ t: 'testing', on: !(latest() || {}).testing, gold: +$('testingGold').value || 0 }));
+$('chatSet').addEventListener('click', () =>
+  send({ t: 'chatter', on: (latest() || {}).chat === false }));
 $('testingGold').addEventListener('change', () => {
   const s = latest();
   if (s && s.testing)
@@ -1054,20 +1068,19 @@ const BOT_ICON = {
     b.innerHTML = (BOT_ICON[kind]
       ? `<img class="dicon" src="../assets/ui/icons/difficulty/${BOT_ICON[kind]}.png" alt="">` : '')
       + `<span>+ ${esc(botLabel(kind))}</span>`;
-    const sel = document.createElement('select');
-    sel.className = 'botsel';
-    sel.id = `botBuild-${kind}`;
-    sel.title = 'Build strategy for the next added bot (see “strategies explained” below)';
-    // issue #7: a `kinds` build belongs to those tiers only (the Faker's combo
-    // arsenals), and a tier that has its own builds offers nothing else
-    const hasOwn = Object.values(BUILDS).some(b => b.kinds && b.kinds.includes(kind));
-    const offered = Object.entries(BUILDS).filter(([, bs]) =>
-      bs.kinds ? bs.kinds.includes(kind) : !hasOwn);
-    sel.innerHTML = `<option value="random">🎲 random</option>` +
-      offered.map(([k, bs]) =>
-        `<option value="${k}" title="${esc(bs.desc)}">${esc(bs.name.toLowerCase())}</option>`).join('');
-    b.addEventListener('click', () => send({ t: 'addBot', kind, build: sel.value }));
-    group.append(b, sel);
+    // v6 (Sam): no strategy dropdown here. A new bot rolls a random build (the
+    // engine does that when none is named) and its row in the warlock list is
+    // where the strategy is chosen afterwards.
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'botplus';
+    add.id = `addBotPlus-${kind}`;
+    add.title = `Add a ${botLabel(kind)} bot`;
+    add.textContent = '+';
+    const seat = () => send({ t: 'addBot', kind, build: 'random' });
+    b.addEventListener('click', seat);
+    add.addEventListener('click', seat);
+    group.append(b, add);
     wrap.appendChild(group);
   }
 }
@@ -2159,19 +2172,44 @@ function updateUi(s) {
     const list = $('playerList');
     // Replacing a focused native select closes its menu. Leave the list alone
     // until the player has picked a team, then the next snapshot refreshes it.
-    if (!(document.activeElement && document.activeElement.matches('#playerList .teamsel select'))) {
+    if (!(document.activeElement && document.activeElement.matches('#playerList select'))) {
       list.innerHTML = '';
       for (const p of playerList) {
         const div = document.createElement('div');
         div.className = 'pl';
-        div.innerHTML = `<span class="dot" style="background:${p.color}"></span>
-          <span class="who">${avatarHtml(p.avatar)} ${esc(p.name)}${p.spectator ? ' 👁' : ''}${p.bot ? ` 🤖 <span class="stars">${esc(botLabel(p.kind))}${p.build && BUILDS[p.build] ? ' · ' + esc(BUILDS[p.build].name.toLowerCase()) : ''}</span>` : ''}${p.id === myId ? ' (you)' : ''}${pingBadge(p.id)}</span>
+        // v6 (Sam): the light is READY STATE ONLY, never an identity colour
+        // (the warlock's colour still identifies it in the arena, where finding
+        // yourself mid-fight is what it is for).
+        div.innerHTML = `<span class="dot ${p.ready ? 'ready' : ''}"></span>
+          <span class="who">${avatarHtml(p.avatar, 'av big')} <span class="nm">${esc(p.name)}</span>${p.spectator ? ' 👁' : ''}${p.bot ? ` <span class="stars">${esc(botLabel(p.kind))}</span>` : ''}${p.id === myId ? ' <span class="stars">(you)</span>' : ''}${pingBadge(p.id)}</span>
           <span class="state ${p.ready ? 'ready' : ''}">${p.ready ? 'ready' : 'waiting'}</span>`;
+        // v6 (Sam): a seated bot's strategy is picked HERE now, not before it
+        // is added. Host only, like every other bot control.
+        if (p.bot && amHost) {
+          const wrap = document.createElement('span');
+          wrap.className = 'buildsel';
+          wrap.title = 'Shopping strategy for this bot (see "bot difficulties & strategies explained")';
+          const sel = document.createElement('select');
+          const hasOwn = Object.values(BUILDS).some(b => b.kinds && b.kinds.includes(p.kind));
+          for (const [k, bs] of Object.entries(BUILDS)) {
+            if (bs.kinds ? !bs.kinds.includes(p.kind) : hasOwn) continue;
+            const o = document.createElement('option');
+            o.value = k; o.textContent = bs.name.toLowerCase();
+            sel.appendChild(o);
+          }
+          if (p.build) sel.value = p.build;
+          sel.addEventListener('change', () => {
+            send({ t: 'botBuild', id: p.id, build: sel.value });
+            sel.blur();
+          });
+          wrap.appendChild(sel);
+          div.appendChild(wrap);
+        }
         // Team number (round 21.3). You set your OWN, plus the bots', so one
         // person can arrange a 2v2 without everybody clicking. Other humans show
         // a read-only chip: their side is theirs to pick.
         if (s.mode !== 'coop') {
-          if (p.id === myId || (p.bot && amHost)) {
+          if (p.bot && amHost) {
             const wrap = document.createElement('span');
             wrap.className = 'teamsel';
             wrap.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
@@ -2184,7 +2222,7 @@ function updateUi(s) {
             sel.value = String(p.team || 1);
             sel.style.color = teamTint(p.team);
             sel.addEventListener('change', () => {
-              send({ t: 'team', n: +sel.value, ...(p.bot ? { id: p.id } : {}) });
+              send({ t: 'team', n: +sel.value, id: p.id });
               sel.blur();
             });
             wrap.append('team', sel);
@@ -2229,14 +2267,44 @@ function updateUi(s) {
         b.classList.toggle('on', b.dataset.v === val);
     };
     segOn('specSeg', m && m.spectator ? 'watch' : 'play');
-    segOn('modeSeg', s.mode === 'classic' ? 'classic' : 'elemental');
-    segOn('draftSeg', s.draft ? 'on' : 'off');
-    segOn('testSeg', s.testing ? 'on' : 'off');
-    segOn('chatSeg', s.chat === false ? 'off' : 'on');
-    // guests still SEE every setting (the lit segment is the readout);
-    // they just can't click it
-    for (const sid of ['modeSeg', 'draftSeg', 'testSeg', 'chatSeg'])
-      $(sid).classList.toggle('locked', !amHost);
+    // v6 (Sam): one line says what this match IS; one button per setting says
+    // what that setting IS, and both read straight off the snapshot.
+    const fighters = playerList.filter((p) => !p.spectator).length;
+    $('matchLine').textContent = [
+      s.mode === 'classic' ? 'Classic' : 'Elemental',
+      `First to ${ROUND.KILLS_TO_WIN} kills`,
+      `${fighters} player${fighters === 1 ? '' : 's'}`,
+    ].join(' · ');
+    $('plCount').textContent = fighters ? `(${fighters})` : '';
+    $('myName').textContent = (m && m.name) || '';
+    // my team moved into the player card (v6, Sam). Everyone sets their own
+    // there; the host still sets the bots' teams from their rows.
+    const slot = $('myTeamSlot');
+    if (s.mode !== 'coop' && m && document.activeElement !== slot.firstChild) {
+      if (!slot.firstChild) {
+        const sel = document.createElement('select');
+        for (let n = 1; n <= TEAMS.MAX; n++) {
+          const o = document.createElement('option');
+          o.value = String(n); o.textContent = String(n);
+          sel.appendChild(o);
+        }
+        sel.title = 'Team. Same number = allies: your spells pass through each other and you win rounds together.';
+        sel.addEventListener('change', () => { send({ t: 'team', n: +sel.value }); sel.blur(); });
+        slot.appendChild(sel);
+      }
+      slot.firstChild.value = String(m.team || 1);
+      slot.firstChild.style.color = teamTint(m.team);
+    }
+    const setState = (id, on, text) => {
+      const b = $(id);
+      b.querySelector('b').textContent = text;
+      b.classList.toggle('on', !!on);
+      b.classList.toggle('locked', !amHost);
+    };
+    setState('modeSet', s.mode !== 'classic', s.mode === 'classic' ? 'CLASSIC' : 'ELEMENTAL');
+    setState('draftSet', !!s.draft, s.draft ? 'ON' : 'OFF');
+    setState('testSet', !!s.testing, s.testing ? 'ON' : 'OFF');
+    setState('chatSet', s.chat !== false, s.chat === false ? 'OFF' : 'ON');
     $('hostHint').classList.toggle('hidden', amHost);
     $('botPanel').classList.toggle('hidden', !amHost);
     const testGold = $('testingGold');

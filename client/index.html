@@ -728,7 +728,7 @@
   /* v5 polish (Sam): steel blue-black instead of brown, and the loud ember top
      border becomes the same bronze as the rest of the frame. */
   .slab.gathering {
-    padding: 28px 28px 16px;
+    padding: 26px 28px 12px;
     background: linear-gradient(180deg, #08111b, #060d16);
     border: 1px solid rgba(197, 154, 88, .5);
     border-top: 1px solid rgba(197, 154, 88, .5);
@@ -840,6 +840,64 @@
   #avatarGrid .avpick { display: block; width: 74px; height: 74px; overflow: hidden; border-radius: 4px; line-height: 0; }
   #avatarGrid .avpick > img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
   /* bot rows: Sam's v5 metrics (icon 24-26, row 40-44, select ~40) */
+  /* ---- v6 information hierarchy (Sam) --------------------------------- */
+  .gathering #matchLine { font-size: 14px; color: #cbbb9c; letter-spacing: .03em; margin: 6px 0 0; display: inline; }
+  .gathering #rulesBtn { margin-left: 10px; padding: 4px 10px; vertical-align: 1px; }
+  /* the rating stars sit INSIDE the panel now, clear of the corner filigree */
+  .gathering #rateBox {
+    position: static; flex: none; align-self: flex-start;
+    margin: 16px 0 0; padding: 4px 8px; font-size: 16px; letter-spacing: 3px;
+    border: 1px solid rgba(197, 154, 88, .28); background: rgba(10, 18, 28, .75);
+  }
+  /* YOU as a player card */
+  .gathering .youblock {
+    padding: 9px 12px; border: 1px solid rgba(197, 154, 88, .3);
+    background: rgba(12, 20, 30, .55); align-items: center; gap: 12px;
+  }
+  .gathering .youacts { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 190px; }
+  .gathering .pcname {
+    font-family: Georgia, 'Times New Roman', serif; font-size: 19px; color: #f2e3c2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .gathering .pcrow { display: flex; align-items: center; gap: 8px; }
+  .gathering .pclbl { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #a0917a; }
+  .gathering #myTeamSlot select {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .35);
+    color: inherit; font: inherit; font-size: 13px; padding: 3px 5px;
+  }
+  .gathering .pcrow .mini { margin-left: auto; }
+  /* one clickable state per setting */
+  .gathering .setting {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px; background: linear-gradient(#141d27, #0d141b);
+    border: 1px solid rgba(197, 154, 88, .38); color: #cbbb9c;
+  }
+  .gathering .setting b { font-size: 12px; letter-spacing: .12em; color: #9a8d76; }
+  .gathering .setting.on b { color: #e8d09a; }
+  .gathering .setting.on { border-color: rgba(214, 173, 100, .7); box-shadow: inset 0 -2px 0 #c8a05a; }
+  .gathering .setting.locked { pointer-events: none; opacity: .6; }
+  /* ADD BOTS without the strategy column */
+  .gathering .botcols, .gathering .botgroup { grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; }
+  .gathering .botcols span:last-child { text-align: center; }
+  .gathering .botplus {
+    height: 40px; font-size: 18px; line-height: 1; padding: 0;
+    background: linear-gradient(#141d27, #0d141b); border: 1px solid rgba(197, 154, 88, .38);
+    color: #e8d09a;
+  }
+  .gathering .botplus:hover { border-color: #d3a55e; color: #fff; }
+  /* WARLOCKS: bigger faces, ready-only light, per-bot strategy */
+  .gathering #playerList .av.big { width: 38px; height: 38px; vertical-align: -12px; }
+  .gathering #playerList .dot {
+    width: 11px; height: 11px; background: #b7503a; box-shadow: 0 0 7px rgba(183, 80, 58, .5);
+  }
+  .gathering #playerList .dot.ready { background: #8dd46d; box-shadow: 0 0 7px rgba(141, 212, 109, .55); }
+  .gathering #playerList .nm { font-size: 15px; color: #f0e2c0; }
+  .gathering #playerList .buildsel select {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .35); color: #cbbb9c;
+    font: inherit; font-size: 12px; padding: 3px 6px; max-width: 130px;
+  }
+  .gathering .count { color: #a0917a; font-size: 13px; letter-spacing: .06em; }
+
   /* ---- v5.1 polish (Sam's passes: top area, hierarchy, typography,
      alignment, density). Colour, spacing and type only: no control moved,
      nothing renamed, no behaviour touched. ------------------------------- */
@@ -860,12 +918,11 @@
     font-size: 17px; font-weight: 500; letter-spacing: .1em; text-transform: none;
     color: #f0dcb6; margin: 0 0 5px;
   }
-  .gathering .divider { display: block; width: auto; height: 13px; max-width: 100%;
-    object-fit: contain; object-position: left center; margin: 0 0 7px; }
+  .gathering .divider { display: block; width: auto; height: 12px; max-width: 100%;
+    object-fit: contain; object-position: left center; margin: 0 0 6px; }
   /* ADD BOTS: one grid for the header and every row, so the two columns line
      up exactly; tighter gaps for density */
   .gathering .botpicker { max-width: 100%; }
-  .gathering .botcols, .gathering .botgroup { grid-template-columns: minmax(0, 152px) minmax(0, 1fr); gap: 8px; }
   .gathering .botcols {
     padding: 0 2px 5px; font-size: 10px; letter-spacing: .12em; color: #a0917a;
   }
@@ -873,7 +930,7 @@
   .gathering .botadd { font-size: 14px; padding: 0 10px; }
   /* WARLOCKS: stronger rows, even rhythm, secondary text lifted out of the mud */
   .gathering #playerList .pl {
-    gap: 11px; padding: 7px 10px; min-height: 42px;
+    gap: 11px; padding: 6px 10px; min-height: 40px;
     border-bottom: 1px solid rgba(197, 154, 88, .16);
     background: linear-gradient(90deg, rgba(255,255,255,.022), rgba(255,255,255,0));
   }
@@ -904,15 +961,14 @@
   .gathering #specSeg::before { content: ''; min-width: 64px; flex: none; }
   .gathering #lobbyRules { margin-top: 6px; }
   .gathering .hint { margin-top: 6px; }
-  .gathering .botadd { white-space: nowrap; min-height: 42px; display: flex; align-items: center; }
+  .gathering .botadd { white-space: nowrap; min-height: 40px; display: flex; align-items: center; }
   .gathering select.botsel { height: 40px; font-size: 13px; }
   .gathering #botBtns { gap: 6px; }
   .gathering .botadd .dicon { width: 25px; height: 25px; object-fit: contain; margin-right: 8px; }
   .gathering .botpicker { max-width: 340px; }
-  .gathering .botcols, .gathering .botgroup { grid-template-columns: 148px minmax(0, 1fr); }
   /* the seal IS the experimental mark here, so the text chip stands down */
   .gathering #playerList { margin-bottom: 0; }
-  .gathering .ideaPitch { position: relative; min-height: 62px; padding-left: 68px; margin-top: 10px;
+  .gathering .ideaPitch { position: relative; min-height: 58px; padding-left: 66px; margin-top: 8px;
     background: rgba(197, 154, 88, .05); border-color: rgba(197, 154, 88, .35); }
   .gathering .ideaPitch .experimental { display: none; }
   .gathering .ideaPitch .seal { position: absolute; left: -4px; top: 50%; transform: translateY(-50%); width: 66px; }
@@ -1014,23 +1070,18 @@
     <img class="gdecor corner left" src="../assets/ui/decor/corner_top_left.png" alt="">
     <img class="gdecor corner right" src="../assets/ui/decor/corner_top_right.png" alt="">
     <img class="gdecor crest" src="../assets/ui/decor/top_crest.png" alt="">
-    <div id="rateBox" title="Rate this version (the average shows in the version list)"></div>
+    <!-- v6 (Sam): ONE summary line instead of the intro paragraph, and the rules
+         wall lives behind a button now (the key bindings moved in there too).
+         The rating stars sit in the header FLOW, inward and below the corner
+         filigree, so they read as UI and not as part of the frame. -->
     <div class="gtop">
       <div>
         <h1 class="display" style="font-size:26px">The Gathering</h1>
-        <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
-          <span id="lobbyFormat"></span></p>
+        <p class="sub" id="matchLine"></p>
+        <button id="rulesBtn" class="mini" type="button">&#9432; Rules &amp; controls</button>
       </div>
-      <div class="gems">
-        <img src="../assets/ui/icons/gems/gold.png" alt=""><img src="../assets/ui/icons/gems/red.png" alt="">
-        <img src="../assets/ui/icons/gems/purple.png" alt=""><img src="../assets/ui/icons/gems/blue.png" alt="">
-        <img src="../assets/ui/icons/gems/white.png" alt="">
-      </div>
+      <div id="rateBox" title="Rate this version (the average shows in the version list)"></div>
     </div>
-    <!-- Round 22 (Remi): the wall of rules text is collapsed behind one word;
-         the controls line stays always visible. -->
-    <details id="lobbyRules" class="hint"><summary>📜 Rules</summary><div id="lobbyRulesBody"></div></details>
-    <p class="hint" id="controlsHint" style="margin:4px 0 0"></p>
     <div class="scroller">
       <!-- Controls FIRST, the growing player list LAST (Remi: clicking an
            add-bot button must never shift the other buttons under the cursor).
@@ -1044,39 +1095,43 @@
               <span id="myAvatar"></span>
             </div>
             <div class="youacts">
-              <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
-              <button id="shopBrowseBtn" class="mini" type="button"
-                title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Shop</button>
-              <button id="avatarBtn" class="mini wide" type="button">Choose your avatar</button>
+              <div class="pcname" id="myName"></div>
+              <div class="pcrow">
+                <span class="pclbl">Team</span><span id="myTeamSlot"></span>
+                <button id="avatarBtn" class="mini" type="button">Change avatar</button>
+              </div>
+              <div class="seg" id="specSeg" title="Spectators watch from the sidelines and never spawn.">
+                <button type="button" data-v="play">Playing</button><button type="button" data-v="watch">Watching</button>
+              </div>
             </div>
             <button id="readyBtn" class="primary plaque">I am ready</button>
           </div>
-          <!-- Config, not actions (round 22.1): segmented toggles. Both values
-               visible, the active one lit, so nobody has to guess. -->
+          <div class="row" style="margin-top:8px">
+            <button id="shopBrowseBtn" class="mini" type="button"
+              title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Browse the shop</button>
+          </div>
+          <!-- v6 (Sam): one compact clickable state per setting. The button NAMES
+               the current value and a click flips it; the server is still the
+               authority, so the label only changes when the snapshot says so. -->
+          <h2 class="secttl" style="margin-top:12px">Match settings</h2>
+          <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
           <div class="cfgcol">
-            <div class="seg" id="specSeg" title="Spectators watch from the sidelines and never spawn.">
-              <button type="button" data-v="play">Playing</button><button type="button" data-v="watch">Watching</button>
-            </div>
-            <div class="seg" id="modeSeg"
+            <button class="setting" id="modeSet" type="button"
               title="Elemental (the default): the fireball itself never levels. Eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…), three levels each. Classic keeps the 3-level fireball. Applies to everyone.">
-              <span class="lbl">Rules</span><button type="button" data-v="elemental">Elemental</button><button type="button" data-v="classic">Classic</button>
-            </div>
-            <div class="seg" id="draftSeg"
+              <span class="pclbl">Rules</span><b></b></button>
+            <button class="setting" id="draftSet" type="button"
               title="Draft (experimental): half of everything (spells, items and elements together) leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">
-              <span class="lbl">Draft</span><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button>
-            </div>
-            <div class="seg" id="testSeg"
+              <span class="pclbl">Draft</span><b></b></button>
+            <button class="setting" id="testSet" type="button"
               title="Testing sandbox: everyone starts with the gold you set and the game opens in an UNTIMED shop. Inspect anything, build a combo, ready up to fight.">
-              <span class="lbl">Testing</span><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button>
-            </div>
+              <span class="pclbl">Testing</span><b></b></button>
             <label id="testingGoldWrap" class="testinggold hidden">Everyone starts with
               <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
                 aria-label="Starting gold per player"> gold
             </label>
-            <div class="seg" id="chatSeg"
+            <button class="setting" id="chatSet" type="button"
               title="Avatars occasionally say short lines when things happen (hits, kills, a swim). Cosmetic only.">
-              <span class="lbl">Reactions</span><button type="button" data-v="on">On</button><button type="button" data-v="off">Off</button>
-            </div>
+              <span class="pclbl">Reactions</span><b></b></button>
             <div id="hostHint" class="hint hidden">The host sets the rules and the bots.</div>
           </div>
         </div>
@@ -1084,7 +1139,7 @@
           <h2 class="secttl">Add bots</h2>
           <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
           <div class="botpicker">
-            <div class="botcols"><span>Difficulty</span><span>Strategy</span></div>
+            <div class="botcols"><span>Difficulty</span><span>Add</span></div>
             <div id="botBtns"></div>
           </div>
           <div class="row" id="botRow" style="margin-top:8px">
@@ -1103,7 +1158,7 @@
         <div id="lobbyInviteUrl" class="hosturl"></div>
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
-      <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
+      <h2 class="secttl" style="margin-top:14px">Warlocks <span id="plCount" class="count"></span></h2>
       <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
       <div id="playerList"></div>
       <div class="ideaPitch">
@@ -1143,6 +1198,22 @@
      live standings. pointer-events off so a held key never blocks a click. -->
 <div id="scorepanel" class="hidden">
   <div class="scoreslab"><table id="scoreStats" class="stats"></table></div>
+</div>
+
+<!-- v6 (Sam): the rules wall and the control line live behind one button now.
+     The key bindings stay reachable from here: a non-QWERTY player must always
+     be able to rebind (round 21.7 scar). -->
+<div id="rulesPop" class="overlay hidden">
+  <div class="slab" style="--w:560px">
+    <h1 class="display" style="font-size:22px">Rules &amp; controls</h1>
+    <p class="hint" id="controlsHint" style="margin:2px 0 10px"></p>
+    <div class="scroller"><div id="lobbyRulesBody"></div></div>
+    <div class="row" style="margin-top:14px">
+      <button id="lobbyKeysBtn" class="mini" type="button">&#9000; Key bindings</button>
+      <span style="flex:1"></span>
+      <button id="rulesCloseBtn" class="primary" type="button">Close</button>
+    </div>
+  </div>
 </div>
 
 <div id="avatarPanel" class="overlay hidden">

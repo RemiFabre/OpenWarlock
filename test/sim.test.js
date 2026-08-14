@@ -47,6 +47,21 @@ describe('avatars', () => {
     }
   });
 
+  it('picking any roster avatar over the wire keeps it whole', () => {
+    // v5.2 (Sam): the pick handler truncated to 8 characters, so every name
+    // longer than that ('elemental_fire', 'living_rock', 'meteorite',
+    // 'necromancer') could be chosen and then silently failed to render.
+    const long = AVATARS.filter(a => a.length > 8);
+    expect(long.length).toBeGreaterThan(0);
+    for (const av of long) {
+      const eng = createEngine({ seed: 3 });
+      eng.join('c1', { name: 'picky' });
+      eng.message('c1', { t: 'avatar', avatar: av });
+      const mine = Object.values(eng.game.players).find(p => !p.bot);
+      expect(mine.avatar).toBe(av);
+    }
+  });
+
   it('a player who picked nothing still gets a face from the roster', () => {
     const state = createGame();
     addPlayer(state, 'pY', 'w', {});

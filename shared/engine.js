@@ -245,7 +245,11 @@ export function createEngine({
         case 'avatar': {
           // the lobby picker (round 22.1): one avatar per face. A taken one is
           // refused silently and the snapshot keeps your current look.
-          const want = typeof m.avatar === 'string' ? m.avatar.trim().slice(0, 8) : '';
+          // ⚠ v5.2 (Sam): this used to TRUNCATE to 8 characters, an emoji-sized
+          // cap that quietly broke every roster name longer than that
+          // ('elemental_fire' -> 'elementa'), so those faces could be picked
+          // but never appeared. Validate against the roster instead of cutting.
+          const want = AVATARS.includes(m.avatar) ? m.avatar : '';
           if (want && !Object.values(game.players).some(p => p.id !== id && p.avatar === want))
             pl.avatar = want;
           break;
@@ -321,6 +325,21 @@ export function createEngine({
           const r = refundBuy(game, id, String(m.id || ''));
           onLog('refund', { id, thing: m.id, ok: r.ok, err: r.err });
           if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
+          break;
+        }
+        // issue #14 (Sam v6): the strategy picker moved OUT of "add bots" and
+        // INTO the bot's row in the warlock list, so a seated bot's build has
+        // to be changeable. Host-only and lobby-only, like every other bot
+        // control; the build itself does exactly what it always did.
+        case 'botBuild': {
+          if (!hostOnly()) break;
+          if (game.phase !== 'lobby') break;
+          const bp = game.players[String(m.id || '')];
+          if (!bp || !bp.bot) break;
+          const allowed = Object.keys(BUILDS).filter(k =>
+            BUILDS[k].kinds ? BUILDS[k].kinds.includes(bp.kind)
+              : !Object.values(BUILDS).some(b => b.kinds && b.kinds.includes(bp.kind)));
+          if (allowed.includes(String(m.build))) bp.build = String(m.build);
           break;
         }
         case 'addBot': {

@@ -69,8 +69,9 @@ export async function arena(opts = {}) {
     await p[0].waitForTimeout(200);
   }
   if (gold > 0) {
-    // the sandbox flag became a segmented toggle in round 22.1
-    await p[0].click('#testSeg button[data-v="on"]');
+    // the sandbox flag: a segmented toggle in round 22.1, one state button
+    // since the v6 lobby (issue #14, Sam)
+    await p[0].click('#testSet');
     await p[0].fill('#testingGold', String(gold));
     await p[0].waitForTimeout(300);
   }

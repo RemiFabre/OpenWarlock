@@ -76,21 +76,23 @@ try {
   await page.waitForSelector('#lobby:not(.hidden)', { timeout: 5000 });
   console.log('joined the in-tab lobby');
 
-  const teamSel = '#playerList .teamsel select';
+  // v6 (issue #14, Sam): your own team selector lives in the YOU player card
+  // now; the bots' selectors stay on their rows in the warlock list.
+  const teamSel = '#myTeamSlot select';
   await page.focus(teamSel);
   await page.evaluate((s) => { document.querySelector(s).dataset.focusProbe = 'kept'; }, teamSel);
   await sleep(300);
   if (await page.getAttribute(teamSel, 'data-focus-probe') !== 'kept')
     fail('team selector was rebuilt while open');
   await page.selectOption(teamSel, '2');
-  // (the testing toggle is a segmented control since the lobby rework)
-  await page.click('#testSeg button[data-v="on"]');
+  // (v6: each setting is ONE button naming its current state)
+  await page.click('#testSet');
   await page.waitForSelector('#testingGoldWrap:not(.hidden)', { timeout: 3000 });
   await page.click('#ideaBtn');
   await page.waitForSelector('#ideaOverlay:not(.hidden)', { timeout: 3000 });
   await page.click('#ideaCloseBtn');
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'hosting-solo-lobby.png') });
-  await page.click('#testSeg button[data-v="off"]');
+  await page.click('#testSet');
   await page.waitForSelector('#testingGoldWrap.hidden', { state: 'attached', timeout: 3000 });
 
   await page.click('#addBot-berserker');
