@@ -431,6 +431,22 @@ ceiling), B3 +40 on one seed, everything else within noise, 4000/4000 games
 finished with craters in play. Levers if live play disagrees: `goldOnClaim`
 2, `markEvery`, `craterR`, `EXIT_DIST`.
 
+## Round 24.2: the 1/x cadence ruling (2026-08-14)
+
+Levels that scale a cooldown-gated effect are computed in FREQUENCY space
+now (the ruling lives in AGENTS.md): "+p% per level" = CD / (1+p), rounded.
+Applied at +35%/level: anger markEvery [30,25,20] -> [30,22,16], midas
+[30,25,20] -> [20,15,11] (new 20 s base, Remi's spec). Portal EXIT_DIST
+2.5 -> 5 the same day (too bunched), and the exit rune is an "x".
+
+Measured (standard 2000-game elo, seeds 1+2, vs the 24.1 table):
+**D3-tycoon 1199 -> 1307/1334** (the midas build; the faster cadence pays
+~61 g/game of claims, up from 43), B3 anger ~1620 (inside noise), K5 flat.
+The mixed-lobby gap to anger remains (depth beats breadth for bots; the
+full account is the gold-probe analysis in this round's notes). A full CD
+audit against the 35% default was reported to Remi in-chat; no other CDs
+were changed.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*

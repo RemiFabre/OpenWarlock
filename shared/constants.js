@@ -316,7 +316,8 @@ export const SPELLS = {
     name: 'Fire Walk', hotkey: 'H', maxLevel: 2, costs: [10, 5],
     cooldown: 15, duration: [3, 5],
     desc: 'Walk on lava.',
-    long: 'For a few seconds lava deals you no damage at all. You still swim it at double speed, so a burning shortcut becomes a free one.',
+    // Remi (24.2 polish): one sentence only; short shop text is the house style.
+    long: 'For a few seconds lava deals you no damage at all.',
   },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
