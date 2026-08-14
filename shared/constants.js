@@ -689,9 +689,12 @@ export const ELEMENTS = {
   // Levels buy mark FREQUENCY only. Round 20 nerf (Remi): markEvery slowed
   // again; revert is [15, 10, 5] (round 19.3, itself from [10,7,5]).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
+  // Shop text ruling (Remi, 24.10b): desc = the classic two-word tag, and the
+  // hover NEVER reveals the revenge targeting; players discover on their own
+  // that the mark hunts their last killer.
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Patient, infinite scaling.',
-           long: 'A red mark hunts whoever killed you last; a fireball hit on them banks +0.5 damage forever. Your anger bar fills over 4.2 s: every fireball you throw releases it, adding the banked damage scaled by the charge.',
+           desc: 'Infinite scaling.',
+           long: 'A red mark appears on an opponent; a fireball hit on them banks +0.5 damage forever. Your anger bar fills over 4.2 s: every fireball you throw releases it, adding the banked damage scaled by the charge.',
            // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
            // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
            // CD_next = CD / 1.35, rounded. ANCHORED at lv3 = 20 s, the 22.5

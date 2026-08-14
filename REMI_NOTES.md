@@ -394,6 +394,9 @@ Your two rulings, shipped and measured (both tables rerun; details in
   on Hard, nothing destabilized. Fun fact: A3-elements-only is an 88 g core
   now and sits rank 2 on the Faker table: the cheapest strong build in the
   game.
+- Text polish (your call): anger's button says "Infinite scaling." again,
+  and the hover only says a mark "appears on an opponent". The revenge
+  targeting is nowhere in the UI; players discover it.
 
 ## Still waiting on you
 
