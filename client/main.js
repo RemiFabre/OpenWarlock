@@ -1414,23 +1414,28 @@ function tipUpgrade(lines, from, to) {
 }
 
 function tipBody(lines, cur, max, costAt, previewLv) {
-  // iteration 5 (Sam): every remaining level is visible, stacked in the same
-  // style — LV n+1 vs your level, then each further level vs the one before
-  // it. The dots stay as the level map (hovering them changes nothing now).
+  // v8.1 (Sam): the whole upgrade path SIDE BY SIDE again. LV 1 establishes the
+  // base, every later column shows ONLY what it changes, and a mechanic that
+  // appears at a level wears the gold NEW badge. At MAX the path is history:
+  // the tooltip becomes the final form and nothing else.
   const maxed = cur >= max;
   let h = tipProg(cur, max, maxed ? 0 : cur + 1);
-  if (cur >= 1) {
-    h += `<div class="lvhead l${Math.min(cur, 3)}">CURRENT · LV ${cur}${maxed ? ' · MAX' : ''}</div>` +
+  if (maxed) {
+    h += `<div class="lvhead final l${Math.min(cur, 3)}">FINAL FORM · LV ${cur} · MAX</div>` +
       `<div class="stats">${tipStatList(lines, cur)}</div>`;
+    return h;
   }
-  for (let t = cur + 1; t <= max; t++) {
-    const from = t - 1;
-    h += `<div class="lvhead l${t}">LV ${t}${t === cur + 1 && cur >= 1 ? ' · NEXT' : ''} · ` +
-      `<span class="cost">${esc(costAt(t))}</span>` +
-      `${from >= 1 && from !== cur ? ` <span class="vs">vs lv ${from}</span>` : ''}</div>` +
-      `<div class="stats">${tipUpgrade(lines, from, t)}</div>`;
+  let cols = '';
+  for (let t = 1; t <= max; t++) {
+    const tag = t === cur ? ' · CURRENT' : t === cur + 1 ? ' · NEXT' : '';
+    const cls = t === cur ? ' is-cur' : t === cur + 1 ? ' is-next' : '';
+    cols += `<div class="lvcol${cls}">` +
+      `<div class="lvhead l${t}">LV ${t}${tag}` +
+      `${t > cur ? ` <span class="cost">${esc(costAt(t))}</span>` : ''}</div>` +
+      `<div class="stats">${t === 1 ? tipStatList(lines, 1) : tipUpgrade(lines, t - 1, t)}</div>` +
+      `</div>`;
   }
-  return h;
+  return h + `<div class="lvcols c${max}">${cols}</div>`;
 }
 
 function tipShell(icon, name, sub, desc, body, foot, lv = 0, max = 3) {
@@ -2069,14 +2074,22 @@ const teamsInPlay = (list) => list.some((p, i) =>
 // A player's full kit as icons: spells then items then elements, each ONE icon
 // carrying its level. Shown in the shop roster and standings.
 function kitIcons(p) {
+  // v8.1 (Sam): one visual language. A kit entry wears the shop's illustrated
+  // artwork (titled, so hovering names it) and falls back to its icon only when
+  // an entity has no art yet.
+  const kit = (k, badge = '') =>
+    `<span class="kitem" title="${esc((SPELLS[k] || ELEMENTS[k] || ITEMS[k] || {}).name || k)}">`
+    + `${artHtml(k, 'kicon')}${badge}</span>`;
   const parts = [];
   for (const [k, lv] of Object.entries(p.spells || {}))
-    if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
+    if (lv > 0 && (SHOP_ART.has(k) || ICONS[k]))
+      parts.push(kit(k, lv > 1 ? `<span class="klv">${lv}</span>` : ''));
   // ONE icon per item with its level on it, never N identical icons in a row
   // (that is what freely-stackable items used to render, and five pairs of boots
   // made the inventory unreadable). Same treatment as spells and elements.
   for (const [k, lv] of Object.entries(p.items || {}))
-    if (lv > 0 && ICONS[k]) parts.push(`${ICONS[k]}${lv > 1 ? `<span class="klv">${lv}</span>` : ''}`);
+    if (lv > 0 && (SHOP_ART.has(k) || ICONS[k]))
+      parts.push(kit(k, lv > 1 ? `<span class="klv">${lv}</span>` : ''));
   for (const [k, v] of Object.entries(p.elements || {}))
     if (v > 0 && ELEMENTS[k]) {
       if (k === 'anger') {
@@ -2085,12 +2098,12 @@ function kitIcons(p) {
         // visible in the shop, the bonus is the number that matters)
         const bonus = +p.angerMarks > 0
           ? `<span class="klv">+${(+p.angerMarks * ELEMENTS.anger.fx.markDmg).toFixed(1)}</span>` : '';
-        parts.push(`${ELEMENTS[k].icon}${bonus}`);
+        parts.push(kit(k, bonus));
       } else {
-        parts.push(`${ELEMENTS[k].icon}${v > 1 ? `<span class="klv">${v}</span>` : ''}`);
+        parts.push(kit(k, v > 1 ? `<span class="klv">${v}</span>` : ''));
       }
     }
-  return parts.join(' ');
+  return parts.join('');
 }
 
 // One scoreboard for the shop, the LIVE spectator panel and the end-of-game

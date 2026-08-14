@@ -222,10 +222,27 @@
   .seg.locked { pointer-events: none; opacity: .6; }
   #scorepanel {
     position: fixed; inset: 0; z-index: 230; display: grid; place-items: center;
-    pointer-events: none; background: rgba(10, 6, 4, 0.55);
+    pointer-events: none; background: rgba(8, 5, 3, 0.66);
   }
-  /* Round 23 (Remi): no backing box; the full-screen dim above is enough. */
-  #scorepanel .scoreslab { padding: 18px 22px; max-width: min(920px, 92vw); }
+  /* Round 23 (Remi) dropped the backing box because a dim over the old flat
+     arena was enough. The painted arena (v8) is far brighter, so the panel gets
+     its frame back, in the same blue-black and bronze as everything else
+     (v8.1, Sam: "a polished game scoreboard, not a debug data table"). */
+  #scorepanel .scoreslab {
+    padding: 16px 20px; width: fit-content; max-width: min(1180px, 94vw); margin: 0 auto;
+    background: linear-gradient(180deg, rgba(9, 16, 25, .96), rgba(6, 11, 18, .96));
+    border: 1px solid rgba(197, 154, 88, .45);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+  }
+  #scorepanel table.stats { width: auto; }
+  table.stats .kitem { display: inline-flex; align-items: center; margin-right: 4px; position: relative; }
+  table.stats .kicon { display: inline-grid; place-items: center; width: 22px; height: 22px; }
+  table.stats .kicon > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  table.stats .kicon.noart { font-size: 16px; }
+  /* the kit is the only elastic column: it WRAPS instead of pushing the table
+     past the panel's edge (v8.1) */
+  table.stats td.kit { line-height: 1; white-space: normal; max-width: 216px; }
+  table.stats td.kit .kitem { margin-bottom: 3px; }
   #keyList { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 24px; }
   #keysPanel .krow {
     display: flex; align-items: center; gap: 10px;
@@ -253,8 +270,9 @@
   #shopTimer.paused { color: var(--gold, #e8c65a); }
   #shopPauseBtn { padding: 6px 12px; font-size: 14px; margin-left: 10px; }
   #shopPauseBtn.on { color: var(--gold, #e8c65a); border-color: var(--gold, #e8c65a); }
-  #shopReadyBtn { padding: 12px 16px; font-size: 16px; }
-  #shopReadyBtn:disabled { opacity: .8; color: var(--ash); }
+  /* v8.1 (Sam): the between-round ready button IS the lobby's plaque; the old
+     bar's ID rules used to outrank it and paint its label over the plate. */
+  #shopReadyBtn:disabled { opacity: 1; color: transparent; }
   .botadd { padding: 6px 12px; font-size: 13px; }
   .botadd .stars, .pl .stars { color: var(--ash); font-size: 12px; }
   /* per-player RTT badge (round 18): green / amber / red by latency */
@@ -487,6 +505,7 @@
 
   /* ---- the one big stats table (shop + gameover) ---- */
   table.stats { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.stats th.n, table.stats td.n { padding-left: 7px; padding-right: 7px; }
   table.stats th, table.stats td {
     padding: 6px 10px; border-bottom: 1px solid var(--line);
     text-align: left; white-space: nowrap;
@@ -522,7 +541,8 @@
      numbers are the whole point of this table, the icon strip is a bonus */
   @media (max-width: 1200px) {
     table.stats { font-size: 11.5px; }
-    table.stats th, table.stats td { padding: 5px 6px; }
+    table.stats th.n, table.stats td.n { padding-left: 7px; padding-right: 7px; }
+  table.stats th, table.stats td { padding: 5px 6px; }
   }
   @media (max-width: 1020px) { table.stats .c-kit { display: none; } }
 
@@ -538,7 +558,7 @@
   }
   #tip {
     position: fixed; z-index: 200;
-    width: min(400px, calc(100vw - 24px));
+    width: min(620px, calc(100vw - 24px));
     box-shadow: 0 16px 48px rgba(0,0,0,.8);
   }
   .tipbox .tname { font-weight: 700; font-size: 15px; }
@@ -579,6 +599,21 @@
     padding-bottom: 3px; border-bottom: 1px solid #241c17;
   }
   .tipbox .lvhead .cost { color: var(--gold); }
+  /* v8.1 (Sam): the levels read across, not down */
+  .tipbox .lvcols { display: grid; gap: 10px; margin-top: 2px; }
+  .tipbox .lvcols.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tipbox .lvcols.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tipbox .lvcol {
+    min-width: 0; padding: 7px 9px 8px;
+    border: 1px solid rgba(197, 154, 88, .16); background: rgba(255, 255, 255, .015);
+  }
+  /* colour is spent on ONE column: the one you own */
+  .tipbox .lvcol.is-cur { border-color: rgba(197, 154, 88, .5); background: rgba(197, 154, 88, .07); }
+  .tipbox .lvcol.is-next { border-color: rgba(232, 198, 90, .32); }
+  .tipbox .lvcol:not(.is-cur) .stat b { color: #b3a58c; font-weight: 500; }
+  .tipbox .lvcol .lvhead { margin: 0 0 5px; font-size: 10.5px; }
+  .tipbox .lvcol .stat { font-size: 12px; }
+  .tipbox .lvhead.final { font-size: 12px; letter-spacing: .1em; }
   .tipbox .lvhead .vs { color: var(--ash); font-weight: 400; letter-spacing: .04em; }
   .tipbox .stat { display: flex; gap: 7px; align-items: baseline; padding: 2.5px 0; font-size: 12px; }
   .tipbox .stat > span { flex: 1; color: var(--ash); }
@@ -849,15 +884,24 @@
      own avatar renders cleanly inside it. The painted characters stay demo art,
      they never replace or restrict the avatar system. */
   .gathering .portrait {
-    width: 92px; height: 92px; flex: none; display: grid; place-items: center;
+    width: 124px; height: 124px; flex: none; display: grid; place-items: center;
     background: url('../assets/ui/portraits/placeholder.png') center/contain no-repeat;
     border: 0; padding: 0; cursor: pointer;
   }
   .gathering .portrait:hover { filter: brightness(1.12); }
   .gathering .portrait:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-  .gathering .portrait #myAvatar {
-    line-height: 0; display: grid; place-items: center;
+  /* v8.1 (Sam): the ONE square avatar. Everywhere else stays circular; here the
+     portrait fills the ornate frame's inner square, cover-cropped and centred,
+     so the artwork is not thrown away. */
+  /* v8.1 (Sam): the ONE SQUARE avatar. Everywhere else stays circular; here the
+     portrait fills the ornate frame's inner opening, cover-cropped and centred,
+     so none of the artwork is thrown away to a circle. */
+  .gathering .portrait #myAvatar { line-height: 0; display: block; width: 74%; height: 74%; }
+  .gathering .portrait #myAvatar .avbig {
+    width: 100%; height: 100%; border-radius: 0; box-shadow: none;
+    display: block; overflow: hidden;
   }
+  .gathering .portrait #myAvatar .avbig > img { transform: none; object-fit: cover; }
   /* v5.1 (Sam): Keys and Shop share one width, the avatar button spans both,
      so the three read as one tidy block beside the portrait. */
   .gathering .youacts {
@@ -1055,7 +1099,8 @@
   .gathering .gcol > .secttl { margin-top: 0; }
   /* a guest has no bot panel: the row rebalances instead of leaving a hole */
   .gathering .cols3:has(#botPanel.hidden) { grid-template-columns: 1fr 1fr; }
-  .gathering .cols3 .botpicker { max-width: 100%; }
+  /* v8.1 (Sam): the rows are only as wide as the little they contain */
+  .gathering .cols3 .botpicker { max-width: 178px; }
   @media (max-width: 980px) {
     .gathering .cols3 { grid-template-columns: minmax(0, 1fr); }
   }
@@ -1073,14 +1118,19 @@
   /* v6.2 (Sam): in a ~330px column the card stacks instead of wrapping oddly:
      portrait and name on one line, then the presence toggle, then READY. */
   .gathering .youblock {
-    padding: 10px 12px; border: 1px solid rgba(197, 154, 88, .3);
+    padding: 12px; border: 1px solid rgba(197, 154, 88, .3);
     background: rgba(12, 20, 30, .55);
     display: grid; grid-template-columns: auto minmax(0, 1fr);
-    align-items: center; gap: 8px 12px;
+    align-items: center; gap: 10px 14px;
   }
   .gathering .youacts {
-    display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 0;
+    display: flex; flex-direction: column; align-items: stretch; justify-content: center;
+    gap: 8px; min-width: 0; height: 100%;
   }
+  /* the presence toggle starts where the name starts: no dead column before it */
+  .gathering .youacts #specSeg { width: 100%; }
+  .gathering .youacts #specSeg::before { content: none; }
+  .gathering .youacts #specSeg button { padding: 8px 6px; }
   .gathering #readyBtn.plaque { grid-column: 1 / -1; justify-self: center; }
   .gathering .pcname {
     font-size: 18px; font-weight: 600; color: #f2e3c2;
@@ -1107,7 +1157,7 @@
   .gathering .botgroup { grid-template-columns: minmax(0, 1fr); }
   /* v6.1 (Sam): the rows are the add action, so they no longer need the full
      column: roughly half the old width, still comfortably clickable. */
-  .gathering .botpicker { max-width: 196px; }
+  .gathering .botpicker { max-width: 172px; }
   .gathering .infobtn {
     padding: 0 6px; margin-left: 6px; font-size: 13px; line-height: 1.4;
     background: none; border: 1px solid rgba(197, 154, 88, .38); color: #cbbb9c;
@@ -1189,10 +1239,11 @@
   .gathering #specSeg::before { content: ''; min-width: 64px; flex: none; }
   .gathering #lobbyRules { margin-top: 6px; }
   .gathering .hint { margin-top: 6px; }
-  .gathering .botadd { white-space: nowrap; min-height: 40px; display: flex; align-items: center; }
+  .gathering .botadd { white-space: nowrap; min-height: 38px; display: flex; align-items: center;
+    padding: 0 8px; font-size: 13.5px; }
   .gathering select.botsel { height: 40px; font-size: 13px; }
   .gathering #botBtns { gap: 6px; }
-  .gathering .botadd .dicon { width: 25px; height: 25px; object-fit: contain; margin-right: 8px; }
+  .gathering .botadd .dicon { width: 22px; height: 22px; object-fit: contain; margin-right: 7px; }
   /* the seal IS the experimental mark here, so the text chip stands down */
   .gathering #playerList { margin-bottom: 0; }
   .gathering .ideaPitch { position: relative; min-height: 58px; padding-left: 66px; margin-top: 8px;
