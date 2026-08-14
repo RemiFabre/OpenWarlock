@@ -720,6 +720,71 @@
   /* chosen element badge on the fireball spell slot */
   .spell .elem { position: absolute; top: 1px; right: 3px; font-size: 11px; }
 
+  /* ---- The Gathering skin (issue #14, Sam's v4 pack) --------------------
+     Decoration only, all of it scoped to .slab.gathering: the art sits behind
+     the controls (z-index 0 vs 1) and never takes a pointer, so every button
+     keeps the hit box it had. Sizes are in CSS pixels, so a wider window
+     shows the same panel, not bigger art. */
+  .slab.gathering { padding-top: 30px; }
+  .slab.gathering > *:not(.gdecor) { position: relative; z-index: 1; }
+  .gdecor { pointer-events: none; user-select: none; }
+  .gathering .corner { position: absolute; top: 0; width: 150px; z-index: 0; opacity: .95; }
+  .gathering .corner.left { left: 0; }
+  .gathering .corner.right { right: 0; }
+  .gathering .crest {
+    position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    width: 330px; z-index: 0; opacity: .95;
+  }
+  .gathering .divider { display: block; width: 100%; max-width: 320px; height: 10px; object-fit: fill; margin: -4px 0 10px; opacity: .85; }
+  .gathering .divider.wide { max-width: 100%; }
+  .gathering .gtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  /* the copy stops short of the crest, and the gems drop below the rating
+     stars: both live in the top-right corner and must not share a line */
+  .gathering .gtop > :first-child { max-width: 380px; }
+  .gathering .gems { display: flex; gap: 5px; margin-top: 26px; flex: none; }
+  .gathering .gems img { width: 18px; height: 18px; object-fit: contain; }
+  /* YOU: portrait frame + actions + the READY plaque, one row that wraps */
+  .gathering .youblock { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* Sam, explicitly: the ornate EMPTY frame is the treatment, and the player's
+     own avatar renders cleanly inside it. The painted characters stay demo art,
+     they never replace or restrict the avatar system. */
+  .gathering .portrait {
+    width: 88px; height: 88px; flex: none; display: grid; place-items: center;
+    background: url('../assets/ui/portraits/placeholder.png') center/contain no-repeat;
+  }
+  .gathering .portrait #myAvatar {
+    font-size: 34px; line-height: 1; width: 52px; height: 52px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: radial-gradient(circle, rgba(6,12,20,.96) 55%, rgba(6,12,20,0) 78%);
+  }
+  .gathering .youacts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  /* the plaque IS the button face: its two states are the two images, and the
+     label stays in the DOM (screen readers, and main.js still writes it) */
+  .gathering #readyBtn.plaque {
+    width: 152px; height: 58px; padding: 0; border: 0; background: transparent;
+    background-image: url('../assets/ui/buttons/ready_active.png');
+    background-size: contain; background-repeat: no-repeat; background-position: center;
+    color: transparent; text-shadow: none; overflow: hidden;
+  }
+  .gathering #readyBtn.plaque.primary { background-image: url('../assets/ui/buttons/ready_idle.png'); }
+  .gathering #readyBtn.plaque:hover { filter: brightness(1.12); }
+  .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+  /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
+  .gathering .botadd { white-space: nowrap; }
+  .gathering .botadd .dicon { width: 22px; height: 22px; object-fit: contain; vertical-align: -5px; margin-right: 6px; }
+  .gathering .botpicker { max-width: 340px; }
+  .gathering .botcols, .gathering .botgroup { grid-template-columns: 148px minmax(0, 1fr); }
+  /* the seal IS the experimental mark here, so the text chip stands down */
+  .gathering .ideaPitch { position: relative; min-height: 62px; padding-left: 68px; }
+  .gathering .ideaPitch .experimental { display: none; }
+  .gathering .ideaPitch .seal { position: absolute; left: -4px; top: 50%; transform: translateY(-50%); width: 66px; }
+  @media (max-width: 700px) {
+    .gathering .crest { width: 220px; }
+    .gathering .corner { width: 104px; }
+    .gathering .ideaPitch { padding-left: 62px; }
+    .gathering .ideaPitch .seal { width: 62px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
   }
@@ -804,11 +869,26 @@
 </div>
 
 <div id="lobby" class="overlay hidden">
-  <div class="slab" style="--w:960px; position:relative">
+  <!-- issue #14 (Sam v4): the ornate skin is decoration ONLY. Every control
+       below keeps the id and the handler it already had; the art is
+       pointer-events:none so it can never eat a click. -->
+  <div class="slab gathering" style="--w:960px; position:relative">
+    <img class="gdecor corner left" src="../assets/ui/decor/corner_top_left.png" alt="">
+    <img class="gdecor corner right" src="../assets/ui/decor/corner_top_right.png" alt="">
+    <img class="gdecor crest" src="../assets/ui/decor/top_crest.png" alt="">
     <div id="rateBox" title="Rate this version (the average shows in the version list)"></div>
-    <h1 class="display" style="font-size:26px">The Gathering</h1>
-    <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
-      <span id="lobbyFormat"></span></p>
+    <div class="gtop">
+      <div>
+        <h1 class="display" style="font-size:26px">The Gathering</h1>
+        <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
+          <span id="lobbyFormat"></span></p>
+      </div>
+      <div class="gems">
+        <img src="../assets/ui/icons/gems/gold.png" alt=""><img src="../assets/ui/icons/gems/red.png" alt="">
+        <img src="../assets/ui/icons/gems/purple.png" alt=""><img src="../assets/ui/icons/gems/blue.png" alt="">
+        <img src="../assets/ui/icons/gems/white.png" alt="">
+      </div>
+    </div>
     <!-- Round 22 (Remi): the wall of rules text is collapsed behind one word;
          the controls line stays always visible. -->
     <details id="lobbyRules" class="hint"><summary>📜 Rules</summary><div id="lobbyRulesBody"></div></details>
@@ -820,15 +900,20 @@
       <div class="cols2">
         <div>
           <h2 class="secttl">You</h2>
-          <div class="row">
-            <button id="readyBtn" class="primary">I am ready</button>
-            <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
-            <button id="shopBrowseBtn" class="mini" type="button"
-              title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Shop</button>
-          </div>
-          <div class="row" style="margin-top:10px; align-items:center">
-            <span id="myAvatar" style="font-size:26px" title="Your avatar (assigned free at join)"></span>
-            <button id="avatarBtn" class="mini" type="button">Choose your avatar</button>
+          <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
+          <div class="youblock">
+            <div class="portrait" title="Your avatar (assigned free at join)">
+              <span id="myAvatar"></span>
+            </div>
+            <div class="youacts">
+              <div class="row">
+                <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
+                <button id="shopBrowseBtn" class="mini" type="button"
+                  title="Browse everything the shop sells (buying still happens between rounds)"><span class="goldicon">🗿</span> Shop</button>
+              </div>
+              <button id="avatarBtn" class="mini" type="button">Choose your avatar</button>
+            </div>
+            <button id="readyBtn" class="primary plaque">I am ready</button>
           </div>
           <!-- Config, not actions (round 22.1): segmented toggles. Both values
                visible, the active one lit, so nobody has to guess. -->
@@ -861,6 +946,7 @@
         </div>
         <div id="botPanel">
           <h2 class="secttl">Add bots</h2>
+          <img class="gdecor divider" src="../assets/ui/decor/divider_small.png" alt="">
           <div class="botpicker">
             <div class="botcols"><span>Difficulty</span><span>Strategy</span></div>
             <div id="botBtns"></div>
@@ -882,8 +968,10 @@
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
       <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
+      <img class="gdecor divider wide" src="../assets/ui/decor/divider_small.png" alt="">
       <div id="playerList" style="min-height:216px"></div>
       <div class="ideaPitch">
+        <img class="gdecor seal" src="../assets/ui/decor/experimental_badge.png" alt="">
         <span class="experimental">experimental</span>
         <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
         <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write it here ↗</a>

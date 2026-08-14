@@ -1,0 +1,7 @@
+Lobby UI art (portraits, difficulty icons, gems, decor, READY plaques).
+
+Contributed by @SamKhosravi for issue #14 ("The Gathering" lobby v4 pack) and
+generated at his request with OpenAI image generation. Confirmed on the issue
+(2026-08-14) as his to license: no third-party or licensed game material. MIT,
+like the rest of the project. The two READY plaques, the crest, the small
+divider and the badge were downscaled to twice their display size.

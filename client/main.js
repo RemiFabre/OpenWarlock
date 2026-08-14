@@ -1019,6 +1019,11 @@ $('againBtn').addEventListener('click', () => {
 // are four of them. The list is BOTS in spec order, so a new tier appears here
 // (and in the 🎲 chart below) with no client change at all.
 const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
+// issue #14 (Sam v4): bot kind -> the pack's difficulty icon file.
+const BOT_ICON = {
+  grunt: 'easy', brawler: 'normal', berserker: 'hard', stalker: 'extreme',
+  faker: 'faker', runner: 'runner', dummy: 'dummy',
+};
 {
   const wrap = $('botBtns');
   for (const [kind, spec] of Object.entries(BOTS)) {
@@ -1029,7 +1034,12 @@ const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
     b.className = 'botadd';
     b.id = `addBot-${kind}`;
     b.title = spec.desc;
-    b.textContent = `+ ${botLabel(kind)}`;
+    // issue #14 (Sam v4): the painted difficulty icon rides the add button,
+    // keyed by BOT kind. A kind the pack has no icon for shows its label alone,
+    // so adding a tier to BOTS still needs no client change.
+    b.innerHTML = (BOT_ICON[kind]
+      ? `<img class="dicon" src="../assets/ui/icons/difficulty/${BOT_ICON[kind]}.png" alt="">` : '')
+      + `<span>+ ${esc(botLabel(kind))}</span>`;
     const sel = document.createElement('select');
     sel.className = 'botsel';
     sel.id = `botBuild-${kind}`;
