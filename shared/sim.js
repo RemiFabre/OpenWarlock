@@ -4265,8 +4265,19 @@ function stepBerserker(state, pl, dt) {
     // nobody can out-react. Round 24.4 (Remi): the wounded-prey DIVE (ring
     // 1.5 at prey <= 30 hp) is DELETED: rushing a low target to point-blank
     // was an unreactable kill, shield-or-die. One ring at every hp now.
+    // Round 24.5 (Remi): a melee-payload build (vampire marks to vacuum, a
+    // Hat ring to cook with) drops the standoff CLOSE_SHARE of the time,
+    // re-rolled every 2-4 s (seeded), so it actually collects its auras
+    // without face-camping full time.
     let ring = 8.5;
-    ring = Math.max(ring, (BOTS[pl.kind] || {}).standoff || 0);
+    const wantsClose = (pl.elements && pl.elements.vampire > 0) ||
+      (pl.items && pl.items.brazier > 0);
+    if (wantsClose && !(state.time < pl._closeUntil)) {
+      pl._closeIn = rng(state) < BOT_TARGETING.CLOSE_SHARE;
+      pl._closeUntil = state.time + 2 + rng(state) * 2;
+    }
+    if (!(wantsClose && pl._closeIn))
+      ring = Math.max(ring, (BOTS[pl.kind] || {}).standoff || 0);
     const tCenter = Math.hypot(target.x, target.y) || 1;
     // blend "our side of the prey" with "the center side of the prey"
     let dx = -(tdx / dist) * 0.5 - (target.x / tCenter) * 0.5;

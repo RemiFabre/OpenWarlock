@@ -881,6 +881,12 @@ export const BOT_TARGETING = {
   // Gated on BOTS[kind].difficulty >= Hard in pickPrey; Normal shares the
   // brain but not the kind, so it is untouched by construction.
   HUNT_MARK: 40,
+  // Round 24.5 (Remi): a build that WANTS melee range (vampire's feast, the
+  // Hat's burn) ignores the tier standoff and prowls the old close ring (8.5)
+  // this share of the time, re-rolled on a slow clock. 24.4's wider rings
+  // starved those builds of their own auras 100% of the time; this gives the
+  // benefit back HALF the time without re-crowning face-camping.
+  CLOSE_SHARE: 0.5,
 };
 
 // ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------

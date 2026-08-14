@@ -219,6 +219,19 @@ The fix DELETED per-frame DOM churn instead of adding machinery.
   because Normal's loose aim lands little from 18 units. If Normal now feels
   too passive, its standoff (or aimErr) is the lever.
 
+## 24.5: Melee builds close in half the time (your spec, measured honest)
+
+Bots whose build owns vampire or the Hat of Aura now drop the tier standoff
+back to the old 8.5 ring 50% of the time (re-rolled every 2-4 s), exactly as
+you asked. Measured (standard elo): it changed NOTHING (D4-leech 1427 ->
+1427). The reason is instructive: 8.5 was never inside the 7-unit feast/burn
+radii; what fed those builds before 24.4 was the wounded-prey DIVE to 1.5,
+which you deleted on purpose. So today the aura builds read as floors in the
+table and their real value is human piloting. If you want bots to genuinely
+feed on their auras, say the word and the close ring becomes 6 for payload
+builds (inside both radii, still half-time, still no dive). Table:
+`docs/history/2026-08-14-round245-elo-close-in.md`.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target

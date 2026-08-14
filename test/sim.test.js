@@ -4557,6 +4557,33 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
     }
   });
 
+  it('a melee-payload build (vampire/Hat) drops the standoff about half the time (24.5)', () => {
+    // Sample the prowl point over many re-roll windows: a vampire owner must
+    // sometimes prowl the close ring (below its standoff) and sometimes honour
+    // it; a build with neither payload must NEVER drop below the standoff.
+    const ringsSeen = (elements) => {
+      const state = tierBattle('berserker');
+      const bot = state.players.b, h = state.players.h;
+      if (elements) bot.elements = elements;
+      let below = 0, at = 0;
+      for (let i = 0; i < 40; i++) {
+        state.time += 3.5;                 // a fresh 2-4 s re-roll window
+        bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+        h.x = 4; h.y = 0; h.vx = h.vy = 0; h.hp = h.maxHp; h.moveTarget = null;
+        bot._botT = 0; bot.cooldowns.fireball = 99;
+        stepBot(state, 'b', DT);
+        const d = Math.hypot(bot.moveTarget.x - h.x, bot.moveTarget.y - h.y);
+        if (d < BOTS.berserker.standoff - 0.1) below++; else at++;
+      }
+      return { below, at };
+    };
+    const vamp = ringsSeen({ vampire: 1 });
+    expect(vamp.below).toBeGreaterThan(5);    // closes in a real share of windows
+    expect(vamp.at).toBeGreaterThan(5);       // ...and still backs off in others
+    const plain = ringsSeen(null);
+    expect(plain.below).toBe(0);              // no payload: the standoff always holds
+  });
+
   it('standoff never backs a bot into the lava: no room = the point comes inside', () => {
     const state = tierBattle('brawler');
     state.arenaRadius = 8;              // a late-game ring with no room for 13 units
