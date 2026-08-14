@@ -378,6 +378,23 @@ Everything as dictated; full design, napkin math and both tables in
   one round; flagged, not buffed (they price the shelf, and the shelf's
   price really fell).
 
+## 24.10: Arcane 3 at 6 g, and the refund always has something to shave
+
+Your two rulings, shipped and measured (both tables rerun; details in
+`docs/history/2026-08-14-round2410-arcane.md`):
+- Arcane costs are flat [6,6,6] now (lv3 was 10 g of premium for a special
+  that does nothing without a kit spell).
+- Every roster build that reaches arcane 3 owns lightning 1 first (B1, D4,
+  E1, E2, F1/F2, the M scaffold); A3-elements-only stays pure by stopping at
+  arcane 2, and the shared tail buys lightning before arcane anyway. A test
+  now fails any future build that breaks the rule. C6 untouched, as you
+  ruled: K2 at #1 on Hard is the proof its package pays with hands.
+- Measured effect: small and healthy. E1-hastemaker +88 on the Faker table
+  (the refund finally runs inside a real game's budget), D4/F2/B1 up a notch
+  on Hard, nothing destabilized. Fun fact: A3-elements-only is an 88 g core
+  now and sits rank 2 on the Faker table: the cheapest strong build in the
+  game.
+
 ## Still waiting on you
 
 The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target

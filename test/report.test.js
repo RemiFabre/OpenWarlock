@@ -3,7 +3,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   ROSTER, paddedCore, coreCost, expandCore, COST_TARGET, shelfExhausted,
+  EXHAUST_PASS,
 } from '../tools/roster.js';
+import { SPELLS } from '../shared/constants.js';
 import { reportHtml } from '../tools/report.js';
 
 describe('roster shape (round 24.7)', () => {
@@ -34,6 +36,23 @@ describe('roster shape (round 24.7)', () => {
       const bought = expandCore(paddedCore(entry));
       for (const k of banned) expect(bought, `${id} buys banned ${k}`).not.toContain(k);
     }
+  });
+
+  it('nobody reaches arcane 3 before owning a kit spell (24.10: the refund needs a cooldown to shave)', () => {
+    for (const [id, entry] of Object.entries(ROSTER)) {
+      const lv = {};
+      let spell = false;
+      for (const [key, to] of paddedCore(entry)) {
+        for (let l = lv[key] || 0; l < to; l++) {
+          if (key === 'arcane' && l + 1 === 3) expect(spell, `${id} buys arcane 3 spell-less`).toBe(true);
+          if (SPELLS[key] && key !== 'fireball') spell = true;
+        }
+        lv[key] = Math.max(lv[key] || 0, to);
+      }
+    }
+    // cores that STOP below arcane 3 stay legal because the shared tail buys
+    // its lightning before its arcane, so the rule holds there by construction
+    expect(EXHAUST_PASS.indexOf('lightning')).toBeLessThan(EXHAUST_PASS.indexOf('arcane'));
   });
 
   it('G1 and G2 differ only by shield vs debt (same slots, same cost)', () => {

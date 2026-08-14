@@ -129,7 +129,8 @@ const MUT_SCAFFOLD = [['sword', 1], ['amulet', 1],
   ['sword', 2], ['amulet', 2],
   ['ember', 2], ['terra', 2], ['gale', 2], ['arcane', 2], ['ghost', 2],
   ['sword', 3], ['amulet', 3],
-  ['ember', 3], ['terra', 3], ['gale', 3], ['arcane', 3], ['ghost', 3]];
+  // 24.10: lightning 1 before arcane 3, so the refund has a cooldown to shave
+  ['ember', 3], ['terra', 3], ['gale', 3], ['lightning', 1], ['arcane', 3], ['ghost', 3]];
 
 export const FAMILY_TITLES = {
   A: 'Family A: system purity (price each shelf as a class)',
@@ -162,11 +163,15 @@ export const ROSTER = {
       ['treads', 2], ['cape', 2], ['treads', 3], ['cape', 3], ['hourglass', 1],
       ['hourglass', 2], ['hourglass', 3]],
   },
+  // 24.10 (Remi): nobody buys arcane 3 before owning a kit spell (the lv3
+  // refund is dead weight without one). A3 keeps its zero-spell purity by
+  // stopping at arcane 2 in the core; the exhaust tail delivers arcane 3
+  // AFTER its lightning (tail order), so the rule holds by construction.
   'A3-elements-only': {
     family: 'A', noPad: true, fantasy: 'Pure fireball stat scaling, zero items.',
     tests: 'the stat-element shelf as a class',
     core: [['ember', 2], ['arcane', 1], ['gale', 1], ['terra', 1], ['ghost', 1],
-      ['ember', 3], ['arcane', 2], ['gale', 2], ['terra', 2], ['ghost', 2], ['arcane', 3], ['terra', 3], ['ghost', 3], ['gale', 3]],
+      ['ember', 3], ['arcane', 2], ['gale', 2], ['terra', 2], ['ghost', 2], ['terra', 3], ['ghost', 3], ['gale', 3]],
   },
   'A4-mutations-only': {
     family: 'A', noPad: true, fantasy: 'Pure behavior-changers, zero items or stat axes.',
@@ -193,7 +198,8 @@ export const ROSTER = {
   'B1-element-depth': {
     family: 'B', fantasy: 'Rush two stat axes to max before anything else.',
     tests: 'depth (vs B2) for stat elements',
-    core: [['ember', 3], ['arcane', 3], ['sword', 1], ['amulet', 1],
+    // 24.10: lightning 1 slots in before arcane 3 (the spell-before-refund rule)
+    core: [['ember', 3], ['arcane', 2], ['lightning', 1], ['arcane', 3], ['sword', 1], ['amulet', 1],
       ['sword', 2], ['amulet', 2], ['gale', 1], ['sword', 3], ['amulet', 3], ['boots', 1]],
   },
   'B2-element-breadth': {
@@ -319,7 +325,7 @@ export const ROSTER = {
     note: 'Respecced round 24.7 (Remi): marks scale with hit count, so the build now buys frequency (arcane, hourglass, echo), not damage.',
     core: [['vampire', 2], ['arcane', 1], ['mosquito', 1], ['sword', 1],
       ['vampire', 3], ['arcane', 2], ['hourglass', 1], ['mosquito', 2], ['amulet', 1],
-      ['arcane', 3], ['hourglass', 2], ['mosquito', 3], ['sword', 2], ['amulet', 2]],
+      ['lightning', 1], ['arcane', 3], ['hourglass', 2], ['mosquito', 3], ['sword', 2], ['amulet', 2]],
   },
   'D5-plaguebearer': {
     family: 'D', fantasy: 'Wade into the pack; everyone leaves sick.',
@@ -413,7 +419,7 @@ export const ROSTER = {
     family: 'E', fantasy: 'Cast faster, and every so often the cast is two balls.',
     tests: "question M: CDR x fireball throughput. Arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave",
     core: [['arcane', 1], ['mosquito', 1], ['hourglass', 1], ['arcane', 2],
-      ['arcane', 3], ['mosquito', 2], ['mosquito', 3], ['lightning', 1],
+      ['lightning', 1], ['arcane', 3], ['mosquito', 2], ['mosquito', 3],
       ['boomerang', 1], ['shield', 1], ['lightning', 2], ['boomerang', 2],
       ['teleport', 1], ['lightning', 3]],
   },
@@ -421,7 +427,7 @@ export const ROSTER = {
     family: 'E', fantasy: 'Five buttons, none of them ever off cooldown for long.',
     tests: "question M: CDR x kit WIDTH. The same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)",
     core: [['hourglass', 1], ['arcane', 1], ['hourglass', 2], ['arcane', 2],
-      ['hourglass', 3], ['arcane', 3], ['lightning', 1], ['boomerang', 1],
+      ['hourglass', 3], ['lightning', 1], ['arcane', 3], ['boomerang', 1],
       ['shield', 1], ['rush', 1], ['teleport', 1], ['shield', 2], ['rush', 2],
       ['teleport', 2]],
   },
@@ -442,7 +448,7 @@ export const ROSTER = {
     family: 'F', fantasy: 'Cast constantly, heal a flat crumb off every single connection.',
     tests: 'the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)',
     caps: { sword: 0 },
-    core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
+    core: [['arcane', 2], ['lightning', 1], ['arcane', 3], ['mosquito', 3], ['hourglass', 3],
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['spoon', 3], ['boots', 2], ['amulet', 2]],
   },
   // The mirror question (round 21.8): F1/F2 ask which item wins when hits are
@@ -467,7 +473,7 @@ export const ROSTER = {
     family: 'F', fantasy: 'The same barrage, paid for in lifesteal instead.',
     tests: 'the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned',
     caps: { spoon: 0 },
-    core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
+    core: [['arcane', 2], ['lightning', 1], ['arcane', 3], ['mosquito', 3], ['hourglass', 3],
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['sword', 3], ['boots', 2], ['amulet', 2]],
   },
 

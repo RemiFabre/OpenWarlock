@@ -735,8 +735,12 @@ export const ELEMENTS = {
   // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).
   // Lv3 = ex-chronos refund on fireball hits, never the fireball's own CD
   // (self-refund = 74% feedback loop; revert on arcaneRefund in sim.js).
+  // Round 24.10 (Remi): lv3 10 -> 6 g (flat like lv1/2). The refund only pays
+  // when you OWN a kit spell, so the roster gates arcane 3 behind one spell
+  // instead of pricing the special into everyone (question M: CDR measured
+  // fairly-priced-at-best, three roster shapes). Revert: costs [6, 6, 10].
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-arcane
-  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 6, 10],
+  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 6, 6],
            desc: 'Faster casting.',
            long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns (never the fireball\'s own).',
            fx: { haste: [18, 32, 32], hitRefund: [0, 0, 1],

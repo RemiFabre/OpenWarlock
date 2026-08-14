@@ -15,8 +15,8 @@
 - **A2-items-mobility** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): The item shelf's utility half: speed, lava, armor.
   - order: boots1 → treads1 → boots2 → cape1 → boots3 → treads2 → cape2 → treads3 → cape3 → hourglass1 → hourglass2 → hourglass3 → sword1 → amulet1 → brazier1 → spoon1 → sword2 → amulet2 → brazier2 → spoon2 → sword3 → amulet3 → brazier3 → spoon3
   - tests: items as a class (mobility half)
-- **A3-elements-only** (98 g, shelf exhausts here BY DESIGN): Pure fireball stat scaling, zero items.
-  - order: ember2 → arcane1 → gale1 → terra1 → ghost1 → ember3 → arcane2 → gale2 → terra2 → ghost2 → arcane3 → terra3 → ghost3 → gale3
+- **A3-elements-only** (88 g, shelf exhausts here BY DESIGN): Pure fireball stat scaling, zero items.
+  - order: ember2 → arcane1 → gale1 → terra1 → ghost1 → ember3 → arcane2 → gale2 → terra2 → ghost2 → terra3 → ghost3 → gale3
   - tests: the stat-element shelf as a class
 - **A4-mutations-only** (130 g, shelf exhausts here BY DESIGN): Pure behavior-changers, zero items or stat axes.
   - order: anger1 → frost1 → anger2 → frost2 → anger3 → frost3 → malady2 → midas1 → malady3 → mosquito3 → midas3
@@ -31,7 +31,7 @@
 ## Family B: depth vs breadth, per system
 
 - **B1-element-depth** (150 g): Rush two stat axes to max before anything else.
-  - order: ember3 → arcane3 → sword1 → amulet1 → sword2 → amulet2 → gale1 → sword3 → amulet3 → boots1 → cape1 → treads1 → hourglass1 → brazier1 → spoon1 → boots2 → cape2 → treads2 → hourglass2 → brazier2
+  - order: ember3 → arcane2 → lightning1 → arcane3 → sword1 → amulet1 → sword2 → amulet2 → gale1 → sword3 → amulet3 → boots1 → cape1 → treads1 → hourglass1 → brazier1 → spoon1 → boots2 → cape2 → treads2 → hourglass2
   - tests: depth (vs B2) for stat elements
 - **B2-element-breadth** (150 g): Level 1 of every stat axis before any level 2.
   - order: ember1 → terra1 → arcane1 → gale1 → ghost1 → ember2 → terra2 → arcane2 → gale2 → ghost2 → ember3 → sword2 → amulet2 → terra3 → boots1 → cape1 → treads1 → hourglass1 → brazier1 → spoon1 → boots2 → cape2 → treads2
@@ -85,8 +85,8 @@
   - order: midas1 → boots1 → midas2 → ghost1 → midas3 → boots2 → ghost2 → sword1 → boots3 → ghost3 → sword2 → amulet2 → sword3 → amulet3 → cape1 → treads1 → hourglass1 → brazier1 → spoon1 → cape2 → treads2 → hourglass2
   - tests: the reworked midas (24.1: timed hunt, +2 g flat claim) built for claim rate; D2's exact core with midas swapped for anger, so the two mark hunts price each other
   - note: Redesigned round 24.7 (Remi): the midas-echo combo this build existed for no longer exists.
-- **D4-leech** (154 g): Cast twice as often, bank twice the marks, wade in and drink the pile back.
-  - order: vampire2 → arcane1 → mosquito1 → sword1 → vampire3 → arcane2 → hourglass1 → mosquito2 → amulet1 → arcane3 → hourglass2 → mosquito3 → sword2 → amulet2 → boots1 → cape1 → treads1 → brazier1 → spoon1 → boots2 → cape2
+- **D4-leech** (150 g): Cast twice as often, bank twice the marks, wade in and drink the pile back.
+  - order: vampire2 → arcane1 → mosquito1 → sword1 → vampire3 → arcane2 → hourglass1 → mosquito2 → amulet1 → lightning1 → arcane3 → hourglass2 → mosquito3 → sword2 → amulet2 → boots1 → cape1 → treads1 → brazier1 → spoon1
   - tests: the round-24 mark-and-feast fed by CAST RATE (arcane+hourglass haste, echo pairs) instead of raw damage (Remi, 24.7); the 24.5 dive logic keys on vampire, so this row dives half the time
   - note: Respecced round 24.7 (Remi): marks scale with hit count, so the build now buys frequency (arcane, hourglass, echo), not damage.
 - **D5-plaguebearer** (150 g): Wade into the pack; everyone leaves sick.
@@ -95,8 +95,8 @@
 - **D6-sumo** (152 g): Never mind damage: you fly, I don't.
   - order: gale1 → cape1 → gale2 → boots1 → gale3 → cape2 → treads1 → cape3 → boots2 → treads2 → amulet2 → boots3 → sword1 → hourglass1 → brazier1 → spoon1 → sword2 → hourglass2 → brazier2 → spoon2 → sword3 → amulet3 → treads3 → hourglass3
   - tests: today's gale buff vs cape buff, head-on; lava economics
-- **D7-stormcaller** (150 g): The kit never stops: bolt on cooldown, refund on every hit.
-  - order: arcane2 → lightning1 → arcane3 → hourglass1 → lightning2 → hourglass2 → lightning3 → hourglass3 → boomerang1 → amulet2 → sword1 → boots1 → cape1 → treads1 → brazier1 → spoon1 → sword2 → boots2 → cape2 → treads2 → brazier2
+- **D7-stormcaller** (153 g): The kit never stops: bolt on cooldown, refund on every hit.
+  - order: arcane2 → lightning1 → arcane3 → hourglass1 → lightning2 → hourglass2 → lightning3 → hourglass3 → boomerang1 → amulet2 → sword1 → boots1 → cape1 → treads1 → brazier1 → spoon1 → sword2 → boots2 → cape2 → treads2 → brazier2 → spoon2
   - tests: question M: is a dedicated cadence build viable-but-honest?
 - **D8-juggernaut** (147 g, ⚠ item shelf EXHAUSTED below the band (round 21.8: the whole item shelf is 147 g)): Outlive everyone; the ring does the killing.
   - order: amulet1 → cape1 → treads1 → amulet2 → sword1 → cape2 → amulet3 → sword2 → treads2 → cape3 → sword3 → treads3 → boots1 → hourglass1 → brazier1 → spoon1 → boots2 → hourglass2 → brazier2 → spoon2 → boots3 → hourglass3 → brazier3 → spoon3
@@ -123,17 +123,17 @@
 
 ## Family E: cooldown reduction (question M)
 
-- **E1-hastemaker** (154 g): Cast faster, and every so often the cast is two balls.
-  - order: arcane1 → mosquito1 → hourglass1 → arcane2 → arcane3 → mosquito2 → mosquito3 → lightning1 → boomerang1 → shield1 → lightning2 → boomerang2 → teleport1 → lightning3 → sword1 → amulet1 → boots1 → cape1 → treads1 → brazier1 → spoon1
+- **E1-hastemaker** (150 g): Cast faster, and every so often the cast is two balls.
+  - order: arcane1 → mosquito1 → hourglass1 → arcane2 → lightning1 → arcane3 → mosquito2 → mosquito3 → boomerang1 → shield1 → lightning2 → boomerang2 → teleport1 → lightning3 → sword1 → amulet1 → boots1 → cape1 → treads1 → brazier1 → spoon1
   - tests: question M: CDR x fireball throughput. Arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave
-- **E2-chronomancer** (153 g): Five buttons, none of them ever off cooldown for long.
-  - order: hourglass1 → arcane1 → hourglass2 → arcane2 → hourglass3 → arcane3 → lightning1 → boomerang1 → shield1 → rush1 → teleport1 → shield2 → rush2 → teleport2 → sword1 → amulet1 → boots1 → cape1 → treads1 → brazier1 → spoon1
+- **E2-chronomancer** (156 g): Five buttons, none of them ever off cooldown for long.
+  - order: hourglass1 → arcane1 → hourglass2 → arcane2 → hourglass3 → lightning1 → arcane3 → boomerang1 → shield1 → rush1 → teleport1 → shield2 → rush2 → teleport2 → sword1 → amulet1 → boots1 → cape1 → treads1 → brazier1 → spoon1 → sword2
   - tests: question M: CDR x kit WIDTH. The same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)
 
 ## Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)
 
-- **F1-spoon-volume** (156 g): Cast constantly, heal a flat crumb off every single connection.
-  - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → spoon3 → boots2 → amulet2
+- **F1-spoon-volume** (152 g): Cast constantly, heal a flat crumb off every single connection.
+  - order: arcane2 → lightning1 → arcane3 → mosquito3 → hourglass3 → boomerang1 → rush1 → ghost2 → spoon3 → boots2 → amulet2
   - tests: the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)
 - **F3-spoon-burst** (154 g): Big hits, and a flat crumb of healing per hit that barely notices them.
   - order: ember3 → lightning2 → meteor2 → terra3 → spoon3 → amulet2 → hourglass2 → boots3 → treads2 → cape1 → brazier1
@@ -141,8 +141,8 @@
 - **F4-sword-burst** (154 g): Big hits, and a percentage of every one of them.
   - order: ember3 → lightning2 → meteor2 → terra3 → sword3 → amulet2 → hourglass2 → boots3 → treads2 → cape1 → brazier1
   - tests: the control for F3: the Blood Sword on the same big-hit kit
-- **F2-sword-volume** (156 g): The same barrage, paid for in lifesteal instead.
-  - order: arcane3 → mosquito3 → hourglass3 → lightning1 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
+- **F2-sword-volume** (152 g): The same barrage, paid for in lifesteal instead.
+  - order: arcane2 → lightning1 → arcane3 → mosquito3 → hourglass3 → boomerang1 → rush1 → ghost2 → sword3 → boots2 → amulet2
   - tests: the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned
 
 ## Family G: the Warlord, one variable at a time (control = D1-warlord; round 24.7)
@@ -163,23 +163,23 @@
 
 ## Family M: one mutation maxed first, identical scaffold after (round 24.7)
 
-- **M1-anger-first** (166 g): Max the grudge, then build like everyone else.
-  - order: anger3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+- **M1-anger-first** (172 g): Max the grudge, then build like everyone else.
+  - order: anger3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → lightning1 → arcane3 → ghost3
   - tests: anger isolated on the shared scaffold (vs its M siblings)
-- **M2-frost-first** (166 g): Max the cold, then build like everyone else.
-  - order: frost3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+- **M2-frost-first** (172 g): Max the cold, then build like everyone else.
+  - order: frost3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → lightning1 → arcane3 → ghost3
   - tests: frost isolated on the shared scaffold; stack-fade (22.4) means bots must feed the pile
-- **M3-malady-first** (166 g): Max the plague, then build like everyone else.
-  - order: malady3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+- **M3-malady-first** (172 g): Max the plague, then build like everyone else.
+  - order: malady3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → lightning1 → arcane3 → ghost3
   - tests: malady isolated on the shared scaffold; contagion still reads at a floor (bots do not cluster on purpose)
-- **M4-echo-first** (166 g): Max the echo, then build like everyone else.
-  - order: mosquito3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+- **M4-echo-first** (172 g): Max the echo, then build like everyone else.
+  - order: mosquito3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → lightning1 → arcane3 → ghost3
   - tests: mosquito (Echo) isolated on the shared scaffold: every 4th cast pairs
-- **M5-midas-first** (166 g): Max the gold mark, then build like everyone else.
-  - order: midas3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+- **M5-midas-first** (172 g): Max the gold mark, then build like everyone else.
+  - order: midas3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → lightning1 → arcane3 → ghost3
   - tests: midas isolated on the shared scaffold: its +2 g claims should show as a DEEPER tail, which is the whole value of gold
-- **M6-vampire-first** (166 g): Max the feast, then build like everyone else.
-  - order: vampire3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → arcane3 → ghost3
+- **M6-vampire-first** (172 g): Max the feast, then build like everyone else.
+  - order: vampire3 → sword1 → amulet1 → ember1 → terra1 → gale1 → arcane1 → ghost1 → sword2 → amulet2 → ember2 → terra2 → gale2 → arcane2 → ghost2 → sword3 → amulet3 → ember3 → terra3 → gale3 → lightning1 → arcane3 → ghost3
   - tests: vampire isolated on the shared scaffold (no frequency support here; D4 is the synergy build)
 
 ## Family K: the Faker combo arsenals, on the Faker brain (issue #7)
