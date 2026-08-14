@@ -810,14 +810,15 @@ export const BOTS = {
   // copied that in by mistake. Corrected with no behaviour change (h2h verified).
   // history: docs/history/2026-08-08-constants-sweeps.md#bots-stalker-aimerr
   stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
-               react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 0.85,
+               // 24.4 (Remi): Extreme and Faker never eat a telegraphed bolt
+               react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 1,
                desc: 'Dodges your projectiles AND nearly every lightning mark, leads its shots with a real intercept, and saves itself with blink and shield.' },
   // Issue #7 (Remi): a tier ABOVE Extreme whose whole identity is the combo:
   // it keeps every stalker behaviour and adds a layer that follows up on a body
   // it has just put in the air or on the floor. `combo` is that layer's own
   // clock and its windows; see stepFaker in shared/sim.js.
   faker:     { name: 'Faker', label: 'Faker', difficulty: 5, brain: 'faker',
-               react: [0.10, 0.06], aimErr: [0.25, 0.03], boltDodge: 0.95,
+               react: [0.10, 0.06], aimErr: [0.25, 0.03], boltDodge: 1,
                combo: {
                  // how often the combo layer gets to look, in seconds
                  think: [0.05, 0.05],
