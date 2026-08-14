@@ -157,9 +157,9 @@ felt thing is the rate (1/CD). "+p% per level" = divide the cooldown by
 cadences get hand-computed values with the formula in the comment.
 
 Applied at +35% mark rate per level:
-- **Anger markEvery [30,25,20] -> [30, 22, 16]** (30 / 1.35 = 22.2, / 1.35
-  again = 16.5). The old linear steps were +20% then +25%: uneven and
-  weaker.
+- **Anger markEvery [30,25,20] -> [36, 27, 20]**, anchored at lv3 = 20 s
+  (your correction: no anger buff; 20 x 1.35 = 27, x 1.35 again = 36.45).
+  lv1 is slightly slower than before, lv3 identical.
 - **Midas markEvery [30,25,20] -> [20, 15, 11]** (your new 20 s base, same
   +35% steps). Base income roughly +50% at lv1 on top of the rework, which
   also answers yesterday's "midas gold is thin for bots" finding.

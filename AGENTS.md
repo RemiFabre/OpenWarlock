@@ -227,8 +227,8 @@ build step, Node ESM, only dep is `ws`.
   REFLECTED ball's riders stay keyed to the element's owner (`pr.elemOwner`),
   never the reflector (the game-night shared-ice bug),
   anger=ex-momentum MARK HUNT (red mark on a random enemy every
-  **[30,22,16] s** (24.2, frequency-space steps); claim = +0.5 fireball dmg
-  forever),
+  **[36,27,20] s** (24.2, frequency-space steps anchored at lv3 = 20 s, the
+  22.5 value); claim = +0.5 fireball dmg forever),
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
   cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
   vampire=mark-and-feast (round 24: every hit banks a never-fading mark on the

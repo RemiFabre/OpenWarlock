@@ -691,9 +691,9 @@ export const ELEMENTS = {
            long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
            // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
            // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
-           // CD_next = CD / 1.35, rounded. 30 -> 22.2 -> 16.5.
-           // (22.5's linear [30,25,20] was +20%, +25% per level: uneven.)
-           fx: { markEvery: [30, 22, 16], markDmg: 0.5, markDelay: 0.5,
+           // CD_next = CD / 1.35, rounded. ANCHORED at lv3 = 20 s, the 22.5
+           // value ("we don't want to buff anger"): 20 x 1.35^2 = 36.45.
+           fx: { markEvery: [36, 27, 20], markDmg: 0.5, markDelay: 0.5,
                  rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead

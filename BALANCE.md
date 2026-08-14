@@ -435,8 +435,9 @@ finished with craters in play. Levers if live play disagrees: `goldOnClaim`
 
 Levels that scale a cooldown-gated effect are computed in FREQUENCY space
 now (the ruling lives in AGENTS.md): "+p% per level" = CD / (1+p), rounded.
-Applied at +35%/level: anger markEvery [30,25,20] -> [30,22,16], midas
-[30,25,20] -> [20,15,11] (new 20 s base, Remi's spec). Portal EXIT_DIST
+Applied at +35%/level: anger markEvery [30,25,20] -> [36,27,20] (anchored
+at lv3 = 20 s, Remi: "we don't want to buff anger"; an interim [30,22,16]
+lived for one push), midas [30,25,20] -> [20,15,11] (new 20 s base). Portal EXIT_DIST
 2.5 -> 5 the same day (too bunched), and the exit rune is an "x".
 
 Measured (standard 2000-game elo, seeds 1+2, vs the 24.1 table):
