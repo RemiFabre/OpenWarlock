@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 41,
+  "serial": 42,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v7: at the end of rounds 3, 6 and 9 a window opens before the shop with 3 random optimisations (permanent boosts, TFT-augment style), pick one. Plus everything from v6.2: Dark and Storm fireball axes, the flat 3.2 s Ricochet, the sprint boots, the Vomit Puddle, Guardian Angel, craters and the grapple.",
+      "summary": "Ju's arsenal, v8: Sam's full interface (illustrated shop, animated Knight, redesigned lobby and menus) merged in, with credit to @SamKhosravi, plus vector icons for Ju's own entities. Keeps the v7 optimisation picks at rounds 3/6/9 and the whole arsenal: Dark and Storm fireball axes, the flat 3.2 s Ricochet, sprint boots, Vomit Puddle, Guardian Angel, craters and the grapple.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "357fdf25c89d8e365606bc2a4e1b73b9bdc01aa3"
+      "commit": "d11fb0fba53ff5b65c86a3b413060f64c16d1b92"
     },
     {
       "slug": "trash-talk",
