@@ -68,6 +68,7 @@ export async function runScenario(scenario, { seed, verbose = false } = {}) {
   }, 250);
 
   const timeout = scenario.timeoutMs || 120_000;
+  const startedAt = Date.now();
   const scriptRun = Promise.all(players.map((p) => p.run()));
   const result = await Promise.race([
     scriptRun.then(() => 'done'),
@@ -115,6 +116,11 @@ export async function runScenario(scenario, { seed, verbose = false } = {}) {
     name: scenario.name, seed: useSeed, ok: problems.length === 0,
     problems, journal: journalPath,
     stats: {
+      // WHY the run stopped, always printed: 'done' (scripts finished),
+      // 'timeout' or 'frozen'. A short run that says 'done' means a script
+      // ended early; one that says 'frozen' is a starved client. Without this,
+      // a rare failure needs journal forensics to tell those apart.
+      ended: result, ranSec: +((Date.now() - startedAt) / 1000).toFixed(1),
       deaths: players[0] ? players[0].events.filter((e) => e.t === 'death').length : 0,
       casts: players[0] ? players[0].events.filter((e) => e.t === 'cast').length : 0,
     },
@@ -143,8 +149,9 @@ if (process.argv[1] && process.argv[1].endsWith('run.js')) {
     seed: seedArg ? Number(seedArg.split('=')[1]) : undefined,
     verbose: process.argv.includes('-v'),
   });
-  console.log(`\n${res.ok ? 'PASS' : 'FAIL'} — ${res.name} (seed ${res.seed})`);
-  console.log(`  deaths: ${res.stats.deaths ?? '?'}  casts: ${res.stats.casts ?? '?'}`);
+  console.log(`\n${res.ok ? 'PASS' : 'FAIL'}: ${res.name} (seed ${res.seed})`);
+  console.log(`  ended: ${res.stats.ended ?? '?'} after ${res.stats.ranSec ?? '?'}s` +
+    `  deaths: ${res.stats.deaths ?? '?'}  casts: ${res.stats.casts ?? '?'}`);
   console.log(`  journal: ${res.journal}`);
   for (const p of res.problems) console.log('  ✗', p);
   process.exit(res.ok ? 0 : 1);

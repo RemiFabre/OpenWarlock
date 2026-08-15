@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "serial": 12,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -16,6 +17,76 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/1",
       "branch": "issue-1-blood-debt",
       "commit": "74523c1078d7e948e4237c67e52bbb2992add792"
+    },
+    {
+      "slug": "ju-ricochet",
+      "name": "Ju’s Ricochet & Guardian Angel",
+      "author": "@Biousere",
+      "summary": "Ju's arsenal, v6: the ball identities decouple — Dark and Storm are independent fireball axes at 6 g a level (blind on the 2nd hit, a faster/smaller arcing ball, 3+ in the arc paralysed 1.5-2.75 s), Ricochet keeps its bounce and cooldown tax, plus the Vomit Puddle, Guardian Angel, craters and the grapple.",
+      "issue": 13,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
+      "branch": "issue-3-ricochet-angel",
+      "commit": "c31937016d0a16022d4ed3b780fa6f51689bbd01"
+    },
+    {
+      "slug": "trash-talk",
+      "name": "Trash Talk",
+      "author": "@RemiFabre",
+      "summary": "The warlocks comment on the fight: speech bubbles over their heads when they are hit, thrown, frozen, killed or upstaged. Lower case for the ordinary, ALL CAPS for the loud.",
+      "issue": 4,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/4",
+      "branch": "issue-4-chatter",
+      "commit": "e8c3bc2725ff78e77fa8f972921a399767712081"
+    },
+    {
+      "slug": "sharpshooter",
+      "name": "Sharpshooter",
+      "author": "@RemiFabre",
+      "summary": "The fireball becomes a thin, very fast skillshot with a 50-unit range, and Frost stops slowing: its third stack freezes you where you stand and banks half the swallowed push for the next ability that hits you.",
+      "issue": 5,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/5",
+      "branch": "issue-5-sharpshooter",
+      "commit": "e28ed40f30ae126e5318d2f7e507e224681ec7b3"
+    },
+    {
+      "slug": "hold-the-line",
+      "name": "Hold the Line",
+      "author": "@RemiFabre",
+      "summary": "Ember level 3 stops adding damage and lets you HOLD the fireball key to charge a bigger, heavier ball (five steps in 1.5 seconds, and holding too long loses the cast). Rush charges the same way, and a full-charge dash is invisible and unstoppable.",
+      "issue": 6,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/6",
+      "branch": "issue-6-charging",
+      "commit": "cd0f4f5b62623df4476aa9a0ca304963e784d501"
+    },
+    {
+      "slug": "faker",
+      "name": "Faker",
+      "author": "@RemiFabre",
+      "summary": "A difficulty above Extreme built around combos: four Faker-only arsenals (Hookstorm, Permafrost, Minefield, Galeforce) with chains like trap-under-feet → Switcheroo onto it → burst → lightning on the landing. Ships with a stand-still Runner dummy for sparring, and a Faker already seated in the lobby.",
+      "issue": 7,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/7",
+      "branch": "issue-7-faker",
+      "commit": "1c10ff7d91d074879c3456ccbf18edcc854e951c"
+    },
+    {
+      "slug": "soul-harvest",
+      "name": "Soul Harvest",
+      "author": "@FabienDanieau",
+      "summary": "One endless round: kills absorb one of the victim's spells, their items drop on the ground for anyone to grab, and the dead shop with catch-up gold before respawning. First to 15 kills. The lava closes slowly, and if the arena runs out, most kills wins.",
+      "issue": 8,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/8",
+      "branch": "issue-8-one-round",
+      "commit": "275f9e16dc4fd991a6c32ca79ed38edc2a947462"
+    },
+    {
+      "slug": "genki",
+      "name": "Genki",
+      "author": "@RemiFabre",
+      "summary": "A new spell in honor of the Genki-Dama: charge a ball above your head (3 damage per second, forever; the area grows like a filling pool), then fire one omega hit. At Terra-3 size it smashes pillars and flies on; five seconds later nothing reflects it. Any other cast or any direct hit drops the charge.",
+      "issue": 12,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/12",
+      "branch": "issue-12-genki",
+      "commit": "95f0e3b3f0b2c4743ea2bcb83583db0c85b810e3"
     }
   ]
 }

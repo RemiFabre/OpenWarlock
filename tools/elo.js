@@ -1,6 +1,6 @@
 // The ELO tournament (Remi, 2026-08-09): every strategy in tools/roster.js,
 // random 4-strategy Hard-berserker lobbies, Bradley-Terry strengths fitted
-// from ALL pairwise placements (order-free — unlike an online Elo, the result
+// from ALL pairwise placements (order-free; unlike an online Elo, the result
 // does not depend on game order), reported on the familiar Elo scale
 // (1500 = the roster's average; +173 ≈ a 73% pairwise favourite).
 //
@@ -51,7 +51,9 @@ for (let g = 0; g < GAMES; g++) {
   // ⚠ `caps` rides along: a roster entry may BAN a thing outright (caps {x: 0}),
   // which is the only way to keep the shared exhaust tail from handing a seat
   // the very item its core exists to do without (round 21.8, family F).
-  const lineup = picks.map(id => ({ id, kind: KIND, priorities: lists[id],
+  // issue #7: a roster entry may pin its own bot (family K rides the Faker
+  // brain); everyone else runs the tournament's --kind seat.
+  const lineup = picks.map(id => ({ id, kind: ROSTER[id].kind || KIND, priorities: lists[id],
     ...(ROSTER[id].caps ? { caps: ROSTER[id].caps } : {}) }));
   const res = playGame(lineup, SEED * 1_000_000 + g, { mode: 'elemental' });
   if (!res.finished) unfinished++;
@@ -84,7 +86,7 @@ for (let it = 0; it < 800; it++) {
 }
 const elo = Object.fromEntries(ids.map(id => [id, Math.round(1500 + 173.717 * Math.log(s[id]))]));
 
-console.log(`\n=== strategy ELO — ${GAMES} games, seed ${SEED}, 4 random ${KIND} seats/game, elemental ===`);
+console.log(`\n=== strategy ELO: ${GAMES} games, seed ${SEED}, 4 random ${KIND} seats/game, elemental ===`);
 console.log(`Elo from Bradley-Terry over pairwise placements; 1500 = roster average,`);
 console.log(`+173 = 73% favourite in a pair. games = seats played. place = mean of 1-4.`);
 console.log(`Bot read ONLY: no target-leading/CC-chaining; reactive tools + contagion at a floor.\n`);

@@ -1,4 +1,4 @@
-// OpenWarlock — Node adapter around the authoritative room (shared/engine.js).
+// OpenWarlock: Node adapter around the authoritative room (shared/engine.js).
 // One process = one game (lobby -> rounds -> gameover -> back to lobby).
 // Serves the static client over HTTP and the game over WebSocket.
 //
@@ -16,6 +16,7 @@ import { WebSocketServer } from 'ws';
 import { createEngine } from '../shared/engine.js';
 import { VERSION } from '../shared/version.js';
 import { snapshot } from '../shared/sim.js';
+import { createSnapWire } from '../shared/snapwire.js';
 import { TICK_RATE, SNAPSHOT_RATE } from '../shared/constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -80,6 +81,12 @@ const httpServer = http.createServer((req, res) => {
       ok: true, tick, phase: game.phase, round: game.round,
       players: Object.keys(game.players).length, uptime: process.uptime(),
       version: VERSION,
+      // round 21.10: per-player snapshot bandwidth, live. `skipped` climbing on
+      // ONE seat is the signature of a link that cannot keep up; that is the
+      // number to look at when a friend reports late-game jerkiness.
+      wire: [...sockets].map(([pid, ws]) => ({
+        id: pid, queued: ws.bufferedAmount, ...(ws.wire ? ws.wire.stats() : {}),
+      })),
     }));
     return;
   }
@@ -123,7 +130,7 @@ let nextConnId = 1;
 const sockets = new Map(); // playerId -> ws
 
 // Bans (until the server restarts): a kicked-with-ban player is blocked by
-// NAME (engine) and by IP (here). Name catches the classic offender — an
+// NAME (engine) and by IP (here). Name catches the classic offender, an
 // abandoned tab that auto-reconnects under the same name 2 s after every
 // kick; IP catches renames. Behind cloudflared every socket is local, so
 // trust the CF-Connecting-IP header first.
@@ -139,11 +146,19 @@ let journaledEvents = 0;
 const engine = createEngine({
   seed: SEED,
   maxPlayers: MAX_PLAYERS,
-  againGraceMs: Number(process.env.AGAIN_GRACE_MS || 45000),
   resetGraceMs: Number(process.env.RESET_GRACE_MS || 60_000),
+  // Snapshots go through the per-connection wire (shared/snapwire.js): events
+  // on their own message, state delta-coded, and SKIPPED rather than queued for
+  // a socket that is backing up. Everything else (welcome, denied) is sent as
+  // is. history: docs/history/2026-08-12-snapshot-bandwidth.md
   onSend: (connId, msg) => {
     const ws = sockets.get(connId);
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+    if (!ws || ws.readyState !== 1) return;
+    if (msg.t !== 'snap') { ws.send(JSON.stringify(msg)); return; }
+    if (!ws.wire) ws.wire = createSnapWire({ delta: false });
+    const f = ws.wire.frame(msg, ws.bufferedAmount);
+    if (f.evt) ws.send(f.evt);
+    if (f.state) ws.send(f.state);
   },
   onKick: (connId, { ban }) => {
     if (ban) {
@@ -167,14 +182,25 @@ const engine = createEngine({
 });
 
 // ---- websocket protocol ---------------------------------------------------
-// client -> server: join, ready, spectate, mode, draft, move, cast, buy,
-//                   draftPick, addBot, removeBot, again
-// server -> client: welcome {id}, snap {state, events}, denied {reason}
+// client -> server: join {name, avatar, dv?}, ready, spectate, mode, draft,
+//                   move, cast, buy, draftPick, addBot, removeBot, again,
+//                   and two transport-only ones (round 21.10): full, ack {q}
+// server -> client: welcome {id, v}, denied {reason}, evt {e}, and snap;
+//                   whole (`{s, e}`) for a client that sent no `dv`, else
+//                   delta-coded per shared/snapwire.js
 
-const wss = new WebSocketServer({ server: httpServer });
+// permessage-deflate is OFF in `ws` by default, and snapshots are the most
+// compressible thing in the game (a repetitive pillar list): measured 17-21% of
+// raw at 6-450 pillars, i.e. ~5× fewer bytes for one option. `threshold` keeps
+// the tiny messages (welcome, denied) out of the compressor.
+// WS_DEFLATE=0 is the one-line revert, and the knob tools/slowlink.js measures.
+const wss = new WebSocketServer({
+  server: httpServer,
+  perMessageDeflate: process.env.WS_DEFLATE === '0' ? false : { threshold: 512 },
+});
 
 // Zombie reaper: connections through tunnels (cloudflared) often die WITHOUT
-// a close frame, leaving a ghost warlock seated forever — blocking the lobby
+// a close frame, leaving a ghost warlock seated forever, blocking the lobby
 // (start needs every human ready). Ping every 15 s; a socket that misses two
 // pongs is terminated, which fires 'close' and removes the player normally.
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS || 15000);
@@ -187,7 +213,7 @@ setInterval(() => {
 }, HEARTBEAT_MS);
 
 // RTT measure (round 18, Remi: "a friend had a lot of lag"): a second, faster
-// ping stream whose payload is its own send time — the pong echoes the payload
+// ping stream whose payload is its own send time; the pong echoes the payload
 // back (RFC 6455), so every browser reports its round-trip with zero client
 // code. DELIBERATELY separate from the reaper above: folding this cadence into
 // the reaper would shrink its miss-two-pongs tolerance from 30 s to 4 s and
@@ -204,6 +230,9 @@ wss.on('connection', (ws, req) => {
   const ip = ipOf(req);
   let joined = false;
   ws.isAlive = true;
+  // Nagle would hold a small snapshot back for up to 40 ms waiting for company;
+  // this stream is 15 whole messages a second and wants none of that.
+  try { ws._socket.setNoDelay(true); } catch { /* not a TCP socket (tests) */ }
   ws.on('pong', (data) => {
     ws.isAlive = true;
     // RTT pings carry their send time; the reaper's plain ping echoes an
@@ -236,9 +265,18 @@ wss.on('connection', (ws, req) => {
       sockets.set(id, ws);
       ipsById.set(id, ip);
       joined = true;
+      // `dv:1` in the join is the client saying "I can patch deltas" (round
+      // 21.10). A stale cached tab omits it and keeps getting whole snapshots,
+      // so a mixed-version lobby degrades in bandwidth, never in correctness.
+      ws.wire = createSnapWire({ delta: m.dv === 1 });
       ws.send(JSON.stringify({ t: 'welcome', id, v: VERSION }));
       return;
     }
+    // Transport concerns, never forwarded to the engine: "I lost the base of a
+    // delta" (answered with a keyframe) and "the newest state I applied is q"
+    // (the only signal that shows a thin link falling behind).
+    if (m.t === 'full') { if (ws.wire) ws.wire.requestFull(); return; }
+    if (m.t === 'ack') { if (ws.wire) ws.wire.ack(m.q); return; }
     engine.message(id, m);
   });
 
@@ -278,7 +316,7 @@ setInterval(() => {
           gold: p.gold, score: p.score, alive: p.alive, bot: p.bot,
           spells: p.spells, items: p.items,
           team: p.team,   // versus teams: the round-end invariant is per TEAM (round 21.3)
-          // co-op: campaign monsters are not seats — the invariant checker
+          // co-op: campaign monsters are not seats; the invariant checker
           // must not count them as fighters (see test/harness/check.js)
           ...(p.wave ? { wave: true } : {}),
         };

@@ -2,12 +2,12 @@
 
 All reproducible bugs found by the campaign were fixed (see server/index.js,
 test/harness/bot-client.js, test/harness/check.js). One design-level liveness
-observation remains — documented here because it is a game-design decision,
+observation remains, documented here because it is a game-design decision,
 not a code bug, and "fixing" it would change the rules:
 
 ## ~~Rounds can last forever if nobody attacks (pacifist stalemate)~~ FIXED
 
-**Resolved 2026-08-01**: sudden death added — after `SHRINK_TIME` the arena
+**Resolved 2026-08-01**: sudden death added. After `SHRINK_TIME` the arena
 holds at `MIN_RADIUS` for `OVERTIME_GRACE` (45 s), then shrinks to **0** over
 `OVERTIME_SHRINK` (30 s). Every round provably ends (unit test:
 "sudden death: every round provably ends, even if nobody fights").
@@ -33,4 +33,4 @@ Original observation kept below for the record.
 (For the record, the originally reported "freeze when a bot died" never
 reproduced server-side across 60+ fuzzed matches and a 9-minute
 1-human+3-bots autopilot game with 24 deaths; the one game-killing bug found
-— the `GET /%` HTTP crash — is fixed.)
+(the `GET /%` HTTP crash) is fixed.)

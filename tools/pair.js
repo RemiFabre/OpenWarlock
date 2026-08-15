@@ -1,4 +1,4 @@
-// Head-to-head between TWO roster strategies — 2 seats each in the same game,
+// Head-to-head between TWO roster strategies: 2 seats each in the same game,
 // reporting what each side actually DID, not just who won. The Elo table
 // (tools/elo.js) answers "which ranks higher"; this answers "why", which is the
 // question a one-variable A/B (same kit, one item swapped) actually asks.
@@ -10,7 +10,7 @@
 // one-variable comparison this is LOAD-BEARING: the shared exhaust tail holds
 // nearly every item, so without a ban each seat eventually buys the very thing
 // its rival's core exists to test, and the pair measures buy ORDER instead
-// (round 21.8 scar — it silently produced a plausible table).
+// (round 21.8 scar; it silently produced a plausible table).
 //
 // What it cannot see: the usual bot ceiling (no baiting, no CC chains, no
 // cluster play), plus anything that needs a human to read it (traps, bluffs).
@@ -21,7 +21,7 @@ import { ITEM_FX, ITEMS, ELEMENTS } from '../shared/constants.js';
 import { ROSTER, paddedCore, expandCore } from './roster.js';
 import { EXHAUST_PASS } from './strategy-study.js';
 
-// --fx=<key>.<field>=<a,b,c> — same sweep hook arena.js has, so a "what if we
+// --fx=<key>.<field>=<a,b,c>: same sweep hook arena.js has, so a "what if we
 // made it X" question is one command instead of an edit-run-revert cycle.
 for (const a of process.argv.filter(x => x.startsWith('--fx='))) {
   const [lhs, rhs] = a.slice(5).split('=');

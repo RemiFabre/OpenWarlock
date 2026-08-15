@@ -1,13 +1,62 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, AVATARS, isAvatarArt, teamTint } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
+import { drawKnight, forgetKnights, knightLoaded } from './knight.js';
+
+// Issue #14 (Sam v8): the arena artwork is the world's backdrop. It is DECOR:
+// nothing here feeds geometry. The arena radius, the shrink, the pillars and
+// every hitbox stay exactly what the simulation says they are.
+const ARENA_ART = new Image();
+ARENA_ART.src = new URL('../assets/ui/arena/floor.png', import.meta.url).href;
+let lastDrawAt = 0;
+let seenProjectiles = new Set();
+const lastHp = new Map();
+const BLANK_FACE = new Image();
+BLANK_FACE.src = new URL('../assets/ui/portraits/placeholder.png', import.meta.url).href;
+const ROUND_ART = {};
+for (const k of ['victory', 'defeat', 'gold']) {
+  const img = new Image();
+  img.src = new URL(`../assets/ui/arena/${k}.png`, import.meta.url).href;
+  ROUND_ART[k] = img;
+}
+// cover-fit: fill the viewport, keep the aspect, centre the overflow
+function drawCover(ctx, img, w, h) {
+  if (!img.complete || !img.naturalWidth) return false;
+  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  return true;
+}
+
+// Issue #14 (Sam v5): warlocks wear their illustrated avatar in the arena. The
+// tiles are decoded once, lazily, and drawn CLIPPED to the warlock's disc: the
+// tile carries its own frame, which at this size would read as a smudge. A face
+// still loading (or an avatar outside the roster, e.g. a co-op unit) falls back
+// to the old text draw, so a warlock is never faceless.
+const AVATAR_IMG = new Map();
+function avatarImage(name) {
+  if (!isAvatarArt(name)) return null;
+  let img = AVATAR_IMG.get(name);
+  if (!img) {
+    img = new Image();
+    img.src = new URL(`../assets/ui/avatars/${name}.png`, import.meta.url).href;
+    AVATAR_IMG.set(name, img);
+  }
+  return img.complete && img.naturalWidth ? img : null;
+}
+// warm the cache at load so the first round is not a wave of pop-in
+for (const a of AVATARS) avatarImage(a);
 
 // Sky-bolt tint per spell level (round 17 §2: the color shift IS the level
-// read) — pale electric blue, deeper blue, storm violet. "r, g, b" strings.
+// read): pale electric blue, deeper blue, storm violet. "r, g, b" strings.
 const BOLT_TINTS = ['165, 220, 255', '110, 190, 255', '195, 160, 255'];
+
+// Genki (issue #12): stage tints; spirit blue, then the pillar-smasher gold,
+// then the unstoppable magenta. Index = stage.
+const GENKI_TINTS = ['140, 210, 255', '255, 205, 80', '255, 90, 230'];
 
 // Precomputed drifting lava blobs (deterministic, just for looks).
 const BLOBS = [];
@@ -43,10 +92,10 @@ export function makeView(canvas) {
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.cx = this.w / 2; this.cy = this.h / 2;
       this.scale = Math.min(this.w, this.h) / (2 * (this.arenaR + 9));
-      // backdrop renders at ~1/3 resolution and is stretched up — the image,
+      // backdrop renders at ~1/3 resolution and is stretched up; the image,
       // wash and lava-blob gradients are by far the most expensive paints
       // the back layer only carries the lava-blob gradients now (the level
-      // art is drawn full-res on the main canvas — one cheap drawImage)
+      // art is drawn full-res on the main canvas; one cheap drawImage)
       back.width = Math.max(160, Math.round(this.w / 3));
       back.height = Math.max(100, Math.round(this.h / 3));
     },
@@ -61,7 +110,7 @@ const TAU = Math.PI * 2;
 // Elemental fireball core colors (elemental mode; ember/none keep the classic orange).
 const ELEM_CORE = {
   frost: '#8fd8ff', malady: '#8fe08f', gale: '#e6f2ff', midas: '#ffd76a', terra: '#c8935a',
-  // anger: the red ball IS the brand — the core shifts hard toward red
+  // anger: the red ball IS the brand; the core shifts hard toward red
   anger: '#ff5040',
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
   // arterial red (and it also gets the engorged halo below)
@@ -70,14 +119,14 @@ const ELEM_CORE = {
   chainball: '#fff2b8', umbra: '#a276ff',
 };
 
-// Round 17 §12 — the fireball is ONE additive stack of layers, in draw order:
+// Round 17 §12: the fireball is ONE additive stack of layers, in draw order:
 //   base ball (terra sizes it, the strongest rider tints it)
 //   → element accents (one per element the ball carries, they compose)
 //   → event overlay (engorged, which also owns the BASE color).
-// (The old momentum tier wings are GONE — Remi: the giant tier balls LOOKED
+// (The old momentum tier wings are GONE. Remi: the giant tier balls LOOKED
 // like they hit but didn't. Every accent stays near the true hitbox radius.)
 // Both readings matter: the owner sees the build they bought fly, a defender
-// reads what is coming at them. Accents are cheap strokes on purpose — this
+// reads what is coming at them. Accents are cheap strokes on purpose; this
 // runs per projectile per frame, so no gradients and no allocations here.
 const ACCENTS = {
   // issue #13 v6 (Ju): Storm and Dark are element AXES now — their tells
@@ -202,7 +251,7 @@ const ACCENTS = {
     }
   },
   // lifesteal: an arterial crescent. Every chargeEvery'th cast the ball also
-  // goes engorged, and that overlay is the loud one — this is the "I own
+  // goes engorged, and that overlay is the loud one; this is the "I own
   // vampire" tell on the ordinary balls between charges.
   vampire: (ctx, x, y, r, lv, ang) => {
     ctx.strokeStyle = 'rgba(224, 64, 90, 0.8)';
@@ -224,8 +273,8 @@ const ACCENTS = {
   },
 };
 
-// Vampire's engorged ball (every chargeEvery'th cast — 5 since round 16): an
-// halo with a 🧛 rider. It keeps every other layer — only the base color is
+// Vampire's engorged ball (every chargeEvery'th cast; 5 since round 16): an
+// halo with a 🧛 rider. It keeps every other layer; only the base color is
 // taken over, because "this one heals them for a lot" outranks any tint.
 function drawEngorged(ctx, x, y, r, t) {
   ctx.save();   // this block sets textAlign/baseline; the fx pass draws damage
@@ -246,7 +295,7 @@ function drawEngorged(ctx, x, y, r, t) {
   ctx.restore();
 }
 
-export function draw(view, vs, fx, myId, moveMark, now) {
+export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   if (vs) view.fitArena(vs.startRadius);   // arena size is per-game (round 21.2)
   const { ctx, w, h, scale } = view;
   const t = now / 1000;
@@ -261,7 +310,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
 
   // --- backdrop: base + level art at FULL resolution on the main canvas
   // (the art used to live on the 1/3-res layer and came out visibly blurry;
-  // a single full-res drawImage is cheap — the gradients were the expensive
+  // a single full-res drawImage is cheap; the gradients were the expensive
   // part, and those stay on the low-res layer below) ---
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#2b0800';
@@ -286,7 +335,11 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   } catch { /* a broken image must never break the frame */ }
 
   // --- drifting lava blobs: painted small offscreen, stretched up ---
-  drawBackdrop(view, worldAlpha, t);
+  // the artwork sits UNDER everything and does NOT fade with the world: when
+  // the round ends and the world dissolves, the art is what remains (Sam v8)
+  const hasArt = drawCover(ctx, ARENA_ART, w, h);
+  if (!hasArt) { ctx.fillStyle = '#1a0a06'; ctx.fillRect(0, 0, w, h); }
+  drawBackdrop(view, worldAlpha * (hasArt ? 0.55 : 1), t);
   ctx.drawImage(view.back, 0, 0, w, h);
 
   if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
@@ -297,6 +350,28 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   const R0 = fin(vs.startRadius) ? vs.startRadius : ARENA.START_RADIUS; // un-shrunk
   const players = Array.isArray(vs.players) ? vs.players : [];
   const projectiles = Array.isArray(vs.projectiles) ? vs.projectiles : [];
+  // ---- v9 (Sam): what the animated character needs to REACT to, all of it read
+  // off state the game already sends. Nothing here can change the game.
+  const knightReady = knightLoaded();
+  const kdt = Math.min(0.1, Math.max(0, now - (lastDrawAt || now)));
+  lastDrawAt = now;
+  const casters = new Set();     // a projectile of theirs appeared this frame
+  const hurtNow = new Set();     // their hp went down since the last frame
+  if (knightReady) {
+    const live = new Set();
+    for (const pr of projectiles) {
+      live.add(pr.id);
+      if (pr.owner != null && !seenProjectiles.has(pr.id)) casters.add(pr.owner);
+    }
+    seenProjectiles = live;
+    for (const p of players) {
+      if (!p || p.id == null) continue;
+      const was = lastHp.get(p.id);
+      if (was != null && fin(p.hp) && p.hp < was - 0.01) hurtNow.add(p.id);
+      lastHp.set(p.id, fin(p.hp) ? p.hp : was);
+    }
+    forgetKnights(new Set(players.map((p) => p && p.id).filter(Boolean)));
+  }
   // my team number, for the ally ring on the bodies below (round 21.3)
   const myTeam = vs.me && vs.me.team != null ? vs.me.team : null;
 
@@ -306,20 +381,35 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(view.cx, view.cy, R0 * scale, 0, Math.PI * 2); ctx.stroke();
 
-  // molten rim
-  const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.92, view.cx, view.cy, R * 1.10);
+  // molten rim (v8, Sam): stronger and wider OUTSIDE the edge...
+  const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.90, view.cx, view.cy, R * 1.22);
   rim.addColorStop(0, 'rgba(255, 93, 31, 0)');
-  rim.addColorStop(0.55, 'rgba(255, 120, 40, 0.55)');
-  rim.addColorStop(1, 'rgba(255, 93, 31, 0)');
+  rim.addColorStop(0.42, 'rgba(255, 130, 45, 0.72)');
+  rim.addColorStop(0.72, 'rgba(255, 90, 25, 0.34)');
+  rim.addColorStop(1, 'rgba(255, 70, 15, 0)');
   ctx.fillStyle = rim;
-  ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.24, 0, Math.PI * 2); ctx.fill();
 
+  // the floor: the artwork reads through a calm dark wash, so the play area
+  // stays the quietest part of the screen (bodies and balls must win)
   const rock = ctx.createRadialGradient(view.cx, view.cy, 0, view.cx, view.cy, R);
-  rock.addColorStop(0, '#3a322c');
-  rock.addColorStop(0.75, '#2c2521');
-  rock.addColorStop(1, '#1c1512');
+  rock.addColorStop(0, 'rgba(24, 20, 18, 0.80)');
+  rock.addColorStop(0.75, 'rgba(20, 17, 15, 0.84)');
+  rock.addColorStop(1, 'rgba(14, 11, 10, 0.88)');
   ctx.fillStyle = rock;
   ctx.beginPath(); ctx.arc(view.cx, view.cy, R, 0, Math.PI * 2); ctx.fill();
+
+  // ...and a thin white-hot line just INSIDE the dark edge: the rock is so hot
+  // it glows. Kept subtle on purpose; the orange outside stays dominant.
+  ctx.save();
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R, 0, Math.PI * 2); ctx.clip();
+  const hot = ctx.createRadialGradient(view.cx, view.cy, R * 0.955, view.cx, view.cy, R);
+  hot.addColorStop(0, 'rgba(255, 240, 210, 0)');
+  hot.addColorStop(0.7, 'rgba(255, 236, 198, 0.22)');
+  hot.addColorStop(1, 'rgba(255, 250, 235, 0.55)');
+  ctx.fillStyle = hot;
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 
   // faint concentric cracks
   ctx.strokeStyle = 'rgba(0,0,0,0.18)';
@@ -480,7 +570,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     // the rock itself, streaking down at the zone (round 20, Remi: "it would
     // be cool if we could see something falling"): position/size lerped from
     // a high offset to the impact point over the telegraph's delay, with a
-    // short fiery trail behind it — the impact reads instead of popping.
+    // short fiery trail behind it; the impact reads instead of popping.
     const p = Math.min(Math.max(1 - tt / (SPELLS.meteor.delay || 1), 0), 1);
     const fall = 1 - p;                       // 1 = just cast, 0 = impact
     const rx = x + 9 * scale * fall;          // comes in from the upper right
@@ -502,7 +592,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   }
 
   // --- Mines (round 21.8, SPELLS.nova): a trap on the ground, deliberately
-  // READABLE BUT QUIET (Remi: "a bit of a circle — not a red glowing thing").
+  // READABLE BUT QUIET (Remi: "a bit of a circle, not a red glowing thing").
   // A thin dashed ring at the TRUE trigger radius, a dark stud in the middle,
   // and one ember pip per stored fireball, so "that one is loaded" is visible
   // from across the arena. Tinted with the planter's colour: whose trap it is
@@ -541,7 +631,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
   }
 
   // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
-  // Same blink language as the meteor's, but in the bolt's per-level tint —
+  // Same blink language as the meteor's, but in the bolt's per-level tint;
   // the zone appears the INSTANT of the cast; the dodge window IS the spell.
   const bolts = Array.isArray(vs.bolts) ? vs.bolts : [];
   for (const m of bolts) {
@@ -592,9 +682,9 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     if (!pr || !fin(pr.x) || !fin(pr.y)) continue;
     const x = view.sx(pr.x), y = view.sy(pr.y);
     if (pr.type === 'fireball') {
-      // §12: the layered stack — base → element accents → evolution → event.
+      // §12: the layered stack; base → element accents → evolution → event.
       // A mosquito owner's ball is a NORMAL fireball; the element's feedback is
-      // the PAIR itself — two balls on the same line, a heartbeat apart.
+      // the PAIR itself: two balls on the same line, a heartbeat apart.
       const el = pr.elements || null;
       const terraMult = el && el.terra
         ? ELEMENTS.terra.fx.projRadiusMult[Math.min(el.terra, 3) - 1] : 1;
@@ -607,7 +697,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
       if (pr.engorged) core = '#ff2340';
       // base ball: trail + core glow, both tinted (anger's red core comes from
-      // ELEM_CORE — the earned bank never inflates the ball's apparent size)
+      // ELEM_CORE; the earned bank never inflates the ball's apparent size)
       const tail = 4;
       const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
       g.addColorStop(0, 'rgba(255, 120, 30, 0)');
@@ -628,8 +718,24 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         if (accent && el[k] > 0) accent(ctx, x, y, r, el[k], ang, t);
       }
       if (pr.engorged) drawEngorged(ctx, x, y, r, t);
+    } else if (pr.type === 'genki') {
+      // issue #12: the omega ball; radius-TRUE (its hitbox IS the show),
+      // tinted by stage, with a slow inner swirl so it reads alive
+      const gr = Math.max(3, (fin(+pr.radius) ? +pr.radius : 0.8) * scale);
+      const tint = GENKI_TINTS[Math.min(pr.stage || 0, 2)];
+      ctx.save();
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, gr * 1.6);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.45, `rgba(${tint}, 0.95)`);
+      glow.addColorStop(1, `rgba(${tint}, 0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, y, gr * 1.6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(${tint}, 0.9)`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, gr, now / 500, now / 500 + Math.PI * 1.6); ctx.stroke();
+      ctx.restore();
     } else if (pr.type === 'swap') {
-      // dashed tether from the caster to the swap bolt — the link the trade
+      // dashed tether from the caster to the swap bolt; the link the trade
       // will travel is VISIBLE (the hook's chain, recolored arcane violet)
       const owner = players.find(p => p && p.id === pr.owner);
       if (owner && fin(owner.x) && fin(owner.y)) {
@@ -748,14 +854,14 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     // drawn slightly larger than the hitbox for readability
     const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
 
-    // Vanish (SPELLS.vanish): this can only ever be YOUR OWN body — an invisible
+    // Vanish (SPELLS.vanish): this can only ever be YOUR OWN body; an invisible
     // player has no x/y in anybody else's snapshot, so no other client reaches
     // this line for them. You still need to see yourself to play, so the body
     // goes ghostly and wears a dashed ring plus a countdown; both flash once it
     // is nearly over, which is the "when is it ending" half of the feedback.
     const hidden = fin(pl.vanishT) && pl.vanishT > 0;
     // Statue (SPELLS.statue, round 21.4): for these 2 s the player IS a golden
-    // pillar — same column shape as the obsidian ones above, gold palette and a
+    // pillar; same column shape as the obsidian ones above, gold palette and a
     // shine, so "that one cannot be hurt and blocks balls" reads at a glance.
     // Name and HP bar stay above it: the pillar is still a player.
     const statue = fin(pl.statueT) && pl.statueT > 0;
@@ -777,12 +883,36 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.fillText(`👁️ ${(+pl.vanishT).toFixed(1)}s`, x, y - r - 26);
     }
 
+    // Genki charge (issue #12): the ball grows ABOVE the head, public, tinted
+    // by stage, its current damage printed on it; the whole arena reads it
+    if (fin(+pl.genkiR) && +pl.genkiR > 0) {
+      const gr = Math.max(3, +pl.genkiR * scale);
+      const gy = y - r - gr - 10;
+      const tint = GENKI_TINTS[Math.min(+pl.genkiStage || 0, 2)];
+      ctx.save();
+      const glow = ctx.createRadialGradient(x, gy, 0, x, gy, gr * 1.5);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.5, `rgba(${tint}, 0.9)`);
+      glow.addColorStop(1, `rgba(${tint}, 0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, gy, gr * 1.5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(${tint}, 0.9)`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, gy, gr, now / 600, now / 600 + Math.PI * 1.7); ctx.stroke();
+      if (fin(+pl.genkiDmg)) {
+        ctx.textAlign = 'center';
+        ctx.font = '700 12px ui-monospace, Menlo, monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(String(Math.round(+pl.genkiDmg)), x, gy + 4);
+      }
+      ctx.restore();
+    }
+
     // Coal Brazier aura (ITEMS.brazier, round 21.5): a radius-TRUE ring at the
-    // exact distance that burns — read straight off the owner's item level, so
+    // exact distance that burns, read straight off the owner's item level, so
     // the client needs no extra wire field. Deliberately faint (a warm fill +
     // a slow breath on the edge): it is on screen for the whole round, so it
     // must never clutter the fight. Drawn UNDER the body, and skipped while
-    // vanished — for other clients there is no position to draw at anyway
+    // vanished; for other clients there is no position to draw at anyway
     // (snapshot strips it), this is the "not even on your own screen" half of
     // Remi's ruling that passive damage must not give stealth away.
     const brazLv = pl.items && pl.items.brazier;
@@ -800,7 +930,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(x, y + r * 0.6, r * 1.05, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
 
-    // body — or, mid-Statue, a gold column in its place
+    // body, or, mid-Statue, a gold column in its place
     if (statue) {
       const sr = r * 1.15;
       // warm halo: gold catching the lava light, and the one cue that this
@@ -826,6 +956,19 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath(); ctx.arc(x, y, sr * 0.78, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
       ctx.fillStyle = 'rgba(255, 255, 235, 0.9)';
       ctx.beginPath(); ctx.arc(x - sr * 0.34, y - sr * 0.42, sr * 0.14, 0, Math.PI * 2); ctx.fill();
+    } else if (knightReady) {
+      // v9 (Sam): the warlock IS an animated character now. Its identity stays
+      // readable as a coloured disc on the ground UNDER the feet (the old body
+      // disc is not drawn over the sprite), and the collision circle is
+      // untouched: this is paint, not physics.
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = pl.color;
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.92, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = pl.id === myId ? 'rgba(255,255,255,.8)' : 'rgba(0,0,0,0.45)';
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.92, r * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
     } else {
       ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
@@ -847,18 +990,40 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
     }
-    // hood highlight + avatar emoji — a statue has neither: it is stone now,
+    // hood highlight + avatar emoji; a statue has neither: it is stone now,
     // and the status rings below are all things it is immune to anyway
-    if (!statue) {
+    if (!statue && knightReady) {
+      drawKnight(ctx, pl, x, y, r, kdt, {
+        cast: casters.has(pl.id), hurt: hurtNow.has(pl.id), dead: !pl.alive,
+      });
+    } else if (!statue) {
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
 
-      ctx.font = `${Math.round(r * 1.6)}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fff';
-      ctx.fillText(String(pl.avatar || '🧙'), x, y);
-      ctx.textBaseline = 'alphabetic';
+      const face = avatarImage(pl.avatar);
+      if (face) {
+        const d = r * 1.9;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.95, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(face, x - d / 2, y - d / 2, d, d);
+        ctx.restore();
+      } else if (BLANK_FACE.complete && BLANK_FACE.naturalWidth) {
+        // v8.2 (Sam): an unresolved face falls back to the blank portrait at the
+        // SAME size. Never draw the avatar id as text in the arena.
+        const d = r * 1.9;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.95, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(BLANK_FACE, x - d / 2, y - d / 2, d, d);
+        ctx.restore();
+      } else if (typeof pl.avatar === 'string' && pl.avatar.length <= 3) {
+        // a co-op campaign unit still wears an emoji: that is a glyph, not an id
+        ctx.font = `${Math.round(r * 1.6)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(pl.avatar, x, y);
+        ctx.textBaseline = 'alphabetic';
+      }
     }
 
     if (pl.inLava && !statue) {
@@ -867,7 +1032,20 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
     }
-    // Hat of Aura burn (round 21.8): the victim smoulders — a thin ember ring
+    // Fire Walk (SPELLS.firewalk, round 22): the immunity is running; a warm
+    // double flame-gold ring on EVERYONE's screen (`fw` is public wire, seconds
+    // left, present only while active), so "the lava is free for them right
+    // now" reads at a glance and chasing them into it is an informed mistake.
+    if (fin(pl.fw) && pl.fw > 0 && !statue) {
+      const fl = 0.5 + 0.5 * Math.sin(t * 12 + x);
+      ctx.strokeStyle = `rgba(255, 190, 60, ${0.55 + 0.35 * fl})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255, 120, 30, ${0.30 + 0.25 * fl})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.62, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Hat of Aura burn (round 21.8): the victim smoulders; a thin ember ring
     // that survives leaving the owner's circle, which is the whole point of the
     // linger. Never drawn on the owner: `burning` only ever marks a victim.
     if (pl.burning && !statue) {
@@ -883,14 +1061,14 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
     }
     if (pl.stun && !statue) {
-      // frozen solid: a thick ice shell, unmistakable — you cannot act
+      // frozen solid: a thick ice shell, unmistakable; you cannot act
       ctx.strokeStyle = 'rgba(200, 240, 255, 0.95)';
       ctx.fillStyle = 'rgba(150, 215, 255, 0.22)';
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     // Malady contagion aura (elemental): the plague's catch radius drawn on
-    // the PATIENT — step inside this circle and it is yours. maladyR arrives
+    // the PATIENT: step inside this circle and it is yours. maladyR arrives
     // in world units from the snapshot (the instance's level sizes it).
     if (fin(pl.maladyR) && pl.maladyR > 0) {
       const ar = pl.maladyR * scale;
@@ -903,7 +1081,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     }
     // Stack pips. Stacks are PRIVATE (round 12), so the snapshot only ever
     // carries YOUR count on an enemy (`myStacks`) and the worst incoming pile on
-    // your own body (`stacksOnMe`) — exactly one of the two is ever present,
+    // your own body (`stacksOnMe`); exactly one of the two is ever present,
     // which is why one expression covers both. Frost pips arc over the head,
     // gale's dashes under it, midas right, malady left, anger upper-right.
     const mine = pl.myStacks || pl.stacksOnMe || null;
@@ -919,11 +1097,11 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     }
     // Gale pips: the same "N of 3 and then it pops" reading as frost, drawn as
     // short radial DASHES so a body carrying both is still legible (frost+gale
-    // is a legal build — every element stacks with every other).
+    // is a legal build; every element stacks with every other).
     //
     // ⚠ They arc BELOW the body, not above with frost's. The band from
     // ~1.65r to ~2.15r above the centre is where the HP bar is (`y - r - 12`,
-    // 5 px tall — an ABSOLUTE offset, so it covers that band at every zoom), and
+    // 5 px tall (an ABSOLUTE offset, so it covers that band at every zoom), and
     // the first version of these pips was drawn at 1.9-2.2r and was completely
     // hidden behind it. That is the mosquito scar exactly: computed, on the
     // wire, never visible. Verified by screenshot, not by reading the code.
@@ -940,7 +1118,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
         ctx.stroke();
       }
     }
-    // Midas mark (round 17 §5): this body owes you gold — your next hit
+    // Midas mark (round 17 §5): this body owes you gold; your next hit
     // cashes it. One gold pip on the RIGHT side: frost owns the top arc and
     // gale the bottom dashes.
     if (mine && mine.midas > 0) {
@@ -951,7 +1129,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.arc(x + r * 1.75, y, 3.2, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
-    // Malady mark (round 19): your first hit planted the 🦠 — your next one
+    // Malady mark (round 19): your first hit planted the 🦠; your next one
     // infects. One sickly-green pip on the LEFT: midas owns the right, frost
     // the top arc, gale the bottom dashes.
     if (mine && mine.malady > 0) {
@@ -962,7 +1140,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.arc(x - r * 1.75, y, 3.2, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     }
-    // Anger mark: the hunt is on — this body wears the red orb. Upper-right
+    // Anger mark: the hunt is on; this body wears the red orb. Upper-right
     // diagonal (a free slot: frost owns the top arc, gale the bottom dashes,
     // midas the right, malady the left). Shown to the owner (myStacks) and the
     // marked victim (stacksOnMe) alike.
@@ -981,7 +1159,7 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.fill();
     }
     if (pl.charging) {
-      // repulse wind-up: hard-blinking double ring — VERY visible on purpose
+      // repulse wind-up: hard-blinking double ring; VERY visible on purpose
       const on = Math.sin(now / 70) > 0;
       ctx.strokeStyle = on ? 'rgba(255, 230, 120, 0.95)' : 'rgba(255, 120, 40, 0.55)';
       ctx.lineWidth = 3;
@@ -994,6 +1172,13 @@ export function draw(view, vs, fx, myId, moveMark, now) {
       ctx.fillStyle = 'rgba(140, 210, 255, 0.14)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * 1.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    // Blood Debt (issue #1): the gray absorb ring while the window is open
+    if (fin(pl.debtT) && pl.debtT > 0) {
+      ctx.strokeStyle = 'rgba(190, 190, 200, 0.95)';
+      ctx.fillStyle = 'rgba(150, 150, 165, 0.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
 
     // name + hp
@@ -1008,7 +1193,44 @@ export function draw(view, vs, fx, myId, moveMark, now) {
     const frac = fin(rawFrac) ? Math.max(0, Math.min(1, rawFrac)) : 0;
     ctx.fillStyle = frac > 0.5 ? '#7fb069' : frac > 0.25 ? '#f0b64a' : '#c0392b';
     ctx.fillRect(x - bw / 2, y - r - 12, bw * frac, 5);
+    // Blood Debt (issue #1): the stored gray health eats the TOP of the bar,
+    // the slice you will lose if the debt comes due. Capped at current hp.
+    const debtFrac = Math.min(Math.max(0, +pl.debtDamage || 0), Math.max(0, +pl.hp || 0)) /
+      (+pl.maxHp || PLAYER.MAX_HP);
+    if (debtFrac > 0) {
+      ctx.fillStyle = '#9a9aa5';
+      ctx.fillRect(x - bw / 2 + bw * Math.max(0, frac - debtFrac),
+        y - r - 12, bw * Math.min(frac, debtFrac), 5);
+    }
     ctx.restore();   // pairs with the Vanish ghosting save() above
+  }
+
+  // --- Trash Talk bubbles (issue #4) ---
+  // A separate pass on top of every body, so a line is never half-covered by
+  // the player standing in front. Anchored to the live position, and skipped
+  // entirely for anyone the snapshot gives no place to draw (an invisible
+  // player has no x/y here, so a bubble can never give one away).
+  for (const b of bubbles) {
+    const pl = players.find(p => p && p.id === b.id);
+    if (!pl || !pl.alive || !fin(pl.x) || !fin(pl.y)) continue;
+    const age = (now - b.at) / (b.until - b.at);
+    if (!(age >= 0 && age <= 1)) continue;
+    const alpha = (age > 0.75 ? (1 - age) / 0.25 : 1) * worldAlpha;
+    if (alpha <= 0.01) continue;
+    const r = (fin(pl.radius) ? pl.radius : PLAYER.RADIUS) * scale * 1.2;
+    const x = view.sx(pl.x);
+    const y = view.sy(pl.y) - r - 30 - age * 8;   // drifts up as it fades
+    // Remi (issue #4, second pass): "too visible and takes too much space";
+    // a bit smaller and just white letters with no background". Round 23: one
+    // uniform plain style; the upper/lower case alone carries the intensity.
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '10px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(b.text, x, y);
+    ctx.restore();
   }
 
   // --- fx ---
@@ -1085,7 +1307,7 @@ function drawBanners(view, vs, players, myId) {
     ctx.shadowColor = '#ff5d1f'; ctx.shadowBlur = 30;
     ctx.fillText(String(n), view.cx, view.cy + 20);
     ctx.shadowBlur = 0;
-    // the level's title, small under the count — quotes included
+    // the level's title, small under the count; quotes included
     const lv = currentLevel();
     if (lv && lv.title) {
       ctx.font = 'italic 16px Georgia, serif';
@@ -1101,13 +1323,13 @@ function drawBanners(view, vs, players, myId) {
     ctx.fillStyle = 'rgba(232, 217, 176, 0.85)';
     // A player who has never died is a mid-game joiner waiting to be seated.
     const text = vs.me.spectator ? 'Spectating'
-      : vs.me.deaths > 0 ? 'You are ash — spectating' : 'You join next round';
+      : vs.me.deaths > 0 ? 'You are ash (spectating)' : 'You join next round';
     ctx.fillText(text, view.cx, 64);
   }
 }
 
-// Round-end banner: "{winner} takes round n" — or, on the final summary, the
-// game champion's "{name} wins the game" — plus a personal VICTORY/DEFEAT
+// Round-end banner: "{winner} takes round n", or, on the final summary, the
+// game champion's "{name} wins the game", plus a personal VICTORY/DEFEAT
 // verdict and the gold earned this round (fighters only; spectators get a
 // neutral note). Fades in fast, then holds for the rest of the summary.
 function drawRoundEndBanner(view, vs, players, myId) {
@@ -1118,12 +1340,12 @@ function drawRoundEndBanner(view, vs, players, myId) {
   const winner = rs.winner != null ? players.find(p => p && p.id === rs.winner) : null;
   let title;
   if (rs.final) {
-    // The game is decided on kills, not on who took the last round — and since
+    // The game is decided on kills, not on who took the last round, and since
     // round 21.3 on TEAM kills against 15 x size, which is rankTeams()' order
     // (a lobby of solo teams ranks identically to the old per-player sort).
     // `!p.clone`: Decoy mirages are drawn from this same list (client/main.js
     // builds them out of their caster's entry), and a mirage must never count
-    // as a body in the standings. The sim already clears them at round end —
+    // as a body in the standings. The sim already clears them at round end;
     // this is the belt-and-braces half.
     const fs = players.filter(p => p && !p.spectator && !p.clone);
     const top = rankTeams(fs)[0];
@@ -1146,7 +1368,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.globalAlpha = alpha;
 
   // dark band so the text stays readable over the arena
-  const bandH = 130;
+  const bandH = 190;   // v8: room for the painted crest, in its own row
   const band = ctx.createLinearGradient(0, view.cy - bandH, 0, view.cy + bandH);
   band.addColorStop(0, 'rgba(10, 6, 4, 0)');
   band.addColorStop(0.28, 'rgba(10, 6, 4, 0.78)');
@@ -1161,29 +1383,48 @@ function drawRoundEndBanner(view, vs, players, myId) {
   while (size > 18 && ctx.measureText(title).width > w * 0.92);
   ctx.fillStyle = '#e8d9b0';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.85)'; ctx.shadowBlur = 14;
-  ctx.fillText(title, view.cx, view.cy - 34);
+  ctx.fillText(title, view.cx, view.cy - 78);
   ctx.shadowBlur = 0;
 
-  // my verdict + income — fighters only; a spectator gets a neutral note
+  // my verdict + income (fighters only; a spectator gets a neutral note)
   const income = rs.income && typeof rs.income === 'object' ? rs.income : null;
   if (vs.me && vs.me.spectator) {
     if (rs.final) {
       ctx.font = 'small-caps 700 30px Georgia, serif';
       ctx.fillStyle = '#9a8d80';
-      ctx.fillText('Game over', view.cx, view.cy + 24);
+      ctx.fillText('Game over', view.cx, view.cy + 14);
     }
   } else if (myId && income && fin(+income[myId])) {
-    // a surviving TEAMMATE won it too — `winners` is every survivor paid the
+    // a surviving TEAMMATE won it too; `winners` is every survivor paid the
     // round-win gold, so the verdict never says "defeat" to a winner
     const won = Array.isArray(rs.winners) ? rs.winners.includes(myId) : rs.winner === myId;
-    ctx.font = 'small-caps 700 30px Georgia, serif';
-    ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';
-    if (won) { ctx.shadowColor = 'rgba(240, 182, 74, 0.5)'; ctx.shadowBlur = 18; }
-    ctx.fillText(won ? 'victory' : 'defeat', view.cx, view.cy + 24);
-    ctx.shadowBlur = 0;
+    // v8 (Sam): the painted VICTORY / DEFEAT crest, with the drawn words as the
+    // fallback so the verdict is never missing while the art loads
+    const crest = ROUND_ART[won ? 'victory' : 'defeat'];
+    if (crest && crest.complete && crest.naturalWidth) {
+      const cw = Math.min(190, w * 0.34), ch = cw * crest.naturalHeight / crest.naturalWidth;
+      ctx.drawImage(crest, view.cx - cw / 2, view.cy + 4 - ch / 2, cw, ch);
+    } else {
+      ctx.font = 'small-caps 700 30px Georgia, serif';
+      ctx.fillStyle = won ? '#f0b64a' : '#9a8d80';
+      if (won) { ctx.shadowColor = 'rgba(240, 182, 74, 0.5)'; ctx.shadowBlur = 18; }
+      ctx.fillText(won ? 'victory' : 'defeat', view.cx, view.cy + 24);
+      ctx.shadowBlur = 0;
+    }
+    // the gold coin rides beside the amount
+    const coin = ROUND_ART.gold;
+    const amount = `+${+income[myId]} gold`;
     ctx.font = '15px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillStyle = '#f0b64a';
-    ctx.fillText(`+${+income[myId]} gold`, view.cx, view.cy + 56);
+    if (coin && coin.complete && coin.naturalWidth) {
+      const cs = 26, tw = ctx.measureText(amount).width;
+      ctx.drawImage(coin, view.cx - (tw + cs + 6) / 2, view.cy + 62, cs, cs);
+      ctx.textAlign = 'left';
+      ctx.fillText(amount, view.cx - (tw + cs + 6) / 2 + cs + 6, view.cy + 80);
+      ctx.textAlign = 'center';
+    } else {
+      ctx.fillText(amount, view.cx, view.cy + 74);
+    }
     // itemized: exactly where this round's gold came from
     const d = rs.detail && typeof rs.detail === 'object' ? rs.detail[myId] : null;
     if (d && typeof d === 'object') {
@@ -1197,7 +1438,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
       if (parts.length > 1) {
         ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
         ctx.fillStyle = '#9a8d80';
-        ctx.fillText(parts.join(' · '), view.cx, view.cy + 76);
+        ctx.fillText(parts.join(' · '), view.cx, view.cy + 106);
       }
     }
   }
@@ -1257,7 +1498,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       case 'hit': {
         const x = view.sx(f.x), y = view.sy(f.y) - 18 - 26 * k;
         // Momentum: the earned ramp is split off the total and printed ABOVE the
-        // damage in white. AGENTS.md scar — this element ramped correctly for
+        // damage in white. AGENTS.md scar: this element ramped correctly for
         // weeks and still read as broken, because a bigger red number is not a
         // number you can see growing. The white one is the feedback.
         const bonus = +f.bonus || 0;
@@ -1276,14 +1517,14 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       case 'lifesteal': {
         // lifesteal payout, on the HEALER's body: a big green "+N hp" and a
         // rising blood ring. Round 16 (Remi): EVERY lifesteal heal >= 1 hp gets
-        // this — Blood Sword included — not just vampire's engorged ball. The
+        // this (Blood Sword included, not just vampire's engorged ball). The
         // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
         const amt = Math.round(+f.amount || 0);
         // round 18.1 (Remi): the SIZE carries the magnitude. Round 21.8 (Remi:
         // "everyone has some lifesteal, so 1s and 2s are all over the screen"):
         // the FLOOR dropped 10px → 6px and the curve is now concave, so the
-        // crumbs whisper while everything that matters keeps its old presence —
+        // crumbs whisper while everything that matters keeps its old presence;
         // +1 6px, +2 9px, +5 12px, +10 15px (was 13), +20 18px, +50 and up 26px,
         // the ceiling unchanged. Revert = the old linear `10 + 16 * amt/50`.
         const px = Math.round(6 + 20 * Math.sqrt(
@@ -1304,7 +1545,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'refund': {
-        // arcane lv3: a landed fireball just refunded every cooldown — an
+        // arcane lv3: a landed fireball just refunded every cooldown; an
         // hourglass over the caster and a ring winding INWARD (time coming back)
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
@@ -1532,7 +1773,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'gale': {
         // one more gust stacked: a thin pale ring and the count toward the burst.
-        // Deliberately quieter than frost's — this one fires on EVERY gale hit
+        // Deliberately quieter than frost's; this one fires on EVERY gale hit
         // and the loud cue belongs to the detonation.
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
@@ -1550,7 +1791,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'galeBurst': {
         // the 3rd stack spent: a hard expanding shockwave with swept streaks
-        // curling off it, plus the word. This is the whole point of the rework —
+        // curling off it, plus the word. This is the whole point of the rework;
         // an enormous shove must never arrive without an explanation on screen.
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
@@ -1574,7 +1815,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'midasMark': {
-        // a mark just landed: one quiet gold ring — the LOUD cue is the +1 g
+        // a mark just landed: one quiet gold ring; the LOUD cue is the +1 g
         // popup when it cashes (the existing 'gold' floater)
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.strokeStyle = `rgba(255, 208, 70, ${a * 0.9})`;
@@ -1583,7 +1824,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'infected': {
-        // malady just took a body: one sick green burst + the germ itself —
+        // malady just took a body: one sick green burst + the germ itself;
         // the ongoing state is the aura circle and green tint, this is the
         // one-shot "you caught it" moment
         const x = view.sx(f.x), y = view.sy(f.y);
@@ -1599,7 +1840,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       }
       case 'angerClaim': {
         // a red mark just got claimed: one hard little red burst + the brand.
-        // Small on purpose — the permanent reward lives on the scoreboard tag.
+        // Small on purpose; the permanent reward lives on the scoreboard tag.
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
         ctx.strokeStyle = `rgba(255, 80, 60, ${a})`;
@@ -1612,7 +1853,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         break;
       }
       case 'frostBreak': {
-        // the 3rd stack detonating — shards, and the verdict in words
+        // the 3rd stack detonating: shards, and the verdict in words
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.save();
         ctx.strokeStyle = `rgba(200, 240, 255, ${a})`;
@@ -1674,7 +1915,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         // straight off the event: the ring eases out to it in the first third
         // of its life and then HOLDS there, so the circle you see is exactly
         // the circle that got shoved. Short and loud on purpose (0.4 s, set in
-        // main.js) — the old ring only reached full size as it faded to zero,
+        // main.js); the old ring only reached full size as it faded to zero,
         // so nobody could read the real reach.
         const x = view.sx(f.x), y = view.sy(f.y);
         const R4 = (fin(+f.r) ? +f.r : 9) * scale;

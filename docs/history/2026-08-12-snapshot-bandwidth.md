@@ -1,0 +1,191 @@
+# Round 21.10 — the snapshot stream had no brakes (2026-08-12)
+
+Remi's report: one remote friend got **progressively jerkier as the rounds went
+on** — fine early, "everything jerky, like low freq" late — on a fast PC with
+the game tab in front. A second remote friend in the same games was fine.
+
+Everything below is measured. Every table says what its numbers are, against
+what baseline, and how they were taken.
+
+## 1. What was ruled out, and by what
+
+| Hypothesis | How it was tested | Result |
+|---|---|---|
+| Client memory / DOM leak accumulating over rounds | Drove the real client (`?mode=solo`) in headless Chromium through 9 rounds, sampling `performance.memory`, `document.getElementsByTagName('*').length` and frames/s every 3.5 s | Heap flat at **9.5 MB**, DOM flat at **879 nodes**, fps stable. No leak. |
+| Host simulation cost late-game | `engine.tick()` timed in Node, 900 ticks per point, pillar count forced 6 → 800 | **0.02 → 0.07 ms** against a **33 ms** budget. `snapshot()`+`JSON.stringify` 0.03 → 0.18 ms. Not the host. |
+| Client render cost of accumulated pillars | Injected N extra pillars into a live client's game state, counted frames over 3 s at 1600×900 | 92.5 fps at +0 → **58.4 fps at +450** → 47.6 at +700. Real but modest; matters on a weak GPU, not on this machine. |
+| The RTC hot spare (`engine.serialize()`, sent to every guest every 2 s) | Serialized a live game each round, with `pushSnapshots()` called at 15 Hz as production does | **6.7 KB → 7.4 KB over 11 rounds**. Not a factor. ⚠ A first pass measured it ballooning to 733 KB — that was the harness never calling `pushSnapshots()`, so `game.events` never drained. Harness artifact, not a real effect. |
+
+## 2. The cause: three things compounding
+
+### 2a. Snapshots were re-sent whole, 15×/s, uncompressed
+
+`server/index.js` sent `ws.send(JSON.stringify(msg))` per player per snapshot,
+with no delta coding and no compression. `perMessageDeflate` is **off by default
+in `ws`** and nothing turned it on.
+
+Snapshot of a 4-seat elemental game, `JSON.stringify(snapshot(game, viewer))`,
+deflate applied with `zlib.deflateSync` for comparison:
+
+| pillars on the map | raw bytes/snapshot | raw, per player at 15 Hz | deflated | deflated at 15 Hz |
+|---|---|---|---|---|
+| 6 (round 1) | 3,087 | 45 KB/s | 648 (21%) | 9 KB/s |
+| 80 | 6,270 | 92 KB/s | 1,260 (20%) | 18 KB/s |
+| 300 | 15,713 | 230 KB/s | 2,763 (18%) | 40 KB/s |
+| 450 | 22,159 | **325 KB/s** | 3,740 (17%) | 55 KB/s |
+
+Every player was receiving ~5× more bytes than the same information needs.
+
+### 2b. The payload grows all game, and pillars are the whole growth
+
+Pillars are permanent (round 21.2) and the entire list was re-serialized into
+every snapshot, though it changes a couple of times a minute.
+
+Headless 4-seat games, snapshot bytes at each round's shop:
+
+| game | round 1 | round 20 | pillars at the end |
+|---|---|---|---|
+| nobody owns Stone Pillar | 3,627 B | 3,964 B (round 11) | 6 |
+| all four seats own it and cast on cooldown, run A | 4,287 B | **23,377 B** | 452 |
+| same setup, run B | 4,287 B | 6,000-7,200 B | plateaued 60-85 |
+
+Two things to read here. **Without pillars the snapshot grows only ~9% over 11
+rounds** (players accumulating spells, items, elements and cooldown keys) — so
+the answer to "what else grows?" is: almost nothing. And the pillar count is not
+monotonic in general: fireballs smash pillars, so whether a game reaches 450 or
+plateaus at 80 depends on where they get placed. Both runs are honest; the
+late-game bandwidth is somewhere between 2× and 7× the round-1 figure.
+
+### 2c. A player who could not keep up was queued, never dropped
+
+There was no `bufferedAmount` check anywhere. Against a real server, two clients
+in a live battle, one stops draining its socket for 10 s:
+
+```
+during the 10 s stall: fast client got 229 snapshots, slow client got 0
+after resuming, the slow client immediately drained 150 queued snapshots
+```
+
+Nothing was discarded. A link that is merely *too slow* does this continuously:
+the queue grows, never drains, and the client renders state that is seconds old
+in bursts. That is the reported symptom, and it explains the asymmetry —
+downlink is per-friend, so the one below the (rising) threshold falls off a
+cliff while the other notices nothing.
+
+## 3. The fix, and what it measures
+
+Four changes, each independently revertible:
+
+1. **`perMessageDeflate` on** (`server/index.js`; `WS_DEFLATE=0` reverts).
+2. **Delta-coded state** per connection, reusing `shared/snapdelta.js` through
+   the new `shared/snapwire.js`. Opt-in via `join {dv:1}`, so a stale cached tab
+   still gets whole snapshots — it degrades in bandwidth, never in correctness.
+3. **Events on their own message** (`{t:'evt'}`), which is what makes the state
+   droppable — a lost death is a lost kill cue, so events are never skipped. A
+   pre-21.10 client keeps them inline, and its snapshots are then never skipped.
+4. **Skip, don't queue**, for a connection that is falling behind, plus an
+   **adaptive interpolation delay** in the client so fewer updates read as
+   coarser motion instead of freeze-and-jump.
+
+`tools/slowlink.js` is the instrument: a real server, 3 normal seats plus one
+throttled seat, everyone spamming Stone Pillars, four wire configurations in
+sequence with the same cast order. 30 s per configuration, thin seat at
+**20 KB/s**, ~18 pillars reached. "behind" is how far behind the live game the
+thin seat's newest state was; the send rate is 15 Hz, so ~15-16 Hz applied means
+keeping up:
+
+| configuration | full seat | thin seat | thin seat behind (avg / worst) |
+|---|---|---|---|
+| neither (the round-21.9 build) | 53 KB/s, 16.0 Hz | 20 KB/s, **6.3 Hz** | **10.06 s / 19.20 s** |
+| permessage-deflate only | 1 KB/s, 16.0 Hz | 1 KB/s, 16.0 Hz | 0.00 s / 0.07 s |
+| delta snapshots only | 6 KB/s, 16.0 Hz | 6 KB/s, 16.0 Hz | 0.02 s / 0.20 s |
+| deflate + delta (shipped) | 1 KB/s, 16.0 Hz | 1 KB/s, 16.0 Hz | 0.00 s / 0.07 s |
+
+And starved *below* what even the compressed stream needs — the same lab at
+**0.5 KB/s**, which is the case the skip logic exists for:
+
+| configuration | thin seat applied | thin seat behind | states skipped on purpose |
+|---|---|---|---|
+| deflate + delta (shipped) | 10.4 Hz | 0.38 s avg / 1.27 s worst | 163 |
+| neither | **0.0 Hz** | never received a battle state at all | 0 |
+
+Live confirmation through a real browser against a real server: a delta state
+message is **246 bytes** (`/health` → `wire[].lastBytes`), and the client's
+interpolation delay stays at its **131.7 ms** baseline with `gapEst` 66.5 ms —
+the adaptive path is inert until snapshots actually get sparse. ⚠ That 246 B is
+a smaller lobby than the 3,087 B full-snapshot row above, so read them as two
+separate facts, not a ratio; the honest ratio is the `--only=delta` lab row,
+6 KB/s against 53 KB/s for the same game.
+
+## 3b. The friend was on 📡 Host online — what that changes
+
+Learned after the four fixes shipped. On the RTC path, **two of the four buy
+nothing**: data channels have no permessage-deflate, and that path has been
+delta-coding since round 21. Its remaining failure mode is sharper and is the
+best match for the report:
+
+The `~2 s` keyframe (`fullEvery = 30` at 15 Hz) was sent on the **`snap` channel
+— `ordered: false, maxRetransmits: 0`**. A late-game keyframe is 20 KB+, which
+SCTP splits into ~18 chunks, and with no retransmits **losing any one chunk
+discards the whole message**. Every following delta is then unusable (its base
+never arrived), the client's recovery request is rate-limited to 2 Hz
+(`fullEveryMs = 500`), and the answer is another big all-or-nothing keyframe.
+Loss probability per keyframe scales with its size, so the spiral tightens as the
+pillar list grows — fine early, unplayable late, and only for the peer whose link
+actually drops packets.
+
+**Fix:** keyframes ride `ctrl` (reliable); only deltas ride the lossy channel.
+`createSnapWire().frame()` now reports `full`, pinned by a test to the invariant
+"`full` is true iff a cold decoder can stand up on that message alone" — the
+encoder keyframes on its own `fullEvery` cadence too, which a caller reading only
+its own request flag would miss.
+
+**How much it matters, measured.** `test/snapwire.test.js` models the chunk
+arithmetic (an 11 KB keyframe = 10 chunks, a 112 B delta = 1) and replays 300
+frames at 15 Hz against a VIRTUAL clock, counting states the client applied:
+
+| per-packet loss | keyframes reliable | keyframes lossy |
+|---|---|---|
+| 0.5% | 298/300 | 298/300 |
+| 1% | 296/300 | 296/300 |
+| 3% | 291/300 | 280/300 |
+| 5% | 284/300 | 200/300 |
+| 10% | 241/300 | **82/300** |
+
+So the reroute is decisive at ≥5% loss and **worth nothing at 1%**. It is the
+explanation for that friend's session only if his link was genuinely bad; at
+ordinary loss rates something else was wrong. Do not claim more than that.
+
+⚠ Three limits. It models chunking, it is **not** SCTP. `tools/slowlink.js` is one
+machine (bandwidth only, no loss, no RTC path), and `test/rtc-host.js` proves a
+round still plays, not that this was the cause. And real loss is **bursty**, which
+punishes large messages harder than the independent-loss maths here — so these are
+a floor on the harm, not an estimate of it. Next suspect if it persists: the host
+tab's upload, which carries N× the traffic.
+
+⚠ **A scar inside this test itself**: the first version ran 300 frames inside one
+millisecond of real time, so the sink's 500 ms keyframe-request limit suppressed
+almost every recovery and the results read ~3× worse than reality (87/300 instead
+of 241/300 at 10%). `createSnapSink` takes an injectable `now` for exactly this.
+Any test that exercises rate-limited logic needs a virtual clock, or it measures
+its own harness.
+
+## 4. Scars this round earned
+
+- **`bufferedAmount` is blind.** The first version of the skip used it and never
+  fired once: the throttled seat ran 19 s behind while Node's write queue stayed
+  at 0, because ~1 MB sat in the kernel send buffer where neither Node nor `ws`
+  can see it. The working signal is an application-level ack (`{t:'ack', q}`).
+- **The absolute backlog is not the signal either.** Sent-minus-acked sits at
+  RTT × 15 Hz even on a perfect link, so a distant friend on a fat pipe would be
+  throttled for being far away. A congested pipe's backlog *grows*; a merely
+  distant one's is a constant offset — hence the "floor" baseline.
+- **The ack cadence must be faster than the lag limit.** Acking at 2 Hz with a
+  6-state (400 ms) limit made the sender throttle *everybody*, including
+  unthrottled seats: the ack interval itself looked like a backlog.
+- **A new socket restarts the sequence at 1.** Any decoder still holding the old
+  session's cursor rejects every message as stale, permanently. Every transport
+  and the harness client reset the sink on (re)connect.
+- **A lab must not print "no data" as zero.** The starved raw run showed
+  "0.00 s behind" because it never received a single battle state to compare —
+  the best-looking number in the table was the worst outcome in it.

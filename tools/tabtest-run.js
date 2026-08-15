@@ -1,17 +1,17 @@
 // B0 gate driver (docs/BRIEF-browser-hosting.md §B0): measures whether a 30 Hz
 // loop survives a BACKGROUNDED Chrome tab. Spawns a real Chrome binary with a
-// scratch profile — NOT playwright: playwright emulates focus on every page, so
+// scratch profile, NOT playwright: playwright emulates focus on every page, so
 // background tabs never report hidden and never throttle, which silently
 // invalidates the whole measurement (found 2026-08-09). The page beacons its
 // numbers back over HTTP instead (tabtest.html ?beacon=1).
 //
 //   node tools/tabtest-run.js            (10 min, the gate's duration)
 //   MINUTES=2 node tools/tabtest-run.js  (smoke; Chrome's INTENSIVE throttling
-//                                         only starts at 5 min — never gate on a smoke run)
+//                                         only starts at 5 min; never gate on a smoke run)
 //   CHROME=/path/to/chrome node tools/tabtest-run.js   (default: playwright's Chrome for Testing)
 //
 // ⚠ opens a real browser window (small, top-left) for the duration.
-// Safari and phones cannot be driven from here — open tools/tabtest.html there
+// Safari and phones cannot be driven from here; open tools/tabtest.html there
 // by hand (append ?v=<variant>) and read the on-page report.
 
 import http from 'node:http';
@@ -65,7 +65,7 @@ process.on('exit', cleanup);
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { cleanup(); process.exit(1); });
 
 console.log(`real Chrome spawned (pid ${chrome.pid}), 4 variant tabs backgrounded for ${MINUTES} min`);
-console.log('(Chrome throttles hidden-tab timers to 1 Hz immediately and to 1/min after 5 min — the gate is the 10 min run)');
+console.log('(Chrome throttles hidden-tab timers to 1 Hz immediately and to 1/min after 5 min; the gate is the 10 min run)');
 
 const t0 = Date.now();
 while (Date.now() - t0 < MINUTES * 60_000) {

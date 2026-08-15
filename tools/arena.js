@@ -25,7 +25,7 @@ import { ownedLevel } from '../shared/catalogue.js';
 const DT = 1 / 30;
 
 // Progress ticks ("400/1000 games (12s)") are for a human watching a terminal.
-// When stderr is NOT a TTY — an agent, a pipe, CI — they are pure context
+// When stderr is NOT a TTY (an agent, a pipe, CI) they are pure context
 // noise, so they are silenced (Remi's context policy, 2026-08-08). The
 // one-line run banners stay: they identify what a saved output file was.
 const progress = process.stderr.isTTY ? console.error : () => {};
@@ -33,8 +33,8 @@ const MAX_TICKS = 30 * 60 * 45; // 45 sim-minutes hard cap per game
 
 // ---- build schemes --------------------------------------------------------
 // Priority lists consumed greedily every shop (first affordable next step).
-// The real builds live in shared/constants.js (BUILDS) — same lists the
-// lobby's per-bot strategy picker uses — plus one arena-only control.
+// The real builds live in shared/constants.js (BUILDS), same lists the
+// lobby's per-bot strategy picker uses, plus one arena-only control.
 export const BUILDS = {
   ...Object.fromEntries(Object.entries(SHARED_BUILDS).map(([k, v]) => [k, v.order])),
   greedless: [], // control: never buys anything
@@ -55,7 +55,7 @@ export function strategies() {
 // victim. A player is "focused" while 2+ living enemies stand inside FOCUS_R;
 // we only watch the opening FOCUS_WINDOW of each round, because that is where
 // the pile-on happens (later the field is thinned and 2+ nearby is just the
-// endgame). Sampled every FOCUS_EVERY ticks — cheap, and 5 Hz is far finer
+// endgame). Sampled every FOCUS_EVERY ticks; cheap, and 5 Hz is far finer
 // than the phenomenon. Reported as the share of that window the average player
 // spends under it, so it is comparable across games of any length.
 // (Arena games are always free-for-all, so "enemy" is just "anybody else".)
@@ -79,7 +79,7 @@ const focusLine = (r) =>
 
 // ---- single game ------------------------------------------------------------
 // (The old harness-side boomerang assist is gone: shared/sim.js bots now
-// pilot every spell their build buys — boomerang included — so arena games
+// pilot every spell their build buys (boomerang included), so arena games
 // measure exactly what live-server games do.)
 
 export function playGame(lineup, seed, { mode = 'classic' } = {}) {
@@ -93,7 +93,7 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   // stops the greedy shopper at a level below the thing's own maxLevel (the
   // isolation lab measures "this item AT level 2", so it must not drift to 3).
   // ⚠ SCAR (round 21.8): round 20.2 retired the legacy six builds, and three
-  // labs still named `bruiser` in their DEFAULTS — the elemental study threw
+  // labs still named `bruiser` in their DEFAULTS; the elemental study threw
   // "not iterable" and had been dead ever since. Failing LOUD here is the
   // point: an unknown build must never quietly become "this seat buys nothing",
   // which is a table full of numbers that measure the wrong thing.
@@ -169,63 +169,10 @@ export function playGame(lineup, seed, { mode = 'classic' } = {}) {
   };
 }
 
-// ---- elemental study --------------------------------------------------------
-// Sanity check for the experimental ruleset: mirror games (all seats the same
-// combat profile + build) where only the element pick differs, so any
-// degenerate element (e.g. a midas gold snowball) shows up as a win-rate or
-// gold outlier. Not a tuning tool — a smoke alarm.
-
-// the shared build every elemental-study seat runs, so the element is the only
-// difference between seats (round 21.8: `bruiser` retired, `warlord` replaces it)
-export const ELEMENTAL_STUDY_BUILD = 'warlord';
-
-export function runElementalStudy({ kind = 'berserker', games = 100, playersPerGame = 4, seed = 1, log = progress } = {}) {
-  const elements = Object.keys(ELEMENTS);
-  const wins = Object.fromEntries(elements.map(e => [e, 0]));
-  const played = Object.fromEntries(elements.map(e => [e, 0]));
-  const placeSum = Object.fromEntries(elements.map(e => [e, 0]));
-  const goldSum = Object.fromEntries(elements.map(e => [e, 0]));
-  const killSum = Object.fromEntries(elements.map(e => [e, 0]));
-  const rand = makeRng(seed);
-  let unfinished = 0;
-  const t0 = Date.now();
-
-  for (let g = 0; g < games; g++) {
-    const pool = [...elements];
-    const lineup = [];
-    for (let i = 0; i < playersPerGame; i++) {
-      const el = pool.splice(Math.floor(rand() * pool.length), 1)[0];
-      // ⚠ was `bruiser` (retired round 20.2, which is what broke this study).
-      // warlord is its successor: the plain damage-and-sustain yardstick, so
-      // the seats still differ ONLY by their element.
-      lineup.push({ id: `${kind}+${el}`, kind, build: ELEMENTAL_STUDY_BUILD, element: el });
-    }
-    const res = playGame(lineup, seed * 100000 + g, { mode: 'elemental' });
-    if (!res.finished) { unfinished++; continue; }
-    res.ranking.forEach((r, place) => {
-      const el = lineup[r.idx].element;
-      played[el]++;
-      placeSum[el] += place + 1;
-      goldSum[el] += r.gold;
-      killSum[el] += r.kills;
-      if (place === 0) wins[el]++;
-    });
-    if ((g + 1) % 50 === 0) log(`  ${g + 1}/${games} elemental games (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
-  }
-
-  const table = elements.map(e => ({
-    element: e, games: played[e],
-    winRate: played[e] ? wins[e] / played[e] : 0,
-    avgPlace: played[e] ? placeSum[e] / played[e] : 0,
-    avgGold: played[e] ? goldSum[e] / played[e] : 0,
-    avgKills: played[e] ? killSum[e] / played[e] : 0,
-  })).sort((a, b) => b.winRate - a.winRate);
-
-  return {
-    kind, games, playersPerGame, unfinished, expectedWinRate: 1 / playersPerGame,
-    seconds: (Date.now() - t0) / 1000, table,
-  };
-}
+// The old "elemental study" (--mode=elemental, element-vs-element mirror games)
+// was DELETED in round 23 (Remi): identical-build mirrors are not the game
+// people play and its tables kept getting quoted as balance evidence. Rank with
+// tools/elo.js instead.
 
 // ---- Elo ----------------------------------------------------------------------
 
@@ -254,7 +201,7 @@ function makeElo(ids) {
 // De-confounded single-item comparison: every seat runs the SAME profile and
 // the SAME build tail; only the FIRST purchase differs (one item under test,
 // or nothing for the control). The winner-held table in the main study is
-// confounded — items late in a priority list are bought mostly by players who
+// confounded; items late in a priority list are bought mostly by players who
 // are already winning (they live long and stack gold), which inflates their
 // "winner-held" share. Buying the probe item first removes that.
 
@@ -299,7 +246,7 @@ export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame 
 // "What is this thing worth over spending the same gold on nothing?"
 //
 // WHY THIS EXISTS (BALANCE.md Findings 12A / 13B / 15A). The mixed tables above
-// — the Elo study, the mirror tables, the 12-element elemental study — are
+// (the Elo study, the mirror tables, the 12-element elemental study) are
 // RANKINGS, not strength meters. They are zero-sum: every point one element wins
 // is a point taken off the other three seats, so "below the 25% baseline" does
 // not mean "weak". The proof is the do-nothing control: an element whose `fx` is
@@ -308,7 +255,7 @@ export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame 
 // bad, and every mixed-table number silently contains that penalty.
 //
 // THE INSTRUMENT. Four seats, same bot kind, same build order, same everything.
-// ONE seat buys the thing under test; the other THREE buy a lab-only CONTROL —
+// ONE seat buys the thing under test; the other THREE buy a lab-only CONTROL;
 // same gold, same number of purchases, zero effect. Then:
 //
 //     if the probe seat also carried the control, all four seats would be
@@ -334,7 +281,7 @@ export function runItemProbe({ kind = 'berserker', games = 1400, playersPerGame 
 // ⚠ WHAT THIS LAB STILL CANNOT SEE: bots. A thing whose value is reactive
 // (teleport saves, boomerang catches, lining two targets up for ghost, holding a
 // gale burst) measures at its FLOOR here, and a spell no bot brain ever casts
-// measures at exactly the control — see the `spells` table, where that is a
+// measures at exactly the control; see the `spells` table, where that is a
 // visible, reproducible result rather than an excuse.
 
 // The lab-only control. Registered into the real spec objects because buy() and
@@ -348,7 +295,7 @@ function registerControls(itemCost, elementCosts = [10, 8, 8]) {
   ITEM_FX[CONTROL_ITEM] = {};
   // Round 16: element cost curves DIFFER (cheap 6+5+5 single-axis elements vs
   // 6+5+12 specials vs the 10+8+8 originals), so the control element copies the
-  // PROBE element's cost curve per run — price-matched at every level.
+  // PROBE element's cost curve per run; price-matched at every level.
   ELEMENTS[CONTROL_ELEMENT] = {
     name: 'Control', icon: '·', maxLevel: 3, costs: [...elementCosts],
     desc: 'lab control: does nothing', fx: {},
@@ -357,7 +304,7 @@ function registerControls(itemCost, elementCosts = [10, 8, 8]) {
 
 // The LONG build tail every seat shares. Two requirements:
 //  · it must contain enough to buy that no seat ends the game sitting on unspent
-//    gold — that is the gold-saturation artifact (Finding 12E), and under a short
+//    gold; that is the gold-saturation artifact (Finding 12E), and under a short
 //    tail a gold sink costs nothing, which makes the control look harmless and
 //    every measurement collapse toward zero;
 //  · it must contain only spells this bot brain actually pilots, or the tail
@@ -375,7 +322,7 @@ const TAIL_PASS = ['fireball', 'amulet', 'boots', 'sword', 'cape', 'treads',
 export const ISOLATION_TAIL = [...TAIL_PASS, ...TAIL_PASS, ...TAIL_PASS];
 
 // SELF-TEST for the instrument: give the PROBE seat the control too, so all four
-// seats are byte-identical. The lab must then read 25.0% / +0.0 — anything else
+// seats are byte-identical. The lab must then read 25.0% / +0.0; anything else
 // is a bug in the harness (seat bias, an unbalanced tail, a leaky control), not
 // a fact about the game. `node tools/arena.js --isolate=self-test`.
 export function runIsolationSelfTest(opts = {}) {
@@ -468,7 +415,7 @@ export function runIsolation({
 //
 // That one needs no control at all, because the alternative *is* the control:
 // four identical seats, same profile, same build tail, differing ONLY in how
-// many levels of one item they are allowed to buy — 0, 1, 2, 3. A seat capped at
+// many levels of one item they are allowed to buy: 0, 1, 2, 3. A seat capped at
 // level 1 spends the gold it saved on the rest of the tail, automatically. So:
 //
 //   · 25% everywhere        → every level is exactly worth its price
@@ -485,14 +432,14 @@ export function runLevelLadder({
   const maxLevel = ITEMS[thing] ? ITEMS[thing].maxLevel : 3;
   // ⚠ All four seats walk the SAME list; only the cap differs. Two earlier
   // versions were wrong and both made every item look like a trap:
-  //  · putting the item at the HEAD of the probe seats' list only — that
+  //  · putting the item at the HEAD of the probe seats' list only; that
   //    measured a first-shop tempo cost on top of the item;
-  //  · putting all THREE levels at the head — that measured "bought your third
+  //  · putting all THREE levels at the head; that measured "bought your third
   //    pair of boots before your first amulet", which nobody would ever do.
   // The shape below is the one the design is actually about: level 1 EARLY, then
   // a full breadth pass over the rest of the shop, then level 2, another pass,
   // then level 3. So a capped seat spends the saved gold going WIDER, and the
-  // question the table answers is exactly Remi's — depth or breadth?
+  // question the table answers is exactly Remi's: depth or breadth?
   const rest = TAIL_PASS.filter(k => k !== thing && k !== 'fireball');
   const list = ['fireball', 'fireball', thing, ...rest, thing, ...rest, thing, ...rest];
   const seat = (lv) => ({
@@ -688,7 +635,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
   const playersPerGame = argNum('players', 4);
   const seed = argNum('seed', 1);
   // ⚠ Round 21.8: the GAME's default ruleset is elemental (shared/sim.js
-  // createGame), and so is this lab's — every arena table printed before that
+  // createGame), and so is this lab's; every arena table printed before that
   // was CLASSIC, which is not the game most people play. `--ruleset=classic`
   // reproduces the old numbers; the ruleset is printed on every table so an
   // old and a new report can never be confused.
@@ -698,20 +645,9 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     process.exit(1);
   }
 
-  const mode = (process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1];
-  if (mode === 'elemental') {
-    const kind = (process.argv.find(a => a.startsWith('--kind=')) || '').split('=')[1] || 'berserker';
-    console.error(`elemental study: ${games} games of ${playersPerGame} × ${kind}, elements only differ, seed ${seed}`);
-    const res = runElementalStudy({ kind, games, playersPerGame, seed });
-    console.log(`\n=== elemental: all ${kind}/${ELEMENTAL_STUDY_BUILD}, element pick differs (expected win rate ${(res.expectedWinRate * 100).toFixed(0)}%) ===`);
-    console.log('win%   avg-place  avg-gold  avg-kills  games  element');
-    for (const r of res.table)
-      console.log(`${(r.winRate * 100).toFixed(1).padStart(5)}  ${r.avgPlace.toFixed(2).padStart(9)}  ${r.avgGold.toFixed(1).padStart(8)}  ${r.avgKills.toFixed(1).padStart(9)}  ${String(r.games).padEnd(6)} ${r.element}`);
-    if (res.unfinished) console.log(`(unfinished games: ${res.unfinished})`);
-    console.log(`${res.seconds.toFixed(1)}s total`);
-    const jsonPathE = (process.argv.find(a => a.startsWith('--json=')) || '').split('=')[1];
-    if (jsonPathE) fs.writeFileSync(jsonPathE, JSON.stringify(res, null, 2));
-    process.exit(0);
+  if ((process.argv.find(a => a.startsWith('--mode=')) || '').split('=')[1] === 'elemental') {
+    console.error('--mode=elemental was removed in round 23 (Remi): not representative; use tools/elo.js');
+    process.exit(1);
   }
 
   const mirror = (process.argv.find(a => a.startsWith('--mirror=')) || '').split('=')[1];
@@ -774,7 +710,7 @@ if (process.argv[1] && process.argv[1].endsWith('arena.js')) {
     }
     if (isolate === 'no-op') {
       // The calibration run of Finding 12A, reproducible with the shipped tool:
-      // an ELEMENT whose fx is literally {} — it does nothing whatsoever but
+      // an ELEMENT whose fx is literally {}; it does nothing whatsoever but
       // still pays its 10+8+8 g. Under --control=none (three seats that buy no
       // element at all) this is the "do-nothing floor", and it is nowhere near
       // 25%. It doubles as the proof that the lab's control is really inert.

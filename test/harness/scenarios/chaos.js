@@ -1,5 +1,5 @@
 // Adversarial kitchen sink: malformed messages, disconnects mid-round,
-// late joins, shop spam — with two bots stirring the pot.
+// late joins, shop spam, with two bots stirring the pot.
 export default {
   name: 'chaos',
   seed: 1337,

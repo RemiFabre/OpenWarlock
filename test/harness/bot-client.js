@@ -24,6 +24,7 @@
 // the checker.
 
 import WebSocket from 'ws';
+import { createSnapSink } from '../../shared/snapwire.js';
 
 const POLICY_HZ = 10;
 
@@ -42,6 +43,17 @@ export class ScriptedPlayer {
     this.connected = false;
     this.finished = false;
     this._current = null; // {cmd, until} for timed steps
+    // the receiving half of the real wire (shared/snapwire.js); reassembles
+    // `evt` + delta state back into the snapshots the checker reads
+    this.sink = createSnapSink(
+      (m) => {
+        this.snap = m.s;
+        this.lastSnapAt = Date.now();
+        for (const e of m.e) this.events.push(e);
+      },
+      () => this.send({ t: 'full' }),
+      { ack: (q) => this.send({ t: 'ack', q }) },
+    );
   }
 
   connect() {
@@ -55,18 +67,21 @@ export class ScriptedPlayer {
         // from before the disconnect, and the freeze watchdog would otherwise
         // count the (intentional) offline gap as server snapshot starvation.
         this.lastSnapAt = Date.now();
-        this.send({ t: 'join', name: this.name });
+        // A new socket restarts the wire's sequence at 1, so a decoder still
+        // holding the old session's cursor would reject everything as stale.
+        this.sink.reset();
+        // dv:1 means the harness rides the SAME wire real players do (round 21.10:
+        // events on their own message, delta-coded state), so a full scenario
+        // run with invariant checking covers the framing too.
+        this.send({ t: 'join', name: this.name, dv: 1 });
         resolve();
       });
       this.ws.on('message', (raw) => {
         let m;
         try { m = JSON.parse(raw); } catch { this.errors.push('unparseable server message'); return; }
-        if (m.t === 'welcome') this.id = m.id;
-        else if (m.t === 'snap') {
-          this.snap = m.s;
-          this.lastSnapAt = Date.now();
-          for (const e of m.e) this.events.push(e);
-        } else if (m.t === 'denied') this.denials.push(m.reason);
+        if (m.t === 'welcome') { this.id = m.id; return; }
+        if (this.sink.take(m)) return;
+        if (m.t === 'denied') this.denials.push(m.reason);
       });
       this.ws.on('close', () => { this.connected = false; });
       this.ws.on('error', (e) => { if (!this.finished) this.errors.push(`${this.name} ws error: ${e.message}`); });

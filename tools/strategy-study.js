@@ -2,18 +2,18 @@
 //
 // A *strategy* here is what a player actually plays: a named, ordered,
 // EXHAUSTIVE buy list. Two parts:
-//   · a CORE — the identity: which elements/items/spells it rushes, in order;
-//   · the EXHAUST — one canonical breadth pass over the whole pilotable
+//   · a CORE, the identity: which elements/items/spells it rushes, in order;
+//   · the EXHAUST, one canonical breadth pass over the whole pilotable
 //     catalogue, repeated, appended to every core. Remi's spec: "make the list
 //     in a way that there is always something to buy", so no seat ever sits on
 //     dead gold late (the midas/gold-saturation artifact, BALANCE 12E/15).
 // Because the exhaust is IDENTICAL for every strategy, late-game convergence is
 // shared and the measured differences come from the core and its order.
 //
-// The lab: 4-seat MIRROR lobbies (same bot kind everywhere — default Hard
+// The lab: 4-seat MIRROR lobbies (same bot kind everywhere, default Hard
 // berserker, the piloted tier), each game sampling 4 DISTINCT strategies, mode
 // elemental. Baseline win rate is 25% by construction; the table is zero-sum
-// (a RANKING, not a strength meter — see BALANCE.md on the do-nothing floor).
+// (a RANKING, not a strength meter; see BALANCE.md on the do-nothing floor).
 //
 //   node tools/strategy-study.js --games=4000 --seed=1
 //   node tools/strategy-study.js --kind=stalker --games=1500   # Extreme tier
@@ -21,8 +21,8 @@
 //   node tools/strategy-study.js --list
 //
 // Only spells the bot brains actually PILOT are allowed in lists (lightning,
-// boomerang, rush, shield, teleport — and meteor since round 20, CC-gated:
-// bots cast it only into a frost stun/heavy slow — see pilotOwnedSpells in
+// boomerang, rush, shield, teleport, and meteor since round 20, CC-gated:
+// bots cast it only into a frost stun/heavy slow; see pilotOwnedSpells in
 // shared/sim.js); a spell a bot never casts is a gold sink of unknown size and
 // would make its strategy read weak for reasons unrelated to the strategy.
 
@@ -51,12 +51,12 @@ export const STRATEGIES = {
       'sword', 'sword', 'amulet', 'sword'],
   },
   cadence: {
-    desc: 'Cooldown machine-gun: arcane to its lv3 refund special, hourglass and lightning — cast as often as possible and let volume win.',
+    desc: 'Cooldown machine-gun: arcane to its lv3 refund special, hourglass and lightning. Cast as often as possible and let volume win.',
     core: ['arcane', 'arcane', 'arcane', 'hourglass', 'hourglass',
       'lightning', 'hourglass', 'lightning', 'lightning'],
   },
   'double-cdr': {
-    desc: 'Stacked cooldown reduction: arcane (fireball CDR + lv3 kit refund) multiplied by the hourglass — the fireball lands at ~1.1 s and every hit hastens the lightning.',
+    desc: 'Stacked cooldown reduction: arcane (fireball CDR + lv3 kit refund) multiplied by the hourglass. The fireball lands at ~1.1 s and every hit hastens the lightning.',
     core: ['arcane', 'arcane', 'arcane', 'hourglass', 'hourglass',
       'lightning', 'hourglass', 'lightning', 'lightning'],
   },
@@ -91,12 +91,12 @@ export const STRATEGIES = {
       'amulet', 'lightning', 'amulet'],
   },
   'ghost-sniper': {
-    desc: 'Projectile quality: ghost speed (harder to dodge) into the lv3 passthrough, plus ember damage — every ball threatens the whole line.',
+    desc: 'Projectile quality: ghost speed (harder to dodge) into the lv3 passthrough, plus ember damage. Every ball threatens the whole line.',
     core: ['ghost', 'ghost', 'ember', 'ember', 'ghost', 'ember',
       'sword', 'amulet', 'sword'],
   },
   'gale-launcher': {
-    desc: 'Lava launcher: cheap gale push early into the lv3 burst, terra so the shoves land, boots to control distance — wins by ring-outs, not damage.',
+    desc: 'Lava launcher: cheap gale push early into the lv3 burst, terra so the shoves land, boots to control distance. Wins by ring-outs, not damage.',
     core: ['gale', 'gale', 'terra', 'terra', 'gale', 'terra',
       'boots', 'boots', 'amulet'],
   },
@@ -109,22 +109,22 @@ export const STRATEGIES = {
     core: ['midas', 'midas', 'midas', 'amulet', 'sword', 'boots', 'amulet'],
   },
   'item-breadth': {
-    desc: 'Breadth-first shopper: one level of every item before any second level or element — the round-15 finding that breadth beats depth, taken literally.',
+    desc: 'Breadth-first shopper: one level of every item before any second level or element. The round-15 finding that breadth beats depth, taken literally.',
     core: ['amulet', 'sword', 'boots', 'cape', 'treads', 'hourglass',
       'ember', 'terra'],
   },
   'spell-kit': {
-    desc: 'Kit width: lightning, boomerang, rush and shield at level 1 before going deep — more buttons every fight, ember on top.',
+    desc: 'Kit width: lightning, boomerang, rush and shield at level 1 before going deep. More buttons every fight, ember on top.',
     core: ['lightning', 'boomerang', 'rush', 'shield', 'ember', 'ember',
       'lightning', 'boomerang', 'amulet'],
   },
   'all-cheap': {
-    desc: 'The bargain bin: level 1-2 of EVERY cheap element axis (damage, size, cadence, push, speed) before anything expensive — maximum stat lines per gold.',
+    desc: 'The bargain bin: level 1-2 of EVERY cheap element axis (damage, size, cadence, push, speed) before anything expensive. Maximum stat lines per gold.',
     core: ['ember', 'terra', 'arcane', 'gale', 'ghost', 'ember', 'terra',
       'arcane', 'gale', 'ghost', 'amulet', 'sword'],
   },
   'no-elements': {
-    desc: 'Control strategy: refuses elements entirely — items and pilotable spells only. Prices "the element shelf" as a class: every point below baseline is what skipping it costs.',
+    desc: 'Control strategy: refuses elements entirely (items and pilotable spells only). Prices "the element shelf" as a class: every point below baseline is what skipping it costs.',
     core: ['amulet', 'sword', 'boots', 'lightning', 'amulet', 'sword',
       'boomerang', 'cape', 'treads', 'hourglass', 'amulet', 'sword', 'lightning',
       'boots', 'boots', 'cape', 'treads', 'hourglass', 'rush',
@@ -144,7 +144,7 @@ export const STRATEGIES = {
       'ember', 'sword', 'ember'],
   },
   'cdr-balanced': {
-    desc: 'The wave-1 king reordered: arcane and hourglass with an amulet/sword level between each — does the balanced ordering improve even double-cdr?',
+    desc: 'The wave-1 king reordered: arcane and hourglass with an amulet/sword level between each. Does the balanced ordering improve even double-cdr?',
     core: ['arcane', 'amulet', 'arcane', 'sword', 'hourglass', 'amulet',
       'arcane', 'sword', 'hourglass', 'amulet', 'hourglass'],
   },
@@ -174,7 +174,7 @@ export const STRATEGIES = {
   },
   // ---- wave 3 (round 20): Remi's live combo, both finishers ---------------
   'combo-bolt': {
-    desc: "Remi's round-20 combo, bolt finisher: frost lv1 → lightning lv1 → gale lv1 → mosquito lv1, then those four round-robin to max — frost stacks hold the target, the bolt drops dead on the body (CC-gated cast), gale launches, mosquito pairs the ball.",
+    desc: "Remi's round-20 combo, bolt finisher: frost lv1 → lightning lv1 → gale lv1 → mosquito lv1, then those four round-robin to max. Frost stacks hold the target, the bolt drops dead on the body (CC-gated cast), gale launches, mosquito pairs the ball.",
     core: ['frost', 'lightning', 'gale', 'mosquito',
       'frost', 'lightning', 'gale', 'mosquito',
       'frost', 'lightning', 'gale', 'mosquito'],

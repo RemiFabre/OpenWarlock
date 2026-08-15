@@ -3,7 +3,7 @@
 //
 // Why this exists (docs/ROUND12.md S7): the shop was three hardcoded loops in
 // client/main.js and three hardcoded branches in buy(), and there was no way to
-// ask "what is the whole catalogue?" — which is exactly the question draft mode
+// ask "what is the whole catalogue?", which is exactly the question draft mode
 // asks twice (split it in half; find things of comparable price). It lives in
 // shared/ so the server rolls the pool from the same list the client renders.
 //
@@ -14,17 +14,17 @@ import { SPELLS, ITEMS, ELEMENTS, itemCost } from './constants.js';
 
 // Fireball is the starting kit, not content: everyone owns level 1 from the
 // first shop and half the elements are riders ON it. It is therefore never
-// draftable and never leaves the shop — see DRAFT in constants.js.
+// draftable and never leaves the shop; see DRAFT in constants.js.
 export const STARTING_KIT = new Set(['fireball']);
 
 // Everything ownable in `mode`, in shop order (spells, elements, items), each
 // entry carrying what both the pool split and the shop need:
-//   key      — the id used by buy() and by the wire
-//   kind     — 'spell' | 'element' | 'item'
-//   spec     — the entry in SPELLS/ELEMENTS/ITEMS (never copied)
-//   cost     — gold for level 1. THE gold-equivalence measure for draft offers.
-//   maxLevel — the wall (before the Cinder Crown's fireball exception)
-//   starter  — true for the starting kit, which is never in a draft pool
+//   key      = the id used by buy() and by the wire
+//   kind     = 'spell' | 'element' | 'item'
+//   spec     = the entry in SPELLS/ELEMENTS/ITEMS (never copied)
+//   cost     = gold for level 1. THE gold-equivalence measure for draft offers.
+//   maxLevel = the wall (before the Cinder Crown's fireball exception)
+//   starter  = true for the starting kit, which is never in a draft pool
 export function catalogue(mode = 'classic') {
   const elemental = mode === 'elemental';
   const out = [];
@@ -46,7 +46,7 @@ export function catalogue(mode = 'classic') {
       });
   for (const [key, spec] of Object.entries(ITEMS)) {
     // an item spec may be elemental-only, exactly as buy() and buildShop
-    // already have it (no item is today — the last one, the Echo Stone, was
+    // already have it (no item is today; the last one, the Echo Stone, was
     // merged into ELEMENTS.mosquito in round 20.1)
     if (spec.mode === 'elemental' && !elemental) continue;
     out.push({

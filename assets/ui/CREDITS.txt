@@ -1,0 +1,19 @@
+Lobby UI art (portraits, difficulty icons, gems, decor, READY plaques), the 23
+illustrated player avatars in avatars/, the 37 shop artworks in shop/ (one per
+spell, element and item), and the arena set in arena/ (floor, victory, defeat,
+gold).
+
+Contributed by @SamKhosravi for issue #14 (the v4 lobby pack, the v5 and v8 avatar
+packs, the v7 shop pack and the v8 arena pack), generated at his request with OpenAI image generation. Confirmed on the issue
+(2026-08-14, all three packs) as his to license: no third-party or licensed
+game material. MIT, like the rest of the project.
+
+Downscaled for runtime: the two READY plaques, the crest, the small divider and
+the badge to twice their display size, the avatars to 128 px (also twice their
+largest use), the shop artwork to 144 px (three times its 48 px card slot).
+Roughly 70 MB of source art ships as ~2.8 MB.
+
+The arena character sheets in knight/ are the "2D HD Character Knight" pack
+supplied by @SamKhosravi for issue #14 (v9 animation prototype): Idle, Walk,
+Run, CastSpell, TakeDamage and Die, 1920x1024 sheets of 128px cells, 15 frames
+by 8 directions. Shipped as delivered, no re-encode.

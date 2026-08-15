@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { readdirSync } from 'node:fs';
 import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
+  undoBuy, refundBuy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
@@ -9,10 +11,11 @@ import {
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, OPTIMS, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, AVATARS, OPTIMS, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { itemFxAt } from '../shared/items.js';
+import { createEngine } from '../shared/engine.js';
 
 const DT = 1 / 30;
 
@@ -33,6 +36,73 @@ function freshBattle(nPlayers = 2) {
   expect(state.phase).toBe('battle');
   return state;
 }
+
+describe('avatars', () => {
+  // issue #14 (Sam v5): the avatar cap in addPlayer was 8 characters, sized for
+  // emoji, and it silently truncated the longer illustrated names
+  // ('elemental_fire' -> 'elementa'), leaving those players faceless.
+  it('every avatar in the roster survives addPlayer intact', () => {
+    for (const av of AVATARS) {
+      const state = createGame();
+      addPlayer(state, 'pX', 'w', { avatar: av });
+      expect(state.players.pX.avatar).toBe(av);
+    }
+  });
+
+  // Sam asked for this one by name: every illustrated avatar, end to end, from
+  // the pick message to what the client is actually SENT, plus the file that
+  // has to exist for it to render. One loop over all 20, no sampling.
+  it('all 20 avatars survive pick -> snapshot, and each has its asset file', () => {
+    const dir = new URL('../assets/ui/avatars/', import.meta.url);
+    const files = new Set(readdirSync(dir).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)));
+    const broken = [];
+    for (const av of AVATARS) {
+      const sent = [];
+      const eng = createEngine({ seed: 7, onSend: (cid, msg) => sent.push([cid, msg]) });
+      eng.join('c1', { name: 'picky' });
+      eng.message('c1', { t: 'avatar', avatar: av });
+      eng.pushSnapshots();
+      const snap = sent.map(([, m]) => m).reverse().find(m => m && m.s && m.s.players);
+      const mine = snap && Object.values(snap.s.players).find(p => !p.bot);
+      if (!mine) broken.push(`${av}: no snapshot`);
+      else if (mine.avatar !== av) broken.push(`${av}: snapshot says ${mine.avatar}`);
+      if (!files.has(av)) broken.push(`${av}: assets/ui/avatars/${av}.png is missing`);
+    }
+    expect(broken).toEqual([]);
+  });
+
+  it('picking any roster avatar over the wire keeps it whole', () => {
+    // v5.2 (Sam): the pick handler truncated to 8 characters, so every name
+    // longer than that ('elemental_fire', 'living_rock', 'meteorite',
+    // 'necromancer') could be chosen and then silently failed to render.
+    const long = AVATARS.filter(a => a.length > 8);
+    expect(long.length).toBeGreaterThan(0);
+    for (const av of long) {
+      const eng = createEngine({ seed: 3 });
+      eng.join('c1', { name: 'picky' });
+      eng.message('c1', { t: 'avatar', avatar: av });
+      const mine = Object.values(eng.game.players).find(p => !p.bot);
+      expect(mine.avatar).toBe(av);
+    }
+  });
+
+  it('every bot face exists in the avatar roster', () => {
+    // v8.2 (Sam): a bot wearing a name outside AVATARS has no artwork, and the
+    // arena fell back to painting the raw id ('ghost') next to the warlock.
+    const eng = createEngine({ seed: 11 });
+    eng.join('h1', { name: 'Host' });
+    for (const kind of Object.keys(BOTS)) eng.message('h1', { t: 'addBot', kind });
+    const bots = Object.values(eng.game.players).filter(p => p.bot);
+    expect(bots.length).toBeGreaterThan(3);
+    for (const b of bots) expect(AVATARS).toContain(b.avatar);
+  });
+
+  it('a player who picked nothing still gets a face from the roster', () => {
+    const state = createGame();
+    addPlayer(state, 'pY', 'w', {});
+    expect(AVATARS).toContain(state.players.pY.avatar);
+  });
+});
 
 describe('game flow', () => {
   it('starts in lobby and transitions countdown -> battle', () => {
@@ -144,7 +214,7 @@ describe('movement & physics', () => {
 
   it('sudden death: every round provably ends, even if nobody fights', () => {
     const state = freshBattle(2);
-    // two pacifists parked in the very center — the old rules stalled forever
+    // two pacifists parked in the very center; the old rules stalled forever
     for (const pl of Object.values(state.players)) { pl.x = 0; pl.y = 0; }
     run(state, ARENA.SHRINK_TIME + ARENA.OVERTIME_GRACE + ARENA.OVERTIME_SHRINK + 20);
     expect(state.phase).not.toBe('battle'); // lava ate the whole platform
@@ -159,7 +229,7 @@ describe('movement & physics', () => {
     expect(state.arenaRadius).toBeLessThan(r0);
     run(state, ARENA.SHRINK_TIME);
     // 2026-08-08 (Remi, test): with ARENA.NEVER_STOPS the ring has no floor and
-    // no overtime hold — it runs all the way to nothing, so eventually the whole
+    // no overtime hold; it runs all the way to nothing, so eventually the whole
     // arena is lava. Flip the flag off and MIN_RADIUS is the floor again.
     expect(state.arenaRadius).toBeCloseTo(ARENA.NEVER_STOPS ? 0 : ARENA.MIN_RADIUS, 1);
   });
@@ -174,7 +244,7 @@ describe('lava', () => {
     run(state, 1);
     expect(pl.hp).toBeLessThan(hp0 - 10);    // ~14 dps minus baseline regen
     expect(pl.hp).toBeGreaterThan(hp0 - 16);
-    // step out: the damage stops immediately — and stays (round 17: passive
+    // step out: the damage stops immediately, and stays (round 17: passive
     // regen is REMOVED, so lava scars don't heal back between fights)
     pl.x = 0; pl.y = 0;
     run(state, DT * 2);
@@ -211,7 +281,7 @@ describe('lava', () => {
     // Read the expectation OUT OF THE SPEC so a retune of treads cannot fail
     // this test for the wrong reason (AGENTS.md: balance tests must not pin
     // constants). Regen offsets both sides slightly, so the observed loss ratio
-    // sits a hair under lavaMult[0] — a ±0.1 band around it is the assertion.
+    // sits a hair under lavaMult[0]; a ±0.1 band around it is the assertion.
     const m = ITEM_FX.treads.lavaMult[0];
     expect(lossA / lossB).toBeGreaterThan(m - 0.1);
     expect(lossA / lossB).toBeLessThan(m + 0.1);
@@ -261,7 +331,7 @@ describe('bot builds & piloting', () => {
     expect(state.projectiles.some(p => p.type === 'boomerang')).toBe(true);
   });
 
-  // Round 17 §11: two spells no bot build list contains — they reach a bot
+  // Round 17 §11: two spells no bot build list contains; they reach a bot
   // through the draft today, and through Remi's power-tier ruling tomorrow.
   function pilotBattle(setup) {
     const state = freshBattle(3);
@@ -390,7 +460,7 @@ describe('spells', () => {
     expect(castSpell(state, 'p0', 'lightning', 20, 0)).toBe(false);
   });
 
-  // ---- lightning ⚡ (round 17: telegraphed sky-bolt — docs/ROUND17.md §2) --
+  // ---- lightning ⚡ (round 17: telegraphed sky-bolt; docs/ROUND17.md §2) --
 
   it('lightning: the zone shows instantly, the bolt lands after the delay', () => {
     const spec = SPELLS.lightning;
@@ -487,6 +557,83 @@ describe('spells', () => {
     expect(b.hp).toBe(b.maxHp);                      // shielded
     expect(a.hp).toBeGreaterThanOrEqual(a.maxHp - SPELLS.fireball.damage[0]); // reflected back
     expect(a.hp).toBeLessThan(a.maxHp - SPELLS.fireball.damage[0] + 1.5);     // (minus a little regen)
+  });
+
+  it('Blood Debt stores incoming damage and knockback as visible gray health', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    b.vx = 0; b.vy = 0; b.moveTarget = null;
+    state.players.p2.y = 30;
+    b.spells.debt = 1;
+    expect(castSpell(state, 'p1', 'debt', 0, 0)).toBe(true);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.35);
+    expect(b.hp).toBe(b.maxHp);
+    expect(b.debtDamage).toBeCloseTo(SPELLS.fireball.damage[0], 3);
+    expect(b.vx).toBe(0);
+    const wire = snapshot(state, 'p1').players.p1;
+    expect(wire.debtDamage).toBeCloseTo(b.debtDamage, 2);
+    expect(wire.debtT).toBeGreaterThan(0);
+  });
+
+  it('Blood Debt absorbs environmental damage through the same gray-health pool', () => {
+    const state = freshBattle(3);
+    const b = state.players.p1;
+    b.spells.debt = 1;
+    b.x = state.arenaRadius + 2; b.y = 0;
+    b.vx = 0; b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p1', 'debt', b.x, b.y);
+    run(state, 0.2);
+    expect(b.hp).toBe(b.maxHp);
+    expect(b.debtDamage).toBeGreaterThan(0);
+  });
+
+  it('Blood Debt transfers the stored damage on a fireball hit with no extra push', () => {
+    const plain = freshBattle(3);
+    plain.players.p0.x = 0; plain.players.p0.y = 0;
+    plain.players.p1.x = 8; plain.players.p1.y = 0;
+    plain.players.p1.vx = 0; plain.players.p1.vy = 0; plain.players.p1.moveTarget = null;
+    plain.players.p2.y = 30;
+    castSpell(plain, 'p0', 'fireball', 20, 0);
+    run(plain, 0.35);
+    const plainPush = plain.players.p1.vx;
+
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; c.x = 24; c.y = 0;
+    b.vx = 0; b.vy = 0; c.vx = 0; c.vy = 0;
+    b.moveTarget = null; c.moveTarget = null;
+    b.spells.debt = 1;
+    castSpell(state, 'p1', 'debt', 0, 0);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.35);
+    const stored = b.debtDamage;
+    a.y = 30;
+    b.x = 0; c.x = 8;
+    castSpell(state, 'p1', 'fireball', 20, 0);
+    run(state, 0.35);
+    expect(b.debtDamage).toBe(0);
+    expect(b.debtPayT).toBe(0);
+    expect(c.maxHp - c.hp).toBeCloseTo(stored + SPELLS.fireball.damage[0], 3);
+    expect(c.vx).toBeCloseTo(plainPush, 3);
+  });
+
+  it('Blood Debt repays the caster after the window without knockback', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    b.vx = 0; b.vy = 0; b.moveTarget = null;
+    state.players.p2.y = 30;
+    b.spells.debt = 1;
+    castSpell(state, 'p1', 'debt', 0, 0);
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.35);
+    const stored = b.debtDamage;
+    run(state, SPELLS.debt.duration + SPELLS.debt.repay + 0.2);
+    expect(b.maxHp - b.hp).toBeCloseTo(stored, 3);
+    expect(b.debtDamage).toBe(0);
+    expect(b.vx).toBe(0);
   });
 
   it('tapping the key again recalls the boomerang early', () => {
@@ -607,7 +754,7 @@ describe('shop & economy', () => {
     expect(buy(state, 'a', 'lightning').ok).toBe(false);
   });
 
-  // Round 16 (Remi): the fireball never levels in ELEMENTAL mode — the
+  // Round 16 (Remi): the fireball never levels in ELEMENTAL mode; the
   // elements are its whole progression there. Classic keeps its 3 levels.
   it('fireball is locked at lv1 in elemental mode, levels normally in classic', () => {
     const state = shopState(); // default mode: elemental
@@ -689,7 +836,7 @@ describe('shop & economy', () => {
     expect(s.speed).toBeCloseTo(PLAYER.SPEED * last('boots', 'speedMult'), 6);
     expect(s.lavaMult).toBeCloseTo(last('treads', 'lavaMult'), 6);
     expect(s.kbMult).toBeCloseTo(last('cape', 'kbMult'), 6);
-    expect(s.regen).toBeCloseTo(PLAYER.REGEN, 6); // 0 since round 17 — no regen items exist
+    expect(s.regen).toBeCloseTo(PLAYER.REGEN, 6); // 0 since round 17; no regen items exist
     expect(s.lifesteal).toBeCloseTo(last('sword', 'lifesteal'), 6);
     expect(s.maxHp).toBe(PLAYER.MAX_HP + last('amulet', 'maxHp'));
   });
@@ -939,15 +1086,16 @@ describe('round-3 mechanics', () => {
     expect(state.players.p0.shopReady).toBe(false);
   });
 
-  it('fireballs have unlimited range but are culled off-world', () => {
+  it('fireballs fizzle at SPELLS.fireball.range (22.5: no sniping from afar)', () => {
     const state = freshBattle(3);
     const a = state.players.p0;
     a.x = 0; a.y = 0;
     state.players.p1.y = 50; state.players.p2.y = -50;
     castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 2); // traveled ~68u — far beyond the old 45u cap
-    expect(state.projectiles.length).toBe(1);
-    run(state, 2); // now beyond 2× arena radius: culled
+    const justShort = (SPELLS.fireball.range - 3) / SPELLS.fireball.speed;
+    run(state, justShort);
+    expect(state.projectiles.length).toBe(1);      // still flying inside range
+    run(state, 8 / SPELLS.fireball.speed + 0.1);   // past the cap: gone
     expect(state.projectiles.length).toBe(0);
   });
 });
@@ -1084,7 +1232,7 @@ describe('elemental mode', () => {
   // Stacks are PRIVATE to whoever applied them (round 12): read one attacker's
   // pile out of the generic per-attacker store.
   const stacksOf = (pl, kind, by) =>
-    ((pl.stacks && pl.stacks[kind] && pl.stacks[kind][by]) || 0);
+    ((pl.stacks && pl.stacks[kind] && pl.stacks[kind][by] && pl.stacks[kind][by].n) || 0);
   const frostOn = (pl, by) => stacksOf(pl, 'frost', by);
 
   it('setMode works only in the lobby, validates values, and ships in snapshot', () => {
@@ -1137,7 +1285,7 @@ describe('elemental mode', () => {
     expect(buy(state, 'a', 'frost').ok).toBe(true);
     expect(a.elements.frost).toBe(3);
     expect(buy(state, 'a', 'frost').err).toBe('max level');
-    // cost path read from the spec (round 16: costs differ per element —
+    // cost path read from the spec (round 16: costs differ per element;
     // cheap single-axis elements vs a pricier lv3 special)
     expect(ELEMENTS.frost.costs.length).toBe(ELEMENTS.frost.maxLevel);
   });
@@ -1181,7 +1329,60 @@ describe('elemental mode', () => {
     return state;
   }
 
-  it('frost: the first two hits only stack — the THIRD detonates', () => {
+  it('stacks FADE: an unfed pile loses one stack every STACK_DECAY.seconds (22.4)', () => {
+    const state = frostHits(1, 2);
+    expect(frostOn(state.players.p1, 'p0')).toBe(2);
+    run(state, STACK_DECAY.seconds + 0.2);
+    expect(frostOn(state.players.p1, 'p0')).toBe(1);   // one bled off
+    run(state, STACK_DECAY.seconds + 0.2);
+    expect(frostOn(state.players.p1, 'p0')).toBe(0);   // the pile is gone
+  });
+
+  it('reapplying the kind RESETS the fade clock (22.4)', () => {
+    const state = frostHits(1, 1);
+    run(state, STACK_DECAY.seconds - 1);               // one second from fading
+    const a = state.players.p0, b = state.players.p1;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+    castSpell(state, 'p0', 'fireball', 20, 0);         // feed the pile: clock restarts
+    run(state, STACK_DECAY.seconds - 1);
+    expect(frostOn(b, 'p0')).toBe(2);                  // without the reset this would be 1
+  });
+
+  it('each attacker\'s pile fades on its OWN clock, and midas/anger never fade (22.4)', () => {
+    const state = elementalBattle(3);
+    const b = state.players.p1;
+    b.stacks = {
+      frost: { p0: { n: 2, t: 9 }, p2: { n: 1, t: 1 } },
+      midas: { p0: { n: 1, t: 0.5 } },
+      anger: { p0: { n: 1, t: 0.5 } },
+    };
+    run(state, 3);
+    expect(frostOn(b, 'p0')).toBe(2);                  // 9 s clock: untouched at 3 s
+    expect(frostOn(b, 'p2')).toBe(0);                  // 1 s clock: bled
+    expect(b.stacks.midas.p0.n).toBe(1);               // marks are a rhythm, not a pile
+    expect(b.stacks.anger.p0.n).toBe(1);
+  });
+
+  it('a REFLECTED ball plants its stacks for the element\'s owner, not the reflector (22.4)', () => {
+    // The game-night bug: a shield or wall flipped pr.owner, so the reflector
+    // was credited with stacks from an element they may not even own — and
+    // their own pile got fed by somebody else's frost.
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { frost: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
+    b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.shieldT = 5;                                     // the ball comes straight back
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 1.2);                                   // out, reflected, home again
+    expect(frostOn(a, 'p0')).toBe(1);                  // a's element, a's pile (on a's own body)
+    expect(frostOn(a, 'p1')).toBe(0);                  // the reflector owns NOTHING here
+  });
+
+  it('frost: the first two hits only stack; the THIRD detonates', () => {
     const two = frostHits(1, 2);
     expect(frostOn(two.players.p1, 'p0')).toBe(2);
     expect(two.players.p1.slowT).toBe(0);   // nothing yet: it just builds
@@ -1211,7 +1412,7 @@ describe('elemental mode', () => {
     expect(b.x - x0).toBeGreaterThan(5);
   });
 
-  // Round 12: stacks are PRIVATE, so two attackers no longer feed one counter —
+  // Round 12: stacks are PRIVATE, so two attackers no longer feed one counter;
   // the 3rd-stack detonation must count only the attacker who landed it.
   it('frost stacks are PRIVATE: two attackers do not feed one counter', () => {
     const state = elementalBattle(3);
@@ -1255,7 +1456,7 @@ describe('elemental mode', () => {
     state.players.p0.elements = { frost: 1 };
     state.players.p2.elements = { frost: 1 };
     // hand-place stacks: this test is about the wire, not about aiming
-    b.stacks = { frost: { p0: 2, p2: 1 }, midas: { p2: 1 } };
+    b.stacks = { frost: { p0: { n: 2, t: 9 }, p2: { n: 1, t: 9 } }, midas: { p2: { n: 1, t: 9 } } };
     const asP0 = snapshot(state, 'p0').players;
     expect(asP0.p1.myStacks).toEqual({ frost: 2 });     // mine only
     const asP2 = snapshot(state, 'p2').players;
@@ -1290,7 +1491,7 @@ describe('elemental mode', () => {
   });
 
   // ---- malady 🦠 (round 19: venom → contagion rework) -----------------------
-  // Every number below is read from ELEMENTS.malady.fx — spec, never pinned.
+  // Every number below is read from ELEMENTS.malady.fx (spec, never pinned).
   const MF = () => ELEMENTS.malady.fx;
   const efx = (v, lv) => (Array.isArray(v) ? v[lv - 1] : v);
 
@@ -1308,7 +1509,7 @@ describe('elemental mode', () => {
   }
   // One landed fireball from p0 on p1 (cooldown scrubbed). The victim stands
   // just beyond the SPEC's widest aura so a fresh max-level plague never laps
-  // back over the shooter within the landing frame — derived, not pinned
+  // back over the shooter within the landing frame (derived, not pinned)
   // (the round-19.4 aura buff broke the old hardcoded 10). Stepping stops AT
   // impact rather than for a fixed slice, so shrinking the aura (round 20.3
   // halved it) can't quietly burn the fresh DoT clock the callers assert on.
@@ -1361,7 +1562,7 @@ describe('elemental mode', () => {
       run(state, dot + 0.6);                       // every tick in, clock out
       const nTicks = Math.floor(dot / MF().tickEvery);
       expect(ticks().length).toBe(nTicks);
-      // the poison flag is the client's ≥1-damage floater exemption — every
+      // the poison flag is the client's ≥1-damage floater exemption; every
       // tick must carry it (a tick you cannot see is the mosquito scar)
       for (const e of ticks()) expect(e.amount).toBe(efx(MF().tickDmg, lv));
       expect(b.poisonT).toBe(0);                   // CURED: no residue at all
@@ -1372,7 +1573,7 @@ describe('elemental mode', () => {
     }
   });
 
-  it('contagion: inside the aura catches the SAME instance — outside never', () => {
+  it('contagion: inside the aura catches the SAME instance, outside never', () => {
     const state = maladyBattle(1, 4);
     const a = state.players.p0, b = state.players.p1;
     const c = state.players.p2, d = state.players.p3;
@@ -1380,7 +1581,7 @@ describe('elemental mode', () => {
     const inst = b.malady.inst;
     const r = efx(MF().auraR, 1);
     // carrier at the center, creator far away; one body just inside the aura,
-    // one just outside — on opposite sides so a fresh catch can't chain over
+    // one just outside, on opposite sides so a fresh catch can't chain over
     a.x = 0; a.y = -40; a.vx = a.vy = 0; a.moveTarget = null;
     b.x = 0; b.y = 0; b.vx = b.vy = 0;
     c.x = r - 0.5; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;
@@ -1411,7 +1612,7 @@ describe('elemental mode', () => {
     expect(d.malady || null).toBe(null);           // just past lv3 reach: safe
   });
 
-  it('immunity: one instance takes each body ONCE — no bounce-back, no re-catch', () => {
+  it('immunity: one instance takes each body ONCE (no bounce-back, no re-catch)', () => {
     const state = maladyBattle(1, 3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     landHit(state); landHit(state);
@@ -1431,7 +1632,7 @@ describe('elemental mode', () => {
     expect(b.poisonT).toBe(0);                     // the instance can NEVER re-take b
     expect(b.malady || null).toBe(null);
     // ...but a NEW instance can: the creator re-runs the two-hit rhythm
-    // (carrier first parked off the firing line — it would eat the ball)
+    // (carrier first parked off the firing line; it would eat the ball)
     c.x = 20; c.y = -20; c.vx = c.vy = 0;
     landHit(state); landHit(state);
     expect(b.poisonT).toBeGreaterThan(0);
@@ -1481,7 +1682,7 @@ describe('elemental mode', () => {
     expect(a.poisonBy).toBe('p1');                 // credit: that instance's creator
   });
 
-  it("kill credit: a lethal tick is the CREATOR's kill — even on a contagion catch", () => {
+  it("kill credit: a lethal tick is the CREATOR's kill, even on a contagion catch", () => {
     const state = maladyBattle(1, 4);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     landHit(state); landHit(state);
@@ -1506,7 +1707,7 @@ describe('elemental mode', () => {
     expect(MF().trailDps).toBeUndefined();
   });
 
-  it('malady on the wire: numbers only — poison flag, maladyT/maladyR, no instance leak', () => {
+  it('malady on the wire: numbers only (poison flag, maladyT/maladyR, no instance leak)', () => {
     const state = maladyBattle(2);
     const b = state.players.p1;
     landHit(state);
@@ -1525,7 +1726,7 @@ describe('elemental mode', () => {
 
   // Round 21.5 audit (Remi, alongside the Coal Brazier's vanish ruling): a
   // VANISHED carrier still radiates the plague, and none of it may give the
-  // carrier away. The protection is structural — snapshot() strips x/y, so the
+  // carrier away. The protection is structural; snapshot() strips x/y, so the
   // client has nowhere to draw the maladyR ring, and viewEvents() drops every
   // event anchored on the hidden body. A VICTIM's own 🦠 burst stays visible:
   // being infected is your business, and hiding it would be the bug.
@@ -1555,7 +1756,7 @@ describe('elemental mode', () => {
   });
 
   // ⚠ RULING (Remi, round 21.8): taking kills is part of a DoT's identity, so a
-  // tick stamps the last-hitter slot like any other damage — a victim your
+  // tick stamps the last-hitter slot like any other damage; a victim your
   // sickness chased into the lava dies as YOUR kill. (Before, ticks never
   // stamped, so that death went to whoever last hit them, or to nobody.)
   it('a DoT tick takes the kill AND claims the last-hitter slot', () => {
@@ -1570,7 +1771,7 @@ describe('elemental mode', () => {
     run(state, 0.3);
     expect(b.alive).toBe(false);
     expect(a.kills).toBe(kills0 + 1);       // the tick itself was the killing blow
-    // the round ended (2 fighters left standing 1) — check the stamp rule on a
+    // the round ended (2 fighters left standing 1); check the stamp rule on a
     // fresh victim that SURVIVES the tick: ticks never claim the last-hitter slot
     const s2 = elementalBattle(3);
     const b2 = s2.players.p1;
@@ -1589,7 +1790,7 @@ describe('elemental mode', () => {
   });
 
   // ---- anger 🔴 (momentum → Anger rework: the mark hunt) -----------------
-  // Every number below is read out of ELEMENTS.anger.fx: AGENTS.md — balance
+  // Every number below is read out of ELEMENTS.anger.fx: AGENTS.md, balance
   // tests must not pin constants the owner is still tuning.
   const angerOn = (pl, by) => stacksOf(pl, 'anger', by);
   const totalAnger = (state, by) =>
@@ -1641,7 +1842,7 @@ describe('elemental mode', () => {
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
     a.elements = { anger: 1 };
-    b.stacks = { anger: { p0: 1 } };   // hand-place the mark: this test is the claim
+    b.stacks = { anger: { p0: { n: 1, t: 9 } } };   // hand-place the mark: this test is the claim
     a._angerTarget = 'p1';
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     state.events = [];
@@ -1652,7 +1853,7 @@ describe('elemental mode', () => {
     const claim = state.events.find(e => e.t === 'angerClaim');
     expect(claim && claim.id).toBe('p1');
     expect(claim.by).toBe('p0');
-    // the claiming hit itself was a plain fireball — the +markDmg starts NEXT hit
+    // the claiming hit itself was a plain fireball; the +markDmg starts NEXT hit
     const h0 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(h0.bonus).toBeUndefined();
     expect(h0.amount).toBeCloseTo(base, 5);
@@ -1683,7 +1884,7 @@ describe('elemental mode', () => {
     state.players.p2.x = -10; state.players.p2.y = 5;
     state.pillars = [];
     a.elements = { anger: 3 };
-    b.stacks = { anger: { p0: 1 } };
+    b.stacks = { anger: { p0: { n: 1, t: 9 } } };
     a._angerTarget = 'p1';
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
@@ -1733,7 +1934,7 @@ describe('elemental mode', () => {
     const a = state.players.p0;
     a.elements = { anger: 1 };
     a.angerMarks = 3;                            // hand-banked: the claim path is covered above
-    state.players.p2.stacks = { anger: { p0: 1 } };
+    state.players.p2.stacks = { anger: { p0: { n: 1, t: 9 } } };
     a._angerTarget = 'p2';
     // kill everyone else -> round ends -> next round starts, bank intact
     state.players.p1.hp = 0.01; state.players.p1.x = ARENA.START_RADIUS + 5;
@@ -1810,7 +2011,7 @@ describe('elemental mode', () => {
   // ---- mosquito 🦟 (round 20.1 rework: every Nth cast fires as a PAIR) -----
   // The dmg/kb tax and the arm/cash trap are GONE (the Echo Stone item was
   // merged in here and deleted): an ordinary ball is a plain fireball, and
-  // every doubleEvery'th CAST fires as a pair — a LEAD ball with zero knockback
+  // every doubleEvery'th CAST fires as a pair: a LEAD ball with zero knockback
   // from any source plus a fully normal TRAILING ball trailDelay s behind on the
   // same aim. Every number below is read off ELEMENTS.mosquito.fx.
 
@@ -1858,7 +2059,7 @@ describe('elemental mode', () => {
     return out;
   }
 
-  it('an UNPAIRED mosquito ball is a completely normal fireball — no tax anywhere', () => {
+  it('an UNPAIRED mosquito ball is a completely normal fireball (no tax anywhere)', () => {
     const f = ELEMENTS.mosquito.fx;
     expect(f.dmgMult).toBeUndefined();     // the round-19.5 tax is deleted...
     expect(f.kbMult).toBeUndefined();      // ...on both axes
@@ -1888,7 +2089,7 @@ describe('elemental mode', () => {
   it("a trailing ball advances mosquito's OWN counter: each next pair is one cast sooner", () => {
     // Remi's ruling: every every-N counter counts the trailing ball. So after
     // the first pair at cast n, the trail eats one count and the next pair
-    // lands at 2n-1, then 3n-2 (bounded growth — never a chain).
+    // lands at 2n-1, then 3n-2 (bounded growth, never a chain).
     const n = ELEMENTS.mosquito.fx.doubleEvery[0];
     expect(pairsAt(1, 3 * n)).toEqual([n, 2 * n - 1, 3 * n - 2]);
   });
@@ -1903,7 +2104,7 @@ describe('elemental mode', () => {
     // SHOVE (base kb, kbAdd and the gust alike) and nothing else.
     a.elements = { mosquito: 1, gale: 3, malady: 1 };
     a.mosqN = f.doubleEvery[0] - 1;        // the next cast is the pair's lead
-    b.stacks = { gale: { p0: gf.stacksToTrigger - 1 } };
+    b.stacks = { gale: { p0: { n: gf.stacksToTrigger - 1, t: 9 } } };
     a.x = 0; a.y = 0; a.cooldowns = {};
     b.x = 6; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 9999; b.hp = 9999;
@@ -1940,7 +2141,7 @@ describe('elemental mode', () => {
     b.maxHp = 9999; b.hp = 9999;
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
-    // the LEAD is a keypress; the trailing ball is not — it is tagged `trail`
+    // the LEAD is a keypress; the trailing ball is not (it is tagged `trail`
     // so cooldown-auditing consumers (test/harness/check.js) can tell them
     // apart, while the client still renders and sounds both as casts.
     const leadCast = state.events.find(e => e.t === 'cast' && e.spell === 'fireball');
@@ -1996,7 +2197,7 @@ describe('elemental mode', () => {
 
   it('a trailing ball counts as a CAST for vampire, and can be the engorged one', () => {
     // Remi (round 20.1): "the player should be rewarded for casting, all
-    // every-N counters count" — so the trailing ball advances vampN and an
+    // every-N counters count", so the trailing ball advances vampN and an
     // on-threshold trailing ball flies engorged.
     const f = ELEMENTS.mosquito.fx, vf = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
@@ -2014,12 +2215,11 @@ describe('elemental mode', () => {
     expect(!!state.projectiles[state.projectiles.length - 1].engorged).toBe(false);
     run(state, 1);
     expect(a.vampN).toBe(vf.chargeEvery);        // the trail advanced the counter
-    expect(a.healLifesteal).toBeCloseTo(
-      SPELLS.fireball.damage[0] * vf.chargeLifesteal[0], 1);
+    expect(a.healLifesteal).toBeCloseTo(vf.chargeHeal[0], 1); // FLAT since 22.5
   });
 
   // ⚠ Two ROUND 21.0 RULINGS (Remi: "reflect the ball as it was" / "part of the
-  // game physics"). Round 20.4 "fixed" both of these and was reverted — these
+  // game physics"). Round 20.4 "fixed" both of these and was reverted; these
   // tests exist so nobody fixes them again.
   //
   // Shoot b (shielded, so the ball comes straight back) and return the PEAK
@@ -2048,7 +2248,7 @@ describe('elemental mode', () => {
     return peak;
   }
 
-  it('RULING: a reflected ball comes back AS IT WAS — a pair lead still has no push', () => {
+  it('RULING: a reflected ball comes back AS IT WAS (a pair lead still has no push)', () => {
     const control = reflectedShove(false);
     expect(control).toBeGreaterThan(1);       // an ordinary ball does shove
     expect(reflectedShove(true)).toBe(0);     // the no-push lead stays no-push
@@ -2056,7 +2256,7 @@ describe('elemental mode', () => {
 
   it('RULING: the TRAILING ball leaves from where the owner IS, on the original aim', () => {
     // Being knocked/portalled/blinked inside trailDelay really does move where
-    // the twin comes from — only the aim was pinned at cast time.
+    // the twin comes from; only the aim was pinned at cast time.
     const f = ELEMENTS.mosquito.fx;
     const state = elementalBattle(3);
     const a = state.players.p0;
@@ -2091,7 +2291,7 @@ describe('elemental mode', () => {
     expect(evs[0].y).toBeCloseTo(25, 5);
   });
 
-  it('the Echo Stone is GONE — merged into mosquito, absent from the catalogue', () => {
+  it('the Echo Stone is GONE: merged into mosquito, absent from the catalogue', () => {
     expect(ITEMS.echo).toBeUndefined();
     expect(ITEM_FX.echo).toBeUndefined();
     expect(catalogue('elemental').some(e => e.key === 'echo')).toBe(false);
@@ -2129,7 +2329,7 @@ describe('elemental mode', () => {
   }
   const galeOn = (pl, by) => stacksOf(pl, 'gale', by);
 
-  // Round 19 (Remi): gale is UNIFORM across levels — flat kbAdd per level,
+  // Round 19 (Remi): gale is UNIFORM across levels; flat kbAdd per level,
   // stack-and-burst from LEVEL 1, and the gust adds a flat VALUE (never a
   // multiplier, which scaled weirdly with other push riders). Spec-read.
   it('gale: a flat fireball push increase at every level', () => {
@@ -2142,13 +2342,13 @@ describe('elemental mode', () => {
     for (const p of peaks) expect(p / plain).toBeCloseTo(want, 1);
   });
 
-  it('gale: stacking lives at LEVEL 1 — the 3rd hit gusts by a flat value', () => {
+  it('gale: stacking lives at LEVEL 1; the 3rd hit gusts by a flat value', () => {
     const f = ELEMENTS.gale.fx;
     const fb = SPELLS.fireball;
     const need = f.stacksToTrigger;
     const { state, peaks } = galePeaks({ gale: 1 }, need);
     const b = state.players.p1;
-    // hits before the last are the ordinary lv1 shove — no gust leak
+    // hits before the last are the ordinary lv1 shove (no gust leak)
     for (let i = 0; i < need - 1; i++) expect(peaks[i] / peaks[0]).toBeCloseTo(1, 1);
     // ...and the last adds the spec's flat gust value on top
     const base = fb.knockback[0] + f.kbAdd[0];
@@ -2224,13 +2424,14 @@ describe('elemental mode', () => {
   it('midas (round 17): the first hit plants a 🪙 mark, the SECOND cashes +1 g', () => {
     const state = hitWith('midas');
     const a = state.players.p0, b = state.players.p1;
-    // hit 1: no gold yet — the mark is planted (private, on the stack store)
+    // hit 1: no gold yet; the mark is planted (private, on the stack store)
     expect(a.gold).toBe(GOLD.START);
     expect(stacksOf(b, 'midas', 'p0')).toBe(1);
     expect(state.events.some(e => e.t === 'midasMark' && e.id === 'p1')).toBe(true);
-    expect(b.maxHp - b.hp).toBeGreaterThan(3.3); // the −50% penalty still applies
-    expect(b.maxHp - b.hp).toBeLessThan(4.7);
-    // hit 2 on the SAME target: cash — and the mark is spent
+    const dealt = SPELLS.fireball.damage[0] * ELEMENTS.midas.fx.dmgMult[0];
+    expect(b.maxHp - b.hp).toBeGreaterThan(dealt - 0.7); // the softened penalty (22.5)
+    expect(b.maxHp - b.hp).toBeLessThan(dealt + 0.7);
+    // hit 2 on the SAME target: cash, and the mark is spent
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
     a.cooldowns = {};
     castSpell(state, 'p0', 'fireball', 20, 0);
@@ -2255,7 +2456,7 @@ describe('elemental mode', () => {
     expect(stacksOf(b, 'midas', 'p0')).toBe(1); // b's mark still waiting
   });
 
-  it('midas cashes +1 g at EVERY level — never more', () => {
+  it('midas cashes +1 g at EVERY level, never more', () => {
     for (const level of [1, 2, 3]) {
       const state = hitWith({ midas: level });
       const a = state.players.p0, b = state.players.p1;
@@ -2291,7 +2492,7 @@ describe('elemental mode', () => {
     expect(peak(1)).toBeLessThan(peak(3) * 0.8);
   });
 
-  // Round 16: terra is the fireball's SIZE axis and nothing else — the old
+  // Round 16: terra is the fireball's SIZE axis and nothing else; the old
   // grow-the-target-on-hit effect (and its +1/+2/+3 damage) is gone.
   it('terra grows the PROJECTILE only; the victim is untouched', () => {
     const state = hitWith('terra');
@@ -2324,7 +2525,7 @@ describe('elemental mode', () => {
       SPELLS.fireball.radius * ELEMENTS.terra.fx.projRadiusMult[2], 3);
   });
 
-  // Round 20.2 — terra lv3 "Demolisher": your fireballs smash Stone Pillars.
+  // Round 20.2, terra lv3 "Demolisher": your fireballs smash Stone Pillars.
   // The pillar dies, the ball dies with it (Remi ruled pass-through too strong).
   // Levels are read off the spec (smashAtLevel), never pinned.
   describe('terra lv3 Demolisher (pillars)', () => {
@@ -2404,7 +2605,7 @@ describe('elemental mode', () => {
     expect(classic.players.a.spells.fireball).toBe(SPELLS.fireball.maxLevel);
 
     // the hourglass (round 16: the ex-arcane global CDR as an item) sells in
-    // classic too, at whatever the spec prices each level — flat `cost`, or a
+    // classic too, at whatever the spec prices each level (flat `cost`, or a
     // `costs` array if one is ever added back
     const spec = ITEMS.hourglass;
     const price = (lv) => (Array.isArray(spec.costs)
@@ -2425,7 +2626,7 @@ describe('elemental mode', () => {
 
   // ---- vampire 🧛 -----------------------------------------------------------
 
-  it('vampire 🧛: every Nth CAST is engorged and heals a multiple of the damage', () => {
+  it('vampire 🧛: every Nth CAST is engorged and heals a FLAT amount (22.5)', () => {
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2453,22 +2654,22 @@ describe('elemental mode', () => {
         expect(healed).toBeLessThan(1);
       }
     }
-    // the engorged one pays chargeLifesteal × the damage it dealt, on top of regen
-    expect(healed).toBeGreaterThan(dmg * f.chargeLifesteal[0] - 1);
-    expect(a.healLifesteal).toBeGreaterThan(dmg * f.chargeLifesteal[0] - 1);
+    // the engorged one pays the flat chargeHeal, however hard the ball hits
+    expect(healed).toBeCloseTo(f.chargeHeal[0], 1);
+    expect(a.healLifesteal).toBeCloseTo(f.chargeHeal[0], 1);
     expect(state.events.some(e => e.t === 'lifesteal' && e.id === 'p0')).toBe(true);
   });
 
   // Round 16 (Remi): "lifesteal needs a visual indicator". The Blood Sword used
   // to be deliberately silent (only vampire's engorged ball got the green
-  // number) and read as broken because of it — now ANY lifesteal heal >= 1 hp
+  // number) and read as broken because of it; now ANY lifesteal heal >= 1 hp
   // is an event the client turns into a green "+N" over the healed player.
   it('the Blood Sword pops the green lifesteal number too, on the healer', () => {
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
     state.pillars = [];
     // ⚠ Round 21.8: at the sword's new lv1 (10%) a bare fireball heals 0.7 and
-    // pops NO number (the floater floor is cosmetic and hp is still credited —
+    // pops NO number (the floater floor is cosmetic and hp is still credited;
     // Remi's ruling). So the round-16 promise is tested at the lowest level that
     // clears the floor, and the level is derived, never pinned.
     const lv = ITEM_FX.sword.lifesteal
@@ -2490,7 +2691,7 @@ describe('elemental mode', () => {
     expect(ev.amount).toBeCloseTo(SPELLS.fireball.damage[0] * steal, 1);
   });
 
-  it('vampire pays only on damage ACTUALLY DEALT: no overkill, and never from lava', () => {
+  it('vampire pays its flat heal only when damage LANDS, and never from lava (22.5)', () => {
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2507,12 +2708,12 @@ describe('elemental mode', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     expect(b.alive).toBe(false);
-    // 1 point of damage was DEALT, so at most 1 × the multiplier is paid — not
-    // the full fireball's worth. This is the rule that bounds every-N lifesteal.
+    // FLAT by design since 22.5: a 1-hp overkill still pays the full heal —
+    // the payout no longer scales with damage at all. Some damage must land,
+    // which the lava half below is the negative case for.
     const paid = a.healLifesteal;
-    expect(paid).toBeGreaterThan(0);
-    expect(paid).toBeLessThan(1 * f.chargeLifesteal[2] + 0.01);
-    expect(before + paid).toBeGreaterThan(a.hp - 1); // the rest is just regen
+    expect(paid).toBeCloseTo(f.chargeHeal[2], 1);
+    expect(before + paid).toBeGreaterThan(a.hp - 1);
     // ...and the lava pays nothing at all, however engorged you are
     const hpNow = a.hp;
     a.healLifesteal = 0;
@@ -2544,7 +2745,7 @@ describe('elemental mode', () => {
   });
 
   // ---- arcane 🔮 (round 16: cadence lv1/2, on-hit refund lv3) --------------
-  // Round 17: CDR percentages became additive Ability Haste —
+  // Round 17: CDR percentages became additive Ability Haste;
   // cd = base / (1 + haste/100), haste sums across sources. The hourglass ITEM
   // hastens everything; arcane touches the fireball only, and its lv3 special
   // is chronos's old refund narrowed to fireball hits.
@@ -2585,7 +2786,7 @@ describe('elemental mode', () => {
         (1 + (hg + ELEMENTS.arcane.fx.haste[1]) / 100), 3);
   });
 
-  it('arcane lv3: a landed FIREBALL refunds every OTHER running cooldown — never its own', () => {
+  it('arcane lv3: a landed FIREBALL refunds every OTHER running cooldown, never its own', () => {
     const f = ELEMENTS.arcane.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -2606,7 +2807,7 @@ describe('elemental mode', () => {
     }
     // teleport jumped back by hitRefund (on top of the normal tick down)...
     expect(a.cooldowns.teleport).toBeCloseTo(tpBefore - elapsed - f.hitRefund[2], 2);
-    // ...and the fireball's own cooldown only ticked — refunding the spell that
+    // ...and the fireball's own cooldown only ticked; refunding the spell that
     // triggers the refund is the measured 74% feedback loop (see arcaneRefund)
     expect(a.cooldowns.fireball).toBeCloseTo(fbBefore - elapsed, 2);
   });
@@ -2707,7 +2908,7 @@ describe('elemental mode', () => {
     }
   });
 
-  it('the refund triggers ONLY on fireball hits — not lightning, rush, DoT ticks or trails', () => {
+  it('the refund triggers ONLY on fireball hits, not lightning, rush, DoT ticks or trails', () => {
     // chronos triggered on any landed spell; arcane lv3 must not (Remi: "I'm
     // changing it to only work when hitting fireball")
     for (const spell of ['lightning', 'rush']) {
@@ -3049,7 +3250,7 @@ describe('power spells & pillar', () => {
     }
   });
 
-  it('bots never buy power-tier spells a build lists — EXCEPT meteor (round 20: piloted)', () => {
+  it('bots never buy power-tier spells a build lists, EXCEPT meteor (round 20: piloted)', () => {
     const state = freshBattle(2);
     state.phase = 'shop';
     const bot = state.players.p0;
@@ -3058,15 +3259,19 @@ describe('power spells & pillar', () => {
     // inject power spells into the consumed order to prove the guard, not the
     // omission, is what protects us. Meteor is the ONE exception: it has a
     // pilot now (the CC-gated cast), so an order that explicitly lists it may
-    // buy it — everything else in the tier stays structurally unbuyable.
+    // buy it; everything else in the tier stays structurally unbuyable.
     const orig = BUILDS.warlord.order;
     try {
       BUILDS.warlord.order = ['meteor', 'swap', 'repulse', 'wall', 'nova', 'fireball'];
       bot.build = 'warlord';
       botShop(state, 'p0');
-      for (const key of ['swap', 'repulse', 'wall', 'nova'])
+      for (const key of ['repulse', 'wall'])
         expect(bot.spells[key] || 0).toBe(0);
-      expect(bot.spells.meteor).toBe(1);              // the piloted exception
+      // the piloted exceptions: meteor since round 20, Switcheroo and the Mine
+      // since issue #7 (the Faker hooks with one and detonates the other)
+      expect(bot.spells.meteor).toBe(1);
+      expect(bot.spells.swap).toBe(1);
+      expect(bot.spells.nova).toBe(1);
       expect(bot.spells.fireball).toBeGreaterThan(1); // it still shops normally
     } finally {
       BUILDS.warlord.order = orig;
@@ -3074,7 +3279,7 @@ describe('power spells & pillar', () => {
   });
 
   it('meteor never reaches a bot whose order does not list it (leftover pool excluded)', () => {
-    // round 19.1 leftover shopping buys "everything" once the path is maxed —
+    // round 19.1 leftover shopping buys "everything" once the path is maxed;
     // the power tier must stay out of that random pool, meteor included.
     const state = freshBattle(2);
     state.phase = 'shop';
@@ -3099,11 +3304,11 @@ describe('power spells & pillar', () => {
     castSpell(state, 'p0', 'fireball', 12, 0);
     run(state, 0.5);
     expect(b.hp).toBe(b.maxHp);
-    // round 17 (Remi): no per-caster limit — recasting ADDS a second stone
+    // round 17 (Remi): no per-caster limit; recasting ADDS a second stone
     a.cooldowns = {};
     castSpell(state, 'p0', 'pillar', -6, 0);
     expect(state.pillars.length).toBe(2);
-    // round 21.2 ruling: pillars are PERMANENT — both stones outlive the old
+    // round 21.2 ruling: pillars are PERMANENT; both stones outlive the old
     // duration and every timer the sim knows about
     run(state, SPELLS.pillar.duration[0] + SPELLS.pillar.duration[1] + 2);
     expect(state.pillars.length).toBe(2);
@@ -3162,7 +3367,7 @@ describe('power spells & pillar', () => {
     expect(b.hp).toBeLessThan(b.maxHp);              // the 1 damage landed
     // round 19.2 (Remi): the VICTIM is stunned after the trade (the combo
     // window), the caster stays free to act on it. Round 20.5: the duration is
-    // computed from the swapped distance — 15 units here, which is short enough
+    // computed from the swapped distance (15 units here, which is short enough
     // to sit on the floor.
     expect(b.stunT).toBeCloseTo(swapStun(15), 5);
     expect(b.stunT).toBeCloseTo(SPELLS.swap.stun.min, 5);
@@ -3171,7 +3376,7 @@ describe('power spells & pillar', () => {
   });
 
   // Round 20.5 (Remi's ruling): the stun must ALWAYS cover the caster's
-  // follow-up fireball. Every number below is recomputed from the spec —
+  // follow-up fireball. Every number below is recomputed from the spec;
   // `pad` + flight time of a BASE fireball over the distance actually swapped,
   // floored by `min`, capped only if the spec grows a `max`.
   function swapStun(d) {
@@ -3220,10 +3425,10 @@ describe('power spells & pillar', () => {
     }
   });
 
-  it('swap: the stun is CLAMPED at spec `max` — an absurd trade still wakes you at 3 s', () => {
+  it('swap: the stun is CLAMPED at spec `max` (an absurd trade still wakes you at 3 s)', () => {
     // Round 21.0 (Remi). The gap is measured between the two traded positions AT
     // the switch moment, so anything that moves either end during the bolt's
-    // flight lengthens the stun — unbounded without a ceiling. It is not a
+    // flight lengthens the stun; unbounded without a ceiling. It is not a
     // theoretical ceiling: a full cross-arena trade (2 × START_RADIUS) already
     // asks for more than `max`.
     const s = SPELLS.swap.stun;
@@ -3244,7 +3449,7 @@ describe('power spells & pillar', () => {
     expect(b.stunT).toBeCloseTo(s.max, 5);
   });
 
-  it('swap: the lava save — and the victim burning to death credits the caster', () => {
+  it('swap: the lava save, and the victim burning to death credits the caster', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.swap = 1;
@@ -3278,7 +3483,7 @@ describe('power spells & pillar', () => {
     expect(Math.abs(a.x)).toBeLessThan(3); // caster went nowhere
   });
 
-  it('swap: interrupts the victim mid-dash (but NOT a repulse charge — round 21.0)', () => {
+  it('swap: interrupts the victim mid-dash (but NOT a repulse charge; round 21.0)', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.swap = 1;
@@ -3308,7 +3513,7 @@ describe('power spells & pillar', () => {
     expect(b.vanishT).toBeGreaterThan(0);  // swapped, not un-vanished
   });
 
-  it('swap: no on-hit riders — elements never ride it, knockback never fires', () => {
+  it('swap: no on-hit riders (elements never ride it, knockback never fires)', () => {
     const state = createGame({ seed: 42, mode: 'elemental' });
     for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
     startGame(state);
@@ -3322,7 +3527,7 @@ describe('power spells & pillar', () => {
     const gold0 = a.gold;
     castSpell(state, 'p0', 'swap', 20, 0);
     expect(stepToSwap(state)).toBeTruthy();
-    expect((b.stacks && b.stacks.malady && b.stacks.malady.p0) || 0).toBe(0); // no malady
+    expect((b.stacks && b.stacks.malady && b.stacks.malady.p0 && b.stacks.malady.p0.n) || 0).toBe(0); // no malady
     expect(a.gold).toBe(gold0);            // no midas
     expect(Math.abs(b.vx)).toBeLessThan(1); // no knockback: b got a's rest state
   });
@@ -3384,7 +3589,7 @@ describe('power spells & pillar', () => {
     state.players.p2.x = 0; state.players.p2.y = -40;
     castSpell(state, 'p0', 'repulse', 0, 0);
     expect(a.charging).toBeTruthy();
-    // blink INTO the pack while winding up — the combo Remi asked for
+    // blink INTO the pack while winding up (the combo Remi asked for)
     expect(castSpell(state, 'p0', 'teleport', 5, 0)).toBe(true);
     expect(Math.abs(a.x - 5)).toBeLessThan(SPELLS.teleport.range[0]); // moved
     expect(a.charging).toBeTruthy(); // charge survives the blink
@@ -3420,7 +3625,7 @@ describe('power spells & pillar', () => {
   // used to null it, and none of them may again. Only death defuses the bomb.
   //
   // Step until p<id> detonates and return the `repulse` event (null if it never
-  // does) — the event carries the blast's position and radius.
+  // does); the event carries the blast's position and radius.
   function stepToBoom(state, id, ticks = 200) {
     for (let i = 0; i < ticks; i++) {
       state.events = [];
@@ -3431,7 +3636,7 @@ describe('power spells & pillar', () => {
     return null;
   }
 
-  it('RULING: a frost stun does not defuse the charge — frozen solid, they still blow up', () => {
+  it('RULING: a frost stun does not defuse the charge; frozen solid, they still blow up', () => {
     const state = createGame({ seed: 42, mode: 'elemental' });
     for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
     startGame(state);
@@ -3460,7 +3665,7 @@ describe('power spells & pillar', () => {
     expect(a.hp).toBeLessThan(hp0);
   });
 
-  it('RULING: a Switcheroo does not defuse either charge — each bomb travels with its owner', () => {
+  it('RULING: a Switcheroo does not defuse either charge; each bomb travels with its owner', () => {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
     a.spells.swap = 1;
@@ -3476,7 +3681,7 @@ describe('power spells & pillar', () => {
     expect(b.charging).toBeTruthy();
     // each detonates where its owner ENDED UP: swapping a charger drags the
     // blast onto your own old spot. Both are on the same clock, so collect
-    // them in ONE pass — they land on the same tick.
+    // them in ONE pass; they land on the same tick.
     const at = {};
     for (let i = 0; i < 200 && !(at.p0 && at.p1); i++) {
       state.events = [];
@@ -3489,7 +3694,7 @@ describe('power spells & pillar', () => {
     expect(Math.abs(at.p1.x)).toBeLessThan(5);
   });
 
-  it('RULING: a lava portal does not defuse the charge — it detonates at the center', () => {
+  it('RULING: a lava portal does not defuse the charge; it detonates at the center', () => {
     const state = freshBattle(3);
     const a = state.players.p0;
     const P = ARENA.PORTALS;
@@ -3556,9 +3761,9 @@ describe('power spells & pillar', () => {
     expect(state.walls.length).toBe(0);
   });
 
-  it('mirror wall never blocks BODIES — projectiles only (Remi, round 19.1)', () => {
+  it('mirror wall never blocks BODIES, projectiles only (Remi, round 19.1)', () => {
     // Round 18.1 briefly made walls tangible off a garbled transcription;
-    // Remi's ruling: he never asked — walls reflect shots and nothing else.
+    // Remi's ruling: he never asked; walls reflect shots and nothing else.
     const state = freshBattle(3);
     state.pillars = [];
     const a = state.players.p0;
@@ -3602,7 +3807,7 @@ describe('testing sandbox: bots spend their pile (round 19.8)', () => {
     b.gold = 999;
     botShop(state, 'b');
     // ONE pass never reaches the random fallback: warlord's list holds arcane
-    // twice (max 3) and cape once, so the path cannot complete in one pass —
+    // twice (max 3) and cape once, so the path cannot complete in one pass;
     // nothing outside the list may appear (treads/ghost are not in it)
     expect(b.items.treads || 0).toBe(0);
     expect(b.elements.ghost || 0).toBe(0);
@@ -3610,7 +3815,7 @@ describe('testing sandbox: bots spend their pile (round 19.8)', () => {
 });
 
 describe('rush cancels momentum (round 19.6)', () => {
-  it('casting rush zeroes knockback velocity — the combo escape', () => {
+  it('casting rush zeroes knockback velocity (the combo escape)', () => {
     const state = freshBattle(2);
     const a = state.players.p0;
     a.spells.rush = 1;
@@ -3664,7 +3869,7 @@ describe('Chainer build & CC-gated casts (round 20)', () => {
       a.bot = true; a.kind = 'berserker'; a.spells = { fireball: 1, lightning: 1 };
       a.x = 0; a.y = 0; v.x = 12; v.y = 0;
       v.moveTarget = { x: 12, y: 40 };            // walking straight north
-      if (stacks) v.stacks = { frost: { p0: stacks } };
+      if (stacks) v.stacks = { frost: { p0: { n: stacks, t: 9 } } };
       for (let i = 0; i < 60 && !state.bolts.length; i++) stepBot(state, 'p0', DT);
       return state.bolts[0];
     };
@@ -3673,7 +3878,7 @@ describe('Chainer build & CC-gated casts (round 20)', () => {
     expect(Math.hypot(held.x - 12, held.y - 0)).toBeLessThan(1);
     const led = boltFor(0);
     expect(led).toBeTruthy();
-    expect(led.y).toBeGreaterThan(2);            // it led the walk — not held
+    expect(led.y).toBeGreaterThan(2);            // it led the walk, not held
   });
 
   it('the stalker waives its finish/poke gate for a stunned target', () => {
@@ -3726,7 +3931,7 @@ describe('Chainer build & CC-gated casts (round 20)', () => {
 });
 
 describe('bot shopping never stops (round 19.1)', () => {
-  // Remi: "a bot should never stop buying stuff" — once its build path is
+  // Remi: "a bot should never stop buying stuff"; once its build path is
   // fully maxed, leftovers go on random upgrades: items first, then
   // pilotable spells, then mutations. Seeded rng, so games stay replayable.
   function shopBot(mode, gold) {
@@ -3774,7 +3979,7 @@ describe('bot shopping never stops (round 19.1)', () => {
     run(state, ROUND.COUNTDOWN + DT);
     state.phase = 'shop';
     const b = state.players.b;
-    b.gold = 2; // can afford nothing on the list — and nothing else either
+    b.gold = 2; // can afford nothing on the list, and nothing else either
     botShop(state, 'b');
     expect(b.gold).toBe(2);
   });
@@ -3807,6 +4012,69 @@ describe('bot profiles', () => {
     expect(s.alive).toBe(true);
     expect(s.hp).toBe(s.maxHp);               // it was never clipped
     expect(Math.abs(s.y)).toBeGreaterThan(2); // and it left the threat ray
+  });
+
+  // Boomerangs must stay inside the same threat scan as fireballs: the dodge
+  // reads the projectile's CURRENT velocity, so each straight leg (out and
+  // return) is dodged like any other shot. Locked against a type filter ever
+  // sneaking into scanThreats; boomer strategies must not win for free.
+  it('a stalker sidesteps a boomerang on its OUT leg', () => {
+    const state = createGame({ seed: 11 });
+    addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });
+    addPlayer(state, 'e', 'Enemy', { bot: true, kind: 'grunt' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const s = state.players.s;
+    s.x = 0; s.y = 0; s.vx = 0; s.vy = 0;
+    state.players.e.x = 0; state.players.e.y = 40; // parked far off the ray
+    // hostile boomerang flying straight at the stalker along y = 0
+    state.projectiles.push({
+      id: 999, type: 'boomerang', owner: 'e', level: 1,
+      x: 25, y: 0, ox: 25, oy: 0,
+      vx: -SPELLS.boomerang.speed, vy: 0,
+      traveled: 0, returning: false, lost: false,
+      hit: {}, pierce: true, pierced: 0,
+    });
+    let guard = 0;
+    while (guard++ < 120) {
+      const pr = state.projectiles.find((p) => p.id === 999);
+      if (!pr || pr.x <= -5) break; // pierces: it flies past, never pops
+      step(state, DT);
+      stepBot(state, 's', DT);
+    }
+    expect(s.alive).toBe(true);
+    expect(s.hp).toBe(s.maxHp);               // it was never clipped
+    expect(Math.abs(s.y)).toBeGreaterThan(2); // and it left the threat ray
+  });
+
+  it('a stalker sidesteps a boomerang on its RETURN leg', () => {
+    const state = createGame({ seed: 11 });
+    addPlayer(state, 's', 'Stalker', { bot: true, kind: 'stalker' });
+    addPlayer(state, 'e', 'Enemy', { bot: true, kind: 'grunt' });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    const s = state.players.s;
+    s.x = 0; s.y = 0; s.vx = 0; s.vy = 0;
+    state.players.e.x = 0; state.players.e.y = 40;
+    // already recalled: turned at (-20,0), heading home to its launch point
+    // (25,0), straight through the stalker; a fresh hit set threatens it
+    state.projectiles.push({
+      id: 999, type: 'boomerang', owner: 'e', level: 1,
+      x: -20, y: 0, ox: 25, oy: 0,
+      vx: SPELLS.boomerang.speed, vy: 0,
+      traveled: 45, turnAt: 45, returning: true, lost: false,
+      hit: {}, pierce: true, pierced: 0,
+    });
+    let guard = 0;
+    while (guard++ < 120) {
+      const pr = state.projectiles.find((p) => p.id === 999);
+      if (!pr || pr.x >= 25) break; // home: only its owner could catch it
+      step(state, DT);
+      stepBot(state, 's', DT);
+    }
+    expect(s.alive).toBe(true);
+    expect(s.hp).toBe(s.maxHp);
+    expect(Math.abs(s.y)).toBeGreaterThan(2);
   });
 
   it('a stalker teleports out of lava when it owns teleport', () => {
@@ -3861,7 +4129,7 @@ describe('bot profiles', () => {
 
 describe('v5 mechanics', () => {
   // Round 12 (Remi): knockback is being TESTED as constant, via
-  // PLAYER.KB_CONSTANT_MISSING — the HP-scaling formula is untouched, it is just
+  // PLAYER.KB_CONSTANT_MISSING; the HP-scaling formula is untouched, it is just
   // fed a fixed "fraction missing". This test covers BOTH settings so flipping
   // that one constant back stays a genuine one-line revert.
   it('knockback: constant when KB_CONSTANT_MISSING is set, HP-scaled when null', () => {
@@ -3896,7 +4164,7 @@ describe('v5 mechanics', () => {
     }
   });
 
-  it('knockback ignores body size — big is only ever a disadvantage', () => {
+  it('knockback ignores body size (big is only ever a disadvantage)', () => {
     const peakKnockVx = (radiusMult) => {
       const state = freshBattle(3);
       const a = state.players.p0, b = state.players.p1;
@@ -3961,7 +4229,7 @@ describe('v5 mechanics', () => {
     expect(snapshot(state).pillars.length).toBe(1); // pillars are on the wire
   });
 
-  it('pillars and mirror walls do NOT block lightning — it falls from the sky', () => {
+  it('pillars and mirror walls do NOT block lightning (it falls from the sky)', () => {
     // round 17 §2: the anti-cover tool, by design
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1;
@@ -3988,7 +4256,7 @@ describe('v5 mechanics', () => {
     expect(Math.abs(a.vx)).toBeLessThan(0.5);  // velocity into the pillar died
   });
 
-  it('round 21.2: lava never destroys a pillar — one out in the lava still blocks', () => {
+  it('round 21.2: lava never destroys a pillar; one out in the lava still blocks', () => {
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
     state.arenaRadius = 5; // the lava has swallowed everything past 5u
@@ -4038,14 +4306,14 @@ describe('v5 mechanics', () => {
     }
     expect(b.alive).toBe(false);     // it CAN kill...
     // round 17 §9: the full-stop regen lock makes hits stick harder, so the
-    // grind shortened (~29.5 s, was >30 under the ×0.25 throttle) — the
+    // grind shortened (~29.5 s, was >30 under the ×0.25 throttle); the
     // PROPERTY is "slow, not a burst kill", so the floor moved with it
     expect(t).toBeGreaterThan(25);   // ...but regen makes it a long grind
   }, 15000);
 });
 
 describe('bot reaction time', () => {
-  it("berserker aims with LAST tick's observation — direction changes inside its reaction window are invisible", () => {
+  it("berserker aims with LAST tick's observation; direction changes inside its reaction window are invisible", () => {
     const state = createGame({ seed: 9 });
     addPlayer(state, 'h', 'Human');
     addPlayer(state, 'b', 'Bot', { bot: true, kind: 'berserker' });
@@ -4061,7 +4329,7 @@ describe('bot reaction time', () => {
     expect(bot._obs).toBeTruthy();
     expect(bot._obs.x).toBeCloseTo(12, 0);
     // the human blinks NORTH between decision ticks; the bot's next shot
-    // still flies at the OLD spot — that lag is the emulated reaction time
+    // still flies at the OLD spot; that lag is the emulated reaction time
     h.x = 0; h.y = 12; h.vx = 0; h.vy = 0; h.moveTarget = null;
     bot.x = 0; bot.y = 0; bot.vx = 0; bot.vy = 0;
     bot._botT = 0; bot.cooldowns.fireball = 0;
@@ -4076,7 +4344,7 @@ describe('bot reaction time', () => {
   it('berserker aim error no longer vanishes at point-blank range', () => {
     // fixed-seed statistical check. The old error term was purely
     // distance-proportional (dist * 0.12), so at 3 u it could never scatter a
-    // shot by more than (3*0.12/2)/3 = 0.06 of a unit direction — effectively
+    // shot by more than (3*0.12/2)/3 = 0.06 of a unit direction (effectively
     // pixel-perfect in a knife fight. The absolute floor must beat that
     // ceiling clearly; anything at or under 0.06 means the floor is gone.
     const OLD_CEILING = (3 * 0.12 / 2) / 3;
@@ -4110,7 +4378,7 @@ describe('bot reaction time', () => {
 
 describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
   // Round 12 S6: four named tiers, and Normal is the berserker brain with worse
-  // numbers — NOT new AI. These lock the two things that make that true.
+  // numbers, NOT new AI. These lock the two things that make that true.
   const tierBattle = (kind) => {
     const state = createGame({ seed: 9 });
     addPlayer(state, 'h', 'Human');
@@ -4126,17 +4394,50 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       expect(typeof spec.brain).toBe('string');
       expect(typeof spec.label).toBe('string');
       // a tier whose brain does not exist would silently fall back to the grunt
-      expect(['grunt', 'berserker', 'stalker']).toContain(spec.brain);
+      expect(['grunt', 'berserker', 'stalker', 'faker', 'runner', 'dummy']).toContain(spec.brain);
     }
-    // and the ladder ranks are unique and cover 1..N
-    const ranks = Object.values(BOTS).map(b => b.difficulty).sort((a, b) => a - b);
+    // and the DIFFICULTY ladder ranks are unique and cover 1..N. `spar` bots
+    // (issue #7's Runner) are measuring instruments, not a rung on it.
+    const ranks = Object.values(BOTS).filter(b => !b.spar)
+      .map(b => b.difficulty).sort((a, b) => a - b);
     expect(ranks).toEqual(ranks.map((_, i) => i + 1));
+  });
+
+  // Round 22 standoff: BOTS[kind].standoff floors the prowl ring (wounded-prey
+  // dive included); a Normal bot never WANTS to stand in your face, and Hard
+  // refuses melee. The values are read off the spec, never pinned here.
+  it('standoff floors the prowl ring, even over the old wounded-prey dive', () => {
+    for (const kind of ['brawler', 'berserker']) {
+      const state = tierBattle(kind);
+      const bot = state.players.b, h = state.players.h;
+      h.hp = 20;                        // the bait that used to pull ring -> 1.5
+      bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+      h.x = 4; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+      bot._botT = 0; bot.cooldowns.fireball = 99;
+      stepBot(state, 'b', DT);
+      expect(bot.moveTarget, kind).toBeTruthy();
+      const d = Math.hypot(bot.moveTarget.x - h.x, bot.moveTarget.y - h.y);
+      expect(d, kind).toBeGreaterThanOrEqual(BOTS[kind].standoff);
+    }
+  });
+
+  it('standoff never backs a bot into the lava: no room = the point comes inside', () => {
+    const state = tierBattle('brawler');
+    state.arenaRadius = 8;              // a late-game ring with no room for 13 units
+    const bot = state.players.b, h = state.players.h;
+    bot.x = 3; bot.y = 0; bot.vx = bot.vy = 0;
+    h.x = 0; h.y = 0; h.vx = h.vy = 0; h.hp = 20; h.moveTarget = null;
+    bot._botT = 0; bot.cooldowns.fireball = 99;
+    stepBot(state, 'b', DT);
+    expect(bot.moveTarget).toBeTruthy();
+    expect(Math.hypot(bot.moveTarget.x, bot.moveTarget.y))
+      .toBeLessThanOrEqual(state.arenaRadius - 2.5);
   });
 
   it('brawler (Normal) runs the BERSERKER brain, not the grunt brain', () => {
     // the berserker hunts: it walks toward its prey and fires at it. The grunt
     // wanders and fires at a uniformly random bearing. One decision tick tells
-    // them apart — the brawler must AIM at the human.
+    // them apart; the brawler must AIM at the human.
     const state = tierBattle('brawler');
     const bot = state.players.b, h = state.players.h;
     expect(BOTS.brawler.brain).toBe('berserker');
@@ -4159,7 +4460,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
 
   it("the decision interval comes from BOTS[kind].react, not a literal", () => {
     // read the spec, don't restate it: whatever react says, _botT must land in
-    // [base, base+jitter] — and Normal's window must be strictly slower than Hard's
+    // [base, base+jitter]; and Normal's window must be strictly slower than Hard's
     for (const kind of ['brawler', 'berserker', 'stalker']) {
       const [base, jitter] = BOTS[kind].react;
       const state = tierBattle(kind);
@@ -4176,7 +4477,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
     expect(BOTS.berserker.react[0]).toBeGreaterThan(BOTS.stalker.react[0]);
   });
 
-  it('aim error comes from BOTS[kind].aimErr — Normal scatters more than Hard', () => {
+  it('aim error comes from BOTS[kind].aimErr (Normal scatters more than Hard)', () => {
     // statistical, fixed seeds: same range, same brain, only the BOTS numbers
     // differ. The perpendicular miss component is bounded by aimErr/2 per shot.
     const spreadOf = (kind) => {
@@ -4210,7 +4511,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
 
   it('a tier that omits react/aimErr keeps the historical defaults', () => {
     // grunt has neither (it needs neither), and nothing may crash or drift when
-    // a BOTS entry is incomplete — the fallback is the round-10 literal.
+    // a BOTS entry is incomplete; the fallback is the round-10 literal.
     expect(BOTS.grunt.react).toBeUndefined();
     const state = tierBattle('grunt');
     const bot = state.players.b;
@@ -4222,7 +4523,7 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
 });
 
 describe('bot telegraph dodge (boltDodge)', () => {
-  // Remi, round 17: Hard dodging 100% of sky-bolts was too tough — the dodge
+  // Remi, round 17: Hard dodging 100% of sky-bolts was too tough; the dodge
   // is a committed per-bolt roll now. 0 and 1 make it deterministic to test;
   // the shipped values live in BOTS and are the tuning surface.
   const escapeDist = (chance) => {
@@ -4406,7 +4707,7 @@ describe('vanish 👁️ (invisibility)', () => {
     const state = vanishBattle();
     const a = state.players.a;
     a.spells.repulse = 1;
-    // charging first (round 19): vanish joined the mid-charge whitelist — you
+    // charging first (round 19): vanish joined the mid-charge whitelist; you
     // charge VISIBLY, disappear, and the burst fires from stealth. Everyone
     // saw the windup start, which is the point of the reveal rule.
     expect(castSpell(state, 'a', 'repulse', 5, 0)).toBe(true);
@@ -4461,7 +4762,7 @@ describe('vanish 👁️ (invisibility)', () => {
 
 describe('lifesteal (Blood Sword)', () => {
   // p0 owns a sword and sits at 50 hp; p2, parked far away and also at 50 hp,
-  // is the regen control — any hp gap between them is lifesteal healing.
+  // is the regen control; any hp gap between them is lifesteal healing.
   function swordBattle() {
     const state = freshBattle(3);
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
@@ -4482,7 +4783,7 @@ describe('lifesteal (Blood Sword)', () => {
     expect(a.hp - c.hp).toBeCloseTo(SPELLS.fireball.damage[0] * ITEM_FX.sword.lifesteal[0], 1);
   });
 
-  it('heals from your poison ticks — DoT damage counts', () => {
+  it('heals from your poison ticks (DoT damage counts)', () => {
     const state = swordBattle();
     const a = state.players.p0, b = state.players.p1, c = state.players.p2;
     b.poisonT = 3; b.poisonTick = 2; b._poisonNext = 0.1; b.poisonBy = 'p0';
@@ -4522,7 +4823,7 @@ describe('lifesteal (Blood Sword)', () => {
 });
 
 // ---- co-op campaign ---------------------------------------------------------
-// The whole mode rests on one rule — same team = not hostile — and that rule
+// The whole mode rests on one rule (same team = not hostile), and that rule
 // has to be enforced at the COLLISION sites, not in applyDamage: knockback is
 // applied before damage everywhere, and shoving an ally into the lava would
 // still kill them.
@@ -4617,7 +4918,7 @@ describe('co-op: teams', () => {
     const state = freshBattle(2);
     const a = state.players.p0, b = state.players.p1;
     // round 21.3: versus players carry their OWN unique team number, which is
-    // free-for-all spelled differently — different numbers, so still enemies
+    // free-for-all spelled differently; different numbers, so still enemies
     expect(a.team).not.toBe(b.team);
     a.x = 0; a.y = 0; a.moveTarget = null;
     b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
@@ -4669,7 +4970,7 @@ describe('co-op: teams', () => {
 
   it('wave monsters never distort the party body-size average', () => {
     // eight zero-kill monsters used to collapse the mean and inflate the whole
-    // party toward the 2.0x size cap — giant targets as a reward for clearing
+    // party toward the 2.0x size cap (giant targets as a reward for clearing
     const state = coopBattle();
     const [a, b] = party(state);
     a.kills = 8; b.kills = 8;
@@ -4695,7 +4996,7 @@ describe('co-op: teams', () => {
     expect(classic.coop).toBeUndefined();
     expect(Object.values(classic.players)[0].wave).toBeUndefined();
     // `team` IS on the versus wire since round 21.3 (the lobby selector and the
-    // scoreboard grouping read it) — as a number, never the campaign's string
+    // scoreboard grouping read it), as a number, never the campaign's string
     expect(Object.values(classic.players)[0].team).toEqual(expect.any(Number));
   });
 });
@@ -4831,7 +5132,6 @@ describe('draft mode 🎴', () => {
     const a = off.players.a;
     a.gold = 9999;
     // every single catalogue entry is still purchasable, and no offer exists
-    // (v5: the ball identities STACK, so even those all buy together)
     for (const e of catalogue('elemental')) {
       if (e.key === 'fireball') continue;    // starting kit, level 1 already owned
       expect(buy(off, 'a', e.key).ok).toBe(true);
@@ -5090,7 +5390,7 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
   // Both candidates sit the same distance (4) from the centre, so pickPrey's
   // rim term is identical; both have exactly one neighbour 8 units away, so the
   // crowd term is identical; both are at full HP. Only the distance to the bot
-  // differs — 10 vs 18, i.e. GAP arena units in the near one's favour.
+  // differs (10 vs 18, i.e. GAP arena units in the near one's favour).
   const GAP = 8;
 
   function duelBattle({ mode = 'classic', kind = 'berserker' } = {}) {
@@ -5114,7 +5414,7 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
 
   // Round 17 §11: the pick is a SOFTMAX DRAW, so one call is a sample and not
   // an answer. Every behaviour assertion below is a frequency over draws, and
-  // every threshold is derived from BOT_TARGETING — never a pinned literal.
+  // every threshold is derived from BOT_TARGETING, never a pinned literal.
   const DRAWS = 2000;
   function preyShare(state, id) {
     let hits = 0;
@@ -5128,7 +5428,7 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
     1 / (1 + Math.exp(-advantage / BOT_TARGETING.TEMPERATURE));
   const DIST_GAP = GAP * BOT_TARGETING.PROXIMITY;   // the near one's head start
 
-  it('the bias only bites in the band the constant defines — spec, not literals', () => {
+  it('the bias only bites in the band the constant defines (spec, not literals)', () => {
     // A lead of 1 must NOT cover GAP units; a runaway lead must. Everything the
     // two behaviour tests below assert follows from these two inequalities, so
     // if LEADER_BIAS is ever retuned outside this band the arithmetic says so
@@ -5138,7 +5438,7 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
   });
 
   it('the draw follows the spec: two candidates, odds set by TEMPERATURE', () => {
-    // The whole point of §11: the tastiest target is FAVOURED, not mandated —
+    // The whole point of §11: the tastiest target is FAVOURED, not mandated;
     // four bots stop converging on one victim. A level field leaves only the
     // distance term, so the measured share must land on the logistic the
     // constants predict, and both candidates must really get picked.
@@ -5184,20 +5484,20 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
     expect(preyShare(state, 'lead')).toBeCloseTo(pick(edge), 1);
   });
 
-  it('my own marks pull the pick — and only mine (the stack store is private)', () => {
+  it('my own marks pull the pick, and only mine (the stack store is private)', () => {
     const marks = Math.ceil(DIST_GAP / BOT_TARGETING.MY_STACKS) + 2;
     const edge = marks * BOT_TARGETING.MY_STACKS - DIST_GAP;
     expect(edge).toBeGreaterThan(0);
 
     const mine = duelBattle();
-    mine.players.lead.stacks = { frost: { bot: marks } };
+    mine.players.lead.stacks = { frost: { bot: { n: marks, t: 9 } } };
     expect(preyShare(mine, 'lead')).toBeCloseTo(pick(edge), 1);
 
     // the same marks placed by SOMEBODY ELSE are invisible to this bot: they
     // are not its investment, and knowing about them would be a free read on
     // another player's setup
     const theirs = duelBattle();
-    theirs.players.lead.stacks = { frost: { near: marks } };
+    theirs.players.lead.stacks = { frost: { near: { n: marks, t: 9 } } };
     expect(preyShare(theirs, 'near')).toBeCloseTo(pick(DIST_GAP), 1);
   });
 
@@ -5210,7 +5510,7 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
   });
 
   it('a vanished leader is still known to be the leader (kills are scoreboard, not position)', () => {
-    // Vanish hides WHERE you are, never your place on the scoreboard — the
+    // Vanish hides WHERE you are, never your place on the scoreboard; the
     // topbar shows it to every human. If the memory entry dropped `kills` the
     // bias would flicker off every time the leader blinked, which is a stealth
     // buff nobody asked for.
@@ -5277,7 +5577,7 @@ describe('bot target choice (BOT_TARGETING: a softmax draw, round 17 §11)', () 
     const { state, monsters } = build(ROUND.KILLS_TO_WIN);
     expect(monsters.length).toBeGreaterThanOrEqual(2);
     const [m1, m2] = monsters;
-    // every co-op fighter, party or wave, carries a team — that is the switch
+    // every co-op fighter, party or wave, carries a team; that is the switch
     expect(state.players.a.team).not.toBe(null);
     expect(m1.team).not.toBe(null);
     expect(killLead(state.players.a, m1)).toBe(0);   // a party member: no race
@@ -5322,7 +5622,7 @@ describe('live spectator standings', () => {
     }
   });
 
-  it('kills are the GAME total and roundKills the current round — both, separately', () => {
+  it('kills are the GAME total and roundKills the current round (both, separately)', () => {
     const state = watched();
     const a = state.players.a;
     a.kills = 4; a.roundKills = 4;
@@ -5339,7 +5639,7 @@ describe('live spectator standings', () => {
     expect(wire.roundKills).toBe(0); // what this round has paid
   });
 
-  it('a dead viewer is given exactly what a living one is — no extra fields', () => {
+  it('a dead viewer is given exactly what a living one is (no extra fields)', () => {
     const state = watched();
     state.players.dead.alive = false;
     state.players.dead.hp = 0;
@@ -5355,8 +5655,8 @@ describe('live spectator standings', () => {
     a.kills = 3; a.roundKills = 3; a.dmgDealt = 120;
     expect(castSpell(state, 'a', 'vanish', 5, 5)).toBe(true);
     const wire = snapshot(state, 'dead').players.a;
-    // the scoreboard row survives — a player must not drop out of the standings
-    // every time they blink — but nothing positional comes with it
+    // the scoreboard row survives (a player must not drop out of the standings
+    // every time they blink), but nothing positional comes with it
     expect(wire.kills).toBe(3);
     expect(wire.roundKills).toBe(3);
     expect(wire.x).toBeUndefined();
@@ -5529,7 +5829,7 @@ describe('spawn shuffle (round 18)', () => {
   });
 });
 
-// Mine 💣 (round 21.8, SPELLS.nova — internal key unchanged). A planted trap
+// Mine 💣 (round 21.8, SPELLS.nova; internal key unchanged). A planted trap
 // that eats YOUR OWN fireballs and spits them back into whoever steps on it.
 // The three rulings under test: the aim is ignored (it lands at your feet), a
 // loaded mine's push is max(ball, mine) on the LAST ball only, and a Shield
@@ -5714,7 +6014,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     expect(Math.hypot(b.vx, b.vy)).toBeGreaterThan(0);
   });
 
-  it('the push is max(ball, mine) on ONE ball — never the sum, never twice', () => {
+  it('the push is max(ball, mine) on ONE ball, never the sum, never twice', () => {
     // same setup, three ways: bare mine, loaded mine, plain fireball. The
     // loaded mine's launch speed must equal the bigger of the other two, not
     // their sum (Remi's ruling).
@@ -5753,7 +6053,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     const ball = peak(state, b2, 0.4);
     // ⚠ the two impulses land one tick apart in the frame (the trap pushes from
     // stepBattle, the ball from stepProjectiles), so they are one friction step
-    // apart — hence a band, not an equality. A SUM would be ~1.7x bare.
+    // apart, hence a band, not an equality. A SUM would be ~1.7x bare.
     expect(spec.knockback).toBeGreaterThan(SPELLS.fireball.knockback[0]);
     expect(loaded).toBeGreaterThan(ball);           // the mine's shove wins
     expect(loaded).toBeLessThan(bare * 1.25);       // ...and it is the ONLY one
@@ -5777,7 +6077,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     const fb = SPELLS.fireball.damage[0] + ELEMENTS.ember.fx.dmgAdd[0];
     expect(hp0 - b.hp).toBeCloseTo(spec.damage[0] + fb, 3);
     // and malady's first sting planted its stack (two hits infect)
-    expect(b.stacks && b.stacks.malady && b.stacks.malady.p0).toBe(1);
+    expect(b.stacks && b.stacks.malady && b.stacks.malady.p0 && b.stacks.malady.p0.n).toBe(1);
   });
 
   it('a Shield reflects the stored balls but NEVER the mine\'s own damage', () => {
@@ -5816,15 +6116,15 @@ describe('mine 💣 (the trap, round 21.8)', () => {
   });
 
   // ⚠ RULING (Remi, round 21.8): a trap outlives its trapper. Everything the
-  // mine does after the planter dies is still THEIRS — the kill, the damage
+  // mine does after the planter dies is still THEIRS: the kill, the damage
   // column, and every on-hit rider the stored balls carry. Only things that
   // need a living body are skipped (healing, arcane's cooldown refund), which
   // falls out of applyDamage's existing `src.alive` guards.
   // ⚠ RULING (Remi, round 21.8, from a live game): his mine launched a bot into
   // the lava while he was already dead, the bot burned to death, and NOBODY got
-  // the kill — the victim swam 6.4 s at full hp and outlived the old 5 s credit
+  // the kill; the victim swam 6.4 s at full hp and outlived the old 5 s credit
   // window. Remi's ruling: DROP THE WINDOW. The last player to damage you owns
-  // your death, full stop. This was never mine-specific — every
+  // your death, full stop. This was never mine-specific; every
   // knockback-into-lava kill was losing its credit the same way.
   it('a long swim no longer eats the kill: the shove owns the burn', () => {
     const state = mineBattle(3);
@@ -5892,7 +6192,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     run(state, 0.4);
     expect(b.hp).toBeLessThan(hp0);               // ground hit + the stored ball
     for (const el of ['midas', 'frost', 'malady'])
-      expect(b.stacks[el] && b.stacks[el].p0).toBe(1);
+      expect(b.stacks[el] && b.stacks[el].p0 && b.stacks[el].p0.n).toBe(1);
     expect(a.dmgDealt).toBeGreaterThan(0);        // the damage column is theirs
   });
 
@@ -5957,8 +6257,8 @@ describe('mine 💣 (the trap, round 21.8)', () => {
 
 // ---------------------------------------------------------------------------
 // Versus TEAMS (round 21.3, Remi's design). One ruling drives all of it: "we
-// just ignore each other's spells from the same team — no damage, no pushback,
-// no on-hit effects — except pillars, which are part of the map". The default
+// just ignore each other's spells from the same team (no damage, no pushback,
+// no on-hit effects), except pillars, which are part of the map". The default
 // (everyone on their own number) must be today's free-for-all exactly, which
 // the other 300-odd tests in this file are the real proof of.
 describe('versus teams', () => {
@@ -5996,7 +6296,7 @@ describe('versus teams', () => {
     expect(state.players.p9.team).toBe(3);
   });
 
-  it('a teammate ball passes clean through — no damage, no push', () => {
+  it('a teammate ball passes clean through: no damage, no push', () => {
     const state = teamBattle([7, 7]);
     const { hp0, b } = shootAt(state, 'p0', 'p1');
     expect(b.hp).toBe(hp0);
@@ -6218,7 +6518,7 @@ function shootAtSwap(state, shooter, target) {
 
 // ---- Statue 🗿 (round 21.4) -------------------------------------------------
 // Cast on yourself: for SPELLS.statue.duration seconds you are a golden pillar
-// — invincible, rooted, unpushable, and a solid body that eats projectiles.
+// (invincible, rooted, unpushable, and a solid body that eats projectiles).
 // Every number here is read from the spec (AGENTS.md: balance tests never pin
 // constants), so a retune moves the tests with it.
 describe('statue 🗿 (the golden pillar)', () => {
@@ -6245,7 +6545,7 @@ describe('statue 🗿 (the golden pillar)', () => {
 
   it('prices, levels and cooldown come from the spec; lv2 buys cooldown only', () => {
     expect(spec.maxLevel).toBe(2);
-    // ⚠ Remi's ruling: the duration NEVER levels — lv2 is a cooldown purchase
+    // ⚠ Remi's ruling: the duration NEVER levels; lv2 is a cooldown purchase
     expect(Array.isArray(spec.duration)).toBe(false);
     expect(spec.cooldown[1]).toBeLessThan(spec.cooldown[0]);
     const state = freshBattle(2);
@@ -6400,7 +6700,7 @@ describe('statue 🗿 (the golden pillar)', () => {
     run(state, 0.5);
     expect(a.poisonT).toBe(0);
     expect(a.malady).toBe(null);
-    expect((a.stacks.frost && a.stacks.frost.p1) || 0).toBe(0);
+    expect((a.stacks.frost && a.stacks.frost.p1 && a.stacks.frost.p1.n) || 0).toBe(0);
     // an infected body standing on top of it cannot pass the plague either
     b.malady = { inst: { level: 3, creator: 'p1', immune: { p1: 1 } }, by: 'p1' };
     b.poisonT = 5; b.poisonTick = 1; b.poisonBy = 'p1';
@@ -6452,9 +6752,78 @@ describe('statue 🗿 (the golden pillar)', () => {
   });
 });
 
-// Slow Spoon 🥄 (round 21.8, Remi): a FLAT heal per damaging hit — the sustain
+// Slow Spoon 🥄 (round 21.8, Remi): a FLAT heal per damaging hit; the sustain
 // item for wide, low-damage, utility builds that lifesteal ignores. The whole
 // balance of it is the exclusion: auras and sicknesses never pay.
+// ---------------------------------------------------------------------------
+// Fire Walk 🥾 (SPELLS.firewalk, round 22): active self-buff; zero lava
+// damage while the timer runs. Every number is read off the spec.
+// ---------------------------------------------------------------------------
+describe('Fire Walk 🥾 (lava immunity)', () => {
+  const spec = SPELLS.firewalk;
+
+  // two parked players, p0 owning firewalk at `level`, p0 dropped in the lava
+  function lavaBattle(level = 1) {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.spells.firewalk = level;
+    a.cooldowns = {};
+    a.x = state.arenaRadius + 4; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    return state;
+  }
+
+  it('spec shape: 2 levels priced like Blink, duration levels, cooldown does not', () => {
+    expect(spec.maxLevel).toBe(2);
+    expect(spec.costs).toEqual(SPELLS.teleport.costs);       // the [10, 5] tier
+    expect(Array.isArray(spec.cooldown)).toBe(false);        // flat by ruling
+    expect(spec.duration[1]).toBeGreaterThan(spec.duration[0]); // lv2 buys time
+  });
+
+  it('zeroes lava damage for exactly the duration, then the burn resumes', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    expect(castSpell(state, 'p0', 'firewalk', a.x, a.y)).toBe(true);
+    const hp0 = a.hp;
+    run(state, spec.duration[0] - 0.1);   // still inside the immunity window
+    expect(a.hp).toBe(hp0);
+    expect(a.inLava).toBe(true);          // it IS swimming, just not burning
+    run(state, 0.5);                      // ...and now the window has closed
+    expect(a.hp).toBeLessThan(hp0);
+  });
+
+  it('lv2 runs the lv2 duration, and only the CASTER is immune', () => {
+    const state = lavaBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    expect(a.fireWalkT).toBe(spec.duration[1]);
+    b.x = state.arenaRadius + 4; b.y = -8;   // no firewalk: the control burn
+    run(state, spec.duration[0] + 0.2);      // beyond lv1's window, inside lv2's
+    expect(a.hp).toBe(PLAYER.MAX_HP);        // lv2 window still open
+    expect(b.hp).toBeLessThan(PLAYER.MAX_HP); // the lava did not go soft
+  });
+
+  it('cooldown is enforced and read from the spec', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    expect(a.cooldowns.firewalk).toBeCloseTo(spec.cooldown, 5);
+    run(state, 1);
+    expect(castSpell(state, 'p0', 'firewalk', a.x, a.y)).toBe(false); // too soon
+  });
+
+  it('snapshot exposes `fw` to EVERYONE while active, and only while active', () => {
+    const state = lavaBattle(1);
+    const a = state.players.p0;
+    expect(snapshot(state, 'p1').players.p0.fw).toBeUndefined(); // inactive: absent
+    castSpell(state, 'p0', 'firewalk', a.x, a.y);
+    const seen = snapshot(state, 'p1').players.p0.fw;            // p1's view of p0
+    expect(seen).toBeGreaterThan(0);
+    expect(seen).toBeLessThanOrEqual(spec.duration[0]);
+    run(state, spec.duration[0] + 0.2);
+    expect(snapshot(state, 'p1').players.p0.fw).toBeUndefined(); // expired: absent
+  });
+});
+
 describe('Slow Spoon 🥄 (flat heal per hit)', () => {
   const spec = ITEMS.spoon;
   const at = (lv) => ITEM_FX.spoon.healOnHit[lv - 1];
@@ -6554,7 +6923,7 @@ describe('Slow Spoon 🥄 (flat heal per hit)', () => {
   });
 
   // ⚠ Insurance, not balance: everything ticks at 1/s today, so this gate is
-  // invisible — but a future poison at 10x the rate for a tenth of the damage
+  // invisible; but a future poison at 10x the rate for a tenth of the damage
   // would otherwise multiply the item by 10 (Remi, round 21.8).
   it('pays AT MOST once a second per victim, however fast the ticks come', () => {
     const f = ELEMENTS.malady.fx;
@@ -6600,7 +6969,7 @@ describe('Slow Spoon 🥄 (flat heal per hit)', () => {
   });
 });
 
-describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 21.5)', () => {
+describe('Hat of Aura 🎩, ex-Coal Brazier (the passive damage aura, round 21.5)', () => {
   const spec = ITEMS.brazier;
   const fx = () => ITEM_FX.brazier;
   const at = (field, lv) => {
@@ -6715,7 +7084,7 @@ describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 2
     expect(b.hp).toBeLessThan(hpB);
   });
 
-  it('two owners stack independently — each keeps its own clock', () => {
+  it('two owners stack independently (each keeps its own clock)', () => {
     const state = brazierBattle(3, 1, 3);
     const c = state.players.p2;
     c.x = 0; c.y = 0; c.vx = c.vy = 0; c.moveTarget = null;  // on top of p0
@@ -6751,7 +7120,7 @@ describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 2
     expect(a.healLifesteal).toBeCloseTo(bite * ITEM_FX.sword.lifesteal[2], 5);
   });
 
-  it('a statue takes nothing — and a statue\'d OWNER keeps burning (ruling)', () => {
+  it('a statue takes nothing, and a statue\'d OWNER keeps burning (ruling)', () => {
     const state = brazierBattle(1, at('auraR', 1) - 0.5);
     const a = state.players.p0, b = state.players.p1;
     b.spells.statue = 1;
@@ -6821,14 +7190,14 @@ describe('Hat of Aura 🎩 — ex-Coal Brazier (the passive damage aura, round 2
     }
     expect(buy(state, 'p0', 'brazier').ok).toBeFalsy();
     expect(catalogue('classic').some(e => e.key === 'brazier')).toBe(true);
-    // the client sizes its ring off the owner's item level — no extra wire field
+    // the client sizes its ring off the owner's item level; no extra wire field
     expect(snapshot(state, 'p1').players.p0.items.brazier).toBe(spec.maxLevel);
   });
 });
 
 // ---- Decoy 👥 (round 21.6) --------------------------------------------------
 // A pure MIRAGE: `clones` copies of you that live SPELLS.decoy.duration s, wander,
-// and mime every cast you make. Nothing they do has any gameplay effect — the
+// and mime every cast you make. Nothing they do has any gameplay effect; the
 // whole point of this block is proving the "no effect" half, so it leans on
 // negatives (nothing damaged, no counter advanced, no roster entry).
 describe('decoy 👥 (the mirage)', () => {
@@ -7048,7 +7417,7 @@ describe('decoy 👥 (the mirage)', () => {
     expect(state.clones.length).toBe(1);
   });
 
-  it('rides the wire in its own list — never in players, never a tell', () => {
+  it('rides the wire in its own list: never in players, never a tell', () => {
     const state = decoyBattle(2, 'classic', 2);
     const a = state.players.p0;
     castSpell(state, 'p0', 'decoy', 5, 0);
@@ -7081,6 +7450,541 @@ describe('decoy 👥 (the mirage)', () => {
     // …the same pair from a mirage is not a cast at all
     expect(checkJournal([ev(0, 'c1', { phantom: true }), ev(200, 'c1', { phantom: true })]))
       .toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #7 (Remi): the Faker tier and its sparring partner, the Runner.
+// ---------------------------------------------------------------------------
+
+describe('Faker & Runner (issue #7)', () => {
+  function duel(kindA, kindB = 'runner') {
+    const state = createGame({ seed: 17, mode: 'elemental' });
+    addPlayer(state, 'A', 'A', { bot: true, kind: kindA });
+    addPlayer(state, 'B', 'B', { bot: true, kind: kindB });
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    state.pillars = [];
+    const a = state.players.A, b = state.players.B;
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.cooldowns = {};
+    b.x = 18; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.cooldowns = {};
+    return state;
+  }
+  // give the bot a turn of thinking (its combo clock is short)
+  const think = (state, id, s = 0.2) => {
+    for (let i = 0; i < Math.round(s / DT); i++) stepBot(state, id, DT);
+  };
+
+  it('the tier is declared and sits above Extreme', () => {
+    expect(BOTS.faker.brain).toBe('faker');
+    expect(BOTS.faker.difficulty).toBeGreaterThan(BOTS.stalker.difficulty);
+    expect(BOTS.runner.spar).toBe(true);
+  });
+
+  it('leads a telegraphed bolt onto where a flying body will LAND, not onto it', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells.lightning = 1;
+    b.vx = 60; b.vy = 0;                     // freshly shoved down the +x lane
+    think(state, 'A');
+    const bolt = state.bolts.find(z => z.owner === 'A');
+    expect(bolt).toBeTruthy();
+    // it must be AHEAD of the body, and inside where friction will actually
+    // carry it over the bolt's own delay, not a wild lead
+    const drift = (60 / PLAYER.FRICTION) * (1 - Math.exp(-PLAYER.FRICTION * SPELLS.lightning.delay));
+    expect(bolt.x).toBeGreaterThan(b.x + 2);
+    expect(bolt.x).toBeCloseTo(b.x + drift, 0);
+    expect(Math.abs(bolt.y - b.y)).toBeLessThan(1);
+  });
+
+  it('drops it straight onto a body that cannot move', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells.lightning = 1;
+    b.stunT = 2; b.vx = 0; b.vy = 0;         // frozen solid: no lead at all
+    think(state, 'A');
+    const bolt = state.bolts.find(z => z.owner === 'A');
+    expect(bolt).toBeTruthy();
+    expect(Math.hypot(bolt.x - b.x, bolt.y - b.y)).toBeLessThan(0.5);
+  });
+
+  it('an Extreme bot does neither (the lead is the tier, not the kit)', () => {
+    const state = duel('stalker');
+    const a = state.players.A, b = state.players.B;
+    a.spells.lightning = 1;
+    b.vx = 60; b.vy = 0;
+    think(state, 'A');
+    const bolt = state.bolts.find(z => z.owner === 'A');
+    // the stalker may or may not bolt at all here; what it must NOT do is put
+    // it on the friction-solved landing point
+    if (bolt) {
+      const drift = (60 / PLAYER.FRICTION) * (1 - Math.exp(-PLAYER.FRICTION * SPELLS.lightning.delay));
+      expect(Math.abs(bolt.x - (b.x + drift))).toBeGreaterThan(1);
+    }
+  });
+
+  it('the Runner never casts a mobility or defensive spell, even owning them all', () => {
+    const state = duel('runner', 'faker');
+    const r = state.players.A;
+    r.spells = { fireball: 1, teleport: 2, rush: 2, shield: 2, statue: 2, vanish: 3 };
+    r.cooldowns = {};
+    r.hp = 20;                                // in trouble: every excuse to escape
+    state.players.B.x = 6; state.players.B.y = 0;
+    for (let i = 0; i < 400; i++) {
+      stepBot(state, 'A', DT);
+      step(state, DT);
+      if (state.phase !== 'battle') break;
+    }
+    for (const k of ['teleport', 'rush', 'shield', 'statue', 'vanish'])
+      expect(state.events.some(e => e.t === 'cast' && e.id === 'A' && e.spell === k), k)
+        .toBe(false);
+  });
+
+  it('the Runner runs once it has been hit, and holds its ground before', () => {
+    const state = duel('runner', 'faker');
+    const r = state.players.A, f = state.players.B;
+    f.x = 8; f.y = 0; f.moveTarget = null;
+    r.x = 0; r.y = 0;
+    think(state, 'A', 0.4);
+    const before = r.moveTarget ? Math.hypot(r.moveTarget.x - f.x, r.moveTarget.y - f.y) : 0;
+    r.lastHitBy = { id: 'B', t: state.time };   // the first hit lands
+    r.moveTarget = null;
+    think(state, 'A', 0.4);
+    expect(r.moveTarget).toBeTruthy();
+    // it now wants to be further from its attacker than it is
+    expect(Math.hypot(r.moveTarget.x - f.x, r.moveTarget.y - f.y))
+      .toBeGreaterThan(Math.hypot(r.x - f.x, r.y - f.y));
+    expect(before).toBeLessThan(9999);          // (the pre-hit read, unused otherwise)
+  });
+
+  it('the Faker may buy Switcheroo (it pilots it as an opener)', () => {
+    const state = duel('faker');
+    state.phase = 'shop';
+    const a = state.players.A;
+    a.gold = 999;
+    botShop(state, 'A');
+    expect(a.spells.swap || 0).toBeGreaterThan(0);
+  });
+
+  it('a HELD body that is still SLIDING is bolted at the END of the slide (issue #7 reopen)', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells = { fireball: 1, lightning: 1 };
+    a.cooldowns = { fireball: 9 };        // only the bolt is in play
+    b.stunT = 2;
+    b.vx = 25; b.vy = 0;                  // riding a shove while frozen
+    const hp0 = b.hp;
+    think(state, 'A', 0.2);
+    run(state, SPELLS.lightning.delay + 0.2);
+    expect(hp0 - b.hp).toBeGreaterThan(0);   // pre-fix: 0/40 landed on a slider
+  });
+
+  it('a hold shorter than the bolt delay is refused — no doomed telegraphs', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells = { fireball: 1, lightning: 1 };
+    a.cooldowns = { fireball: 9 };
+    b.stunT = 0.2;                        // wakes before the 0.5 s bolt lands
+    b.vx = 25; b.vy = 0;
+    think(state, 'A', 0.12);              // one combo thought inside the hold
+    expect(state.events.some(e => e.t === 'cast' && e.spell === 'lightning')).toBe(false);
+  });
+
+  it('a gold statue never scores as a combo target', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.spells = { fireball: 1, lightning: 1 };
+    a.cooldowns = { fireball: 9 };
+    b.stunT = 2; b.statueT = 2;           // held AND invulnerable
+    think(state, 'A', 0.3);
+    expect(state.events.some(e => e.t === 'cast' && e.spell === 'lightning')).toBe(false);
+  });
+
+  it('the lobby label IS the name (Remi: "Faker, not Insane")', () => {
+    expect(BOTS.faker.label).toBe('Faker');
+  });
+
+  it('the dummy does not move and does not cast until the first hit lands', () => {
+    const state = duel('runner', 'runner');
+    const b = state.players.B;
+    b.spells = { fireball: 1, teleport: 1, lightning: 1 };
+    const x0 = b.x, y0 = b.y;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(b.x).toBe(x0); expect(b.y).toBe(y0);          // never stepped
+    expect(Object.keys(b.cooldowns).length).toBe(0);      // never cast
+    // first hit: now it runs, away from the attacker, still castless
+    b.lastHitBy = { id: 'A', t: state.time };
+    state.players.A.x = x0 - 10; state.players.A.y = y0;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(b.x).toBeGreaterThan(x0);                      // fled along +x
+    expect(Object.keys(b.cooldowns).length).toBe(0);      // STILL castless
+  });
+
+  // Round 22: the Dummy tier; even the Runner's one reaction (fleeing after
+  // the first hit) is gone. It must hold still and silent no matter what.
+  it('the Dummy never moves nor casts, hit or not, and it dies like anyone', () => {
+    const state = duel('faker', 'dummy');
+    const d = state.players.B;
+    d.spells = { fireball: 1, teleport: 2, rush: 2, shield: 2 };
+    d.cooldowns = {};
+    d.lastHitBy = { id: 'A', t: state.time };   // the hit that sends a Runner running
+    const x0 = d.x, y0 = d.y;
+    for (let i = 0; i < Math.round(2 / DT); i++) { stepBot(state, 'B', DT); step(state, DT); }
+    expect(d.moveTarget).toBe(null);                     // never even wants to move
+    expect(d.x).toBe(x0); expect(d.y).toBe(y0);
+    expect(Object.keys(d.cooldowns).length).toBe(0);     // no cast of any kind
+    // dies normally: drop it in lava it will never step out of
+    d.x = state.arenaRadius + 3; d.y = 0; d.vx = d.vy = 0;
+    for (let i = 0; i < Math.round(12 / DT) && d.alive; i++) {
+      stepBot(state, 'B', DT); step(state, DT);
+    }
+    expect(d.alive).toBe(false);
+    expect(d.deaths).toBe(1);
+  });
+
+  it('the detonator: trap underfoot + hook ready -> the swap drops the victim on the mine', () => {
+    const state = duel('faker');
+    const a = state.players.A, b = state.players.B;
+    a.build = 'minefield';
+    a.spells = { fireball: 1, nova: 1, swap: 1, lightning: 1 };
+    think(state, 'A', 0.3);
+    // it plants at its own feet first (victim in hook range, no trap yet)
+    expect(state.mines.length).toBe(1);
+    expect(Math.hypot(state.mines[0].x - a.x, state.mines[0].y - a.y)).toBeLessThan(1);
+    // next thought: the hook, a travelling projectile (speed 50, 18 units
+    // out), so give the world the flight time. The stalker layer would shove
+    // the victim off the hook's line with an ordinary ball meanwhile; block
+    // everything but the hook so the chain itself is what's under test.
+    a.cooldowns.fireball = 9; a.cooldowns.teleport = 9; a.cooldowns.rush = 9;
+    const bx = b.x;
+    think(state, 'A', 0.2);
+    a.moveTarget = null; a.vx = 0; a.vy = 0;    // stay ON the trap for the trade
+    run(state, 0.8);
+    expect(b.x).not.toBe(bx);                              // swapped
+    expect(state.mines.length).toBe(0);                    // trap consumed
+    expect(state.events.some(e => e.t === 'mineHit')).toBe(true);
+  });
+
+  it('faker builds are Faker-only and the Faker gets nothing else (engine addBot)', () => {
+    const fakerBuilds = Object.keys(BUILDS).filter(k => (BUILDS[k].kinds || []).includes('faker'));
+    expect(fakerBuilds.length).toBeGreaterThanOrEqual(3);
+    const engine = createEngine({ seed: 5 });
+    engine.join('h1', { name: 'Host' });
+    // an explicit non-combo build on a Faker is refused -> rerolled into the pool
+    engine.message('h1', { t: 'addBot', kind: 'faker', build: 'tycoon' });
+    // random on a Faker also lands in the pool
+    engine.message('h1', { t: 'addBot', kind: 'faker', build: 'random' });
+    // and a non-Faker can never take a combo build
+    engine.message('h1', { t: 'addBot', kind: 'berserker', build: 'minefield' });
+    const bots = Object.values(engine.game.players).filter(p => p.bot);
+    const fakers = bots.filter(p => p.kind === 'faker');
+    const others = bots.filter(p => p.kind !== 'faker');
+    expect(fakers.length).toBe(2); // the two added (no demo Faker on main since round 22)
+    for (const b of fakers) expect(fakerBuilds).toContain(b.build);
+    expect(others.length).toBe(1);
+    expect(fakerBuilds).not.toContain(others[0].build);
+    engine.destroy();
+  });
+
+  it('demoBot seats a Faker in a fresh lobby (opt-in since the round-22 main port)', () => {
+    const engine = createEngine({ seed: 6, demoBot: true });
+    const seated = Object.values(engine.game.players).filter(p => p.bot);
+    expect(seated.length).toBe(1);
+    expect(seated[0].kind).toBe('faker');
+    expect((BUILDS[seated[0].build].kinds || [])).toContain('faker');
+    engine.destroy();
+    const coop = createEngine({ seed: 6, demoBot: true, mode: 'coop' });
+    expect(Object.values(coop.game.players).length).toBe(0); // the campaign is exempt
+    coop.destroy();
+    const plain = createEngine({ seed: 6 });
+    expect(Object.values(plain.game.players).length).toBe(0); // main default: empty lobby
+    plain.destroy();
+  });
+});
+
+// ---- Genki (issue #12, reworked 2026-08-13): the charging omega ball --------
+// Rework (Remi): 3 levels buy damage CAPS (dmgCap), the 3/s rate never
+// changes; casting other spells no longer cancels; a direct hit ends the
+// charge and AMPLIFIES that hit by the stored damage; at the cap the ball
+// waits, un-lost, for the recast. All numbers below read from the spec.
+describe('Genki (issue #12)', () => {
+  const spec = SPELLS.genki;
+  const stage1T = spec.calibT * (spec.smashR / spec.radius) ** 2;
+  const stage2T = stage1T + spec.unstoppableAfter;
+  function arena2(setup = () => {}) {
+    const state = freshBattle(2);
+    state.pillars = [];
+    const a = state.players.p0, b = state.players.p1;
+    for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; pl.cooldowns = {}; }
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0;
+    a.spells.genki = 1;
+    setup(state, a, b);
+    return state;
+  }
+  const charge = (state, secs) => { state.players.p0.genki.t = secs; };
+  const ball = (state) => state.projectiles.find(p => p.type === 'genki');
+
+  it('press charges, second press fires; damage 3/s, radius with the sqrt of time', () => {
+    const state = arena2();
+    expect(castSpell(state, 'p0', 'genki', 20, 0)).toBe(true);
+    expect(state.players.p0.genki).toBeTruthy();
+    run(state, 1);
+    expect(state.players.p0.genki.t).toBeCloseTo(1, 1);
+    charge(state, 4);
+    castSpell(state, 'p0', 'genki', 20, 0);     // release
+    const pr = ball(state);
+    expect(pr).toBeTruthy();
+    expect(pr.dmg).toBeCloseTo(spec.dmgPerSec * 4, 5);
+    expect(pr.radius).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 5);
+    expect(state.players.p0.genki).toBe(null);
+    // it lands for exactly the charge
+    const b = state.players.p1;
+    const hp0 = b.hp;
+    run(state, 1);
+    expect(hp0 - b.hp).toBeCloseTo(spec.dmgPerSec * 4, 5);
+  });
+
+  it('rework: casting another spell mid-charge does NOT cancel', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 5);
+    expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);  // the cast lands
+    expect(state.players.p0.genki).toBeTruthy();                   // the charge stays
+    expect(state.events.some(e => e.t === 'genkiFizzle')).toBe(false);
+    castSpell(state, 'p0', 'genki', 20, 0);                        // and still fires
+    expect(ball(state).dmg).toBeCloseTo(spec.dmgPerSec * 5, 5);
+  });
+
+  it('rework: an interrupting hit is AMPLIFIED by the charge, and a lethal amplify credits the attacker', () => {
+    const fb = SPELLS.fireball.damage[0];
+    const state = arena2((s, a, b) => { b.x = 6; });
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 5);                                     // 15 stored damage
+    const stored = spec.dmgPerSec * 5;
+    const hp0 = a.hp;
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    // the hit ate the ball: fireball + stored damage (the charge kept filling
+    // for the ball's flight time, so allow up to half a second of extra growth)
+    expect(hp0 - a.hp).toBeGreaterThanOrEqual(fb + stored);
+    expect(hp0 - a.hp).toBeLessThan(fb + stored + spec.dmgPerSec * 0.5);
+    expect(a.genki).toBe(null);
+    expect(state.events.some(e => e.t === 'genkiFizzle')).toBe(true);
+    // lethal amplify: the fireball alone would not kill, fireball + charge does,
+    // and the kill is the ATTACKER's (the extra rides their hit)
+    const s2 = arena2((s, x, b) => { b.x = 6; });
+    const a2 = s2.players.p0, b2 = s2.players.p1;
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, 5);
+    a2.hp = fb + stored / 2;                              // survives fb, not fb + charge
+    const kills0 = b2.kills;
+    castSpell(s2, 'p1', 'fireball', 0, 0);
+    run(s2, 0.5);
+    expect(a2.alive).toBe(false);
+    expect(b2.kills).toBe(kills0 + 1);
+  });
+
+  it('rework: damage and size freeze at each level cap, the ball survives and fires on recast', () => {
+    for (let level = 1; level <= spec.maxLevel; level++) {
+      const cap = spec.dmgCap[level - 1];
+      const capT = cap / spec.dmgPerSec;
+      const state = arena2((s, a) => { a.spells.genki = level; });
+      castSpell(state, 'p0', 'genki', 20, 0);
+      charge(state, capT + 20);                           // way past the cap
+      const view = snapshot(state, 'p1').players.p0;
+      expect(view.genkiDmg).toBe(cap);
+      expect(view.genkiR).toBeCloseTo(spec.radius * Math.sqrt(capT / spec.calibT), 2);
+      run(state, 1);                                      // still charging...
+      const again = snapshot(state, 'p1').players.p0;
+      expect(again.genkiDmg).toBe(cap);                   // ...but nothing grows
+      expect(again.genkiR).toBeCloseTo(view.genkiR, 2);
+      expect(state.players.p0.genki).toBeTruthy();        // NOT lost at the cap
+      castSpell(state, 'p0', 'genki', 20, 0);             // and it still fires
+      const pr = ball(state);
+      expect(pr.dmg).toBeCloseTo(cap, 5);
+      // the stage freezes with the clamp: whatever the spec says fits under
+      // this cap (with the 1.3x size both stages fit under every cap)
+      const wantStage = capT >= stage2T ? 2 : capT >= stage1T ? 1 : 0;
+      expect(pr.stage).toBe(wantStage);
+    }
+  });
+
+  it('rework: tick damage (poison, lava) never cancels; only a real hit does', () => {
+    const state = arena2();
+    const a = state.players.p0;
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 3);
+    // sickness tick: poison the charger, let it tick
+    a.poisonT = 2; a.poisonTick = 1; a.poisonBy = 'p1'; a._poisonNext = 0;
+    const hp0 = a.hp;
+    run(state, 1.2);
+    expect(a.hp).toBeLessThan(hp0);        // the plague ticked...
+    expect(a.genki).toBeTruthy();          // ...and did not drop it
+    // lava
+    a.x = state.arenaRadius + 5; a.y = 0;
+    run(state, 0.5);
+    expect(a.genki).toBeTruthy();          // the swim did not drop it
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    // a fireball does
+    const b = state.players.p1;
+    b.x = 6; b.y = 0; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a.genki).toBe(null);
+  });
+
+  it('stage 1 (Terra-3 size) smashes pillars and FLIES ON; stage 0 pops', () => {
+    const state = arena2((s) => { s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }]; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, stage1T + 0.2);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    run(state, 0.6);
+    expect(state.pillars.length).toBe(0);                        // smashed
+    const b = state.players.p1;
+    expect(b.hp).toBeLessThan(b.maxHp);                          // ...and it flew on
+    // control: an uncharged ball pops on the stone
+    const s2 = arena2((s) => { s.pillars = [{ x: 8, y: 0, r: 2.5, sunk: false }]; });
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, 1);
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    run(s2, 0.6);
+    expect(s2.pillars.length).toBe(1);
+    expect(s2.players.p1.hp).toBe(s2.players.p1.maxHp);
+  });
+
+  it('stage 2 ignores shields and mirror walls; a statue passes it through', () => {
+    // shield
+    const state = arena2((s, a, b) => { b.shieldT = 5; });
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, stage2T + 0.2);
+    castSpell(state, 'p0', 'genki', 20, 0);
+    run(state, 0.8);
+    const b = state.players.p1;
+    expect(b.hp).toBeLessThan(b.maxHp);                          // hit THROUGH the shield
+    // mirror wall: the ball does not come back
+    const s2 = arena2((s, a, x) => {
+      s.walls.push({ x1: 10, y1: -5, x2: 10, y2: 5, nx: -1, ny: 0,
+        owner: x.id, until: s.time + 60 });
+    });
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    charge(s2, stage2T + 0.2);
+    castSpell(s2, 'p0', 'genki', 20, 0);
+    run(s2, 0.8);
+    expect(s2.players.p1.hp).toBeLessThan(s2.players.p1.maxHp);  // straight through
+    // statue: unaffected while gold, hit when it thaws under the ball
+    const s3 = arena2((s, a, x) => { x.statueT = 0.35; x.x = 12; });
+    castSpell(s3, 'p0', 'genki', 20, 0);
+    charge(s3, stage2T + 0.2);
+    castSpell(s3, 'p0', 'genki', 12, 0);
+    run(s3, 0.28);                                               // ball inside the statue
+    expect(s3.players.p1.hp).toBe(s3.players.p1.maxHp);
+    run(s3, 0.4);                                                // stasis over
+    // the ball is huge and passes through: the thaw tick eats it
+    expect(s3.players.p1.hp).toBeLessThan(s3.players.p1.maxHp);
+  });
+
+  it('death and round start clear the charge', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 8);
+    const a = state.players.p0;
+    a.hp = 1;
+    const b = state.players.p1;
+    b.x = 6; b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', 0, 0);
+    run(state, 0.5);
+    expect(a.alive).toBe(false);
+    expect(a.genki).toBe(null);
+  });
+
+  it('the charge is public on the wire: radius, stage, damage', () => {
+    const state = arena2();
+    castSpell(state, 'p0', 'genki', 20, 0);
+    charge(state, 4);
+    const view = snapshot(state, 'p1').players.p0;   // the ENEMY sees it
+    expect(view.genkiR).toBeCloseTo(spec.radius * Math.sqrt(4 / spec.calibT), 2);
+    expect(view.genkiDmg).toBe(spec.dmgPerSec * 4);
+    expect(view.genkiStage).toBe(0);
+  });
+});
+
+// ---- Issue #14 iteration 4 (Sam): right-click per-card refund ---------------
+describe("Sam's right-click refund (issue #14)", () => {
+  function shopper(setup = () => {}) {
+    const state = createGame('t');
+    setMode(state, 'elemental');
+    addPlayer(state, 'p0', 'A'); addPlayer(state, 'p1', 'B');
+    startGame(state);
+    state.phase = 'shop';
+    const pl = state.players.p0;
+    pl.gold = 100;
+    setup(state, pl);
+    return { state, pl };
+  }
+
+  it('per-card LIFO, never below the shop-start baseline, others untouched', () => {
+    // baseline: gale lv1 owned BEFORE this shop opened (not in the stack)
+    const { state, pl } = shopper((s, p) => { p.elements.gale = 1; });
+    buy(state, 'p0', 'gale');    // lv2
+    buy(state, 'p0', 'boots');   // interleaved
+    buy(state, 'p0', 'gale');    // lv3
+    const gold0 = pl.gold;
+    expect(refundBuy(state, 'p0', 'gale').ok).toBe(true);   // lv3 -> lv2
+    expect(pl.elements.gale).toBe(2);
+    expect(refundBuy(state, 'p0', 'gale').ok).toBe(true);   // lv2 -> lv1
+    expect(pl.elements.gale).toBe(1);
+    expect(pl.gold).toBe(gold0 + ELEMENTS.gale.costs[2] + ELEMENTS.gale.costs[1]);
+    // lv1 predates this shop: a third right-click is refused
+    expect(refundBuy(state, 'p0', 'gale').ok).toBe(false);
+    expect(pl.elements.gale).toBe(1);
+    expect(pl.items.boots).toBe(1);                          // untouched
+    // and the global Undo still works on what remains (the boots buy)
+    expect(undoBuy(state, 'p0').ok).toBe(true);
+    expect(pl.items.boots || 0).toBe(0);
+  });
+
+  it('refunds the EXACT price paid per level (per-level cost arrays)', () => {
+    const { state, pl } = shopper();
+    buy(state, 'p0', 'teleport');   // blink lv1: 10 g
+    buy(state, 'p0', 'teleport');   // blink lv2: 5 g
+    const g = pl.gold;
+    expect(refundBuy(state, 'p0', 'teleport').ok).toBe(true);
+    expect(pl.gold).toBe(g + SPELLS.teleport.costs[1]);      // +5
+    expect(refundBuy(state, 'p0', 'teleport').ok).toBe(true);
+    expect(pl.gold).toBe(g + SPELLS.teleport.costs[1] + SPELLS.teleport.costs[0]); // +10
+  });
+
+  it('side effects unwind exactly for a MIDDLE purchase (amulet max HP)', () => {
+    const { state, pl } = shopper();
+    const hp0 = pl.maxHp;
+    buy(state, 'p0', 'amulet');
+    buy(state, 'p0', 'boots');
+    expect(pl.maxHp).toBeGreaterThan(hp0);
+    expect(refundBuy(state, 'p0', 'amulet').ok).toBe(true);
+    expect(pl.maxHp).toBe(hp0);
+    expect(pl.items.amulet || 0).toBe(0);
+    expect(pl.items.boots).toBe(1);
+  });
+
+  it('the round boundary makes everything permanent', () => {
+    const { state } = shopper();
+    buy(state, 'p0', 'boots');
+    delete state.players.p0.shopUndo;   // what startRound does to the stack
+    expect(refundBuy(state, 'p0', 'boots').ok).toBe(false);
+  });
+
+  it('the snapshot advertises the exact refund per card, viewer only', () => {
+    const { state, pl } = shopper((s, p) => { p.elements.gale = 1; });
+    buy(state, 'p0', 'gale');       // lv2: 6 g
+    buy(state, 'p0', 'teleport');   // 10 g
+    const me = snapshot(state, 'p0').players.p0;
+    expect(me.refunds).toEqual({ gale: ELEMENTS.gale.costs[1], teleport: SPELLS.teleport.costs[0] });
+    expect(snapshot(state, 'p1').players.p0.refunds).toBeUndefined();
+    refundBuy(state, 'p0', 'gale');
+    const me2 = snapshot(state, 'p0').players.p0;
+    expect(me2.refunds).toEqual({ teleport: SPELLS.teleport.costs[0] });
+    expect(pl.elements.gale).toBe(1);
   });
 });
 

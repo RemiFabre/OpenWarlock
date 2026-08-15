@@ -1,349 +1,82 @@
-# Notes for Remi — OpenWarlock & the open web MOBA
-
-*Round 21.8, 2026-08-11. Your post-playtest brief, applied. Round 21.7 (the key
-collision, the rebind menu, the price pass) is archived at
-`docs/history/2026-08-10-remi-notes-round-21.7.md`.*
-
-## Player versions now open inside the game
-
-The green **🧬 version selector** on the first screen and in the bottom-right
-menu switches between the default game and published player ideas. Each idea
-runs its exact branch commit at a permanent, shareable link; no experimental
-code is merged into the default game. **Remi’s Blood Debt** is the first live
-test version.
-Only commits listed in `versions.json` now load; removing one revokes its link.
-The selector reads the fresh GitHub copy first, falls back to Pages, and has a
-multi-word search over version name, author and description.
-Plain GitHub issues are auto-queued too; the agent also catches unlabelled issues
-if that automation ever fails.
-The game and README now link directly to completed requests so visitors can see
-the project activity; GitHub does not let a repo redefine its Issues-tab filter.
-
-Current invite codes are now 12 cryptographically random characters. The relay
-keeps old immutable versions compatible; a wrong link gets one clear error and
-a fresh connection is required to try another.
-
-## The Bomb is gone. It is a Mine now.
-
-Press it and a trap drops **where you stand** — instantly, no aiming. ⚠ That is
-my reading of "you press the button, it just creates a trap where you are": the
-click is ignored entirely. If you meant "throw it a short way", that is one line.
-
-The ring is **1.32 units** — your 65% over the fireball's own 0.8. Bodies are
-1.4 wide, so in practice someone trips it from about 2.7 units centre to centre:
-close enough to walk onto by accident, far from a zone.
-
-**Feeding it is the whole spell.** Your own fireballs are swallowed by your own
-trap: one at level 1, two at level 2. An enemy standing behind your mine is safe
-from you until it is full — that is the price you pay for the setup, exactly as
-you described it. Enemy balls fly straight over; a full mine lets your own
-through again.
-
-**When someone steps on it**: the mine's damage lands first, then every stored
-ball erupts into them point blank, **one tick apart** (0.033 s — your "as fast
-as possible without being the same tick"; you see two balls, you cannot dodge
-between them). Echo's rule handles the push: every ball but the last carries
-**zero** knockback, so nobody is shoved out of their twin's path, and the last
-one pushes at **max(the ball's push, the mine's)** — never the sum, as you said.
-
-- **10 g, upgrade 5 g. Two levels.** Damage **10 / 15**, push **100**,
-  cooldown 9 / 8 s. The level buys the second slot.
-- **A Shield on top of it works exactly as you hoped**: the stored balls are
-  real fireballs, so they reflect and fly off at whoever is behind — but the
-  **ground still hits them** for the mine's own damage. Test-locked.
-- **A statue never trips one**, and the mine is not spent — it waits.
-- Teammates and you walk over your own traps freely. Mines die with the round.
-- The stored ball is *your* ball: ember's damage, malady's sting, frost stacks,
-  anger's claim, ghost's passthrough all ride along, because it literally is the
-  projectile you fired, kept in a box.
-- **On screen**: a thin dashed ring in your colour, a dark stud, and **one ember
-  pip per stored ball** orbiting it — "that one is loaded" reads from across the
-  arena. Quiet, not a red flare, per your brief.
-- ⚠ One consequence worth knowing: standing on your own fresh trap, your **next
-  fireball is eaten immediately**. Step off it first, or that is exactly how you
-  load it in two seconds. I verified the whole loop in a real browser (plant →
-  two balls swallowed → third flies past the full mine → bot steps on it and
-  eats 15 + 7 + 7 with one shove).
-
-## Malady is a damage element now
-
-You wanted it to pay off the moment it catches two people, so I inverted it:
-the sickness always lasts **4 seconds**, and the levels buy the **bite**:
-**1 / 1.5 / 2 damage per tick**. The hover row is renamed "damage per tick", as
-you asked, and shows those numbers.
-
-Measured properly (400 games, 4 Hard seats all running the same build, one
-element each, 25% = par — and the OLD element restored in-place for the
-comparison, so nothing else differs):
-
-| seed | malady before | malady after | where it lands |
-|---|---|---|---|
-| 1 | 40.3% | **62.7%** | 2nd of 11 (anger 95.6%) |
-| 7 | 31.1% | **49.0%** | 3rd, level with vampire (anger 97.6%) |
-
-**+18 to +22 points on both seeds.** That is a big buff — bigger than I expected
-from "+0.5 and +1 damage per tick" — and it is a FLOOR, because bots never bunch
-up so the contagion half does not show up in these numbers at all. If it feels
-oppressive tonight, `tickDmg` is the one lever.
-
-## The Slow Spoon 🥄
-
-Your friend's idea, your joke, 7 g per level, three levels: **+1 / +1.5 / +2 HP
-every time you damage an enemy**, flat, whatever the damage was. One proc **per
-victim**, so a ghost-3 ball through three bodies heals you three times, and a
-gale/frost utility build finally has sustain that does not scale off damage.
-
-⚠ **Auras and sicknesses pay nothing** — not Malady's ticks, not the Hat of
-Aura's burn. That exclusion is the item's whole balance (a burn would pay every
-second for free), it is written into the shop text, and it is test-locked.
-
-## Hat of Aura: the burn follows you out
-
-The ring is unchanged; leaving it is no longer an escape. The burn keeps ticking
-for **3 / 4 / 5 seconds** after you step out (your second set of numbers, the one
-you called more balanced). A burning body wears a faint ember ring so you can see
-who is still cooking.
-
-## Meteor, and two trims
-
-Meteor level 2 damage **24 → 30**. Decoy's mirages last **4 s** instead of 5.
-The **Mine moved to the Special row** in the shop, next to the Stone Pillar —
-both are things you leave somewhere rather than throw.
-
-## You were right to push on the lab. Two real problems.
-
-**1. Three labs had been dead since round 20.2.** When the legacy builds were
-retired, `bruiser` was still named in the DEFAULTS of the element study, `h2h`
-and the co-op lab — so they threw "not iterable" and nobody could have run them
-since. My first fix made them return an empty list, which is worse: the study ran
-and printed a full table of seats that bought **nothing**. That is the number I
-sent you an hour ago, and it was wrong. Now they ride `warlord`, and an unknown
-build name **throws by name** instead of quietly measuring nothing.
-
-**2. The arena lab was playing classic while the game plays elemental.** You are
-right that elemental is the default — `createGame` has defaulted to it for a long
-time — but `tools/arena.js` still opened its games in classic. So every Elo
-table, mirror and item-pick number that lab has printed measured the mode almost
-nobody plays. It now defaults to elemental, takes `--ruleset=classic` if you ever
-want the old comparison, and **prints which ruleset it played on every table**.
-
-⚠ Neither problem touched **`tools/elo.js`** — the 30-strategy roster ranking,
-the one the balance decisions actually rest on. It has always run elemental off
-explicit buy lists and never went near a build name. The standing table in
-`docs/history/2026-08-10-round21-elo.md` is intact.
-
-## And the ELO table, re-run on the new roster
-
-Full write-up (33 strategies, 8000 games × 2 seeds, what it can and cannot see):
-`docs/history/2026-08-11-round21.8-elo.md`. The roster now carries the three
-additions bots can genuinely use — the Hat of Aura, the Slow Spoon and NOPE —
-and leaves out the Mine and the Decoy, which no bot can set or be fooled by.
-
-- **The Hat of Aura is the winner of the round**: the new aura+plague core enters
-  **4th of 33**, ahead of every damage and CDR build, and the plain plague build
-  gained +129. Your two buffs (the lingering burn, malady's bigger bite) landed
-  hard — and this is a floor, since bots never bunch up.
-- **Anger is unmoved at #1.** Nothing this round touched it.
-- **Items finally moved — because of content, not price.** Every item build
-  gained 58-126 points. Three rounds of price cuts had moved them zero; two items
-  that actually DO something moved them in one round. They are still the bottom
-  third, so: items were never too expensive, they were too boring.
-- **NOPE lands at exactly the roster average (1500).** That is the honest score
-  for a panic button no bot can time — the spell is yours to judge.
-- **The Slow Spoon's own build is 32nd of 33 — and that number prices the KIT,
-  not the spoon.** I deliberately gave it the worst host (frost+gale, low damage
-  by design) and bots cannot convert CC into damage; the neighbouring frost/gale
-  build has always sat there too. The same spoon inside the item builds raised
-  them. It needs your hands, not more bot games.
-- ⚠ **Your meteor buff is invisible** (24 → 30 at lv2, the maxed-meteor build
-  moved −1 and is still last). If the meteor should be a real pick, the lever is
-  its cast rules, not its damage.
-
-## The tournament, re-run on all of it
-
-37 strategies, 8000 games × 2 seeds, full table at
-`docs/history/2026-08-11-round21.9-elo.md`. Your hypothesis is **half right**.
-
-- **The aura gained, the sickness did not.** D12-hatburner (Hat + plague) is
-  **3rd of 37**, +50 and its best placing ever — but plague *without* the Hat
-  moved +17, which is noise. So it is the burning ring that got better, not the
-  disease. Likely the Hat's ~750 ticks a game now each pay a tenth of a spoon
-  proc *and* claim the last-hitter slot.
-- **Your blade nerf landed exactly on its target.** You cut it because
-  "anger + blade makes you a drain tank": the anger+blade build takes the
-  **single biggest drop in the table, −94**, with the other two damage-lifesteal
-  builds at −58 and −50. All three are still top six, so it is a trim.
-- **The sustain shelf rose as a class**: +140 for HP+healing items, +115 and +82
-  for the two spoon builds, +80/+63/+56 for the mobility, tank and sumo builds.
-  ⚠ The spoon builds are still **31st and 34th** — the item is playable now, not
-  strong.
-- **100% of deaths now land on a name** (3523 of 3523 in an 80-game lobby). The
-  share that are lava deaths did not change; who owns them did.
-- Statue is dead-average for the second table running, and the meteor is last
-  for the third — your +6 damage at lv2 changed nothing. Its problem is that
-  bots only fire it into hard CC, i.e. its cast rules.
-
-⚠ Five things changed between the last table and this one (blade, spoon, tick
-healing, hourglass, and both credit rules), and Elo is zero-sum — so no single
-row can be pinned on one cause.
-
-## DoT can take kills now — that was my rule, and it was wrong
-
-You were right, and it was worse than "not buffed": **a burn or a sickness never
-claimed the last-hitter slot at all.** A lethal tick took the kill, but if your
-plague chased someone into the lava and the lava finished them, the kill went to
-whoever last *hit* them — or to nobody. That was a rule I inherited and kept
-without questioning it.
-
-Ticks now stamp like every other point of damage. Burn someone into the fire and
-the kill is yours.
-
-⚠ The accepted consequence: a DoT ticking once a second usually **out-claims the
-player who shoved the victim in**, because it damaged them more recently. That
-is the rule you asked for — last damage owns the death — applied consistently.
-
-## Your missing kill: found it, and the 5-second rule is gone
-
-I reproduced your exact scene — dead, my mine launches a bot off the rim, the
-bot burns to death — and the kill went **nowhere**. The cause was not the mine
-and not being dead:
-
-**The bot swam for 6.4 seconds. Kill credit expired after 5.** A victim knocked
-in at full health burns for about seven seconds (longer with Lava Treads), so
-the claim aged out mid-swim and the game credited nobody.
-
-**Per your call, the window is deleted.** The last player to damage you now owns
-your death, however long it takes — no timer at all. `lastHitBy` is already
-wiped at every round start, so a claim can never reach across rounds; the old
-5 s constant stays in the file, inert, as the one-line revert.
-
-⚠ This was never mine-specific. **Every** knockback-into-lava kill has been
-losing its credit this way whenever the victim survived more than five seconds
-in the fire — which is most of them at full health. Expect noticeably more lava
-kills to land on someone's name from now on, including yours.
-
-Three tests lock it: the long swim credits the shove, a hit fifteen seconds
-before the swim still credits, and the damage column follows the same rule so
-the scoreboard and the kill feed can never disagree.
-
-## A trap outlives its trapper — checked, and now locked
-
-Your mine already keeps working after you die, and everything it does stays
-yours: I killed the planter mid-test and the trap still armed, still went off,
-and the victim's death was credited to the corpse — kill, bounty gold, the
-damage column, and every stack the stored ball carried (midas mark, frost and
-malady all landed under the dead player's name). Nothing needed fixing; there
-are two tests now so nobody "tidies" it away later.
-
-The only things a corpse does not get are the ones that need a living body:
-healing (blade, spoon, vampire) and arcane's cooldown refund.
-
-⚠ Two cases where it can still LOOK like the mine did nothing, neither a bug:
-- **The round ended with you.** If your death leaves one team standing, the
-  round is over before anyone can step on the trap.
-- **Midas needs a second hit.** The mark lands, but +1 g only cashes on the next
-  hit on that target — and a corpse rarely lands one.
-
-## The sustain pass — blade, spoon and hourglass
-
-Your three numbers, shipped: **blade 10/20/30%**, **spoon 1/2/3 flat per hit**
-with **ticks paying a tenth** (0.1 / 0.2 / 0.3), and **hourglass 10/20/30**.
-
-**Why a tenth.** Ticks vastly outnumber hits — a Hat+plague player lands **984**
-of them a game against 157 real hits. At a tenth, the two fantasies pay almost
-exactly the same, which is what you asked for:
-
-| build, hp healed per game (lv3) | blade | spoon |
-|---|---|---|
-| anger (big hits) | **722** | 526 (−27%) |
-| plague | 646 | **768** (+19%) |
-| Hat + plague | 681 | **766** (+13%) |
-| plain low-damage kit | 456 | **624** (+37%) |
-| ember burst kit | **629** | 588 (−7%) |
-
-**anger + blade = 722 vs plague + spoon = 768**, six percent apart — play your
-fantasy, get your reward. At 0.05 the ticks were too small to matter (the Hat
-build would still rather have the blade); at 0.2 it ran +56% and the spoon
-became an aura item.
-
-**One rule, one line of text**, as you wanted — no aura/poison split: *"Every
-enemy you damage heals you. Burns and sickness heal a tenth of that, at most
-once a second per enemy."*
-
-**The once-a-second cap is in, and it does nothing today** — every tick source
-runs at 1/s. It is there for exactly the future you described: a poison at ten
-ticks a second for a tenth of the damage would leave the poison unchanged and
-multiply this item by ten. There is a test that runs malady at 10× speed and
-checks the spoon still gets paid three times in three seconds.
-
-⚠ Two things to watch when you play it. Your **lv1 blade now heals 0.7 off a
-bare fireball, so it pops no green number** until lv2 — the hp is credited (the
-bar and the scoreboard both move), it just does not shout. And bots never bunch
-up, so **the plague side of this is a floor**: contagion spreads further in your
-hands than in any of these numbers. If plague+spoon feels oppressive, 0.08 is
-the same rule with a smaller tenth.
-
-## The green numbers whisper now
-
-You were right that they got noisy once everyone has some lifesteal. The size
-curve keeps its ceiling and drops its floor, and it is concave now so the middle
-does not get dragged down with the crumbs:
-
-| heal | before | now |
-|---|---|---|
-| +1 hp | 10 px | **6 px** (−40%, your number) |
-| +2 hp | 11 px | 9 px |
-| +5 hp | 12 px | 12 px |
-| +10 hp | 13 px | **15 px** (slightly louder — it is a real heal) |
-| +20 hp | 16 px | 18 px |
-| +50 hp and up | 26 px | **26 px** (unchanged) |
-
-Screenshotted all six side by side in a real game: +1 is a whisper you notice
-only if you look, +10 reads at a glance, +50 still shouts.
-
-## The measurement that led here: spoon vs blade, before the change
-
-Same kit, one item swapped: maxed cadence (arcane 3 + hourglass 3), Echo pairs
-and three buttons — a build that lands as many hits as possible. Both items cost
-21 g, and each seat was **banned from buying the other one**.
-
-| | hp healed / game | kills | won% | ELO |
-|---|---|---|---|---|
-| Slow Spoon lv3 | 74.8 | 11.7 | 17.7% | 1223 / 1226 |
-| Blood Sword lv3 | 115.3 | 12.7 | 32.3% | **1277 / 1303** |
-
-**+54 and +77 Elo to the sword on the two seeds**, and it heals half again as
-much — in the build designed to favour the spoon. Three separate seeds of the
-head-to-head agree.
-
-**The reason is one number.** The spoon beats the sword only on hits smaller
-than `flat heal ÷ lifesteal %` — **about 5 damage, at every level**. The
-smallest hit in the game is a bare level-1 fireball at **7**. So the sword wins
-on essentially every hit that exists, and the spoon's own exclusions (Malady's
-ticks, the Hat's burn) are exactly the sub-5-damage sources that would have
-favoured it.
-
-If you want it to be the low-damage-build item you described, **1 / 1.5 / 2 →
-2 / 3 / 4** puts the break-even at ~10 damage: better than the sword for pokes
-and combos, worse for real hits. One line, say the word.
-
-⚠ And a lab scar worth knowing: the shared "buy everything" tail that every
-strategy falls into contains BOTH healing items, so my first attempt had each
-seat quietly buying its rival's item — it measured buy order, not the item. The
-roster can ban a thing outright now, and there is a new `tools/pair.js` that
-answers "what did each side actually DO", not just who won.
-
-## What I verified
-
-389 unit tests (13 new ones for the mine, the spoon and the linger), both
-harness scenarios, the 2-engine browser test, the reconnect test, 60-game bot
-smokes at 4 and 8 seats, and a real browser session driving the mine end to end.
-⚠ Your server was running the whole time — nothing I ran touched it.
+# Notes for Remi (OpenWarlock & the open web MOBA)
+
+*Round 23, 2026-08-13 (your voice list: polish, balance, two issue ports, the
+lobby rework, the Faker+anger run). Rounds 22.2-22.4 are archived at
+`docs/history/2026-08-13-remi-notes-rounds-22.2-22.4.md`.*
+
+## The quick polish
+
+- **Stats panel**: "games finished" is still counted by the relay, just not
+  displayed. The footer sentence stays.
+- **Tab scoreboard**: the backing rectangle is gone; the full-screen dim alone
+  carries readability.
+- **Shop key chips**: the row 1/2 vs row 3 difference was an accident. The
+  sideways OFFENSE/DEFENSE/SPECIAL label stretched each row by a per-word
+  amount and the chip was anchored to the stretched wrapper. Now every chip
+  deliberately overhangs the card edge by the same 6 px on all three rows.
+
+## Balance (one knob each, both one-line revertible)
+
+- **Lava 14 → 16 DPS** (+~15%), `LAVA.DPS`.
+- **Lava Treads 25/50/65% → 25/40/50%** resist, the cape's exact curve
+  (`ITEM_FX.treads`).
+
+## Boomerang dodge: the premise was stale
+
+Extreme and Faker already dodge boomerangs, both legs, recall included:
+`scanThreats` never filtered by projectile type. Two new tests lock that in,
+and the false claim in STRATEGIES.md is corrected. What remains true: Hard
+bots (the ELO lab's pilots) sidestep NOTHING by design, so boomerang rows in
+the Elo table stay bot-flattered. Per your own rule that is a flag, not a
+number to buff around.
+
+## Faker + anger: rank 1 of 42
+
+`K5-faker-vendetta` (Faker brain on B3's exact 152 g list: anger 3 first,
+amulet+sword to 3, boots 2, cape 1) lands **Elo 2783, mean place 1.07**,
++101 over the best combo arsenal (K2 2682) and ~+1200 over the same list on
+the Hard brain. It carries zero combo spells, so the tier's edge is the
+piloting, not the combos. No bot chases the anger mark, so 2783 is a floor.
+Standard 2000-game run, raw numbers, single seed (~±40 noise between
+neighbours): `docs/history/2026-08-13-round23-elo-faker-anger.md`.
+The element-vs-element study is DELETED (code and convention); elo.js at
+2000 games is the one ranking instrument now.
+
+## Two versions merged into main
+
+- **Blood Debt 🩶** (issue #1, closed): Defense row, 2 levels 12/6 g, cd
+  15/12 s, absorb everything for 1.25 s, carry it as gray health, transfer it
+  all with your next fireball hit within 5 s or eat it push-less. The boots
+  buff from that version stayed out (it was a test).
+- **Genki 💠** (issue #12, closed), with your redesign: cast anything while
+  charging; a real hit still breaks the charge but is AMPLIFIED by the stored
+  damage (lethal amplify = attacker's kill), ticks still exempt; 3 levels
+  capping damage at 30/60/90 (12/6/6 g); 3 dmg/s; 30% bigger at every charge;
+  at the cap the ball floats until you recast. Pillar-smash (~4 s) and
+  unstoppable (~9 s) stages are reachable at every level. Default key K.
+
+## Lobby: the host owns the room (and avatars chat less)
+
+Rules, bots, kicks and unban now belong to the HOST (oldest seated
+connection; auto-promoted if they drop). Guests keep Playing/Watching, their
+avatar and their own team, and see every rule read-only with a hint line.
+Avatar reactions: every line is half as likely (`FREQ` in chatter.js), all
+bubbles render in one plain style (the bold shout variant is gone), and the
+lobby has a host-set **Reactions On/Off** toggle.
+
+## Issue housekeeping
+
+#1, #7, #12 closed (merged); Ju's #3/#9/#11 closed, #13 stays open as his
+living thread. Closing now belongs to whoever opened the issue; the agent
+only labels `ai:done`.
+
+## Verified
+
+494 vitest green + full ritual (bots/coop harness, client robustness,
+reconnect, arena 4p/8p, slowlink after the wire change). Version r369.
 
 ## Still waiting on you
 
-The mine's name (**Mine** is mine to defend — "elemental mine" felt long; Trap
-and Snare are one line), whether the trap should be throwable rather than
-underfoot; the two 21.7 sounds; whether a 3v1 team's kill target should be
-capped by how many enemies exist; anger's strength (you said it is fine — I have
-left it alone); and names for Switcheroo 🎭.
+The 21.9 leftovers (mine throwability, the two 21.7 sounds, 3v1 kill-target
+cap, Switcheroo names), the Normal/Hard standoff verdict, whether the demo
+Faker returns to fresh lobbies, and a feel pass on lava 16 + the treads nerf.

@@ -52,7 +52,7 @@ await page.waitForTimeout(120);
 const render = (name, dur, v) => page.evaluate(async ([name, dur, v]) => {
   let ctx = null;
   // ⚠ state/resume are overridden on purpose: sfx.js resumes a 'suspended'
-  // context, and resume() on an OfflineAudioContext STARTS the render — which
+  // context, and resume() on an OfflineAudioContext STARTS the render, which
   // races startRendering() and hands back a silent buffer.
   window.AudioContext = class extends OfflineAudioContext {
     constructor() { super(1, Math.ceil(48000 * dur), 48000); ctx = this; }
@@ -84,7 +84,7 @@ const render = (name, dur, v) => page.evaluate(async ([name, dur, v]) => {
   return { wav: btoa(s), peak, known: known !== false };
 }, [name, dur, v]);
 
-// the FX names live in sfx.js — read them once so "no args" means "all of them"
+// the FX names live in sfx.js; read them once so "no args" means "all of them"
 const all = fs.readFileSync(path.join(ROOT, 'client', 'sfx.js'), 'utf8')
   .split('const FX = {')[1].split('\n};')[0]
   .split('\n').map(l => /^\s{2}(\w+)\(/.exec(l)).filter(Boolean).map(m => m[1]);

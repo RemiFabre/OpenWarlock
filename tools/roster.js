@@ -1,16 +1,16 @@
 // The ELO-tournament strategy roster (docs/ARCHETYPES.md is GENERATED from
-// this file — edit HERE, then `node tools/roster.js --doc` to regenerate).
+// this file; edit HERE, then `node tools/roster.js --doc` to regenerate).
 // Remi's design goals (2026-08-09): level-explicit cores; every core costs a
 // bit MORE than the ~145 g an average seat earns in a full game (measured:
 // 13.1 rounds, 9.8 kills), so the uncontrolled everything-else tail almost
 // never runs; families isolate systems (items vs elements vs mutations vs
 // spells, depth vs breadth, spell scaling).
 //
-//   node tools/roster.js          — cost check table (every core, gold total)
-//   node tools/roster.js --doc    — print the ARCHETYPES.md markdown
+//   node tools/roster.js          = cost check table (every core, gold total)
+//   node tools/roster.js --doc    = print the ARCHETYPES.md markdown
 //
 // core entries are [key, level] pairs: ['frost', 2] = "buy frost UP TO lv2
-// here" — the runner expands to one buy per level step. Bots fall into the
+// here"; the runner expands to one buy per level step. Bots fall into the
 // study's shared exhaust tail after the core (see tools/strategy-study.js),
 // and only into the in-game random fallback once even that is maxed.
 
@@ -53,13 +53,13 @@ export function expandCore(core) {
 }
 
 // Auto-pad: append filler levels (neutral staples, fixed order) until the
-// core enters the cost band — so hand-edited cores stay in spec without
+// core enters the cost band, so hand-edited cores stay in spec without
 // bookkeeping. Purity probes (noPad) are exempt: their shelf EXHAUSTS below
 // the band, which is itself a finding, stated in the doc.
 // ⚠ Round 20 (echo deleted, items flat) + 21.1 (items 5/7 g) + 21.7/21.8 (the
 // Hat of Aura 6×3 and the Slow Spoon 7×3): the whole item shelf is 147 g, i.e.
 // STILL BELOW the 150 g band
-// — an items-only core cannot fill its own budget and the padder hits shelf
+// so an items-only core cannot fill its own budget and the padder hits shelf
 // exhaustion. Stated as a finding, not papered over.
 const FILLER = ['sword', 'amulet', 'boots', 'cape', 'treads', 'hourglass', 'brazier', 'spoon'];
 export function paddedCore(entry) {
@@ -79,7 +79,7 @@ export function paddedCore(entry) {
         break;
       }
     }
-    if (done) break; // every filler maxed — shelf exhaustion
+    if (done) break; // every filler maxed; shelf exhaustion
   }
   return core;
 }
@@ -95,7 +95,7 @@ export function shelfExhausted(entry) {
 }
 
 export const ROSTER = {
-  // ---- Family A: system purity — price each shelf as a class --------------
+  // ---- Family A: system purity (price each shelf as a class) --------------
   'A1-items-sustain': {
     family: 'A', fantasy: "The item shelf's best self: HP and both kinds of healing.",
     tests: 'items as a class (sustain half) vs the element families',
@@ -174,7 +174,7 @@ export const ROSTER = {
   },
   // Round 20: echo is gone. Round 21.5/21.8: the Hat of Aura and the Slow Spoon
   // joined, so "one of everything" is EIGHT items and the whole shelf maxed =
-  // 147 g — still under
+  // 147 g; still under
   // the band, so noPad and shelf exhaustion stay BY DESIGN.
   'B6-item-breadth': {
     family: 'B', noPad: true,
@@ -229,10 +229,10 @@ export const ROSTER = {
 
   // Round 21.8: statue is the one NEW spell a bot can pilot (stepBot's panic
   // button; SPELLS.statue is in sim.js's PILOTED_POWER). Mine and Decoy are
-  // deliberately absent from this whole roster — no bot reads a trap or a bluff.
+  // deliberately absent from this whole roster; no bot reads a trap or a bluff.
   'C7-statue-guard': {
     family: 'C', fantasy: 'A 2 s invulnerable statue as the panic button on a plain fighting kit.',
-    tests: 'what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound) — a floor for a spell whose real value is human timing',
+    tests: 'what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound); a floor for a spell whose real value is human timing',
     core: [['statue', 1], ['ember', 2], ['statue', 2], ['sword', 1], ['amulet', 1],
       ['ember', 3], ['sword', 2], ['amulet', 2], ['sword', 3], ['amulet', 3]],
   },
@@ -265,7 +265,7 @@ export const ROSTER = {
   },
   'D5-plaguebearer': {
     family: 'D', fantasy: 'Wade into the pack; everyone leaves sick.',
-    tests: 'contagion value (the lab is blind to it — this is the human entry)',
+    tests: 'contagion value (the lab is blind to it; this is the human entry)',
     core: [['malady', 2], ['terra', 1], ['treads', 1], ['malady', 3],
       ['terra', 2], ['amulet', 1], ['treads', 2], ['terra', 3], ['amulet', 2], ['sword', 2], ['amulet', 3]],
   },
@@ -279,7 +279,7 @@ export const ROSTER = {
     family: 'D', fantasy: 'The kit never stops: bolt on cooldown, refund on every hit.',
     tests: 'question M: is a dedicated cadence build viable-but-honest?',
     // Round 20: the echo-stone slot became a SECOND button for the refund to
-    // chew on (boomerang) — same intent, the deleted item's gold re-spent.
+    // chew on (boomerang); same intent, the deleted item's gold re-spent.
     core: [['arcane', 2], ['lightning', 1], ['arcane', 3], ['hourglass', 1],
       ['lightning', 2], ['hourglass', 2], ['lightning', 3], ['hourglass', 3],
       ['boomerang', 1], ['amulet', 2], ['sword', 1]],
@@ -304,16 +304,16 @@ export const ROSTER = {
   },
 
   // Round 21.8: the two passive items bots get full value from without piloting
-  // anything — the Slow Spoon's flat per-hit heal and the Hat of Aura's burn.
+  // anything: the Slow Spoon's flat per-hit heal and the Hat of Aura's burn.
   'D11-spoonbearer': {
     family: 'D', fantasy: 'Low damage, endless uptime: hold them still and heal a flat amount off every tap.',
-    tests: "the Slow Spoon's premise (round 21.8) — does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?",
+    tests: "the Slow Spoon's premise (round 21.8): does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?",
     core: [['spoon', 1], ['frost', 1], ['gale', 1], ['spoon', 2], ['frost', 2],
       ['gale', 2], ['spoon', 3], ['frost', 3], ['gale', 3], ['boots', 1], ['treads', 1]],
   },
   'D12-hatburner': {
     family: 'D', fantasy: 'Stand in the pack and cook: a burning ring that follows them out of it.',
-    tests: "passive damage as a build — the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range",
+    tests: "passive damage as a build: the Hat of Aura's ring + its round-21.8 linger, paired with the plague that wants the same close range",
     core: [['brazier', 1], ['malady', 1], ['brazier', 2], ['malady', 2],
       ['brazier', 3], ['malady', 3], ['treads', 1], ['amulet', 1], ['treads', 2], ['amulet', 2]],
   },
@@ -321,14 +321,14 @@ export const ROSTER = {
   // ---- Family E: cooldown reduction (Remi's question M) ---------------------
   // Remi, round 20: "I suspect CDR stacking is secretly strong and untested."
   // The two CDR axes are arcane (haste [18,32,32] on the FIREBALL ONLY, plus a
-  // lv3 refund that shaves the KIT's cooldowns on every fireball hit — never
+  // lv3 refund that shaves the KIT's cooldowns on every fireball hit, never
   // its own) and the hourglass (haste [10,18,26] on EVERYTHING). Haste SUMS:
   // maxed together the fireball casts at 1 + 58/100 = 1.58x rate. D7 already
   // probes CDR × ONE spell maxed; E1 probes CDR × fireball THROUGHPUT (mosquito
   // pairs), E2 probes CDR × kit WIDTH. Three points on the same axis.
   'E1-hastemaker': {
     family: 'E', fantasy: 'Cast faster, and every so often the cast is two balls.',
-    tests: "question M: CDR x fireball throughput — arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave",
+    tests: "question M: CDR x fireball throughput. Arcane+hourglass haste multiplied by mosquito's pair, with a pilotable kit for the lv3 refund to shave",
     core: [['arcane', 1], ['mosquito', 1], ['hourglass', 1], ['arcane', 2],
       ['arcane', 3], ['mosquito', 2], ['mosquito', 3], ['lightning', 1],
       ['boomerang', 1], ['shield', 1], ['lightning', 2], ['boomerang', 2],
@@ -336,7 +336,7 @@ export const ROSTER = {
   },
   'E2-chronomancer': {
     family: 'E', fantasy: 'Five buttons, none of them ever off cooldown for long.',
-    tests: "question M: CDR x kit WIDTH — the same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)",
+    tests: "question M: CDR x kit WIDTH. The same maxed haste core feeding five pilotable buttons, so arcane lv3's per-hit refund has the most cooldowns to shave (vs D7's one-spell depth)",
     core: [['hourglass', 1], ['arcane', 1], ['hourglass', 2], ['arcane', 2],
       ['hourglass', 3], ['arcane', 3], ['lightning', 1], ['boomerang', 1],
       ['shield', 1], ['rush', 1], ['teleport', 1], ['shield', 2], ['rush', 2],
@@ -348,7 +348,7 @@ export const ROSTER = {
   // built to LAND A LOT OF HITS: maxed fireball cadence (arcane 3 + hourglass 3),
   // Echo pairs, ghost speed and three pilotable buttons. Everything else in the
   // two cores is byte-identical and hand-sized into the band so the PADDER NEVER
-  // RUNS — its filler holds both items and would contaminate the comparison.
+  // RUNS; its filler holds both items and would contaminate the comparison.
   // F1 minus F2 is the whole measurement: does a FLAT heal per hit beat a
   // PERCENTAGE of the damage dealt, for a build that hits often?
   // ⚠ `caps` is what makes this a real A/B: the study's shared exhaust tail
@@ -363,7 +363,7 @@ export const ROSTER = {
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['spoon', 3], ['boots', 2], ['amulet', 2]],
   },
   // The mirror question (round 21.8): F1/F2 ask which item wins when hits are
-  // SMALL and frequent; F3/F4 ask the same with hits as BIG as a bot can land —
+  // SMALL and frequent; F3/F4 ask the same with hits as BIG as a bot can land
   // ember 3, lightning 2, meteor 2, terra 3. If the answer is the same item in
   // both, one of the two items has no reason to exist.
   'F3-spoon-burst': {
@@ -387,28 +387,67 @@ export const ROSTER = {
     core: [['arcane', 3], ['mosquito', 3], ['hourglass', 3], ['lightning', 1],
       ['boomerang', 1], ['rush', 1], ['ghost', 2], ['sword', 3], ['boots', 2], ['amulet', 2]],
   },
+
+  // ---- Family K (issue #7): the Faker's combo arsenals, ON THE FAKER BRAIN.
+  // `kind` overrides the tournament's per-seat bot (tools/elo.js); these four
+  // rows answer Remi's question "do the combos PAY, or are they just
+  // impressive?" against whatever tier the rest of the lobby runs.
+  'K1-faker-hookstorm': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The hook: Switcheroo into the bolt, the rock onto the landing point.',
+    tests: 'does the combo layer out-earn raw value at equal cost',
+    core: [['lightning', 3], ['swap', 3], ['meteor', 2], ['ember', 2], ['boots', 2], ['cape', 1]],
+  },
+  'K2-faker-permafrost': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The freeze: the third stack is spent on purpose, with the bolt loaded.',
+    tests: 'frost-hold combos vs the chainer, on a brain that times them',
+    core: [['frost', 3], ['lightning', 3], ['hourglass', 3], ['boots', 2], ['sword', 1]],
+  },
+  'K3-faker-minefield': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The detonator: a loaded trap underfoot, Switcheroo drops you on it.',
+    tests: 'the trap-hook chain: the biggest measured true combos (tools/combo.js)',
+    core: [['lightning', 2], ['nova', 2], ['swap', 3], ['ember', 2], ['boots', 2]],
+  },
+  'K4-faker-galeforce': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The wind: every third ball shoves, the bolt is already falling there.',
+    tests: 'gust-into-bolt chains; the weakest combo identity in the lab, priced here',
+    core: [['gale', 3], ['lightning', 3], ['arcane', 2], ['boots', 2], ['sword', 1]],
+  },
+  // Round 23: B3-mutation-depth's exact core (the best anger row, r353) on the
+  // Faker brain: how strong is anger when the pilot is the top tier?
+  'K5-faker-vendetta': {
+    family: 'K', kind: 'faker',
+    fantasy: 'The grudge: max anger first, claim every mark, snowball forever.',
+    tests: "anger in Faker hands: B3's core (the best anger build on Hard) piloted by the top bot tier",
+    core: [['anger', 3], ['amulet', 1], ['sword', 1], ['amulet', 2],
+      ['sword', 2], ['amulet', 3], ['sword', 3], ['boots', 2], ['cape', 1]],
+  },
 };
 
 // ---- cost check + doc generation -------------------------------------------
 const [lo, hi] = COST_TARGET;
 if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
   if (process.argv.includes('--doc')) {
-    let out = `# Strategy roster — GENERATED from tools/roster.js (edit there, \`node tools/roster.js --doc\`)\n\n`;
+    let out = `# Strategy roster, GENERATED from tools/roster.js (edit there, \`node tools/roster.js --doc\`)\n\n`;
     out += `**Goal**: mass AI games, ELO per strategy (random 4-strategy lobbies, Elo fitted from placements).\n`;
-    out += `**Core cost target**: ${lo}-${hi} g — a bit above the ~${AVG_EARNED} g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.\n`;
+    out += `**Core cost target**: ${lo}-${hi} g, a bit above the ~${AVG_EARNED} g an average seat earns in a full game (measured: 13.1 rounds, 9.8 kills/seat), so the uncontrolled everything-else tail almost never runs.\n`;
     out += `**After the core**: the bot walks the study's shared exhaust list (identical for every strategy), and only when even that is maxed does the in-game random fallback (items, then pilotable spells, then mutations) spend leftovers.\n`;
-    out += `**Fireball**: free at lv1 for everyone in elemental, never levels — not listed.\n`;
-    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button — hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
+    out += `**Fireball**: free at lv1 for everyone in elemental, never levels; not listed.\n`;
+    out += `**Spells bots can pilot** (the only ones allowed here): lightning, boomerang, rush, shield, blink, meteor (CC-gated: cast only into a frost stun/heavy slow) and statue (round 21.8: a panic button; hurt, a ball inbound, away from the rim). Mine, Decoy, Switcheroo, vanish, pillar, wall and repulse are NOT pilotable and are excluded from the ELO pool.\n\n`;
     let fam = '';
     for (const [id, s] of Object.entries(ROSTER)) {
       if (s.family !== fam) {
         fam = s.family;
-        const titles = { A: 'Family A — system purity (price each shelf as a class)',
-          B: 'Family B — depth vs breadth, per system',
-          C: 'Family C — spell-scaling probes',
-          D: 'Family D — play-style archetypes',
-          E: 'Family E — cooldown reduction (question M)',
-          F: 'Family F — sustain: flat heal-per-hit vs lifesteal (round 21.8)' };
+        const titles = { A: 'Family A: system purity (price each shelf as a class)',
+          B: 'Family B: depth vs breadth, per system',
+          C: 'Family C: spell-scaling probes',
+          D: 'Family D: play-style archetypes',
+          E: 'Family E: cooldown reduction (question M)',
+          F: 'Family F: sustain, flat heal-per-hit vs lifesteal (round 21.8)',
+          K: 'Family K: the Faker combo arsenals, on the Faker brain (issue #7)' };
         out += `\n## ${titles[fam]}\n\n`;
       }
       const order = core => core.map(([k, l]) => `${k}${l}`).join(' → ');
@@ -424,7 +463,7 @@ if (process.argv[1] && process.argv[1].endsWith('roster.js')) {
     for (const [id, s] of Object.entries(ROSTER)) {
       const c = coreCost(paddedCore(s));
       const flag = s.noPad ? '  (pure shelf, exempt)'
-        : shelfExhausted(s) ? '  (item shelf EXHAUSTED — 147 g is the whole shelf since round 21.8)'
+        : shelfExhausted(s) ? '  (item shelf EXHAUSTED; 147 g is the whole shelf since round 21.8)'
         : c < lo ? '  ⚠ UNDER' : c > hi ? '  ⚠ OVER' : '';
       console.log(`${String(c).padStart(4)} g  ${id}${flag}`);
     }

@@ -13,7 +13,7 @@
     --slab: #1d1714;
     --rock: #2a2320;
     --parchment: #e8d9b0;
-    --ash: #9a8d80;
+    --ash: #b0a394;
     --gold: #f0b64a;
     --blood: #c0392b;
     --ok: #7fb069;
@@ -72,6 +72,11 @@
   }
   .slab h1 .flame { color: var(--ember); }
   .slab .sub { color: var(--ash); margin: 4px 0 16px; }
+  /* v8.4 (Sam): the shop header stops costing a card row */
+  #shop .slab .head { margin-bottom: 2px; }
+  #shop .slab h1.display { font-size: 24px; }
+  #shop .slab .sub { margin: 2px 0 4px; font-size: 12.5px; }
+  #shop #shopIncome { margin: 0 0 4px; font-size: 12px; }
   .hidden { display: none !important; }
   .secttl {
     font-size: 12px; font-weight: 600; color: var(--ash);
@@ -116,7 +121,7 @@
   .pl .state { color: var(--ash); }
   .pl .state.ready { color: var(--ok); }
   /* teams (round 21.3): your own row carries the selector, everyone else a
-     read-only chip — same width either way so the list never jitters */
+     read-only chip; same width either way so the list never jitters */
   .pl .teamsel, .pl .teamchip {
     font-size: 12px; color: var(--ash); display: inline-flex;
     align-items: center; gap: 4px; flex: none;
@@ -137,7 +142,7 @@
     color: var(--ash); letter-spacing: .04em;
   }
   #topbar .thdr .tgoal { margin-left: auto; }
-  .hint { color: var(--ash); font-size: 13px; margin-top: 14px; }
+  .hint { color: var(--ash); font-size: 13.5px; line-height: 1.45; margin-top: 14px; }
   .hint kbd {
     font-family: ui-monospace, Menlo, monospace; font-size: 12px;
     background: var(--obsidian); border: 1px solid #3a2c22;
@@ -145,7 +150,7 @@
   }
   button.mini { padding: 4px 10px; font-size: 12px; color: var(--ash); }
   button.mini:hover { color: #fff; }
-  /* the manifesto: deliberately quiet — a folded line under the join card */
+  /* the manifesto: deliberately quiet, a folded line under the join card */
   #manifesto { margin-top: 14px; font-size: 12px; color: var(--ash); }
   #manifesto summary { cursor: pointer; opacity: .8; }
   #manifesto summary:hover { opacity: 1; }
@@ -183,8 +188,8 @@
     display: grid; grid-template-columns: 112px minmax(0, 1fr);
   }
   .botcols {
-    gap: 1px; padding: 0 5px 4px; color: #6f6357;
-    font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    gap: 1px; padding: 0 5px 4px; color: #9b8e79;
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
   }
   #botBtns { display: grid; gap: 4px; }
   .botgroup { gap: 4px; }
@@ -217,6 +222,38 @@
 
   /* ---- key bindings panel ---- */
   #keysPanel { z-index: 60; }
+  /* Round 23: rule toggles are read-only for everyone but the host. The lit
+     segment stays as the readout; the control just stops being clickable. */
+  .seg.locked { pointer-events: none; opacity: .6; }
+  #scorepanel {
+    position: fixed; inset: 0; z-index: 230; display: grid; place-items: center;
+    pointer-events: none; background: rgba(8, 5, 3, 0.66);
+  }
+  /* Round 23 (Remi) dropped the backing box because a dim over the old flat
+     arena was enough. The painted arena (v8) is far brighter, so the panel gets
+     its frame back, in the same blue-black and bronze as everything else
+     (v8.1, Sam: "a polished game scoreboard, not a debug data table"). */
+  #scorepanel .scoreslab {
+    padding: 14px 16px; width: fit-content; max-width: min(1010px, 94vw); margin: 0 auto;
+    background: linear-gradient(180deg, rgba(9, 16, 25, .96), rgba(6, 11, 18, .96));
+    border: 1px solid rgba(197, 154, 88, .45);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+  }
+  #scorepanel table.stats { width: auto; font-size: 11.5px; }
+  #scorepanel table.stats th, #scorepanel table.stats td { padding-top: 4px; padding-bottom: 4px; }
+  /* v9.1 (Sam): the spell bar wears the shop artwork */
+  .spell .sart { display: inline-grid; place-items: center; width: 30px; height: 30px; }
+  .spell .sart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .spell .sart.noart { font-size: 22px; }
+  /* the KIT stays on ONE line: a wrapped kit used to stretch a player row to
+     hundreds of pixels on the end-of-game screen */
+  table.stats .kitem { display: inline-flex; align-items: center; margin-right: 3px; position: relative; vertical-align: middle; }
+  table.stats .kicon { display: inline-grid; place-items: center; width: 21px; height: 21px; }
+  table.stats .kicon > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  table.stats .kicon.noart { font-size: 16px; }
+  /* the kit is the only elastic column: it WRAPS instead of pushing the table
+     past the panel's edge (v8.1) */
+  table.stats td.kit { line-height: 1; white-space: nowrap; max-width: none; width: 1%; }
   #keyList { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 24px; }
   #keysPanel .krow {
     display: flex; align-items: center; gap: 10px;
@@ -232,18 +269,24 @@
 
   /* ---- shop ---- */
   #shop .head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  /* the shop must fit WITHOUT scrolling at ordinary window heights (round
+     22.3, Remi) — tighter chrome than the other slabs */
+  #shop .slab { padding: 10px 16px 8px; }
+  #shop h1 { font-size: 22px; }
+  #shop .sub { margin: 2px 0 6px; }
   #shop .head h1 { font-size: 26px; flex: 1; }
-  #shopGold { color: var(--gold); font-size: 20px; }
+  #shopGold { color: var(--gold); font-size: 24px; font-weight: 700; }
   #shopTimer { color: var(--parchment); font-size: 20px; }
   #shopTimer.low { color: var(--ember); }
   #shopTimer.paused { color: var(--gold, #e8c65a); }
   #shopPauseBtn { padding: 6px 12px; font-size: 14px; margin-left: 10px; }
   #shopPauseBtn.on { color: var(--gold, #e8c65a); border-color: var(--gold, #e8c65a); }
-  #shopReadyBtn { padding: 12px 16px; font-size: 16px; }
-  #shopReadyBtn:disabled { opacity: .8; color: var(--ash); }
+  /* v8.1 (Sam): the between-round ready button IS the lobby's plaque; the old
+     bar's ID rules used to outrank it and paint its label over the plate. */
+  #shopReadyBtn:disabled { opacity: 1; color: transparent; }
   .botadd { padding: 6px 12px; font-size: 13px; }
   .botadd .stars, .pl .stars { color: var(--ash); font-size: 12px; }
-  /* per-player RTT badge (round 18) — green / amber / red by latency */
+  /* per-player RTT badge (round 18): green / amber / red by latency */
   .ping { font-size: 11px; opacity: 0.9; }
   .ping.good { color: #7fd47f; }
   /* build version, bottom-left whisper; turns red on client/server mismatch */
@@ -280,56 +323,144 @@
   #musicBtn { right: 52px; }
   #musicBtn.off { color: var(--ash); opacity: .5; }
 
-  /* round 20 (Remi): MINIMAL cards — icon + name + cost, one flex ROW per
+  /* round 20 (Remi): MINIMAL cards (icon + name + cost), one flex ROW per
      category so a whole shelf reads as one line; everything else is on hover */
   .shopgrid {
-    display: flex; flex-direction: column; gap: 6px;
-    margin-top: 4px; padding-bottom: 4px;
+    display: flex; flex-direction: column; gap: 9px;
+    margin-top: 2px; padding-bottom: 2px;
   }
-  .shoprow { display: flex; flex-wrap: wrap; gap: 6px; }
-  /* round 20.1 (Remi): every card in every row is the SAME fixed tile —
-     mixed widths "looked messy". Rows are grids of identical tiles. */
-  .shoprow > .ware, .shoprow > .warewrap {
-    flex: 0 0 200px; width: 200px; min-width: 0;
+  /* ---- v7.3 (Sam): the shop is a dashboard of six blocks, three per row ----
+     Each block owns its heading, a subtle orientation tint and its own card
+     grid, so the whole shop fits a desktop screen without a long stack. */
+  .shopblocks {
+    display: grid; gap: 8px; margin-bottom: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .shoprow .ware { height: 56px; }
+  @media (max-width: 1100px) { .shopblocks { grid-template-columns: minmax(0, 1fr); } }
+  .shopblock {
+    border: 1px solid rgba(197, 154, 88, .26); padding: 5px 8px 6px;
+    background: rgba(12, 20, 30, .5); min-width: 0;
+  }
+  .blockhead {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    font-size: 15px; letter-spacing: .08em; color: #f0dcb6;
+    padding-bottom: 3px; margin-bottom: 5px;
+    border-bottom: 1px solid rgba(197, 154, 88, .28);
+  }
+  /* orientation tints: a hint of hue on the block ground, never a bright panel */
+  .shopblock.t-offense  { background: linear-gradient(180deg, rgba(190, 70, 40, .10), rgba(12, 20, 30, .5) 60%); }
+  .shopblock.t-defense  { background: linear-gradient(180deg, rgba(90, 160, 90, .10), rgba(12, 20, 30, .5) 60%); }
+  .shopblock.t-special  { background: linear-gradient(180deg, rgba(150, 100, 210, .11), rgba(12, 20, 30, .5) 60%); }
+  .shopblock.t-elements { background: linear-gradient(180deg, rgba(197, 154, 88, .10), rgba(12, 20, 30, .5) 60%); }
+  .shopblock.t-mutations{ background: linear-gradient(180deg, rgba(200, 80, 170, .10), rgba(12, 20, 30, .5) 60%); }
+  .shopblock.t-items    { background: linear-gradient(180deg, rgba(70, 120, 200, .11), rgba(12, 20, 30, .5) 60%); }
+
+  /* v7.1 (Sam): a real grid. Every tile in a section is the same width and the
+     same height, the gaps are uniform, and the row fills the available width
+     instead of leaving ragged holes at the end. */
+  .shoprow {
+    display: grid; gap: 7px;
+    grid-template-columns: repeat(auto-fill, minmax(206px, 1fr));
+  }
+  .shoprow > .ware, .shoprow > .warewrap { width: 100%; min-width: 0; }
+  .shoprow .ware { height: 68px; }
+  /* compact horizontal group heading (was a sideways rail on the row's edge) */
+  .shopsub {
+    font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    color: #a0917a; margin: 8px 0 5px 2px;
+  }
   .ware {
-    display: flex; gap: 8px; align-items: center;
-    background: var(--obsidian); border: 1px solid #2e241c; padding: 7px 9px;
-    text-align: left; width: 100%; min-height: 42px;
+    display: flex; gap: 9px; align-items: center; position: relative;
+    background: linear-gradient(180deg, #141b24, #0e141c);
+    border: 1px solid #2b3946; padding: 5px 10px 11px 6px;
+    text-align: left; width: 100%; min-height: 38px; overflow: hidden;
   }
+  /* level pips (round 22.2; thicker since issue #14): one cell per level along
+     the card's bottom edge */
+  .ware .pips { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 4px; padding: 0 2px 2px; pointer-events: none; }
+  .ware .pips i { flex: 1; height: 9px; background: #26323d; border: 1px solid #38495a; }
+  .ware .pips i.on { background: linear-gradient(180deg, #86c46c, #55853f); border-color: #6ea555; }
+  /* ---- v7 shop cards (issue #14, Sam): image first --------------------
+     [art] Name / LV · MAX / progression, price top-right in gold. The art box
+     is one fixed square on every card so the column of pictures lines up; the
+     image never stretches (contain, centred) and an entity still waiting for
+     its artwork shows its icon in the same box. */
+  .ware .art {
+    flex: none; width: 50px; height: 50px; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.07), rgba(255,255,255,0) 70%);
+    border: 1px solid rgba(197, 154, 88, .28);
+  }
+  .ware .art > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .ware .art.noart { font-size: 27px; line-height: 1; }
+  /* the same artwork leads the tooltip */
+  .tname .tart { display: inline-grid; place-items: center; width: 34px; height: 34px; vertical-align: -10px; margin-right: 6px; }
+  .tname .tart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .tname .tart.noart { font-size: 22px; }
+  .ware .cost { position: absolute; top: 7px; right: 11px; min-width: 0; font-size: 14px; }
+  .ware .info ~ .cost, .warewrap .ware .cost { align-self: auto; }
+  .ware .info { display: flex; flex-direction: column; gap: 2px; padding-right: 38px; }
+  .ware .info .name { font-size: 13.5px; font-weight: 600; color: #f0e4c6; }
+  .ware .info ~ .lvbadge, .ware .lvbadge { position: static; }
+  .ware .info .lvbadge { font-size: 11.5px; letter-spacing: .04em; }
   .ware:hover:not(:disabled) { border-color: var(--ember); }
-  .ware .icon { font-size: 19px; width: 24px; text-align: center; flex: none; }
+  .ware .icon { font-size: 20px; width: 25px; text-align: center; flex: none; }
   .ware .info { flex: 1; min-width: 0; }
-  .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 12.5px; }
-  .ware .info .name { flex: none; }
-  .ware .name .lv { color: var(--ash); font-weight: 400; white-space: nowrap; }
+  /* issue #14 iteration 2 (Sam): a name NEVER wraps — one line, ellipsis in
+     the worst case (cards widened to make that case rare) */
+  .ware .name { flex: 1; min-width: 0; font-weight: 600; font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* item/element names run long (Hourglass of Haste): a notch smaller keeps
+     them to one line clear of the pips (round 22.3, Remi) */
+  .ware .info .name { flex: none; max-width: 100%; font-size: 12px; line-height: 1.25; }
   .ware .desc { color: var(--ash); font-size: 12px; display: block; }
   /* the card's tag line: an element's 2-4 word desc / an item's one stat value */
-  .ware .tag { display: block; color: var(--ash); font-size: 10.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ware .cost { color: var(--gold); flex: none; text-align: right; }
+  .ware .tag { display: block; color: var(--ash); font-size: 12px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* prices share one right-aligned column so the eye can run down them */
+  .ware .cost { color: var(--gold); flex: none; text-align: right; min-width: 46px; font-weight: 700; font-size: 13px; }
   .ware .cost.owned { color: var(--ok); }
-  .ware .cost .nth { display: block; font-size: 10px; color: var(--ash); }
+  .ware .cost .nth { display: block; font-size: 10px; font-weight: 400; color: var(--ash); }
+  /* ---- card states (issue #14, Sam): each state readable before reading ----
+     poor  = unowned you cannot afford: strongly dimmed, dimmed price
+     sel   = owned: green edge + LV badge
+     up    = owned AND the next level is affordable: the standout state
+     maxed = complete: quiet green, MAX, non-interactive */
+  .ware .lvbadge {
+    flex: none; color: #b7e59f; font-size: 10px; font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .04em;
+  }
+  /* element/item cards (the .info shape): long names need the row, so their
+     badge floats in the card's top-right corner instead of the flow */
+  .ware .info ~ .lvbadge { position: absolute; top: 2px; right: 6px; }
+  .ware .info ~ .cost { margin-top: 8px; }
+  .ware.poor { opacity: .28; filter: grayscale(.85); }
+  .ware.poor .cost { color: var(--ash); }
+  .ware.sel { border-color: #5c8a49; background: linear-gradient(180deg, #14201a, #0d1712); }
+  .ware.up { border-color: #e8c65a; box-shadow: 0 0 14px rgba(232, 198, 90, .34), inset 0 0 0 1px rgba(232, 198, 90, .28); }
+  .ware.maxed { border-color: #45663a; background: linear-gradient(180deg, #131c15, #0d140f); opacity: .95; box-shadow: none; }
   /* the cost rides the top-right on spell cards so the key chip below it
      keeps its corner to itself */
   .warewrap .ware .cost { align-self: flex-start; }
   /* quiet category label on the row's left edge (round 20: Offense / Defense /
-     Special) — sideways, tiny, muted: a whisper, not a header */
+     Special); sideways, tiny, muted: a whisper, not a header */
   .catlabel {
     flex: none; align-self: stretch; display: flex;
-    align-items: center; justify-content: center; width: 15px;
+    align-items: center; justify-content: center; width: 17px;
     writing-mode: vertical-rl; transform: rotate(180deg);
-    font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
-    color: #6f6357;
+    font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: #9a8a76; border-right: 1px solid #2e241c; padding-right: 2px;
   }
   /* spell key chip: rebind hook in the ware's bottom-right corner. Lives in a
-     wrapper NEXT TO the buy button — inside a disabled button it'd be dead. */
-  .warewrap { position: relative; display: flex; }
+     wrapper NEXT TO the buy button; inside a disabled button it'd be dead.
+     align-self keeps the wrap at card height (the sideways row label used to
+     stretch it by a per-word amount, round 23), so the chip's overhang below
+     the card edge is the same on every row. */
+  .warewrap { position: relative; display: flex; align-self: flex-start; }
   .keychip {
-    position: absolute; right: 5px; bottom: 4px; cursor: pointer;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px;
-    line-height: 16px; padding: 0 5px; border-radius: 3px;
-    color: var(--ash); background: var(--obsidian); border: 1px solid #3a2c22;
+    position: absolute; right: 5px; bottom: 13px; cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    line-height: 18px; padding: 0 6px; border-radius: 3px;
+    color: var(--parchment); background: var(--obsidian); border: 1px solid #3a2c22;
   }
   .keychip:hover { border-color: var(--ember); color: var(--ember); }
   #rebind { z-index: 80; }
@@ -337,9 +468,34 @@
      so the two read as "stone / gold stone" everywhere an icon appears.
      Emoji are colour glyphs, so this is a filter, not a colour. */
   .goldicon { filter: sepia(1) saturate(5.5) hue-rotate(-12deg) brightness(1.12); }
-  .shoplabel { grid-column: 1 / -1; color: var(--ash); font-size: 12px;
-    text-transform: uppercase; letter-spacing: .12em; margin-top: 10px;
-    border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  /* issue #14 (Sam): section headers strong enough to split the shop into
+     obvious blocks. Iteration 2: each block gets an UNDERSTATED identity — a
+     small accent bar in its own muted hue, never four loud colors. */
+  .shoplabel { grid-column: 1 / -1; color: var(--parchment); font-size: 13.5px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .14em;
+    margin-top: 12px; border-bottom: 2px solid #4a3a2c; padding-bottom: 4px; }
+  /* v7 (Sam): the four families wear The Gathering's language: serif small-caps
+     over a bronze hairline on blue-black, distinct without becoming a
+     colourful dashboard. */
+  #shop .shoplabel {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    text-transform: none; font-size: 16px; letter-spacing: .1em; color: #f0dcb6;
+    background: linear-gradient(90deg, rgba(197,154,88,.14), rgba(197,154,88,0));
+    border-left: 2px solid rgba(197, 154, 88, .55); border-bottom: 0;
+    padding: 4px 10px; margin: 6px 0 4px;
+  }
+  .shoplabel::before {
+    content: ''; display: inline-block; width: 9px; height: 9px;
+    margin-right: 8px; background: #4a3a2c; transform: rotate(45deg);
+  }
+  .shoplabel.sl-spells { border-color: #5c3826; }
+  .shoplabel.sl-spells::before { background: #8a4a28; }
+  .shoplabel.sl-elements { border-color: #2d4642; }
+  .shoplabel.sl-elements::before { background: #3f6b62; }
+  .shoplabel.sl-mutations { border-color: #443354; }
+  .shoplabel.sl-mutations::before { background: #6a4f8a; }
+  .shoplabel.sl-items { border-color: #55452a; }
+  .shoplabel.sl-items::before { background: #8a713a; }
 
   /* ---- draft mode: the free pick, at the top of the shop and unmissable ---- */
   .draftpick {
@@ -371,6 +527,8 @@
 
   /* ---- the one big stats table (shop + gameover) ---- */
   table.stats { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.stats th.n, table.stats td.n { padding-left: 4px; padding-right: 4px; }
+  table.stats tbody tr { height: 30px; }
   table.stats th, table.stats td {
     padding: 6px 10px; border-bottom: 1px solid var(--line);
     text-align: left; white-space: nowrap;
@@ -402,41 +560,128 @@
   table.stats .kit { letter-spacing: .05em; white-space: nowrap; }
   table.stats .kit .klv { color: var(--gold); font-size: 10px; }
   table.stats .mk { color: var(--blood); font-weight: 600; }
-  /* narrow windows: tighten the cells first, then drop the kit column — the
+  /* narrow windows: tighten the cells first, then drop the kit column; the
      numbers are the whole point of this table, the icon strip is a bonus */
   @media (max-width: 1200px) {
     table.stats { font-size: 11.5px; }
-    table.stats th, table.stats td { padding: 5px 6px; }
+    table.stats th.n, table.stats td.n { padding-left: 4px; padding-right: 4px; }
+  table.stats tbody tr { height: 30px; }
+  table.stats th, table.stats td { padding: 5px 6px; }
   }
   @media (max-width: 1020px) { table.stats .c-kit { display: none; } }
 
   /* ---- rich hover tooltip: full per-level numbers, generated from the
          constants so it can never disagree with the simulation ---- */
-  #tip {
-    position: fixed; z-index: 200; pointer-events: none;
-    width: min(420px, calc(100vw - 24px));
+  /* issue #14 iteration 2 (Sam): the tooltip floats beside the hovered card
+     again (right first, left when cramped, clamped to the viewport), and the
+     DESCRIPTION leads — bigger and first; the numbers table reads second. */
+  .tipbox {
     background: #100c0a; border: 1px solid #4a3a2c;
     border-top: 2px solid var(--ember);
-    box-shadow: 0 16px 48px rgba(0,0,0,.8);
-    padding: 12px 14px; font-size: 12.5px;
+    padding: 13px 15px; font-size: 12.5px;
   }
-  #tip .tname { font-weight: 700; font-size: 14px; }
-  #tip .tname .ic { margin-right: 6px; }
-  #tip .tdesc { color: var(--parchment); margin: 4px 0 9px; }
-  #tip .tlong { color: var(--ash); margin: -6px 0 9px; }
-  #tip table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  #tip th, #tip td { padding: 3px 7px; border-bottom: 1px solid #241c17; text-align: right; }
-  #tip th:first-child, #tip td:first-child { text-align: left; color: var(--ash); }
-  #tip thead th { color: var(--ash); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
-  #tip td {
+  #tip {
+    position: fixed; z-index: 200;
+    /* v9.1 (Sam): a passive readout. It must never take the pointer: it used to
+       sit over the card it describes and swallow the click AND keep itself
+       hovered, which is half of why it could stay open. */
+    pointer-events: none;
+    width: min(520px, calc(100vw - 24px));
+    box-shadow: 0 16px 48px rgba(0,0,0,.8);
+  }
+  .tipbox .tname { font-weight: 700; font-size: 15px; }
+  .tipbox .tname .ic { margin-right: 6px; }
+  .tipbox .tname .tlv {
+    margin-left: 9px; font-size: 11px; font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em;
+  }
+  .tipbox .tsub { color: var(--ash); font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .1em; margin-top: 2px; }
+  .tipbox .tdesc { color: var(--parchment); font-size: 13.5px; line-height: 1.5; margin: 7px 0 4px; }
+  /* iteration 3 (Sam): the level hues — bronze / silver / gold, subtle */
+  .tipbox .l1 { color: #c08552; }
+  .tipbox .l2 { color: #c6ccd6; }
+  .tipbox .l3 { color: var(--gold); }
+  /* the 3-step progression indicator; future dots are hoverable previews */
+  .tipbox .prog { display: flex; align-items: flex-start; margin: 12px 0 6px; }
+  .tipbox .pdot { flex: none; width: 56px; text-align: center; }
+  .tipbox .pdot i {
+    display: block; width: 13px; height: 13px; margin: 0 auto;
+    border-radius: 50%; border: 2px solid #4a3a2c; background: transparent;
+  }
+  .tipbox .pdot.done i { background: currentColor; border-color: currentColor; }
+  .tipbox .pdot.next i { border-color: currentColor; box-shadow: 0 0 5px currentColor; }
+  .tipbox .pdot.future i { opacity: .4; }
+  .tipbox .pdot.sel i { outline: 1px solid currentColor; outline-offset: 2px; }
+  .tipbox .pdot b { display: block; font-size: 9.5px; margin-top: 3px; letter-spacing: .06em; }
+  .tipbox .pdot u {
+    display: block; text-decoration: none; font-size: 8px; min-height: 10px;
+    color: var(--ash); text-transform: uppercase; letter-spacing: .1em;
+  }
+  .tipbox .pline { flex: 1; height: 2px; background: #33291f; margin-top: 7px; }
+  .tipbox .pline.done { background: #5a4a34; }
+  /* section heads + the vertical stat lists (the 3-column table is gone) */
+  .tipbox .lvhead {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; margin: 10px 0 3px;
+    padding-bottom: 3px; border-bottom: 1px solid #241c17;
+  }
+  .tipbox .lvhead .cost { color: var(--gold); }
+  /* v8.3 (Sam): BASE once, then one compact matrix. Columns never move. */
+  .tipbox .baseline { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 12px; color: #b3a58c; }
+  .tipbox .baseline b { color: #e6d3ac; font-weight: 600; margin-left: 3px; }
+  .tipbox .lvmatrix { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .tipbox .lvmatrix th, .tipbox .lvmatrix td { padding: 4px 7px; text-align: right; white-space: nowrap; }
+  .tipbox .lvmatrix th.rl { text-align: left; color: #b3a58c; font-weight: 400; }
+  .tipbox .lvmatrix thead th {
+    font-size: 10.5px; letter-spacing: .08em; color: #9b8e79; font-weight: 600;
+    border-bottom: 1px solid rgba(197, 154, 88, .28);
+  }
+  .tipbox .lvmatrix thead th i { display: block; font-style: normal; font-size: 9px; letter-spacing: .1em; }
+  .tipbox .lvmatrix thead th .cost { display: block; font-size: 10px; color: var(--gold); font-weight: 400; }
+  .tipbox .lvmatrix td { color: #cbbb9c; font-variant-numeric: tabular-nums; }
+  /* the state lives in the COLUMN, so nothing shifts when your level changes */
+  .tipbox .lvmatrix .cur { background: rgba(197, 154, 88, .12); color: #f4e7c4; }
+  .tipbox .lvmatrix thead th.cur { color: #f0dcb6; }
+  .tipbox .lvmatrix .next { background: rgba(232, 198, 90, .07); }
+  .tipbox .lvmatrix thead th.next { color: #e8c65a; }
+  .tipbox .lvmatrix .past { opacity: .55; }
+  .tipbox .lvmatrix tbody tr + tr th, .tipbox .lvmatrix tbody tr + tr td { border-top: 1px solid rgba(197, 154, 88, .1); }
+  .tipbox .lvmatrix .newb { margin-right: 4px; }
+
+  /* v8.1 (Sam): the levels read across, not down */
+  .tipbox .lvcols { display: grid; gap: 10px; margin-top: 2px; }
+  .tipbox .lvcols.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tipbox .lvcols.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tipbox .lvcol {
+    min-width: 0; padding: 7px 9px 8px;
+    border: 1px solid rgba(197, 154, 88, .16); background: rgba(255, 255, 255, .015);
+  }
+  /* colour is spent on ONE column: the one you own */
+  .tipbox .lvcol.is-cur { border-color: rgba(197, 154, 88, .5); background: rgba(197, 154, 88, .07); }
+  .tipbox .lvcol.is-next { border-color: rgba(232, 198, 90, .32); }
+  .tipbox .lvcol:not(.is-cur) .stat b { color: #b3a58c; font-weight: 500; }
+  .tipbox .lvcol .lvhead { margin: 0 0 5px; font-size: 10.5px; }
+  .tipbox .lvcol .stat { font-size: 12px; }
+  .tipbox .lvhead.final { font-size: 12px; letter-spacing: .1em; }
+  .tipbox .lvhead .vs { color: var(--ash); font-weight: 400; letter-spacing: .04em; }
+  .tipbox .stat { display: flex; gap: 7px; align-items: baseline; padding: 2.5px 0; font-size: 12px; }
+  .tipbox .stat > span { flex: 1; color: var(--ash); }
+  .tipbox .stat b {
+    font-weight: 600; color: var(--parchment);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
   }
-  #tip .cur { background: rgba(255, 93, 31, .13); color: #fff; }
-  #tip thead th.cur { color: var(--ember); }
-  #tip .cost td, #tip .cost th { color: var(--gold); border-bottom: none; }
-  #tip .tfoot { color: var(--ash); margin-top: 8px; font-size: 11.5px; }
-  #tip .tfoot b { color: var(--parchment); font-weight: 600; }
+  .tipbox .stat b.dim { color: #7a6d5f; font-weight: 400; }
+  .tipbox .stat b.arrow { color: var(--ash); font-weight: 400; }
+  .tipbox .stat.dimline { color: #7a6d5f; font-style: italic; }
+  .tipbox .newb {
+    display: inline-block; font-style: normal; font-size: 8.5px; font-weight: 800;
+    letter-spacing: .1em; border: 1px solid currentColor; border-radius: 2px;
+    padding: 0 4px; margin-right: 6px; vertical-align: 1px;
+  }
+  .tipbox .tfoot { color: var(--ash); margin-top: 10px; font-size: 11.5px; }
+  .tipbox .tfoot b { color: var(--parchment); font-weight: 600; }
 
   /* ---- HUD ---- */
   #hud { position: fixed; inset: 0; pointer-events: none; }
@@ -444,25 +689,32 @@
     position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
     display: flex; gap: 6px; pointer-events: auto;
   }
+  /* issue #14 (Sam): in combat only OWNED spells earn attention. Unowned
+     slots are gone from the bar (they are shop business); owned slots are
+     bigger, READY is bright with a clear border, COOLDOWN is a dark overlay
+     with readable seconds. */
   .spell {
-    width: 52px; height: 52px; position: relative;
+    width: 58px; height: 58px; position: relative;
     background: var(--slab); border: 1px solid #3a2c22;
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px; user-select: none;
+    font-size: 26px; user-select: none;
   }
-  .spell.owned { border-color: #6a4a2c; }
+  .spell.owned { border-color: #8a6440; background: #1d1712; }
+  .spell.owned:not(.cooling) { box-shadow: inset 0 0 0 1px rgba(232, 198, 90, .18); }
+  .spell.cooling { border-color: #3a2c22; }
   .spell .key {
-    position: absolute; top: 1px; left: 4px;
-    font-size: 10px; color: var(--ash);
+    position: absolute; top: 1px; left: 4px; z-index: 1;
+    font-size: 12px; color: var(--parchment);
     font-family: ui-monospace, Menlo, monospace;
   }
-  .spell .lv { position: absolute; bottom: 1px; right: 4px; font-size: 10px; color: var(--gold); }
+  .spell .lv { position: absolute; bottom: 1px; right: 4px; font-size: 11px; color: var(--gold); }
   .spell .cd {
-    position: absolute; inset: 0; background: rgba(8,5,3,.78);
+    position: absolute; inset: 0; background: rgba(8,5,3,.82);
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 15px;
+    color: #fff; font-size: 18px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
-  .spell:not(.owned) { opacity: .28; }
+  .spell:not(.owned) { display: none; }
 
   /* live element readouts (crit ramp, frost stacks…) above the spell bar */
   #buffbar {
@@ -487,13 +739,19 @@
      band is free. It stops short of the music/mute buttons at right:12/52px.
      The shop is a different PHASE, so the two can never be on screen together;
      the table scrolls inside .spbody rather than pushing the page around. */
+  /* v8.2 (Sam): the live panel stops spanning the arena. It takes the width its
+     table needs, capped, and sits bottom-left clear of the play area. */
   #specpanel {
-    position: fixed; left: 12px; right: 96px; bottom: 12px; z-index: 40;
+    position: fixed; left: 12px; bottom: 12px; z-index: 40;
+    width: fit-content; max-width: min(860px, calc(100vw - 120px));
     pointer-events: auto; display: flex; flex-direction: column;
-    max-height: min(46vh, 430px);
-    background: rgba(20, 16, 14, .93); border: 1px solid #2e241c;
-    box-shadow: 0 -6px 24px rgba(0, 0, 0, .45);
+    max-height: min(42vh, 400px);
+    background: linear-gradient(180deg, rgba(9, 16, 25, .95), rgba(6, 11, 18, .95));
+    border: 1px solid rgba(197, 154, 88, .4);
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, .5);
   }
+  #specpanel table.stats { width: auto; font-size: 12px; }
+  #specpanel table.stats th, #specpanel table.stats td { padding-top: 3px; padding-bottom: 3px; }
   #specpanel .sphead {
     display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
     padding: 6px 10px; border-bottom: 1px solid var(--line);
@@ -505,10 +763,10 @@
   #specpanel .spsub { color: var(--ash); font-size: 11.5px; }
   #specpanel .spbody { overflow: auto; }
   /* narrow windows: the band uses the full width and the table scrolls */
-  @media (max-width: 720px) { #specpanel { right: 12px; max-height: 40vh; } }
+  @media (max-width: 720px) { #specpanel { max-width: calc(100vw - 24px); max-height: 40vh; } }
   /* the panel is ~108px narrower than its viewport (margins + the audio
      buttons), so it must shed the kit strip earlier than the shop overlay does
-     — measured: at a 1024px window the numbers fit and only Kit was clipped */
+     (measured: at a 1024px window the numbers fit and only Kit was clipped) */
   @media (max-width: 1128px) { #specpanel table.stats .c-kit { display: none; } }
   /* the per-round columns, told apart from their per-game twins by colour too */
   table.stats .g-round { color: var(--ok); }
@@ -529,7 +787,7 @@
   #topbar .r.dead { opacity: .45; }
   #topbar .r.spec { opacity: .5; }
   /* px, not em: the header sits at a smaller font size and em widths there
-     would be narrower than the rows' — the columns must line up */
+     would be narrower than the rows'; the columns must line up */
   #topbar .score { color: var(--parchment); width: 30px; text-align: right; }
   #topbar .gold { color: var(--gold); width: 46px; text-align: right; }
   #topbar .rgold { color: var(--ok); width: 38px; text-align: right; }
@@ -542,7 +800,7 @@
   }
 
   #toast {
-    /* above every overlay (shop, rebind popup) — a rebind-conflict toast has
+    /* above every overlay (shop, rebind popup); a rebind-conflict toast has
        to be readable over the shop backdrop */
     position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%);
     z-index: 210; pointer-events: none;
@@ -579,7 +837,7 @@
     max-height: 30vh; overflow-y: auto;
   }
   #errbanner::before { content: '✖ '; color: var(--blood); }
-  /* hosting online: you ARE the server — the one limitation worth a permanent,
+  /* hosting online: you ARE the server; the one limitation worth a permanent,
      quiet reminder at the top of the screen (waived B0 gate, Remi 2026-08-09) */
   #hostbar {
     background: rgba(20, 24, 14, .92);
@@ -597,14 +855,463 @@
   /* spectate toggle: "pressed" while watching */
   #spectateBtn.watching { border-color: var(--ember); color: var(--ember); background: var(--obsidian); }
 
-  /* rules toggle: same family as the spectate toggle, alchemical when elemental */
-  #modeBtn.elemental { border-color: #9b59b6; color: #c9a0e8; background: var(--obsidian); }
+  /* config column (round 22): quiet vertical toggles; "I'm ready" is the only
+     loud button in the lobby. A lit toggle brightens instead of changing hue. */
+  .cfgcol { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-width: 340px; }
+  .seg { display: flex; align-items: stretch; }
+  .seg .lbl { min-width: 64px; align-self: center; color: #9d9285; font-size: 13px; }
+  .seg button { flex: 1; padding: 6px 8px; color: #9d9285; }
+  .seg button + button { border-left: none; }
+  .seg button.on { border-color: #699b54; color: #dfffd1; background: rgba(105, 155, 84, .16); }
+  #rateBox { position: absolute; top: 12px; right: 16px; font-size: 19px; letter-spacing: 2px; user-select: none; }
+  #rateBox button { background: none; border: none; padding: 0 1px; cursor: pointer; color: #443728; font: inherit; text-shadow: none; }
+  #rateBox button.lit { color: #e8b83a; }
+  #lobbyRules summary { cursor: pointer; color: #b7a98f; }
+  #lobbyRules[open] { background: rgba(0,0,0,.22); padding: 6px 9px; }
+  #specpanel .sphead #specFoldBtn { margin-left: auto; }
+  #specpanel.folded .spbody { display: none; }
 
   /* element picked in the shop */
   .ware.sel { border-color: var(--gold); }
 
   /* chosen element badge on the fireball spell slot */
   .spell .elem { position: absolute; top: 1px; right: 3px; font-size: 11px; }
+
+  /* ---- The Gathering skin (issue #14, Sam's v4 pack) --------------------
+     Decoration only, all of it scoped to .slab.gathering: the art sits behind
+     the controls (z-index 0 vs 1) and never takes a pointer, so every button
+     keeps the hit box it had. Sizes are in CSS pixels, so a wider window
+     shows the same panel, not bigger art. */
+  /* v5 polish (Sam): steel blue-black instead of brown, and the loud ember top
+     border becomes the same bronze as the rest of the frame. */
+  .slab.gathering {
+    padding: 30px 34px 16px;
+    background: linear-gradient(180deg, #08111b, #060d16);
+    border: 1px solid rgba(197, 154, 88, .5);
+    border-top: 1px solid rgba(197, 154, 88, .5);
+    box-shadow: 0 16px 50px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255, 222, 164, .05);
+  }
+  .gathering .secttl {
+    color: #ebd7b2; font-size: 13px; letter-spacing: .16em;
+    border-bottom: 0; padding-bottom: 2px;
+  }
+  .gathering .sub, .gathering .hint { color: #b3a58c; }
+  .gathering .divider { opacity: 1; filter: saturate(1.15) brightness(1.1); }
+  /* segmented controls: dark steel when idle, olive-bronze when lit. No flat
+     green fill anywhere (Sam, v5). */
+  .gathering .seg button {
+    background: linear-gradient(#141d27, #0d141b);
+    border: 1px solid rgba(197, 154, 88, .38); color: #b8ab93;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .05);
+  }
+  .gathering .seg button.on {
+    background: linear-gradient(#4a4529, #262417);
+    border-color: rgba(214, 173, 100, .85); color: #f4e7c4;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .14), inset 0 -2px 0 #c8a05a;
+  }
+  .gathering .seg .lbl { color: #bda77f; }
+  .gathering .testinggold {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .38); color: #c3b292;
+    margin-left: auto; padding: 2px 6px; font-size: 11px; gap: 5px;
+  }
+  .gathering .testinggold input[type=text] { width: 46px; padding: 2px 4px; font-size: 12px; }
+  /* Browse the shop: secondary to READY, wearing the Midas artwork */
+  .gathering .mini.browse { display: flex; align-items: center; gap: 7px; justify-content: center; }
+  .gathering .mini.browse img { width: 20px; height: 20px; object-fit: contain; }
+  .slab.gathering > *:not(.gdecor) { position: relative; z-index: 1; }
+  .gdecor { pointer-events: none; user-select: none; }
+  .gathering .corner { position: absolute; top: 1px; width: 150px; z-index: 0; opacity: .95; }
+  .gathering .corner.left { left: 1px; }
+  .gathering .corner.right { right: 1px; }
+  .gathering .crest {
+    position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+    width: 340px; z-index: 0; opacity: .95;
+  }
+
+  .gathering .gtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  /* the copy stops short of the crest, and the gems drop below the rating
+     stars: both live in the top-right corner and must not share a line */
+  .gathering .gtop > :first-child { max-width: 380px; }
+  .gathering .gems { display: flex; gap: 5px; margin-top: 26px; flex: none; }
+  .gathering .gems img { width: 18px; height: 18px; object-fit: contain; }
+  /* YOU: portrait frame + actions + the READY plaque, one row that wraps */
+  .gathering .youblock { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 10px; }
+  /* Sam, explicitly: the ornate EMPTY frame is the treatment, and the player's
+     own avatar renders cleanly inside it. The painted characters stay demo art,
+     they never replace or restrict the avatar system. */
+  .gathering .portrait {
+    width: 124px; height: 124px; flex: none; display: grid; place-items: center;
+    background: url('../assets/ui/portraits/placeholder.png') center/contain no-repeat;
+    border: 0; padding: 0; cursor: pointer;
+  }
+  .gathering .portrait:hover { filter: brightness(1.12); }
+  .gathering .portrait:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+  /* v8.1 (Sam): the ONE square avatar. Everywhere else stays circular; here the
+     portrait fills the ornate frame's inner square, cover-cropped and centred,
+     so the artwork is not thrown away. */
+  /* v8.1 (Sam): the ONE SQUARE avatar. Everywhere else stays circular; here the
+     portrait fills the ornate frame's inner opening, cover-cropped and centred,
+     so none of the artwork is thrown away to a circle. */
+  .gathering .portrait #myAvatar { line-height: 0; display: block; width: 74%; height: 74%; }
+  .gathering .portrait #myAvatar .avbig {
+    width: 100%; height: 100%; border-radius: 0; box-shadow: none;
+    display: block; overflow: hidden;
+  }
+  .gathering .portrait #myAvatar .avbig > img { transform: none; object-fit: cover; }
+  /* v5.1 (Sam): Keys and Shop share one width, the avatar button spans both,
+     so the three read as one tidy block beside the portrait. */
+  .gathering .youacts {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px; align-content: center; min-width: 168px;
+  }
+  .gathering .youacts .mini { padding: 7px 8px; text-align: center; }
+  .gathering .youacts .mini.wide { grid-column: 1 / -1; }
+  /* the plaque IS the button face: its two states are the two images, and the
+     label stays in the DOM (screen readers, and main.js still writes it) */
+  /* v6.1 (Sam): the two ASSETS carry the state again, driven by the real ready
+     flag (.primary = not ready yet). The active plate is damped a little so it
+     reads as lit, not as a bloom. */
+  /* v7.2 (Sam): both plates render at the SAME width in the same box, so the
+     button never changes size when the state flips (the active art is taller
+     only because of its glow, which overflows harmlessly). */
+  /* v7.5 (Sam): ONE ready plaque, two states, used in the lobby and between
+     rounds. Both plates share a canvas, so the same box renders both with no
+     jump; the label stays in the DOM for screen readers. */
+  button.plaque2, .gathering #readyBtn.plaque {
+    width: 170px; height: 60px; padding: 0; border: 0; background: transparent;
+    background-image: url('../assets/ui/buttons/ready_off.png');
+    background-size: 170px auto; background-repeat: no-repeat; background-position: center;
+    color: transparent; text-shadow: none; overflow: visible; flex: none;
+  }
+  /* .primary means NOT ready yet, in both screens */
+  button.plaque2:not(.primary), .gathering #readyBtn.plaque:not(.primary) {
+    background-image: url('../assets/ui/buttons/ready_on.png');
+  }
+  button.plaque2:hover:not(:disabled), .gathering #readyBtn.plaque:hover {
+    filter: brightness(1.09) drop-shadow(0 0 6px rgba(150, 220, 120, .3));
+  }
+  button.plaque2:disabled { opacity: 1; }
+  button.plaque2:focus-visible, .gathering #readyBtn.plaque:focus-visible {
+    outline: 2px solid var(--ember); outline-offset: 2px;
+  }
+  .shopfoot { margin-top: 4px; align-items: center; gap: 12px; min-height: 60px; }
+  .gathering #readyBtn.plaque:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+  /* bot rows: the difficulty icon rides the add button (main.js adds the img) */
+  /* illustrated avatars (Sam v5): one size per site, always a round face so a
+     tile's own frame never fights the roster's rhythm */
+  /* v5.1 (Sam): identical crop everywhere. The span is the round window, the
+     img fills it with object-fit: cover and a small zoom that pushes the
+     tile's own painted border out of frame. No text ever lives in here. */
+  .av, #myAvatar .avbig {
+    display: inline-block; overflow: hidden; border-radius: 50%;
+    line-height: 0; flex: none;
+  }
+  .av > img, #myAvatar .avbig > img {
+    width: 100%; height: 100%; object-fit: cover; object-position: center;
+    transform: scale(1.13); display: block;
+  }
+  .av { width: 26px; height: 26px; vertical-align: -8px; }
+  #myAvatar .avbig {
+    width: 66px; height: 66px;
+    box-shadow: 0 0 0 1px rgba(197, 154, 88, .45);
+  }
+  /* the picker is part of the lobby now: same bronze frame, same steel ground,
+     no ember top edge (Sam v5) */
+  #avatarPanel .slab {
+    background: linear-gradient(180deg, #0a1420, #070f19);
+    border: 1px solid rgba(197, 154, 88, .5); border-top: 1px solid rgba(197, 154, 88, .5);
+  }
+  #avatarGrid button { padding: 4px; line-height: 0; border-color: rgba(197, 154, 88, .3); background: #0c141d; }
+  #avatarGrid button:disabled { opacity: .3; filter: grayscale(1); }
+  /* the ID above outranks .avgrid button.sel, so the chosen face needs its
+     own ID-level rule or the selection reads as nothing */
+  #avatarGrid button.sel { border-color: #d3a55e; box-shadow: 0 0 0 1px #d3a55e; background: #17202b; }
+  #avatarGrid .avpick { display: block; width: 74px; height: 74px; overflow: hidden; border-radius: 4px; line-height: 0; }
+  #avatarGrid .avpick > img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+  /* bot rows: Sam's v5 metrics (icon 24-26, row 40-44, select ~40) */
+  /* ---- v7.4 the entry screen (Sam) ------------------------------------- */
+  .slab.entry { padding: 30px 34px 24px; }
+  .entry h1.display {
+    font-size: 42px; letter-spacing: .1em; color: #f4e7c9;
+    text-shadow: 0 2px 26px rgba(255, 93, 31, .28);
+  }
+  .entry .sub {
+    margin: 8px 0 20px; font-size: 14.5px; line-height: 1.5; color: #b9ab92; max-width: 46ch;
+  }
+  /* the name is where the flow starts, so it reads as one block with the doors */
+  .entry .namefield {
+    display: block; padding: 9px 12px 10px;
+    background: #0b131d; border: 1px solid rgba(197, 154, 88, .4);
+    border-bottom: 0;
+  }
+  .entry .namefield .pclbl { display: block; margin-bottom: 3px; }
+  .entry .namefield input[type=text] {
+    width: 100%; padding: 4px 0; background: none; border: 0; font-size: 17px; color: #f2e6c8;
+  }
+  .entry .namefield:focus-within { border-color: #d3a55e; }
+  .entry .doors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px;
+    background: #0b131d; border: 1px solid rgba(197, 154, 88, .4); border-top: 0; }
+  .entry .door {
+    padding: 14px 12px; font-size: 15.5px; font-weight: 600; letter-spacing: .02em;
+    background: linear-gradient(180deg, #5a4a2c, #2c2418);
+    border: 1px solid rgba(214, 173, 100, .8); color: #f6e8c6;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .16);
+  }
+  .entry .door:hover {
+    background: linear-gradient(180deg, #6d5a34, #3a2f1d); border-color: #e8c65a; color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .22), 0 0 14px rgba(232, 198, 90, .22);
+  }
+  .entry .door:active { transform: translateY(1px); }
+  .entry .nosrv { font-size: 13px; color: #a8998a; margin-top: 12px; }
+  /* the version picker: quieter than the doors, and in the panel's own palette
+     (version-menu.js injects its style at runtime, so this needs the #join id
+     to win without touching the shared platform file) */
+  #join #owv-join {
+    margin-top: 14px; padding: 9px 12px; gap: 10px;
+    background: rgba(12, 20, 30, .6); border: 1px solid rgba(197, 154, 88, .3);
+    color: #b3a58c; font: 13px ui-sans-serif, system-ui, sans-serif;
+  }
+  #join #owv-join button {
+    padding: 7px 12px; font-size: 13.5px; color: #ecdab8;
+    background: linear-gradient(#141d27, #0d141b); border: 1px solid rgba(197, 154, 88, .45);
+  }
+  #join #owv-join button:hover { border-color: #d3a55e; color: #fff; }
+  /* the AI panel stays available and stops competing with the doors */
+  .entry .ideaPitch {
+    margin-top: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45;
+    background: rgba(12, 20, 30, .55); border: 1px solid rgba(197, 154, 88, .22);
+    color: #ab9d8a;
+  }
+  .entry .ideaPitch a.ideaLink {
+    background: linear-gradient(#171f27, #0f151c); border-color: rgba(197, 154, 88, .35);
+    color: #e2d1af; font-size: 12.5px;
+  }
+  .entry #manifesto { margin-top: 12px; font-size: 12.5px; }
+  .entry #manifesto summary { color: #93867a; }
+  .entry #manifesto p { color: #ab9d8a; line-height: 1.5; }
+
+  /* ---- v7.2 modals in The Gathering's language (Sam) ------------------- */
+  .slab.gpanel {
+    background: linear-gradient(180deg, #0a1420, #070f19);
+    border: 1px solid rgba(197, 154, 88, .5); border-top: 1px solid rgba(197, 154, 88, .5);
+    padding: 24px 28px;
+  }
+  .gpanel h1.display { color: #f2e3c2; }
+  .gpanel .secttl {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    font-size: 17px; letter-spacing: .1em; text-transform: none; color: #f0dcb6;
+    border-bottom: 1px solid rgba(197, 154, 88, .3); padding-bottom: 4px; margin-bottom: 8px;
+  }
+  /* key: meaning rows, used by both blocks of the rules modal */
+  .deflist > div {
+    display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px;
+    align-items: baseline; padding: 5px 2px; border-bottom: 1px solid rgba(197, 154, 88, .12);
+  }
+  .deflist kbd {
+    justify-self: start; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .38); border-radius: 3px; padding: 2px 7px;
+  }
+  .deflist b { color: #e6d3ac; font-weight: 600; }
+  .deflist span { color: #b9ab92; }
+  /* keys panel: illustrated spell art, layout presets */
+  .kart { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; }
+  .kart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .kart.noart { font-size: 20px; }
+  .gpanel .preset { border-color: rgba(197, 154, 88, .45); }
+  /* bot modal: tabs + compact cards */
+  .tabs { display: flex; gap: 6px; margin: 6px 0 12px; }
+  .tabs .tab {
+    padding: 7px 16px; background: linear-gradient(#141d27, #0d141b);
+    border: 1px solid rgba(197, 154, 88, .35); color: #b8ab93;
+  }
+  .tabs .tab.on {
+    background: linear-gradient(#4a4529, #262417); border-color: rgba(214, 173, 100, .85);
+    color: #f4e7c4; box-shadow: inset 0 -2px 0 #c8a05a;
+  }
+  .botcards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+  .botcard {
+    display: flex; gap: 11px; align-items: flex-start; padding: 9px 11px;
+    background: rgba(12, 20, 30, .6); border: 1px solid rgba(197, 154, 88, .25);
+  }
+  .botcard .dicon { width: 30px; height: 30px; object-fit: contain; flex: none; }
+  .bcname { font-size: 14px; color: #f0e2c0; font-weight: 600; }
+  .bcarch { color: #a0917a; font-weight: 400; font-size: 12px; margin-left: 7px; }
+  .bcdesc { color: #bcae96; font-size: 13px; line-height: 1.45; margin-top: 3px; }
+  .bicons { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+  .biart { display: inline-grid; place-items: center; width: 26px; height: 26px;
+    border: 1px solid rgba(197, 154, 88, .25); background: rgba(255,255,255,.03); }
+  .biart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .biart.noart { font-size: 16px; }
+
+  /* ---- v6.2 three-column lobby (Sam) ----------------------------------- */
+  /* YOU | MATCH SETTINGS | ADD BOTS on one baseline; WARLOCKS spans below. The
+     columns are ~34 / 30 / 36 and every one starts with title + divider, so the
+     three headings and the three ornaments line up across the row. */
+  .gathering .cols3 {
+    display: grid; gap: 10px 26px; align-items: start;
+    grid-template-columns: 38fr 34fr 28fr;
+  }
+  .gathering .gcol { display: flex; flex-direction: column; min-width: 0; }
+  .gathering .gcol > .secttl { margin-top: 0; }
+  /* a guest has no bot panel: the row rebalances instead of leaving a hole */
+  .gathering .cols3:has(#botPanel.hidden) { grid-template-columns: 1fr 1fr; }
+  /* v8.1 (Sam): the rows are only as wide as the little they contain */
+  .gathering .cols3 .botpicker { max-width: 178px; }
+  @media (max-width: 980px) {
+    .gathering .cols3 { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* ---- v6 information hierarchy (Sam) --------------------------------- */
+  .gathering #matchLine { font-size: 14.5px; color: #d3c4a6; letter-spacing: .02em; margin: 6px 0 0; display: inline; }
+  .gathering #rulesBtn { margin-left: 10px; padding: 4px 10px; vertical-align: 1px; }
+  /* the rating stars sit INSIDE the panel now, clear of the corner filigree */
+  .gathering #rateBox {
+    position: static; flex: none; align-self: flex-start;
+    margin: 16px 0 0; padding: 4px 8px; font-size: 16px; letter-spacing: 3px;
+    border: 1px solid rgba(197, 154, 88, .28); background: rgba(10, 18, 28, .75);
+  }
+  /* YOU as a player card */
+  /* v6.2 (Sam): in a ~330px column the card stacks instead of wrapping oddly:
+     portrait and name on one line, then the presence toggle, then READY. */
+  .gathering .youblock {
+    padding: 12px; border: 1px solid rgba(197, 154, 88, .3);
+    background: rgba(12, 20, 30, .55);
+    display: grid; grid-template-columns: auto minmax(0, 1fr);
+    align-items: center; gap: 10px 14px;
+  }
+  .gathering .youacts {
+    display: flex; flex-direction: column; align-items: stretch; justify-content: center;
+    gap: 8px; min-width: 0; height: 100%;
+  }
+  /* the presence toggle starts where the name starts: no dead column before it */
+  .gathering .youacts #specSeg { width: 100%; }
+  .gathering .youacts #specSeg::before { content: none; }
+  .gathering .youacts #specSeg button { padding: 8px 6px; }
+  .gathering #readyBtn.plaque { grid-column: 1 / -1; justify-self: center; }
+  .gathering .pcname {
+    font-size: 18px; font-weight: 600; color: #f2e3c2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .gathering .pcrow { display: flex; align-items: center; gap: 8px; }
+  .gathering .pclbl { font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: #b3a58c; }
+  .gathering #myTeamSlot select {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .35);
+    color: inherit; font: inherit; font-size: 13px; padding: 3px 5px;
+  }
+  .gathering .pcrow .mini { margin-left: auto; }
+  /* one clickable state per setting */
+  .gathering .setting {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 12px; background: linear-gradient(#141d27, #0d141b);
+    border: 1px solid rgba(197, 154, 88, .38); color: #cbbb9c;
+  }
+  .gathering .setting b { font-size: 13px; letter-spacing: .05em; color: #b3a58c; }
+  .gathering .setting.on b { color: #e8d09a; }
+  .gathering .setting.on { border-color: rgba(214, 173, 100, .7); box-shadow: inset 0 -2px 0 #c8a05a; }
+  .gathering .setting.locked { pointer-events: none; opacity: .6; }
+  /* ADD BOTS without the strategy column */
+  .gathering .botgroup { grid-template-columns: minmax(0, 1fr); }
+  /* v6.1 (Sam): the rows are the add action, so they no longer need the full
+     column: roughly half the old width, still comfortably clickable. */
+  .gathering .botpicker { max-width: 172px; }
+  .gathering .infobtn {
+    padding: 0 6px; margin-left: 6px; font-size: 13px; line-height: 1.4;
+    background: none; border: 1px solid rgba(197, 154, 88, .38); color: #cbbb9c;
+    vertical-align: 2px;
+  }
+  .gathering .infobtn:hover { border-color: #d3a55e; color: #fff; }
+  /* WARLOCKS: bigger faces, ready-only light, per-bot strategy */
+  .gathering #playerList .av.big { width: 38px; height: 38px; vertical-align: -12px; }
+  .gathering #playerList .dot {
+    width: 11px; height: 11px; background: #b7503a; box-shadow: 0 0 7px rgba(183, 80, 58, .5);
+  }
+  .gathering #playerList .dot.ready { background: #8dd46d; box-shadow: 0 0 7px rgba(141, 212, 109, .55); }
+  .gathering #playerList .nm { font-size: 15px; color: #f0e2c0; }
+  .gathering #playerList .buildsel select {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .35); color: #cbbb9c;
+    font: inherit; font-size: 12px; padding: 3px 6px; max-width: 130px;
+  }
+  .gathering .count { color: #a0917a; font-size: 13px; letter-spacing: .06em; }
+
+  /* ---- v5.1 polish (Sam's passes: top area, hierarchy, typography,
+     alignment, density). Colour, spacing and type only: no control moved,
+     nothing renamed, no behaviour touched. ------------------------------- */
+  /* top area: the title breathes, the stars and the gems read as ONE cluster
+     pinned to the corner instead of two floating bits */
+  .gathering h1.display { font-size: 27px; letter-spacing: .11em; color: #f2e3c2; text-shadow: 0 2px 14px rgba(0,0,0,.6); }
+  .gathering .gtop { align-items: flex-start; }
+  .gathering .gtop .sub { margin: 5px 0 6px; line-height: 1.4; color: #b9ab92; }
+  .gathering .gems {
+    display: flex; gap: 6px; margin: 30px 0 0; padding: 5px 7px;
+    border: 1px solid rgba(197, 154, 88, .28); background: rgba(10, 18, 28, .75);
+  }
+  .gathering #rateBox { top: 10px; right: 14px; }
+  /* section hierarchy: serif small-caps title, then the divider, then content.
+     All three sections use the SAME divider art at the same height. */
+  .gathering .secttl {
+    font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps;
+    font-size: 17px; font-weight: 500; letter-spacing: .1em; text-transform: none;
+    color: #f0dcb6; margin: 0 0 5px;
+  }
+  .gathering .divider { display: block; width: auto; height: 12px; max-width: 100%;
+    object-fit: contain; object-position: left center; margin: 0 0 6px; }
+  /* ADD BOTS: one grid for the header and every row, so the two columns line
+     up exactly; tighter gaps for density */
+  .gathering .botcols {
+    padding: 0 2px 5px; font-size: 11px; letter-spacing: .06em; color: #b3a58c;
+  }
+  .gathering #botBtns { gap: 5px; }
+  .gathering .botadd { font-size: 14px; padding: 0 10px; }
+  /* WARLOCKS: stronger rows, even rhythm, secondary text lifted out of the mud */
+  .gathering #playerList .pl {
+    gap: 11px; padding: 6px 10px; min-height: 40px;
+    border-bottom: 1px solid rgba(197, 154, 88, .16);
+    background: linear-gradient(90deg, rgba(255,255,255,.022), rgba(255,255,255,0));
+  }
+  .gathering #playerList .pl:first-child { border-top: 1px solid rgba(197, 154, 88, .16); }
+  .gathering #playerList .who { font-size: 14px; color: #ecdcb8; }
+  .gathering #playerList .stars { color: #a2947c; font-size: 12px; }
+  .gathering #playerList .state { font-size: 12.5px; letter-spacing: .03em; color: #bcae96; }
+  .gathering #playerList .state.ready { color: #a8c77e; }
+  .gathering #playerList .teamsel, .gathering #playerList .teamchip { font-size: 12px; color: #a89a83; }
+  .gathering #playerList .pl::after { content: ''; width: 34px; flex: none; order: 99; }
+  .gathering #playerList .pl:has(button.kick)::after { display: none; }
+  .gathering #playerList .teamsel select {
+    background: #0c141d; border: 1px solid rgba(197, 154, 88, .35); padding: 2px 4px;
+  }
+  /* footer: same frame language as the panel, sitting right under the roster */
+  .gathering .ideaPitch { gap: 12px; padding: 7px 12px 7px 68px; font-size: 12.5px; color: #b3a58c; margin-top: 8px; }
+  .gathering .ideaPitch a.ideaLink {
+    background: linear-gradient(#20262e, #11171d); border: 1px solid rgba(197, 154, 88, .45);
+    color: #efdcb6; padding: 7px 12px;
+  }
+  .gathering .ideaPitch a.ideaLink:hover { border-color: #d3a55e; color: #fff; }
+  /* density: the two columns start at the same baseline and the whole panel
+     loses the leftover vertical slack */
+  .gathering .cols2 { gap: 6px 30px; align-items: start; }
+  .gathering .cfgcol { gap: 7px; margin-top: 0; max-width: 100%; }
+  /* the presence toggle has no label of its own: reserve the same label
+     column so every switch in the block starts on one vertical line */
+  .gathering #specSeg::before { content: ''; min-width: 64px; flex: none; }
+  .gathering #lobbyRules { margin-top: 6px; }
+  .gathering .hint { margin-top: 6px; }
+  .gathering .botadd { white-space: nowrap; min-height: 38px; display: flex; align-items: center;
+    padding: 0 8px; font-size: 13.5px; }
+  .gathering select.botsel { height: 40px; font-size: 13px; }
+  .gathering #botBtns { gap: 6px; }
+  .gathering .botadd .dicon { width: 22px; height: 22px; object-fit: contain; margin-right: 7px; }
+  /* the seal IS the experimental mark here, so the text chip stands down */
+  .gathering #playerList { margin-bottom: 0; }
+  .gathering .ideaPitch { position: relative; min-height: 58px; padding-left: 66px; margin-top: 8px;
+    background: rgba(197, 154, 88, .05); border-color: rgba(197, 154, 88, .35); }
+  .gathering .ideaPitch .experimental { display: none; }
+  .gathering .ideaPitch .seal { position: absolute; left: -4px; top: 50%; transform: translateY(-50%); width: 66px; }
+  @media (max-width: 700px) {
+    .gathering .crest { width: 220px; }
+    .gathering .corner { width: 104px; }
+    .gathering .ideaPitch { padding-left: 62px; }
+    .gathering .ideaPitch .seal { width: 62px; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -618,7 +1325,7 @@
   <div id="connbanner" class="banner hidden"></div>
   <div id="errbanner" class="banner hidden" title="Click to dismiss"></div>
   <div id="hostbar" class="banner hidden">
-    <span>📡 You are the server — <b>keep this tab open</b> (closing it ends the game for everyone)</span>
+    <span>📡 You are the server: <b>keep this tab open</b> (closing it ends the game for everyone)</span>
     <b id="hostCode" class="hidden"></b>
     <button id="copyLinkBtn" class="mini" type="button" title="Copy the link your friends open to join">🔗 Copy invite link</button>
     <button id="hostLogBtn" class="mini" type="button" title="Download this game's debug journal (kept in memory)">⬇ log</button>
@@ -634,38 +1341,43 @@
     <div class="sphead">
       <span class="sptitle">👁 Live standings</span>
       <span class="spsub" id="specSub"></span>
+      <button id="specFoldBtn" class="mini" type="button" title="Collapse. Watch the fight, reopen any time">▾</button>
     </div>
     <div class="spbody"><table id="specStats" class="stats"></table></div>
   </div>
 </div>
 
-<div id="tip" class="hidden"></div>
+<div id="tip" class="tipbox hidden"></div>
 
 <div id="join" class="overlay">
-  <div class="slab" style="--w:560px">
+  <!-- v7.4 (Sam): the front door. Title block, one line of pitch, the name as
+       the start of the flow, then the two doors; everything else is quieter
+       than they are. Visual only: the ids and the flow are untouched. -->
+  <div class="slab gpanel entry" style="--w:600px">
     <h1 class="display">Open<span class="flame">Warlock</span></h1>
-    <p class="sub">Last warlock standing wins the round. The lava is patient.</p>
-    <div class="row">
-      <input id="name" type="text" maxlength="16" placeholder="Your warlock's name" autocomplete="off" style="flex:1">
-    </div>
+    <p class="sub">A duel of fireballs on a shrinking island. Last warlock standing wins the round, and the lava is patient.</p>
+    <label class="namefield">
+      <span class="pclbl">Your warlock</span>
+      <input id="name" type="text" maxlength="16" placeholder="Name yourself" autocomplete="off">
+    </label>
     <!-- Two equal-billing doors (Remi, round 19.4): one big Enter buried the
-         host flow — you clicked it and had already missed your chance to
+         host flow; you clicked it and had already missed your chance to
          host. joinBtn's label is set honestly per the probed transport. -->
-    <div class="row" style="margin-top:10px">
-      <button id="joinBtn" class="primary" style="flex:1">Play</button>
-      <button id="hostBtn" class="primary" style="flex:1"
-        title="Open a room and get a link your friends can join over peer-to-peer — this tab becomes the game server, so keep it open">📡 Host online</button>
+    <div class="doors">
+      <button id="joinBtn" class="primary door">Play</button>
+      <button id="hostBtn" class="primary door"
+        title="Open a room and get a link your friends can join over peer-to-peer. This tab becomes the game server, so keep it open">📡 Host online</button>
     </div>
-    <div class="avgrid" id="avatarGrid" aria-label="Choose your avatar"></div>
     <p class="hint hidden" id="netMode"></p>
-    <p class="hint">
-      <kbd>right-click</kbd> move &nbsp;·&nbsp; <span id="joinKeyHint"></span>
-      cast at cursor &nbsp;·&nbsp; knock enemies into the lava
-    </p>
-    <p class="hint" style="margin-top:8px"><button id="joinKeysBtn" class="mini" type="button">⌨ Keys</button> non-QWERTY? rebind your spell keys</p>
+    <!-- Round 22 (Remi): the first screen carries only the two doors. Avatar,
+         keys and control hints live in the lobby, where players settle in.
+         Joining a friend's game needs no button: it is a link. Exact wording
+         below is Remi's. -->
+    <p class="hint nosrv">No server here, by design: play solo, host for your
+      friends, or get invited by someone who hosts.</p>
     <div class="ideaPitch">
       <span class="experimental">experimental</span>
-      <span>Have an idea to improve the game? An AI agent will create a version in your name using your ideas.</span>
+      <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
       <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write it here ↗</a>
       <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues?q=is%3Aissue%20state%3Aclosed" target="_blank" rel="noopener">See completed ideas ↗</a>
     </div>
@@ -685,79 +1397,190 @@
 </div>
 
 <div id="lobby" class="overlay hidden">
-  <div class="slab" style="--w:960px">
-    <h1 class="display" style="font-size:26px">The Gathering</h1>
-    <p class="sub">Round starts when every warlock is ready (2+ fighters; bots count).<br>
-      <span id="lobbyFormat"></span></p>
+  <!-- issue #14 (Sam v4): the ornate skin is decoration ONLY. Every control
+       below keeps the id and the handler it already had; the art is
+       pointer-events:none so it can never eat a click. -->
+  <div class="slab gathering" style="--w:1260px; position:relative">
+    <img class="gdecor corner left" src="../assets/ui/decor/corner_top_left.png" alt="">
+    <img class="gdecor corner right" src="../assets/ui/decor/corner_top_right.png" alt="">
+    <img class="gdecor crest" src="../assets/ui/decor/top_crest.png" alt="">
+    <!-- v6 (Sam): ONE summary line instead of the intro paragraph, and the rules
+         wall lives behind a button now (the key bindings moved in there too).
+         The rating stars sit in the header FLOW, inward and below the corner
+         filigree, so they read as UI and not as part of the frame. -->
+    <div class="gtop">
+      <div>
+        <h1 class="display" style="font-size:26px">The Gathering</h1>
+        <p class="sub" id="matchLine"></p>
+        <button id="rulesBtn" class="mini" type="button">&#9432; Rules &amp; controls</button>
+      </div>
+      <div id="rateBox" title="Rate this version (the average shows in the version list)"></div>
+    </div>
     <div class="scroller">
       <!-- Controls FIRST, the growing player list LAST (Remi: clicking an
            add-bot button must never shift the other buttons under the cursor).
            The list also reserves its height for a full lobby, same reason. -->
-      <div class="cols2">
-        <div>
+      <!-- v6.2 (Sam): YOU | MATCH SETTINGS | ADD BOTS on one baseline, WARLOCKS
+           full width underneath. -->
+      <div class="cols3">
+        <div class="gcol">
           <h2 class="secttl">You</h2>
-          <div class="row">
-            <button id="readyBtn" class="primary">I am ready</button>
-            <button id="spectateBtn" type="button" aria-pressed="false" title="Watch from the sidelines — spectators never spawn">Playing ⚔</button>
-            <button id="lobbyKeysBtn" class="mini" type="button">⌨ Keys</button>
+          <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
+          <div class="youblock">
+            <!-- v6.1 (Sam): the portrait itself is the avatar picker button, and
+                 team lives only on your row in the warlock list. -->
+            <button id="avatarBtn" class="portrait" type="button"
+              title="Your avatar: click to change it">
+              <span id="myAvatar"></span>
+            </button>
+            <div class="youacts">
+              <div class="pcname" id="myName"></div>
+              <div class="seg" id="specSeg" title="Spectators watch from the sidelines and never spawn.">
+                <button type="button" data-v="play">Playing</button><button type="button" data-v="watch">Watching</button>
+              </div>
+              <button id="shopBrowseBtn" class="mini browse" type="button"
+                title="Browse everything the shop sells (buying still happens between rounds)"><img src="../assets/ui/shop/midas.png" alt=""> Browse the shop</button>
+            </div>
+            <button id="readyBtn" class="primary plaque">I am ready</button>
           </div>
-          <div class="row" style="margin-top:10px">
-            <button id="modeBtn" type="button" aria-pressed="false"
-              title="Elemental (the default): the fireball itself never levels — eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…). Three levels each. Applies to everyone.">Rules: ⚗️ Elemental</button>
-            <button id="draftBtn" type="button" aria-pressed="false"
-              title="Draft (experimental): half of everything — spells, items and elements together — leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">Draft: off</button>
-            <button id="testingBtn" type="button" aria-pressed="false"
-              title="Testing sandbox: everyone starts with the gold you set and the game opens in an UNTIMED shop — inspect anything, build a combo, ready up to fight. Combines with elemental and classic.">Testing: off</button>
-            <label id="testingGoldWrap" class="testinggold hidden">Everyone starts with
-              <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
-                aria-label="Starting gold per player"> gold
-            </label>
+
+        </div>
+        <div class="gcol">
+          <!-- v6 (Sam): one compact clickable state per setting. The button NAMES
+               the current value and a click flips it; the server is still the
+               authority, so the label only changes when the snapshot says so. -->
+          <h2 class="secttl">Match settings</h2>
+          <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
+          <div class="cfgcol">
+            <button class="setting" id="modeSet" type="button"
+              title="Elemental (the default): the fireball itself never levels. Eleven stackable elements ARE its upgrades, one axis each (damage, push, cadence, size, speed…), three levels each. Classic keeps the 3-level fireball. Applies to everyone.">
+              <span class="pclbl">Rules</span><b></b></button>
+            <button class="setting" id="draftSet" type="button"
+              title="Draft (experimental): half of everything (spells, items and elements together) leaves the shop for this game and becomes a draft pool. Every few rounds everyone gets a FREE pick of three from it. Combines with any ruleset.">
+              <span class="pclbl">Draft</span><b></b></button>
+            <button class="setting" id="testSet" type="button"
+              title="Testing sandbox: everyone starts with the gold you set and the game opens in an UNTIMED shop. Inspect anything, build a combo, ready up to fight.">
+              <span class="pclbl">Testing</span><b></b>
+              <!-- v7.2 (Sam): the starting gold rides in the Testing row itself.
+                   It is a LABEL inside a button, so the input's clicks must not
+                   bubble up and toggle testing back off. -->
+              <span id="testingGoldWrap" class="testinggold hidden">Start gold:
+                <input id="testingGold" type="text" inputmode="numeric" value="100" maxlength="3"
+                  aria-label="Starting gold per player">
+              </span></button>
+            <button class="setting" id="chatSet" type="button"
+              title="Avatars occasionally say short lines when things happen (hits, kills, a swim). Cosmetic only.">
+              <span class="pclbl">Reactions</span><b></b></button>
+            <div id="hostHint" class="hint hidden">The host sets the rules and the bots.</div>
           </div>
         </div>
-        <div>
-          <h2 class="secttl">Add bots</h2>
+        <div id="botPanel" class="gcol">
+          <h2 class="secttl">Add bots
+            <button id="botHelpBtn" class="infobtn" type="button"
+              title="Bot difficulties &amp; strategies explained">&#9432;</button></h2>
+          <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
           <div class="botpicker">
-            <div class="botcols"><span>Difficulty</span><span>Strategy</span></div>
             <div id="botBtns"></div>
           </div>
           <div class="row" id="botRow" style="margin-top:8px">
-            <button id="removeBotBtn" class="mini" type="button">Remove bot</button>
+            <!-- the global "Remove bot" button is gone (round 22): every bot
+                 row in the Warlocks list carries its own ✕ -->
             <button id="unbanBtn" class="mini hidden" type="button" title="Lift all lobby bans">Unban all</button>
           </div>
-          <details id="botHelp" class="hint">
-            <summary>Bot difficulties &amp; strategies explained</summary>
-            <div id="botHelpBody"></div>
-          </details>
+
         </div>
       </div>
       <div id="lobbyHost" class="hostcard hidden">
-        <div>📡 You are the server — <b>keep this tab open</b> (closing it ends the game for everyone)</div>
+        <div>📡 You are the server: <b>keep this tab open</b> (closing it ends the game for everyone)</div>
         <div id="lobbyInviteUrl" class="hosturl"></div>
         <button id="copyLobbyLinkBtn" class="mini" type="button" style="margin-top:7px">🔗 Copy invite link</button>
       </div>
-      <h2 class="secttl" style="margin-top:14px">Warlocks</h2>
-      <div id="playerList" style="min-height:216px"></div>
+      <h2 class="secttl" style="margin-top:14px">Warlocks <span id="plCount" class="count"></span></h2>
+      <img class="gdecor divider" src="../assets/ui/decor/divider_short.png" alt="">
+      <div id="playerList"></div>
+      <div class="ideaPitch">
+        <img class="gdecor seal" src="../assets/ui/decor/experimental_badge.png" alt="">
+        <span class="experimental">experimental</span>
+        <span>Have an idea to improve the game? An AI agent will create a version in your name. <span style="opacity:.75">(wait ≈ 1 hour)</span></span>
+        <a class="ideaLink" href="https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md" target="_blank" rel="noopener">Write it here ↗</a>
+      </div>
     </div>
-    <p class="hint" id="lobbyHint"></p>
   </div>
 </div>
 
 <div id="shop" class="overlay hidden">
-  <div class="slab" style="--w:1500px">
+  <div class="slab" style="--w:1860px">
     <div class="head">
       <h1 class="display">The Shop</h1>
       <span id="shopGold" class="num">0 g</span>
       <span id="shopTimer" class="num"></span>
-      <button id="shopPauseBtn" title="Freeze the shop clock — you can still buy, and everyone readying up still starts the round">⏸ Pause</button>
+      <button id="shopPauseBtn" title="Freeze the shop clock. You can still buy, and everyone readying up still starts the round">⏸ Pause</button>
+      <button id="shopUndoBtn" type="button" disabled
+        title="Refund your last purchase (misclick insurance: only buys from THIS shop can be undone)">↩ Undo</button>
+      <button id="shopCloseBtn" class="mini hidden" type="button">✕ Close</button>
     </div>
     <p class="sub" id="shopSub"></p>
     <div class="scroller">
-      <table id="shopStats" class="stats"></table>
-      <p class="hint" id="shopIncome" style="margin:10px 0 12px"></p>
+      <p class="hint" id="shopIncome" style="margin:0 0 6px"></p>
       <div class="shopgrid" id="shopGrid"></div>
     </div>
-    <div class="row" style="margin-top:14px">
-      <button id="shopReadyBtn" class="primary" style="flex:1">Ready — next round</button>
+    <!-- v7.5 (Sam): no full-width bar. The between-round ready action is the
+         same plaque as the lobby's, compact, on the right. -->
+    <div class="row shopfoot">
+      <span class="hint" style="margin:0">Hold <kbd>Tab</kbd> for the scoreboard</span>
+      <span style="flex:1"></span>
+      <span class="hint" id="shopReadyCount" style="margin:0"></span>
+      <button id="shopReadyBtn" class="primary plaque2">Ready: next round</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tab scoreboard (round 22.3): hold Tab in shop, countdown or battle for the
+     live standings. pointer-events off so a held key never blocks a click. -->
+<div id="scorepanel" class="hidden">
+  <div class="scoreslab"><table id="scoreStats" class="stats"></table></div>
+</div>
+
+<!-- v6 (Sam): the rules wall and the control line live behind one button now.
+     The key bindings stay reachable from here: a non-QWERTY player must always
+     be able to rebind (round 21.7 scar). -->
+<div id="botHelpPop" class="overlay hidden">
+  <div class="slab gpanel" style="--w:860px">
+    <h1 class="display" style="font-size:24px">Bots</h1>
+    <div class="tabs" id="botTabs">
+      <button type="button" class="tab on" data-tab="diff">Difficulties</button>
+      <button type="button" class="tab" data-tab="strat">Strategies</button>
+    </div>
+    <div class="scroller"><div id="botHelpBody"></div></div>
+    <div class="row" style="margin-top:14px; justify-content:flex-end">
+      <button id="botHelpCloseBtn" class="primary" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="rulesPop" class="overlay hidden">
+  <div class="slab gpanel" style="--w:660px">
+    <h1 class="display" style="font-size:24px">Rules &amp; controls</h1>
+    <div class="scroller">
+      <h2 class="secttl">Controls</h2>
+      <div class="deflist" id="controlsHint"></div>
+      <button id="lobbyKeysBtn" class="mini" type="button" style="margin-top:10px">&#9000; Key bindings</button>
+      <h2 class="secttl" style="margin-top:18px">Match rules</h2>
+      <div class="deflist" id="lobbyRulesBody"></div>
+    </div>
+    <div class="row" style="margin-top:16px; justify-content:flex-end">
+      <button id="rulesCloseBtn" class="primary" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="avatarPanel" class="overlay hidden">
+  <div class="slab" style="--w:640px">
+    <h1 class="display" style="font-size:24px">Your Avatar</h1>
+    <p class="sub">One face per warlock. Greyed ones are taken in this lobby.</p>
+    <div class="scroller"><div class="avgrid" id="avatarGrid"></div></div>
+    <div class="row" style="margin-top:16px">
+      <button id="avatarCloseBtn" type="button">Close</button>
     </div>
   </div>
 </div>
@@ -773,13 +1596,14 @@
 </div>
 
 <div id="keysPanel" class="overlay hidden">
-  <div class="slab" style="--w:640px">
+  <div class="slab gpanel" style="--w:720px">
     <h1 class="display" style="font-size:24px">Spell Keys</h1>
     <p class="sub">Click a binding, then press any key. <kbd>Esc</kbd> cancels. A key already in use is swapped.</p>
     <div class="scroller"><div id="keyList"></div></div>
     <div class="row" style="margin-top:16px">
-      <button id="presetQwerty" type="button">QWERTY</button>
-      <button id="presetAzerty" type="button">AZERTY</button>
+      <span class="pclbl" style="align-self:center">Layout</span>
+      <button id="presetQwerty" class="preset" type="button">&#9000; QWERTY</button>
+      <button id="presetAzerty" class="preset" type="button">&#9000; AZERTY</button>
       <span style="flex:1"></span>
       <button id="keysCloseBtn" class="primary" type="button">Done</button>
     </div>
@@ -790,7 +1614,7 @@
 <div id="rebind" class="overlay hidden">
   <div class="slab" style="--w:420px">
     <p id="rebindMsg" style="font-size:16px; margin:4px 0 10px"></p>
-    <p class="hint" style="margin-top:0">Any key works — if it is taken, the two spells swap.
+    <p class="hint" style="margin-top:0">Any key works. If it is taken, the two spells swap.
       <kbd>Esc</kbd> or a click outside cancels.</p>
   </div>
 </div>
@@ -801,7 +1625,7 @@
     <p class="sub" id="goWinner"></p>
     <div class="scroller"><table id="standings" class="stats"></table></div>
     <div class="row" style="margin-top:16px">
-      <span class="hint" style="margin:0; flex:1">Take your time — this stays up until you click.</span>
+      <span class="hint" style="margin:0; flex:1">Take your time. This stays up until you click.</span>
       <button id="againBtn" class="primary" style="padding:12px 28px; font-size:16px">Continue</button>
     </div>
   </div>
@@ -836,7 +1660,7 @@
 </div>
 
 <!-- relative on purpose: this page must load from the Node server AND from a
-     static subpath host (GitHub Pages) — see docs/BRIEF-browser-hosting.md §A4 -->
+     static subpath host (GitHub Pages); see docs/BRIEF-browser-hosting.md §A4 -->
 <script src="../version-menu.js" defer></script>
 <script type="module" src="./main.js"></script>
 </body>

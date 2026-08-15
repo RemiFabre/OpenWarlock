@@ -11,8 +11,10 @@
   style.textContent = `
     #owv-button{position:fixed;right:48px;bottom:72px;z-index:205;width:34px;height:30px;padding:0;border-radius:50%;background:rgba(31,57,31,.92);border:1px solid #699b54;color:#dfffd1;font:16px serif;cursor:pointer}
     #owv-button:hover{background:#294b29;color:#fff}
-    #owv-join{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 11px;background:rgba(105,155,84,.08);border:1px solid #365132;color:#9d9285;font:12px Georgia,serif}
-    #owv-join button{margin-left:auto;padding:4px 9px;color:#e8dcc8;white-space:nowrap}
+    #owv-join{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;background:rgba(105,155,84,.13);border:1px solid #699b54;color:#c9c0ad;font:13px Georgia,serif}
+    #owv-join button{margin-left:auto;padding:7px 12px;color:#e8dcc8;font-size:14px;white-space:nowrap;cursor:pointer}
+    .owv-stats{grid-column:1;color:#c9b98a;font-size:12px;letter-spacing:1px}
+    .owv-stats .owv-dim{color:#9d9285;letter-spacing:0}
     #owv-overlay{position:fixed;inset:0;z-index:230;display:none;place-items:center;padding:18px;background:rgba(5,3,3,.88);font:14px/1.45 Georgia,serif;color:#e8dcc8}
     #owv-overlay.open{display:grid}
     #owv-panel{box-sizing:border-box;width:min(620px,100%);max-height:90vh;overflow:auto;padding:22px;background:#171210;border:1px solid #4a3a2c;border-top:3px solid #699b54;box-shadow:0 24px 80px #000}
@@ -49,13 +51,33 @@
   </div>`;
   document.body.append(button, overlay);
 
-  button.addEventListener('click', () => overlay.classList.add('open'));
+  // Per-version plays/ratings from the relay (the host the beacons already
+  // hit; client/transport.js SIGNAL_URL). Best-effort: the list never waits.
+  const relayHttp = 'https://remifabre-openwarlock-signal.hf.space';
+  let vstats = null, manifest = null;
+  async function loadVstats() {
+    if (vstats) return;
+    try {
+      const r = await fetch(`${relayHttp}/versions`, { cache: 'no-store' });
+      const j = await r.json();
+      if (j && j.ok) vstats = j.versions || {};
+    } catch { /* relay asleep; the numbers just don't show */ }
+  }
+  function openOverlay() {
+    overlay.classList.add('open');
+    loadVstats().then(() => {
+      if (vstats && manifest) render(manifest, overlay.querySelector('#owv-search').value);
+    });
+  }
+
+  button.addEventListener('click', openOverlay);
   overlay.querySelector('#owv-close').addEventListener('click', close);
   overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
   addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
 
   loadManifest()
     .then((data) => {
+      manifest = data;
       render(data);
       overlay.querySelector('#owv-search').addEventListener('input', (event) => render(data, event.target.value));
       addJoinPicker(data);
@@ -74,10 +96,23 @@
     list.innerHTML = entries.length ? entries.map((entry) => {
       const current = isCurrent(entry);
       const issue = entry.issueUrl ? ` · <a href="${escapeAttr(entry.issueUrl)}" target="_blank" rel="noopener">idea #${entry.issue}</a>` : '';
+      // ★ average + player-rounds from the relay; hollow ？ = never rated.
+      // player-rounds counting starts 2026-08-12 (older plays predate the metric).
+      const st = vstats && vstats[entry.slug];
+      const n = st && Number(st.rating_n) > 0 ? Number(st.rating_n) : 0;
+      const avg = n ? Number(st.rating_sum) / n : 0;
+      const stars = n
+        ? `${'★'.repeat(Math.round(avg))}${'☆'.repeat(5 - Math.round(avg))} ${avg.toFixed(1)} <span class="owv-dim">(${n})</span>`
+        : `☆☆☆☆☆ <span class="owv-dim" title="no ratings yet. Rate it from the game lobby (top right)">?</span>`;
+      const pr = st && Number(st.player_rounds) > 0
+        ? `${Number(st.player_rounds)} player-rounds`
+        : 'no play data yet';
+      const statsLine = vstats ? `<div class="owv-stats">${stars} · <span title="player-rounds: every round fought counts once per player in it (3 rounds × 5 players = 15). Counted since 2026-08-12.">${pr} ⓘ</span></div>` : '';
       return `<div class="owv-item">
         <div><span class="owv-name">${escapeHtml(entry.name)}</span>${current ? '<span class="owv-current">playing</span>' : ''}</div>
         <div class="owv-meta">by ${escapeHtml(entry.author)}${issue}</div>
         <p class="owv-summary">${escapeHtml(entry.summary)}</p>
+        ${statsLine}
         ${current ? '' : `<a class="owv-play" href="${escapeAttr(versionUrl(entry))}">Play</a>`}
       </div>`;
     }).join('') : '<p class="owv-summary">No versions match your search.</p>';
@@ -85,16 +120,25 @@
     list.querySelectorAll('.owv-play').forEach((link) => link.addEventListener('click', switchVersion));
   }
 
+  // Same rule as the service worker's allowlist (see version-sw.js): both
+  // copies of the manifest, and the higher `serial` wins, so the list a player
+  // sees and the list the loader enforces can never disagree about which one of
+  // them is stale.
   async function loadManifest() {
-    for (const url of [`${rawManifest}?bust=${Date.now()}`, new URL(`versions.json?bust=${Date.now()}`, rootUrl)]) {
+    const bust = Date.now();
+    const urls = [`${rawManifest}?bust=${bust}`, new URL(`versions.json?bust=${bust}`, rootUrl)];
+    const fetched = await Promise.all(urls.map(async (url) => {
       try {
         const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) continue;
+        if (!response.ok) return null;
         const data = await response.json();
-        if (data.default && Array.isArray(data.versions)) return data;
-      } catch { /* try the Pages copy */ }
-    }
-    throw new Error('version list unavailable');
+        return (data.default && Array.isArray(data.versions)) ? data : null;
+      } catch { return null; }
+    }));
+    const best = fetched.filter(Boolean)
+      .sort((a, b) => (Number(b.serial) || 0) - (Number(a.serial) || 0))[0];
+    if (!best) throw new Error('version list unavailable');
+    return best;
   }
 
   function addJoinPicker(data) {
@@ -103,8 +147,8 @@
     const current = [data.default, ...data.versions].find(isCurrent) || data.default;
     const row = document.createElement('div');
     row.id = 'owv-join';
-    row.innerHTML = `<span>Game version</span><button type="button">🧬 ${escapeHtml(current.name)} ▾</button>`;
-    row.querySelector('button').addEventListener('click', () => overlay.classList.add('open'));
+    row.innerHTML = `<span>Choose the game version</span><button type="button">🧬 ${escapeHtml(current.name)} ▾</button>`;
+    row.querySelector('button').addEventListener('click', openOverlay);
     join.before(row);
   }
 

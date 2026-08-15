@@ -1,13 +1,13 @@
-# BALANCE.md — what is currently true
+# BALANCE.md (what is currently true)
 
 *Lean since 2026-08-08 (Remi's context policy): this file keeps only the
-CURRENT balance state — the latest tables, the shipped retunes, the guidelines
-and the open questions. Full reports are dated files in `docs/history/` —
-grep them on demand, never read them wholesale. Round 17's full evidence:
+CURRENT balance state: the latest tables, the shipped retunes, the guidelines
+and the open questions. Full reports are dated files in `docs/history/`.
+Grep them on demand, never read them wholesale. Round 17's full evidence:
 `docs/history/2026-08-08-round17-battery.md` (battery + sweeps) and
 `2026-08-08-round17-bot-targeting-softmax.md` (bot targeting), and
 `2026-08-08-round17-value-analysis.md` (per-upgrade dps/eHP math + the staged
-duel matrix — the intuition layer behind questions K, L and M).*
+duel matrix; the intuition layer behind questions K, L and M).*
 
 ## How to read the numbers
 
@@ -17,7 +17,7 @@ duel matrix — the intuition layer behind questions K, L and M).*
   ~3%, not 25% (paying gold for nothing is actively bad).
 - **A strategy** is an exhaustive ordered buy list (identity core + shared
   exhaust tail). The 25-strategy roster lives in **STRATEGIES.md**.
-- Bots never bait, aim bursts, or refuse trades — and a bot carrier lands a
+- Bots never bait, aim bursts, or refuse trades, and a bot carrier lands a
   median **172 fireballs/game**, far above human pace: volume-scaling things
   (anger, ex-momentum) read inflated, aimed things read at their floor;
   mechanics bots cannot express (malady's contagion, gale's gust positioning)
@@ -32,21 +32,21 @@ softmax bot targeting (§11), layered projectile visuals + shop rows (§12+§10)
 co-op mothballed (§1). Plus, from live playtest: the 🧪 testing sandbox and
 `boltDodge` (Hard commits to dodging only 50% of sky-bolts). Two measured
 retunes beyond the plan's FIRST TRY values, both one-line reverts:
-**venom `tickDmg [0.5, 1, 1.5]`** (the first-try [1,2,3] measured 96% — the
+**venom `tickDmg [0.5, 1, 1.5]`** (the first-try [1,2,3] measured 96%; the
 sweep is monotone now that stacking is gone) and **hourglass
 `haste [8, 18, 28]`** (the ladder ruling).
 
 **LATE round-17 changes (Remi live, all measured)**: passive regen REMOVED
 (`PLAYER.REGEN 0`, Ring deleted; round-1 first death 34.8 s unchanged, venom
-−20 to ~44%, midfield healthier — full numbers in the battery history file
+−20 to ~44%, midfield healthier; full numbers in the battery history file
 §no-regen); power spells cheaper (12-14 g) with infinite ground-target range;
 vanish 1/2/3 s; hourglass [10,18,26]. Round 17.2 (pre-game batch): momentum =
 1/2/3 points per hit, +3 dmg per 50 points, linear/uncapped; venom ticks flat
 ½ with duration 3/5/7 s; midas penalty-free at lv3; Swap single-level range
 68. ⚠ The mixed/ladder tables above predate
-these — momentum's row is the stable read, the sustain rows are not.
+these: momentum's row is the stable read, the sustain rows are not.
 
-**Question J is CLOSED**: midas-cdr 86.2 → **24.3%** (both seeds — exactly
+**Question J is CLOSED**: midas-cdr 86.2 → **24.3%** (both seeds, exactly
 baseline), double-cdr 49.1 → 10.5/12.9, mosquito-midas 70.0 → 29.8. Haste
 sums where CDR compounded, and the mark halves midas's income rate; nothing
 engine-shaped remains.
@@ -54,15 +54,15 @@ engine-shaped remains.
 **Round 18 (2026-08-08, Remi live mid-game, dictated)**: spawn seats dealt
 fresh each round (seeded rng, versus only); 4 lava portals (diagonals, 1.25×
 the starting rim, versus only) teleport a toucher to the center; mosquito
-rework — the ARMING sting now applies every on-hit rider (1 dmg, no push), the
+rework: the ARMING sting now applies every on-hit rider (1 dmg, no push), the
 cashing sting doesn't (its 2 proc balls do) = **3 on-hit procs per
 armed+cashed pair**, and levels became fireball haste [20,40,60] (ex-cdMult,
 one additive pool with arcane/hourglass); per-player ping badge (server-side
 ws RTT, network path only). One quick instrument pass (element mirror, 600
-games, seed 1): mosquito 43.5 (at 17.2) → 46.1 after the rework —
-value-neutral on bots, which can't use the on-hit-amp fantasy anyway.
+games, seed 1): mosquito 43.5 (at 17.2) → 46.1 after the rework.
+Value-neutral on bots, which can't use the on-hit-amp fantasy anyway.
 ⚠ Momentum reads **99.6-100% on that instrument both BEFORE and after round
-18** — the uncapped 17.2 ramp on 172-hit bot carriers. Question K got louder,
+18** (the uncapped 17.2 ramp on 172-hit bot carriers). Question K got louder,
 not new.
 
 **Round 19 (overnight 2026-08-09, Remi's pre-sleep dictation)**: Malady 🦠
@@ -83,9 +83,9 @@ never touched knockback; lv1 already 30%).
 
 **Round 20 (2026-08-09, r207)**: anger `markEvery [10,7,5] → [20,15,10]`
 (nerf); ghost lv3 12 → 10 g; malady `dotTime [4,5,6]` + `auraR [10,14,18]`
-(buff); **every item flat per level — 6 g boots/treads/cape, 8 g
+(buff); **every item flat per level: 6 g boots/treads/cape, 8 g
 sword/amulet/hourglass** (Remi: "buy an item every round even with zero
-kills"), so the whole item shelf is now 126 g; **mosquito reworked** — no
+kills\"), so the whole item shelf is now 126 g; **mosquito reworked**: no
 dmg/kb tax, no arm/cash trap, every [6,5,4]th cast fires a PAIR (no-push lead
 + normal trailing ball 0.15 s behind, both carrying every rider; trailing
 balls advance the every-N counters but can never chain), and the **Echo Stone
@@ -93,26 +93,26 @@ item is DELETED**, merged in; terra lv3 smashes pillars.
 
 **Round 20.3 (2026-08-09, Remi live)**: malady `auraR [10,14,18] → [5,7,9]`
 (the aura was blanketing the arena) and the **creator is now IMMUNE to their
-own instance** — they still catch other players' plagues, and a lethal tick is
+own instance**. They still catch other players' plagues, and a lethal tick is
 always the creator's kill (the spreader-credit case is gone).
 
-**Round 21.0-21.4 (2026-08-10, Remi's overnight rulings)** — the balance-bearing
+**Round 21.0-21.4 (2026-08-10, Remi's overnight rulings)**: the balance-bearing
 half; the full story is REMI_NOTES.md. **Spell prices obey one rule**: base
 8 / 10 / 12, every upgrade half its base (pillar → [8,4], meteor and wall
 14 → [12,6], repulse [12,6], every 10-base spell upgrades at 5; fireball exempt,
-base 0). **Items dropped another 1 g/level** — 5 g boots/treads/cape, 7 g
+base 0). **Items dropped another 1 g/level**: 5 g boots/treads/cape, 7 g
 sword/amulet/hourglass. **Pillars are PERMANENT** (lava-proof, they accumulate
-all game, no cap; only terra lv3 removes one) — ⚠ untestable in the labs, bots
+all game, no cap; only terra lv3 removes one). ⚠ Untestable in the labs, bots
 never buy pillars. **Arena AREA per player is constant above 5 seats**
 (`state.startRadius = 56 × √(n/5)`), so an 8-seat game plays on radius 70.8;
 60-game arena smokes at 4 and 8 players both finish with sane kills.
 **Teams** landed as a lobby property (default = everyone solo, bit-identical to
 the old free-for-all); a team's kill target is `15 × size`, so ⚠ 3v1 can never
-be won on kills and always runs to the 25-round cap. **Statue 🗿** is new — see
+be won on kills and always runs to the 25-round cap. **Statue 🗿** is new; see
 question N, it is unmeasured by design.
 
 **Round 21.5 (2026-08-10)**: NEW item `brazier` (displays as **Hat of Aura 🎩**
-since 21.7), the first passive damage in the game — enemies within `auraR`
+since 21.7), the first passive damage in the game: enemies within `auraR`
 (centre-to-centre) burn for a FLAT 1 dmg/s, one bite per second on the owner's
 clock. Owner and teammates exempt, co-op exempt, statues immune, a statue'd
 owner keeps burning, and it does NOT break vanish (Remi's ruling). Price and
@@ -121,15 +121,15 @@ radius were re-set in 21.7 below. UNMEASURED: no Elo pass has run with it.
 **Round 21.6 (2026-08-10)**: NEW spell **Decoy 👥**, [10, 5] g, `tier: 'power'`.
 lv1 = one clone, lv2 = two; they live 5 s, wander at your move speed, mime every
 cast you make with phantom balls, and have **zero** gameplay effect (no body,
-no collision, no targeting, no counters — everything passes through). ⚠ Its
+no collision, no targeting, no counters; everything passes through). ⚠ Its
 measured value is the DO-NOTHING FLOOR by construction, and always will be:
 **fooling bots is out of scope** (bot targeting reads `state.players`, which
 never holds a clone, and bot threat-dodging reads `state.projectiles`, which
 never holds a phantom). `tier: 'power'` keeps bots from buying a spell they
-cannot use. Every lab that enumerates spells will price it at ~0 — that is the
+cannot use. Every lab that enumerates spells will price it at ~0. That is the
 instrument being honest, not the spell being weak. Human playtest only.
 
-**Round 21.7 (2026-08-10, Remi's hand spec after a playtest — UNMEASURED, all
+**Round 21.7 (2026-08-10, Remi's hand spec after a playtest; UNMEASURED, all
 one-line reverts)**: a price + feel pass, no new mechanics.
 - **Elements repriced** (his numbers, the cheap axes get cheaper and the third
   step carries the premium): ember `[5,5,7]`, terra `[6,6,7]`, gale `[6,6,6]`,
@@ -139,16 +139,16 @@ one-line reverts)**: a price + feel pass, no new mechanics.
   ⚠ Deliberately set on FEEL: the cape's lab value flips sign by pilot, so the
   Hard-bot number was never the ruler (BALANCE 15D stands).
 - **Hat of Aura** (`brazier` renamed) 7 → **6 g/level**, `auraR [3,3.8,4.6] →
-  [5,6,7]` — lv1 now equals malady's lv1 aura, lv3 still under its lv3. Shelf
+  [5,6,7]` (lv1 now equals malady's lv1 aura, lv3 still under its lv3). Shelf
   129 → **126 g**. The old "half a lv1 plague" sizing is gone by his ruling.
 - Display only: `statue` → **NOPE** (gold-tinted 🗿, pillar takes the plain one
   back), Echo's icon → 🫧. Internal keys unchanged, as with mosquito/Echo.
-- ⚠ The whole entry is UNMEASURED — the ELO baseline below predates it.
+- ⚠ The whole entry is UNMEASURED (the ELO baseline below predates it).
 
-**Round 21.8 (2026-08-11, Remi's post-playtest brief — UNMEASURED except where
+**Round 21.8 (2026-08-11, Remi's post-playtest brief; UNMEASURED except where
 stated, every number a one-line revert)**:
 - **The Bomb is now the Mine** (`SPELLS.nova`, key unchanged): his verdict on the
-  artillery was "unsatisfying — not much damage, hard to hit, no push". It plants
+  artillery was "unsatisfying: not much damage, hard to hit, no push". It plants
   at your feet (trigger ring 1.32 = 1.65 × the fireball's radius), 2 levels
   [10, 5] g, damage [10, 15], push 100, and it SWALLOWS the planter's own
   fireballs ([1, 2] of them). Stepping on it = the mine's damage, then every
@@ -168,24 +168,25 @@ stated, every number a one-line revert)**:
   | 1 | 40.3% | **62.7%** | 2nd (anger 95.6%) |
   | 7 | 31.1% | **49.0%** | 3rd, tied with vampire 50.0% (anger 97.6%) |
 
-  **+18-22 points on both seeds** — the biggest single-element move since the
+  **+18-22 points on both seeds**, the biggest single-element move since the
   round-20.3 creator-immunity change. ⚠ And it is a FLOOR: bots never bunch up,
   so the contagion half of the element is not in these numbers at all.
 - **Hat of Aura**: the burn now LINGERS `[3, 4, 5]` s after you leave the ring
   (`ITEM_FX.brazier.linger`); the ring itself is unchanged. Revert = linger 0.
-- **NEW item — Slow Spoon 🥄** (`spoon`, 7 g/level): a FLAT `healOnHit
+- **NEW item: Slow Spoon 🥄** (`spoon`, 7 g/level): a FLAT `healOnHit
   [1, 1.5, 2]` per damaging hit, once per victim per hit (a pierced ball through
   three bodies pays three times). ⚠ Auras and DoT ticks are EXCLUDED by design
-  (`procs: false` in applyDamage) — the sustain answer for low-damage utility
-  builds that lifesteal ignores. Item shelf 126 → **147 g**.
+  (`procs: false` in applyDamage). The spoon is the sustain answer for
+  low-damage utility builds that lifesteal ignores. Item shelf 126 → **147 g**.
 - **Meteor lv2 damage 24 → 30.** Gale's gust and the cape kept their 21.7 values.
 - 🔧 **Three labs were dead since round 20.2 and are fixed.** Retiring the legacy
-  six builds left `bruiser` named in the DEFAULTS of `arena.js --mode=elemental`,
-  `h2h.js` and `coop.js`; `BUILDS.bruiser` is undefined, so those runs threw
-  "not iterable" and nobody could have used them since. The elemental study now
-  rides `warlord` (`ELEMENTAL_STUDY_BUILD`), h2h defaults to it too, and an
-  unknown build name now THROWS BY NAME instead of resolving to an empty list —
-  a silent empty build is a table of numbers measuring seats that buy nothing.
+  six builds left `bruiser` named in lab DEFAULTS (`h2h.js`, `coop.js`, the
+  since-deleted elemental study); `BUILDS.bruiser` is undefined, so those runs
+  threw "not iterable" and nobody could have used them since. h2h defaults to
+  `warlord` now, and an unknown build name THROWS BY NAME instead of resolving
+  to an empty list. A silent empty build is a table of numbers measuring seats
+  that buy nothing. (Round 23, Remi: the element-vs-element study itself was
+  deleted; identical-build mirrors are not the game, rank with `tools/elo.js`.)
 - 🔧 **The arena lab now defaults to the ruleset the game defaults to.**
   `createGame` has defaulted to **elemental** for a long time; `arena.js` still
   played **classic**, so every Elo/mirror/item-pick table it has ever printed
@@ -193,53 +194,61 @@ stated, every number a one-line revert)**:
   (default elemental, `--ruleset=classic` reproduces the old runs) and **print
   the ruleset in the header**. ⚠ Every arena table quoted in this file or in
   `docs/history/` from before 2026-08-11 is a CLASSIC table.
-  `tools/elo.js` — the 30-strategy roster ranking, the one that matters — has
+  `tools/elo.js` (the 30-strategy roster ranking, the one that matters) has
   always run elemental off explicit roster cores and was never affected.
 
-### The strategy ELO table — THE current ranking (r249, 37 strategies, 8000 games × 2 seeds)
+### The strategy ELO table: THE current ranking (r353, 41 strategies, 8000 games × 2 seeds)
 
-**`docs/history/2026-08-11-round21.9-elo.md`** is the STANDING baseline (drift
-mean 10.1). It measures the whole sustain pass + the credit rules at once, so no
-row is attributable to one change. Headlines: the **blade nerf landed on its
-target** — B3 anger+blade takes the biggest drop in the table (−94), with
-D2 −58 and D1 −50; the **sustain shelf rose as a class** (A1 +140, F1 +115,
-D11 +82, A2 +80, D8 +63, D6 +56, B5 +52) though the spoon builds are still 31st
-and 34th — playable, not strong; **D12-hatburner reached 3rd**, +50, while
-plague-without-the-Hat moved +17, so it is the AURA that gained, not the
-sickness; **100% of deaths now land on a name** (was: a full-hp lava swim
-outlived the old 5 s window and credited nobody); statue is dead-average and
-meteor last for the third table running.
+**`docs/history/2026-08-13-round22.5-elo.md`** is the STANDING baseline (drift
+mean 11.1, max 38, 0 unfinished). ⚠ The roster grew 37 → 41 (family K, the
+Faker's four arsenals, which run the FAKER brain and score 2444-2755), so every
+Δ in that file is **re-centred** on the 37 rows r249 also held, and because Elo
+is zero-sum the "nothing happened to me" line is **+19, not 0**. Headlines: the
+**22.5 anger slow is the whole table** and it landed monotonically on how much
+anger a core holds (B3 −267 and no longer 1st, D2 −205, B4 −104, A4 −90);
+**D4-leech +219**, the only big gain, because vampire's new FLAT heal is a buff
+for a deliberately low-damage vampire kit (the % it replaced only scaled for the
+ember/anger builds that never buy vampire); the **stack fade shows up on malady
+only** (D12 −64, D5 −37; frost/gale within churn); **midas's softened penalty
+and the fireball range cap are both invisible here**, with the mechanism
+measured (0.5% of connecting bot fireballs had flown 50+).
+
+The r249 table (37 strategies, the sustain pass + the credit rules):
+**`docs/history/2026-08-11-round21.9-elo.md`**. Headlines: the blade nerf landed
+on its target (B3 −94, D2 −58, D1 −50); the sustain shelf rose as a class
+(A1 +140, F1 +115, D11 +82, A2 +80); D12-hatburner reached 3rd on the aura, not
+the sickness; 100% of deaths now land on a name.
 
 The previous table (r232/r236, 33-35 strategies, pre-sustain-pass):
 **`docs/history/2026-08-11-round21.8-elo.md`**
 (the STANDING baseline; it replaces the r219 round-21 table, which replaced r207).
-Cross-seed drift mean 8.8 / max 30 Elo — the tightest yet. Headlines: **anger
+Cross-seed drift mean 8.8 / max 30 Elo, the tightest yet. Headlines: **anger
 unmoved at #1** (B3 2087); the NEW **D12-hatburner (Hat of Aura 3 + malady 3)
 enters 4th of 33** and D5-plaguebearer gains +129, so this round's aura+plague
-buffs are the biggest movers; **every item core gained 58-126** — three price
+buffs are the biggest movers; **every item core gained 58-126**: three price
 cuts moved items nothing, two items that DO something moved them 60-130 in one
 round, though they are still the bottom third (items are effect-limited, not
 price-limited, sharpened); **C7-statue-guard lands at exactly 1500**, the honest
 answer for a panic button no bot can time; **D11-spoonbearer is 32nd**, which
 prices its deliberately low-damage frost+gale KIT, not the Slow Spoon (the same
-item raised A1 +58 and B6 +118 — human read needed); the **meteor lv2 buff
-(24→30) is invisible** (C5 still last, Δ −1) — its cast rules, not its damage,
+item raised A1 +58 and B6 +118; human read needed); the **meteor lv2 buff
+(24→30) is invisible** (C5 still last, Δ −1): its cast rules, not its damage,
 are the lever.
 
-**The sustain pass (r238, Remi's rulings — the A/B that drove it is the r236
+**The sustain pass (r238, Remi's rulings; the A/B that drove it is the r236
 addendum in the ELO file above).** Three numbers changed together:
 **sword lifesteal 18/30/38 → 10/20/30%**, **spoon `healOnHit` 1/1.5/2 → 1/2/3**
 with DoT/aura ticks paying **a tenth** (`tickFrac 0.1`, max one proc/s/victim),
 and **hourglass haste 10/18/26 → 10/20/30**.
 - **The break-even is now a flat 10 damage at every spoon level** (`flat ÷
-  lifesteal%`), and hit sizes in this game are two spikes — 7 (bare fireball) and
-  11 (ember-3 fireball) — so that line cleanly separates "no damage investment"
+  lifesteal%`), and hit sizes in this game are two spikes, 7 (bare fireball) and
+  11 (ember-3 fireball), so that line cleanly separates "no damage investment"
   from "damage investment". Below 7: the spoon never won. Above 11: it always
   won. Measured p10/median/p90 per hit: 7/7/8 in a plain kit, 7/11/11 in an
   ember kit, max 18 in either.
 - **Ticks at a tenth make the two fantasies pay the same** (hp healed per player
   per game, lv3, measured tick counts): anger+blade **722**, plague+spoon **768**
-  (+6%), hat+plague+spoon **766** (+6%) — while each item still wins its own
+  (+6%), hat+plague+spoon **766** (+6%), while each item still wins its own
   home: blade **+27%** in an anger build, spoon **+19%** in a plague build,
   **+37%** in a plain low-damage kit, blade **+7%** back in an ember burst kit.
   At `tickFrac` 0.05 the ticks stop mattering (the Hat build prefers the blade);
@@ -247,18 +256,19 @@ and **hourglass haste 10/18/26 → 10/20/30**.
 - Tick counts behind that, per player per game: Hat3+malady3 **984** ticks vs 157
   hits; malady3 alone **430** vs 213; anger builds ~**100** vs 165 hits at 14
   dmg each (vs 7.3 for everyone else).
-- ⚠ Bots never cluster, so malady's contagion — and therefore the plague side of
-  this — is a FLOOR. If plague+spoon feels oppressive live, 0.08 is the same rule
+- ⚠ Bots never cluster, so malady's contagion (and therefore the plague side of
+  this) is a FLOOR. If plague+spoon feels oppressive live, 0.08 is the same rule
   with a smaller tenth.
 ⚠ **Instrument scar**: `EXHAUST_PASS` holds every item, so a one-variable item
-A/B MUST use `caps: {other: 0}` — without it the pair prices buy ORDER and
+A/B MUST use `caps: {other: 0}`. Without it the pair prices buy ORDER and
 produces a plausible, wrong table.
 
 ⚠ The paragraphs below this line describe the SUPERSEDED r219 table and are kept
-for the round-21 diffs they explain. Instrument: `node tools/elo.js --games=8000 --seed=1` — random
+for the round-21 diffs they explain. Instrument: `tools/elo.js` (that run used
+8000 games; ⚠ the STANDARD run is `--games=2000 --seed=1` since 2026-08-13): random
 4-of-roster Hard lobbies in elemental, Bradley-Terry over all pairwise
 placements, **1500 = roster average, +173 ≈ a 73% pairwise favourite**.
-⚠ **It is a RANKING, not a strength meter** — the fit pins the average at 1500,
+⚠ **It is a RANKING, not a strength meter**: the fit pins the average at 1500,
 so a strategy can gain 200 Elo purely because its rivals got worse. Zero
 unfinished games; cross-seed drift mean 13.5 Elo, max 71 (the top row).
 Headlines:
@@ -277,18 +287,18 @@ Headlines:
   survived its own price cut (C2 lightning-lv1+ember 1683 vs C1 maxed 1311).
 - **Malady's 20.3 ruling was a big buff in the lab**: the creator-immunity
   change (aura halved, but you no longer infect yourself) moved
-  D5-plaguebearer **+202**, A4-mutations-only +124, B4-mutation-breadth +109 —
-  the three biggest gains in the table, and all three are cluster-blind, so the
+  D5-plaguebearer **+202**, A4-mutations-only +124, B4-mutation-breadth +109
+  (the three biggest gains in the table), and all three are cluster-blind, so the
   true gain is larger. Watch malady in the next playtest.
 - **The Echo (ex-mosquito) demotion held** at the new prices (tycoon 12th,
-  leech 19th, Chainer 27th) — structural, not a seed artifact. "Midas ×
+  leech 19th, Chainer 27th): structural, not a seed artifact. "Midas ×
   mosquito is the champion economy engine" stays **VOID**.
-- **Round 21's mechanisms are invisible to this table** — permanent pillars
+- **Round 21's mechanisms are invisible to this table**: permanent pillars
   (bots never buy pillars), Statue, Decoy, teams, arena scaling (inert at 4
   seats). It measures round 21's PRICES only.
 - CDR gold-for-gold math (still current, from the round-20 report §6): haste
   **sums** and `cd = base/(1+h/100)` is concave, so the full CDR core buys
-  0.041 dps/gold vs ember's 0.119 — **5 g of ember lv3 beats a maxed Hourglass**
+  0.041 dps/gold vs ember's 0.119: **5 g of ember lv3 beats a maxed Hourglass**
   on the same fireball. Bots do cast on cooldown, but **every extra ball
   converts 5-7% worse**: knockback shoves the target out of the next ball's path.
 
@@ -304,11 +314,11 @@ Headlines:
 | | | | | 🌪️ Gale | 2.2 | 1.1 |
 
 ⚠ Anger's ~98% is a SATURATED instrument (bots claim marks near-perfectly);
-sweeps barely move it — markEvery [16,12,8] → 94.1, markDmg 0.3 → 87.3
-(600 games, seed 1) — so the shipped numbers are the fantasy-first ones and
+sweeps barely move it (markEvery [16,12,8] → 94.1, markDmg 0.3 → 87.3
+at 600 games, seed 1), so the shipped numbers are the fantasy-first ones and
 the levers stay documented (question K, renamed). Mosquito 63% (tax version
 loves bot volume: 4 procs/pair). ⚠ Malady/gale floors are NOT trusted: bots
-never cluster (contagion) or exploit positioning (gust) — the lab cannot
+never cluster (contagion) or exploit positioning (gust). The lab cannot
 express either mechanic; human games are the instrument.
 
 ### The item ladder (1500 games, seat capped at that level, at `62de05b`)
@@ -328,33 +338,64 @@ And the cut did not help: see the ELO headlines above.
 *hourglass row measured at [10,22,38]; the shipped [8,18,28] measured lv0
 12.9 on its single-item ladder.* The §9 trim + the venom fix un-warped
 sustain: amulet lv0 0.4 → 12.9 (≈ the ~15% ruling), ring is a free choice.
-**The sword is the one mandatory item left — and its knob doesn't fix it**
+**The sword is the one mandatory item left, and its knob doesn't fix it**
 (question L). Cape stays pilot-sign-flipping (question B, untouched).
 
-### Strategy study (pre-softmax bots — headline rows; full tables in the history file)
+### Strategy study (pre-softmax bots; headline rows; full tables in the history file)
 
 venom-balanced 76.9/77.6 (pre-retune venom), mosquito-combo 55.1,
-vampire-cadence 50.9, balanced 31.9/34.5, momentum-scaling 28.5/24.5 (alive —
+vampire-cadence 50.9, balanced 31.9/34.5, momentum-scaling 28.5/24.5 (alive;
 the §6 target), midas-cdr 24.3/24.3, double-cdr 10.5/12.9, no-elements 1.2.
 Extreme: all-cheap 69.1 tops; no 90s anywhere. ⚠ The study predates the
-softmax bots AND the venom/hourglass retunes — re-run before quoting it.
+softmax bots AND the venom/hourglass retunes. Re-run before quoting it.
 
 ### Other health numbers
 
 - Round-1 first-death median **34.3 s** (p25 29.3 / p75 37.9) vs ~31 s before
-  the full-stop lock — the lock still does its round-1 job.
+  the full-stop lock; the lock still does its round-1 job.
 - Lava kill share 22.6% (Hard study), comeback rate 21.7%.
 - h2h ladder after softmax + boltDodge: 100 / 99.8 / 100.
 - Multi-enemy-focus metric shipped in arena.js; 3+ hunters on one victim
   34.9% → 26.1% at TEMPERATURE 6 (the metric itself reads ~13% and is a feel
-  gauge, not the verdict — see the softmax history file).
+  gauge, not the verdict; see the softmax history file).
+
+## Round 22.4 + 22.5: stack fade, range cap, anger/vampire/midas (TABLED)
+
+Remi's game-night call ("the new ice is too strong"): frost/gale/malady piles
+now lose 1 stack per 9 unfed seconds (`STACK_DECAY` in constants.js; reapply
+resets the clock; midas/anger exempt). Also fixed: a reflected ball used to
+plant stacks under the REFLECTOR's name, so shields fed your freeze counter
+with other players' frost (`pr.elemOwner` pins riders to the element's owner
+now). Then 22.5: fireball `range` 50 (was Infinity), anger `markEvery`
+[20,15,10] → [30,25,20], vampire's engorged ball heals a FLAT [10,20,30]
+instead of 1.4/1.92/2.45 × damage, midas `dmgMult` [0.5,0.75,1] → [0.7,0.85,1].
+
+**Measured: `docs/history/2026-08-13-round22.5-elo.md`** (r353, the standing
+table above). Per-change reads, all two-seed:
+- **anger**, element-mirror win% vs a 25% baseline (⚠ instrument DELETED round
+  23, do not re-run): **92.3/91.0 → 83.3/84.1**. Real, and still 20 points
+  clear of every other element. Question K stands: flag it, do not number-nerf
+  around it.
+- **stack fade**, same deleted study, fade on vs off: **malady −4.9/−7.3**, frost and
+  gale inside the instrument's churn (~7 points). ⚠ The fade punishes poke-and-
+  leave, which bots never do (a Hard bot re-feeds a pile every ~2 s from a ring
+  of 8.5), so this is a FLOOR.
+- **fireball range 50**: invisible to bots and structurally so. With the cap
+  lifted, 38.7% of balls fly past 50 but **only 0.5% of the ones that CONNECT
+  had flown 50+** (60 lobbies, 61417 balls): the cap deletes misses. A paired
+  ablation (2500 games, identical lobbies, range 50 vs Infinity) sits at the
+  noise floor (mean |Δ| 19.9). `stepBot` has no range check at all.
+- **midas**: no measurable effect on either instrument (seeds disagree on sign).
+  Every core that buys midas reaches lv3, where `dmgMult` is 1.0 either way.
+- **vampire**: could NOT be ablated (the % path was deleted from sim.js in
+  22.5); the Elo table's D4-leech +219 is the only read.
 
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*
 
 **K. (round 19, ex-momentum) Anger on bot tables.** ~98% mixed at every knob
-tried — bots claim marks near-perfectly, so the mirror cannot price the human
+tried: bots claim marks near-perfectly, so the mirror cannot price the human
 cost of hunting a specific target (the element's whole design). Classic
 bot-inflation shape (round-12 rule: no number-nerfs around it). Measured
 levers if your FEEL says too much: `markEvery [10,7,5] → [16,12,8]` = 94.1;
@@ -362,14 +403,14 @@ levers if your FEEL says too much: `markEvery [10,7,5] → [16,12,8]` = 94.1;
 math at shipped numbers: a devoted lv3 hunter ≈ +2 dmg/round. Your call.
 
 **L. (round 17) The Blood Sword is mandatory by STRUCTURE.** Ladder lv0 1.3%,
-and cutting lifesteal a third only moves it to 5.7 — under the full-stop regen
+and cutting lifesteal a third only moves it to 5.7. Under the full-stop regen
 lock, lifesteal is the only heal that works while you're being hit. §9's
 letter protects the sword (active healing SHOULD out-heal passive). Options:
 accept the sword as the price of the readable lock; give lifesteal its own
 soft lock; or revisit REGEN_LOCK_MULT (0 → 0.1-ish keeps the sentence "pauses
 your regen" approximately true). Numbers for all three on request.
 
-**M. (round 17, MEASURED round 20 — now a feel call) Are the CDR builds where
+**M. (round 17, MEASURED round 20; now a feel call) Are the CDR builds where
 you want them?** A dedicated family was built and run:
 **E2-chronomancer** (arcane3 + hourglass3, then lightning/boomerang/shield/
 rush/blink at lv1 and their lv2 cooldown levels) is **7th of 30, Elo 1697** ≈
@@ -382,17 +423,17 @@ cooldown per fireball hit ≈ +25-37 Ability Haste on the rest of your kit for
 `docs/history/2026-08-09-round20-elo.md` §6. Levers if your feel disagrees:
 arcane's `haste`/`hitRefund`, hourglass cost. Your read decides.
 
-**B. The Cape of the Magi** — unchanged (lab can't agree on the sign; only
+**B. The Cape of the Magi**: unchanged (lab can't agree on the sign; only
 your playtest settles it). **E. Midas's real value** rides on shopping depth,
 not the saturated lab floor. **F. The round-13/16 feel items** (gale burst,
-Blood Sword feel, mosquito in human hands, constant knockback, draft fun) —
-all still yours. **H. Offense-first meta** — round 17 kept it; defense-first
+Blood Sword feel, mosquito in human hands, constant knockback, draft fun) are
+all still yours. **H. Offense-first meta**: round 17 kept it; defense-first
 still bottom-third.
 
-~~**G. Venom**~~ — CLOSED: §7 shipped + the measured [0.5,1,1.5] retune.
-~~**J. midas-cdr**~~ — CLOSED (see Current state).
-**N. Statue 🗿 (round 21.4) is UNMEASURED.** A brand-new spell — 2 s of total
-invulnerability for 10 g — and no lab prices it: no BUILDS order contains it,
+~~**G. Venom**~~ is CLOSED: §7 shipped + the measured [0.5,1,1.5] retune.
+~~**J. midas-cdr**~~ is CLOSED (see Current state).
+**N. Statue 🗿 (round 21.4) is UNMEASURED.** A brand-new spell (2 s of total
+invulnerability for 10 g), and no lab prices it: no BUILDS order contains it,
 so bots only reach it through the shopping exhaust tail or draft, and its bot
 pilot (shield's heuristic mirrored) cannot value 2 s of "nothing can touch me,
 but I stand still". Whether the duration, the 16/12 s cooldown or the price are
@@ -409,12 +450,9 @@ draft; teaching bots to BUY them is still open.
 ## How to reproduce
 
 ```bash
-node tools/arena.js --mode=elemental --games=800 --seed=1     # the mixed table (and --seed=7)
 node tools/arena.js --ladder=all --games=1500 --seed=1        # the item ladder
 node tools/arena.js --ladder=sword --games=1500 --seed=1 --fx=sword.lifesteal=0.12,0.20,0.28
-node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markEvery=16,12,8
-node tools/arena.js --mode=elemental --games=600 --seed=1 --fx=anger.markDmg=0.3
-node tools/elo.js --games=8000 --seed=1                       # THE strategy ranking (and --seed=2), ~20 min each
+node tools/elo.js --games=2000 --seed=1                       # THE strategy ranking, ~5 min (Remi's standard run)
 node tools/roster.js                                         # roster cost check (--doc regenerates docs/ARCHETYPES.md)
 node tools/strategy-study.js --games=4000 --seed=1            # the older strategy table (and --seed=7)
 node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme column
@@ -428,6 +466,6 @@ node test/harness/run.js test/harness/scenarios/coop.js
 
 **Lab conventions** (unchanged, load-bearing): the shared exhaust tail in
 `tools/arena.js` is breadth-first on purpose; probes rotate seats; a single
-run is not a measurement — 2+ seeds, check monotonicity; the isolation
+run is not a measurement: 2+ seeds, check monotonicity; the isolation
 self-test needs ≥1600 games; ⚠ the isolation lab saturates at the top in
 elemental mode (elements are the progression).

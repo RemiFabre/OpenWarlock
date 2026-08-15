@@ -60,7 +60,7 @@ export function generateScenario(seed) {
     timeoutMs: 210_000,
     bots: nBots,
     players,
-    // no strict expectations — fuzz runs check only invariants + liveness
+    // no strict expectations; fuzz runs check only invariants + liveness
   };
 }
 

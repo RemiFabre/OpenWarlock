@@ -1,19 +1,19 @@
-// Combo lab (round 20): Remi's frost-threshold question — at which frost LEVEL
+// Combo lab (round 20). Remi's frost-threshold question: at which frost LEVEL
 // does a telegraphed spell actually CONNECT on a bot that tries to dodge it?
 //
 // The scripted scenario, per trial: one victim bot at arena center, full hp,
 // wearing exactly the CC that frost level L triggers on its 3rd stack (read
 // from ELEMENTS.frost.fx: lv1 slow ×0.7, lv2 slow ×0.5, lv3 stun 2 s; lv0 =
 // no CC as the control). The caster drops the spell dead ON the body the same
-// instant — the best-case combo, which is exactly what the CC-gated bot cast
+// instant: the best-case combo, which is exactly what the CC-gated bot cast
 // does. We then step the sim through the telegraph and read whether the victim
 // took blast damage. No shopping, no economy, no second fight: pure escape
 // physics + the bot's dodge policy.
 //
 // Two rates per cell:
-//   hit%        over all trials — what a game would see, including the trials
+//   hit%        over all trials; what a game would see, including the trials
 //               where the bot COMMITTED to eating the bolt (BOTS.boltDodge);
-//   hit%|dodge  only the trials where the bot rolled a dodge attempt — the
+//   hit%|dodge  only the trials where the bot rolled a dodge attempt; the
 //               clean physics answer to "does the CC hold them in the circle".
 //
 // What this instrument CANNOT see: humans lead targets, pre-cast before the
@@ -22,7 +22,7 @@
 // appears. Treat hit%|dodge as a floor-vs-ceiling bracket, not a win-rate
 // prediction. Known artifact in every sub-100% cell: a bot that finishes its
 // escape hop early re-decides, sees no threat, and strolls back toward its
-// prey INTO the still-live zone (traced 2026-08-09) — so non-CC "hit" rates
+// prey INTO the still-live zone (traced 2026-08-09), so non-CC "hit" rates
 // mix real dodge failures with drift-back. The 100% rows are the clean
 // signal: the CC physically cannot be outrun.
 //
