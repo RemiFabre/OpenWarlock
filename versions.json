@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 43,
+  "serial": 44,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v9: the optimisation pool grows to 18 (movement, damage, range, a round-start ward, a smaller body, +4 max hp per round...), and every shop card that changed with v8 explains it in green on hover. On Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, craters, the grapple, sprint boots, and the pick-one windows at rounds 3/6/9.",
+      "summary": "Ju's arsenal, v10: the optimisation pool grows to 21 (now with Dethrone: the kill leader loses 1 kill on the spot) (movement, damage, range, a round-start ward, a smaller body, +4 max hp per round...), and every shop card that changed with v8 explains it in green on hover. On Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, craters, the grapple, sprint boots, and the pick-one windows at rounds 3/6/9.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "a8e4e1aedf3d46ba5ee7b69b319aaed6698f2075"
+      "commit": "fe8968503796a813c2a7568e73de504a07b28cfc"
     },
     {
       "slug": "trash-talk",
