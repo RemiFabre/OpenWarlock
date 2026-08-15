@@ -8909,3 +8909,57 @@ describe('optimisations v9 (Ju approved the 8, plus his 4)', () => {
     expect(state.players.a.optimOffer.options).toEqual(['decoyclone']);
   });
 });
+
+describe('optimisations v10 (dethrone, iron will, trick shot)', () => {
+  it('dethrone: every tied kill leader loses exactly 1 kill, gold untouched, floor 0', () => {
+    const state = freshBattle(4);
+    const [a, b, c, d] = ['p0', 'p1', 'p2', 'p3'].map((id) => state.players[id]);
+    a.kills = 5; b.kills = 5; c.kills = 2; d.kills = 0;
+    const gold = a.gold;
+    state.phase = 'shop';
+    d.optimOffer = { round: 6, options: ['dethrone'], picked: null };
+    expect(optimPick(state, 'p3', 'dethrone').ok).toBe(true);
+    expect([a.kills, b.kills, c.kills, d.kills]).toEqual([4, 4, 2, 0]);
+    expect(a.gold).toBe(gold);
+    // everyone at zero: picking it does nothing (never below zero)
+    a.kills = 0; b.kills = 0; c.kills = 0;
+    d.optims = {}; d.optimOffer = { round: 9, options: ['dethrone'], picked: null };
+    expect(optimPick(state, 'p3', 'dethrone').ok).toBe(true);
+    expect([a.kills, b.kills, c.kills, d.kills]).toEqual([0, 0, 0, 0]);
+  });
+
+  it('iron will: the same stun runs out 20% sooner', () => {
+    const mk = (boost) => {
+      const state = freshBattle(2);
+      const p = state.players.p1;
+      if (boost) p.optims = { ccward: true };
+      p.stunT = 2;
+      run(state, 2 / 1.25 + 2 * DT);   // long enough for the boosted clock only
+      return p.stunT;
+    };
+    expect(mk(true)).toBe(0);          // boosted: already over
+    expect(mk(false)).toBeGreaterThan(0); // stock: still stunned
+  });
+
+  it('trick shot: a bounced ricochet hit deals full damage', () => {
+    const mk = (boost) => {
+      const state = freshBattle(2);
+      state.pillars = [];
+      const a = state.players.p0, b = state.players.p1;
+      a.x = 0; a.y = 0; b.x = 12; b.y = 0;
+      for (const pl of [a, b]) { pl.vx = 0; pl.vy = 0; pl.moveTarget = null; }
+      a.elements = { ricochet: 1 };
+      a.spells.ricochet = 1;
+      if (boost) a.optims = { trickshot: true };
+      castSpell(state, 'p0', 'fireball', 10, 0);
+      const pr = state.projectiles[state.projectiles.length - 1];
+      pr.bounced = true;               // the trick shot, without simulating a wall
+      run(state, 0.5);
+      return 100 - b.hp;
+    };
+    const spec = SPELLS.ricochet;
+    const base = mk(false);
+    expect(base).toBeGreaterThan(0);
+    expect(mk(true)).toBeCloseTo(base / spec.bounceDmgMult, 5);
+  });
+});

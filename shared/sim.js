@@ -1405,6 +1405,14 @@ function grantOptim(state, pl, k) {
     pl.maxHp += OPTIMS.POOL.tough.add;
     pl.hp = Math.min(pl.maxHp, pl.hp + OPTIMS.POOL.tough.add);
   }
+  // Dethrone (v10, Ju): ONE-SHOT: whoever leads on kills right now loses 1
+  // from the score (every tied leader), gold untouched, never below zero.
+  // The picker can be the leader: the option is readable before the click.
+  if (k === 'dethrone') {
+    const fs = fighters(state).filter(p => !p.wave);
+    const top = Math.max(0, ...fs.map(p => p.kills));
+    if (top > 0) for (const p of fs) if (p.kills === top) p.kills--;
+  }
 }
 
 export function optimPick(state, id, key) {
@@ -2555,8 +2563,10 @@ function stepBattle(state, dt) {
       }
     }
     // elemental timed effects (all timers stay 0 in classic mode)
-    if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - dt);
-    if (pl.stunT > 0) pl.stunT = Math.max(0, pl.stunT - dt);
+    // Iron Will (v10): CC clocks on this body run out 20% sooner
+    const ccDt = pl.optims && pl.optims.ccward ? dt / OPTIMS.POOL.ccward.mult : dt;
+    if (pl.slowT > 0) pl.slowT = Math.max(0, pl.slowT - ccDt);
+    if (pl.stunT > 0) pl.stunT = Math.max(0, pl.stunT - ccDt);
     // Dark Ball blind (issue #9) runs down like the other timed effects
     if (pl.blindT > 0) pl.blindT = Math.max(0, pl.blindT - dt);
     // maxed boots sprint (issue #9): armed after sprintAfter unhurt seconds —
@@ -3132,7 +3142,11 @@ function stepProjectiles(state, dt) {
       let kb = pr.type === 'genki' ? pr.kb : lvl(spec, 'knockback', pr.level);
       // Ricochet (issue #9, Ju v2): a hit landed after ANY bounce is the trick
       // shot at a discount — 65% of the sticker (flat, not per bounce).
-      if (pr.type === 'ricochet' && pr.bounced) dmg *= spec.bounceDmgMult;
+      if (pr.type === 'ricochet' && pr.bounced) {
+        const ownPl = state.players[pr.owner];
+        // Trick Shot (v10): the owner's boost waives the 65% bounce discount
+        if (!(ownPl && ownPl.optims && ownPl.optims.trickshot)) dmg *= spec.bounceDmgMult;
+      }
       // Anger's earned bonus rides along in its own accumulator so the
       // floating damage number can show base and bonus separately (the white
       // number over the red one IS the feature; see ELEMENTS.anger). Every

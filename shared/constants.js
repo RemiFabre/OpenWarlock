@@ -920,6 +920,13 @@ export const OPTIMS = {
                  desc: 'Your body is 15% smaller.' },
     growth:    { icon: '🌱', name: 'Veteran',     add: 4,
                  desc: '+4 max hp at the end of every round.' },
+    // v10 (Ju's dethrone + his approvals of the agent's a/b)
+    dethrone:  { icon: '👑', name: 'Dethrone',    add: -1, minRound: 6,
+                 desc: 'RIGHT NOW the kill leader loses 1 kill from the score (tied leaders each lose 1). Gold untouched.' },
+    ccward:    { icon: '🧠', name: 'Iron Will',   mult: 0.80,
+                 desc: 'Freezes, slows, stuns and roots on you run out 20% sooner.' },
+    trickshot: { icon: '🎱', name: 'Trick Shot',  mult: 1,
+                 desc: 'Your Ricochet\'s bounced hits deal FULL damage (the 65% discount is gone).' },
   },
 };
 
