@@ -358,6 +358,17 @@
   .draftpick .ware.draftopt.sel { border-color: var(--gold); background: #2f2415; }
   .draftpick .ware .cost.free { color: var(--ok); font-weight: 700; }
 
+  /* ---- optimisations (issue #13 v7): the pick-one window over the shop ---- */
+  .optimopts { display: grid; gap: 10px; margin-top: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .optimopts .ware.optimopt { border: 2px solid #4a3a22; padding: 12px;
+    align-items: flex-start; }
+  .optimopts .ware.optimopt:hover { border-color: var(--gold);
+    background: #2f2415; box-shadow: 0 0 14px #d9a53433; }
+  .optimopts .ware.optimopt .icon { font-size: 26px; width: 32px; }
+  .optimopts .ware.optimopt .desc { color: var(--ash); font-size: 12px;
+    display: block; margin-top: 4px; white-space: normal; }
+
   /* ---- the one big stats table (shop + gameover) ---- */
   table.stats { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.stats th, table.stats td {
@@ -748,6 +759,16 @@
     <div class="row" style="margin-top:14px">
       <button id="shopReadyBtn" class="primary" style="flex:1">Ready — next round</button>
     </div>
+  </div>
+</div>
+
+<!-- Optimisations (issue #13 v7): the pick-one window, OVER the shop (later in
+     the DOM than #shop, so it stacks above it) -->
+<div id="optim" class="overlay hidden">
+  <div class="slab" style="--w:900px">
+    <h1 class="display">⚡ Optimisation</h1>
+    <p class="sub" id="optimSub"></p>
+    <div class="optimopts" id="optimOpts"></div>
   </div>
 </div>
 

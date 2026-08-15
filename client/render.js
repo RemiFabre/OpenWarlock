@@ -1189,6 +1189,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
     if (d && typeof d === 'object') {
       const parts = [];
       if (fin(+d.base) && d.base > 0) parts.push(`${d.base} round`);
+      if (fin(+d.stipend) && d.stipend > 0) parts.push(`${d.stipend} stipend`);
       if (fin(+d.kills) && d.kills > 0) parts.push(`${d.kills} kills`);
       if (fin(+d.bounty) && d.bounty > 0) parts.push(`${d.bounty} bounty`);
       if (fin(+d.win) && d.win > 0) parts.push(`${d.win} round win`);

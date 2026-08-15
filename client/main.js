@@ -2,7 +2,8 @@
 
 import {
   SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS,
-  SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, teamTint, itemCost,
+  SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, OPTIMS, teamTint,
+  itemCost,
 } from '../shared/constants.js';
 import { itemFxAt } from '../shared/items.js';
 import { rankTeams } from '../shared/sim.js';
@@ -549,7 +550,7 @@ function interpolated(now) {
     if (!src) continue;
     const ca = prevClone.get(cb.id);
     // eslint-disable-next-line no-unused-vars
-    const { vanishT, statueT, draftOffer, ...look } = src;
+    const { vanishT, statueT, draftOffer, optimOffer, ...look } = src;
     players.push({
       ...look, id: cb.id, clone: true,
       x: ca ? lerp(ca.x, cb.x, k) : cb.x, y: ca ? lerp(ca.y, cb.y, k) : cb.y,
@@ -1663,6 +1664,36 @@ function buildShop(container, mode = 'classic') {
     draftBox.appendChild(row);
   }
 }
+// Optimisation window (issue #13 v7): a modal OVER the shop: pick one of 3
+// permanent boosts before shopping. Signature-diffed like the draft banner so
+// the 20 Hz refresh never destroys the button mid-click.
+let optimShown = '';
+function drawOptimWin(m, s) {
+  const off = (s && s.phase === 'shop' && m && m.optimOffer && !m.optimOffer.picked)
+    ? m.optimOffer : null;
+  const sig = off ? `${off.round}|${off.options.join(',')}` : '';
+  if (sig === optimShown) return;
+  optimShown = sig;
+  setVisible('optim', !!off);
+  const row = $('optimOpts');
+  row.innerHTML = '';
+  if (!off) return;
+  $('optimSub').textContent = `Round ${off.round} is over. Pick ONE permanent boost. ` +
+    'It is free, lasts the whole game, and stacks with everything you buy.';
+  for (const key of off.options) {
+    const o = OPTIMS.POOL[key] || {};
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ware optimopt';
+    b.dataset.key = key;      // stable hook for the UI tests
+    b.innerHTML = `<span class="icon">${o.icon || '✨'}</span>
+      <span class="info"><span class="name">${esc(o.name || key)}</span>
+      <span class="desc">${esc(o.desc || '')}</span></span>`;
+    b.addEventListener('click', () => { playSfx('buy'); send({ t: 'optimPick', id: key }); });
+    row.appendChild(b);
+  }
+}
+
 // name/icon/cost/desc for ANY catalogue key (spell, item or element), so the
 // draft banner does not need three branches of its own
 function thingSpec(key) {
@@ -1854,6 +1885,7 @@ function updateUi(s) {
   else if (s.phase !== 'lobby') goPinned = false;
   setVisible('lobby', !!myId && s.phase === 'lobby' && !goPinned);
   setVisible('shop', !!myId && s.phase === 'shop');
+  drawOptimWin(m, s);
   setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
   if (s.phase !== 'shop') hideTip();
   // Dead and watching the rest of the round: the same scoreboard the end screen

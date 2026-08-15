@@ -15,6 +15,7 @@ import {
   createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady, setShopPause,
   setSpectator, fighters, setMode, setDraft, setTesting, draftPick, setTeam,
+  optimPick,
 } from './sim.js';
 import { BOTS, BUILDS } from './constants.js';
 
@@ -213,6 +214,12 @@ export function createEngine({
         case 'draftPick': {
           const r = draftPick(game, id, String(m.id || ''));
           onLog('draftPick', { id, thing: m.id, ok: r.ok, err: r.err });
+          if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
+          break;
+        }
+        case 'optimPick': {
+          const r = optimPick(game, id, String(m.id || ''));
+          onLog('optimPick', { id, thing: m.id, ok: r.ok, err: r.err });
           if (!r.ok) onSend(id, { t: 'denied', reason: r.err });
           break;
         }

@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, itemCost,
+  DRAFT, TEAMS, OPTIMS, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -193,6 +193,10 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // draft mode only: this shop's free offer, {round, options:[key], picked}.
     // Stays null for the whole game when the toggle is off.
     draftOffer: null,
+    // optimisations (issue #13 v7): picked boost keys {key: true} (permanent,
+    // deliberately never reset) and this shop's offer (same shape as draft's)
+    optims: {},
+    optimOffer: null,
     cooldowns: {},
     shieldT: 0,
     // Vanish: seconds of invisibility left. NEVER goes on the wire for anyone
@@ -539,7 +543,10 @@ export function castSpell(state, id, key, tx, ty) {
   let haste = hasteOf(state, pl);
   // arcane (round 16): the fireball's own cadence axis
   if (key === 'fireball') haste += fireballHasteOf(state, pl);
-  const cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
+  let cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
+  // optimisation (issue #13 v7): -10% on EVERY cooldown; the ricochet rescale
+  // below multiplies from this cd, so the bounce cast inherits it too
+  if (pl.optims && pl.optims.cooldown) cd *= OPTIMS.POOL.cooldown.mult;
   pl.cooldowns[key] = cd;
 
   // Round 18.1 (Remi): a cast REVEALS an invisible caster — re-casting vanish
@@ -594,7 +601,8 @@ export function castSpell(state, id, key, tx, ty) {
           x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
           vx: dx * tspec.speed * body.speed, vy: dy * tspec.speed * body.speed,
           traveled: 0, hit: {}, pierce: false, pierced: 0,
-          radius: tspec.radius * body.radius,
+          radius: tspec.radius * body.radius
+            * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1),
           life: null, elements,
           ...(pl.elements.umbra > 0 ? { dark: pl.elements.umbra } : {}),
           ...(pl.elements.chainball > 0 ? { storm: pl.elements.chainball } : {}),
@@ -962,7 +970,8 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     }
   }
   const body = elemBodyMults(elements);
-  const radius = spec.radius * body.radius;
+  const radius = spec.radius * body.radius
+    * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1);
   const speed = spec.speed * body.speed;
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
@@ -1226,6 +1235,49 @@ function resolveDraftOffers(state) {
   }
 }
 
+// ---- Optimisations (issue #13 v7): a free permanent boost at rounds 3/6/9 --
+// Same lifecycle as the draft: rolled when the shop opens, picked with a
+// message, an ignored offer auto-resolves when the shop closes. Bots pick on
+// the spot (the first option of an rng-shuffled list = a random pick).
+
+function rollOptimOffers(state) {
+  for (const pl of Object.values(state.players)) {
+    if (pl.spectator || pl.wave) continue;
+    const pool = Object.keys(OPTIMS.POOL).filter(k => !pl.optims[k]);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng(state) * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const options = pool.slice(0, OPTIMS.OPTIONS);
+    pl.optimOffer = options.length ? { round: state.round, options, picked: null } : null;
+    if (pl.optimOffer && pl.bot) optimPick(state, pl.id, options[0]);
+  }
+}
+
+export function optimPick(state, id, key) {
+  const pl = state.players[id];
+  if (!pl) return { ok: false, err: 'no player' };
+  if (state.phase !== 'shop') return { ok: false, err: 'shop is closed' };
+  const off = pl.optimOffer;
+  if (!off) return { ok: false, err: 'nothing on offer' };
+  if (off.picked) return { ok: false, err: 'already picked' };
+  const k = String(key || '');
+  if (!off.options.includes(k)) return { ok: false, err: 'not on offer' };
+  pl.optims[k] = true;
+  off.picked = k;
+  return { ok: true };
+}
+
+function resolveOptimOffers(state) {
+  for (const pl of Object.values(state.players)) {
+    const off = pl.optimOffer;
+    if (!off) continue;
+    if (!off.picked && OPTIMS.AUTO_PICK_FIRST && off.options.length)
+      pl.optims[off.options[0]] = true;
+    pl.optimOffer = null;
+  }
+}
+
 // ---- combat helpers -----------------------------------------------------
 
 function applyKnockback(state, target, dx, dy, magnitude) {
@@ -1343,8 +1395,11 @@ function applyDamage(state, target, amount, sourceId,
           flat = healOnHit * (ITEM_FX.spoon.tickFrac || 0);
       }
       if (total > 0 || flat > 0) {
+        // optimisation (issue #13 v7): every heal-from-your-own-damage pays
+        // 10% more: sword, spoon, vampire riders alike (never lava, no source)
+        const om = src.optims && src.optims.lifesteal ? OPTIMS.POOL.lifesteal.mult : 1;
         const before = src.hp;
-        src.hp = Math.min(src.maxHp, src.hp + effective * total + flat);
+        src.hp = Math.min(src.maxHp, src.hp + (effective * total + flat) * om);
         const healed = src.hp - before;
         src.healLifesteal += healed;   // scoreboard column
         // 2026-08-08 (Remi, round 16): EVERY meaningful lifesteal heal gets a
@@ -1526,6 +1581,7 @@ export function startGame(state) {
 function startRound(state) {
   // the shop is closing: an untouched offer still pays out its first option
   resolveDraftOffers(state);
+  resolveOptimOffers(state);
   state.round++;
   state.shopPaused = null;   // never let a pause leak into the next shop
   state.phase = 'countdown';
@@ -1735,14 +1791,18 @@ function endRound(state) {
   const detail = {};
   for (const pl of coop ? partyOf(state) : fighters(state)) {
     // kill + bounty gold shown here, already granted at kill time
-    let g = GOLD.ROUND_BASE + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
-    pl.gold += GOLD.ROUND_BASE; pl.goldEarned += GOLD.ROUND_BASE; pl.roundGold += GOLD.ROUND_BASE;
+    // optimisation (issue #13 v7): the Stipend boost pays beside the base
+    const stipend = pl.optims && pl.optims.gold ? OPTIMS.POOL.gold.add : 0;
+    const base = GOLD.ROUND_BASE + stipend;
+    let g = base + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
+    pl.gold += base; pl.goldEarned += base; pl.roundGold += base;
     if (won.has(pl.id)) { pl.gold += GOLD.ROUND_WIN; pl.goldEarned += GOLD.ROUND_WIN; pl.roundGold += GOLD.ROUND_WIN; g += GOLD.ROUND_WIN; }
     if (pl.diedFirstRound === state.round) { pl.gold += GOLD.FIRST_DEATH; pl.goldEarned += GOLD.FIRST_DEATH; pl.roundGold += GOLD.FIRST_DEATH; g += GOLD.FIRST_DEATH; }
     income[pl.id] = g;
     // itemized for the round-end banner: where did each gold piece come from
     detail[pl.id] = {
       base: GOLD.ROUND_BASE,
+      ...(stipend ? { stipend } : {}),
       kills: pl.roundKills * GOLD.PER_KILL,
       bounty: pl.roundBounty || 0,
       win: won.has(pl.id) ? GOLD.ROUND_WIN : 0,
@@ -1818,6 +1878,9 @@ function afterSummary(state) {
     state.phaseT = ROUND.SHOP_TIME;
     // state.round is the round just fought, so this shop belongs to it
     if (state.draft && draftDue(state.round)) rollDraftOffers(state);
+    // optimisations (issue #13 v7): versus only, co-op is mothballed
+    if (state.mode !== 'coop' && OPTIMS.ROUNDS.includes(state.round))
+      rollOptimOffers(state);
   }
 }
 
@@ -2152,7 +2215,8 @@ function stepBattle(state, dt) {
         // inside the ring: the linger clock is HELD (`in`), the bite cadence runs
         b.left = linger;
         b.in = true;
-        b.dps = itemFxAt('brazier', 'auraDps', lv);
+        b.dps = itemFxAt('brazier', 'auraDps', lv)
+          + (pl.optims && pl.optims.hataura ? OPTIMS.POOL.hataura.add : 0);
       }
     }
     // the burn itself, wherever the victim now is
@@ -2784,6 +2848,12 @@ function stepProjectiles(state, dt) {
       // Mosquito's pair lead is the only user (ELEMENTS.mosquito): the lead
       // stings for full damage with every rider, and pushes nobody out of the
       // trailing ball's path.
+      // optimisation (issue #13 v7): the ball OWNER's picked boost, +10% push
+      // on every ball they throw, with the multipliers (before kbScale/kbMin)
+      {
+        const ownPl = state.players[pr.owner];
+        if (ownPl && ownPl.optims && ownPl.optims.push) kb *= OPTIMS.POOL.push.mult;
+      }
       if (pr.kbScale != null) kb *= pr.kbScale;
       // a mine's last stored ball carries the trap's own shove as a FLOOR
       // (round 21.8, Remi: max of the two, never their sum — SPELLS.nova)
@@ -3331,6 +3401,11 @@ export function snapshot(state, viewerId = null) {
       // draft mode: your OWN free offer, nobody else's. Absent entirely when the
       // toggle is off (and when it is on but this shop carries no offer).
       ...(p.draftOffer && p.id === viewerId ? { draftOffer: p.draftOffer } : {}),
+      // optimisations (issue #13 v7): your OWN offer; everyone's picked boosts
+      // are public (knowing who took what is part of the game). Both absent
+      // until the round-3 window, so earlier snapshots are unchanged.
+      ...(p.optimOffer && p.id === viewerId ? { optimOffer: p.optimOffer } : {}),
+      ...(p.optims && Object.keys(p.optims).length ? { optims: p.optims } : {}),
       // elemental-only wire fields — classic snapshots stay byte-identical
       ...(elemental ? {
         elements: p.elements,

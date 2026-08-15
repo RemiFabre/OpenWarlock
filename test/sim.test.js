@@ -4,12 +4,12 @@ import {
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
-  arenaStartRadius, setTeam, teamTally,
+  arenaStartRadius, setTeam, teamTally, optimPick,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, OPTIMS, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { itemFxAt } from '../shared/items.js';
@@ -7697,5 +7697,166 @@ describe('Ju v4 (issue #13)', () => {
     expect(state.puddles.length).toBe(1);
     run(state, SPELLS.vomit.puddleLife[0] + 0.5);
     expect(state.puddles.length).toBe(0);
+  });
+});
+
+describe('optimisations ⚡ (issue #13 v7)', () => {
+  // end round n without fighting it and walk into that round's shop (which is
+  // where afterSummary rolls the offers)
+  function shopAfterRound(state, n) {
+    state.round = n;
+    state.phase = 'roundEnd';
+    state.roundSummary = { final: false };
+    state.phaseT = 0;
+    step(state, DT);
+    expect(state.phase).toBe('shop');
+  }
+  function game(players = ['a', 'b']) {
+    const state = createGame({ seed: 7, mode: 'elemental' });
+    for (const id of players) addPlayer(state, id, id.toUpperCase());
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    return state;
+  }
+
+  it('offers OPTIONS boosts at the end of each OPTIMS.ROUNDS round, and only there', () => {
+    const state = game();
+    shopAfterRound(state, 2);
+    expect(state.players.a.optimOffer).toBe(null);
+    shopAfterRound(state, OPTIMS.ROUNDS[0]);
+    const off = state.players.a.optimOffer;
+    expect(off).toBeTruthy();
+    expect(off.options.length).toBe(OPTIMS.OPTIONS);
+    for (const k of off.options) expect(OPTIMS.POOL[k]).toBeTruthy();
+  });
+
+  it('a pick is free, applies, and closes the offer', () => {
+    const state = game();
+    shopAfterRound(state, OPTIMS.ROUNDS[0]);
+    const a = state.players.a;
+    const gold0 = a.gold;
+    const key = a.optimOffer.options[1];
+    expect(optimPick(state, 'a', 'nonsense').ok).toBe(false);
+    expect(optimPick(state, 'a', key).ok).toBe(true);
+    expect(a.optims[key]).toBe(true);
+    expect(a.gold).toBe(gold0);
+    // one pick only
+    expect(optimPick(state, 'a', a.optimOffer.options[0]).ok).toBe(false);
+  });
+
+  it('an ignored offer auto-resolves to its first option when the shop closes', () => {
+    const state = game();
+    shopAfterRound(state, OPTIMS.ROUNDS[0]);
+    const first = state.players.a.optimOffer.options[0];
+    run(state, ROUND.SHOP_TIME + 0.5);
+    expect(state.phase).toBe('countdown');
+    expect(state.players.a.optims[first]).toBe(true);
+    expect(state.players.a.optimOffer).toBe(null);
+  });
+
+  it('an owned boost is never re-offered; three windows = three distinct boosts', () => {
+    const state = game();
+    for (const n of OPTIMS.ROUNDS) {
+      shopAfterRound(state, n);
+      const off = state.players.a.optimOffer;
+      for (const k of off.options) expect(state.players.a.optims[k]).toBeUndefined();
+      expect(optimPick(state, 'a', off.options[0]).ok).toBe(true);
+    }
+    expect(Object.keys(state.players.a.optims).length).toBe(OPTIMS.ROUNDS.length);
+  });
+
+  it('bots pick on the spot', () => {
+    const state = game();
+    state.players.b.bot = true;
+    shopAfterRound(state, OPTIMS.ROUNDS[0]);
+    const off = state.players.b.optimOffer;
+    expect(off.picked).toBeTruthy();
+    expect(state.players.b.optims[off.picked]).toBe(true);
+  });
+
+  it('the offer is yours alone on the wire; picked boosts are public', () => {
+    const state = game();
+    shopAfterRound(state, OPTIMS.ROUNDS[0]);
+    expect(optimPick(state, 'a', state.players.a.optimOffer.options[0]).ok).toBe(true);
+    const bView = snapshot(state, 'b');
+    expect(bView.players.a.optimOffer).toBeUndefined();
+    expect(bView.players.b.optimOffer).toBeTruthy();
+    expect(bView.players.a.optims).toBeTruthy();
+  });
+
+  it('cooldown boost: every cast is 10% shorter, read from the spec', () => {
+    const state = freshBattle(2);
+    state.players.p0.optims = { cooldown: true };
+    state.players.p1.x = 20; state.players.p1.y = 0;
+    castSpell(state, 'p0', 'fireball', 10, 0);
+    castSpell(state, 'p1', 'fireball', -30, 0);
+    expect(state.players.p0.cooldowns.fireball).toBeCloseTo(
+      state.players.p1.cooldowns.fireball * OPTIMS.POOL.cooldown.mult, 5);
+  });
+
+  it('ball size boost: the spawned ball is 10% bigger', () => {
+    const state = freshBattle(2);
+    state.players.p0.optims = { ballsize: true };
+    castSpell(state, 'p0', 'fireball', 10, 0);
+    const pr = state.projectiles[state.projectiles.length - 1];
+    expect(pr.radius).toBeCloseTo(SPELLS.fireball.radius * OPTIMS.POOL.ballsize.mult, 5);
+  });
+
+  it('push boost: the same point-blank hit shoves the victim further', () => {
+    const mk = (push) => {
+      const state = freshBattle(2);
+      if (push) state.players.p0.optims = { push: true };
+      state.players.p0.x = 0; state.players.p0.y = 0;
+      state.players.p1.x = 4; state.players.p1.y = 0;
+      castSpell(state, 'p0', 'fireball', 10, 0);
+      run(state, 0.6);
+      return state.players.p1.x;
+    };
+    expect(mk(true)).toBeGreaterThan(mk(false));
+  });
+
+  it('lifesteal boost: heal-from-your-own-damage pays 10% more', () => {
+    const mk = (boost) => {
+      const state = freshBattle(2);
+      state.players.p0.items = { sword: 3 };
+      state.players.p0.hp = 50;
+      if (boost) state.players.p0.optims = { lifesteal: true };
+      state.players.p0.x = 0; state.players.p0.y = 0;
+      state.players.p1.x = 4; state.players.p1.y = 0;
+      castSpell(state, 'p0', 'fireball', 10, 0);
+      run(state, 0.3);
+      return state.players.p0.hp - 50;
+    };
+    const base = mk(false);
+    expect(base).toBeGreaterThan(0);
+    expect(mk(true)).toBeCloseTo(base * OPTIMS.POOL.lifesteal.mult, 5);
+  });
+
+  it('hat aura boost: the brazier burn ticks +0.75 dps harder', () => {
+    const mk = (boost) => {
+      const state = freshBattle(2);
+      state.players.p0.items = { brazier: 1 };
+      if (boost) state.players.p0.optims = { hataura: true };
+      state.players.p0.x = 0; state.players.p0.y = 0;
+      state.players.p1.x = 2; state.players.p1.y = 0;
+      const hp0 = state.players.p1.hp;
+      run(state, 1.05);
+      return hp0 - state.players.p1.hp;
+    };
+    expect(mk(true) - mk(false)).toBeCloseTo(
+      OPTIMS.POOL.hataura.add * ITEMS.brazier.tickEvery, 1);
+  });
+
+  it('gold boost: +2 at the end of every round, itemized on the banner', () => {
+    const state = freshBattle(2);
+    state.players.p0.optims = { gold: true };
+    const gold0 = state.players.p0.gold;
+    state.players.p1.hp = 0.01;
+    state.players.p1.x = ARENA.START_RADIUS + 5; // lava kills, nobody credited
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
+    expect(state.phase).toBe('shop');
+    expect(state.players.p0.gold).toBe(
+      gold0 + GOLD.ROUND_BASE + GOLD.ROUND_WIN + OPTIMS.POOL.gold.add);
+    expect(state.roundSummary.detail.p0.stipend).toBe(OPTIMS.POOL.gold.add);
   });
 });

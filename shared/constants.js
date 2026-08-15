@@ -798,6 +798,32 @@ export const DRAFT = {
   AUTO_PICK_FIRST: true,
 };
 
+// ---- Optimisations (issue #13 v7, Ju): TFT-style augment picks -------------
+// At the end of each round in ROUNDS a window opens BEFORE the shop: OPTIONS
+// random boosts from POOL, pick exactly ONE, free, permanent for the rest of
+// the game, stacking on top of spells/items/elements. A boost already owned is
+// never re-offered. These numbers ARE the spec (tests read them from here).
+export const OPTIMS = {
+  ROUNDS: [3, 6, 9],
+  OPTIONS: 3,
+  // like DRAFT: an ignored offer still pays its first (random) option
+  AUTO_PICK_FIRST: true,
+  POOL: {
+    push:      { icon: '💥', name: 'Heavy Ball',  mult: 1.10,
+                 desc: 'Your balls push enemies 10% harder.' },
+    lifesteal: { icon: '🩸', name: 'Deep Drink',  mult: 1.10,
+                 desc: 'Everything that heals you from your own damage heals 10% more.' },
+    ballsize:  { icon: '🎈', name: 'Big Ball',    mult: 1.10,
+                 desc: 'Your balls are 10% bigger.' },
+    cooldown:  { icon: '⏳', name: 'Quick Hands', mult: 0.90,
+                 desc: 'All your cooldowns are 10% shorter.' },
+    hataura:   { icon: '🎩', name: 'Searing Hat', add: 0.75,
+                 desc: 'Your Hat of Aura burns for +0.75 damage per second.' },
+    gold:      { icon: '💰', name: 'Stipend',     add: 2,
+                 desc: '+2 gold at the end of every round.' },
+  },
+};
+
 export const COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6',
   '#e67e22', '#1abc9c', '#fd79a8', '#95a5a6', '#00cec9',
