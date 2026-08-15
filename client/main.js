@@ -1556,6 +1556,29 @@ function tipBody(lines, cur, max, costAt, previewLv) {
     `<table class="lvmatrix"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+// Issue #13 v9 (Ju): every card whose behavior changed with the LAST version
+// says so in green, so a returning player reads the diff inside the shop.
+// Hand-curated from the real constants diff v7 -> v8; rewrite at each version.
+const PATCH_NOTES = {
+  fireball: ['Range is 50 now (was infinite): balls fizzle at distance.'],
+  treads: ['Lava resist is 25/40/50% now (was 25/50/65%).',
+    'And lava itself bites harder: 16 dps (was 14).'],
+  firewalk: ['NEW spell in this version.'],
+  debt: ['NEW spell in this version.'],
+  genki: ['NEW power spell in this version.'],
+  midas: ['Fireball damage penalty softened: -30/-15/0% (was -50/-25/0%).'],
+  anger: ['Marks land slower: every 30/25/20 s (was 20/15/10).'],
+  vampire: ['The engorged ball heals a FLAT 10/20/30 hp now (was a multiple of its damage).'],
+  frost: ['Stacks fade now: unfed piles lose 1 stack every 9 s.'],
+  gale: ['Stacks fade now: unfed piles lose 1 stack every 9 s.'],
+  malady: ['Stacks fade now: unfed piles lose 1 stack every 9 s.'],
+  vomit: ['Default key is U now (Blood Debt took Y). Rebind it in the Keys panel.'],
+};
+const patchHtml = (key) => PATCH_NOTES[key]
+  ? `<div class="tpatch"><b>Changed in this version</b><ul>${
+      PATCH_NOTES[key].map((s) => `<li>${esc(s)}</li>`).join('')}</ul></div>`
+  : '';
+
 function tipShell(icon, name, sub, desc, body, foot, lv = 0, max = 3) {
   return `<div class="tname"><span class="ic">${icon}</span>${esc(name)}` +
     `${lv > 0 ? `<span class="tlv l${Math.min(lv, 3)}">LV ${lv}${lv >= max ? ' · MAX' : ''}</span>` : ''}</div>
@@ -1590,7 +1613,7 @@ function spellTip(key, spec, level, maxLevel, previewLv) {
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
   return tipShell(artHtml(key, 'tart'), spec.name, sub, spec.long || spec.desc,
-    tipBody(lines, level, maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
+    patchHtml(key) + tipBody(lines, level, maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
     foot, level, maxLevel);
 }
 
@@ -1604,7 +1627,7 @@ function elementTip(key, spec, level, previewLv) {
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
   return tipShell(artHtml(key, 'tart'), spec.name, sub, spec.long || spec.desc,
-    tipBody(lines, level, spec.maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
+    patchHtml(key) + tipBody(lines, level, spec.maxLevel, (lv) => fmtGold(spec.costs[lv - 1]), previewLv),
     foot, level, spec.maxLevel);
 }
 
@@ -1624,7 +1647,7 @@ function itemTip(key, spec, level, previewLv) {
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
   return tipShell(artHtml(key, 'tart'), spec.name, sub, spec.long || spec.desc,
-    tipBody(lines, cur, spec.maxLevel, (lv) => fmtGold(itemCost(key, lv - 1)), previewLv),
+    patchHtml(key) + tipBody(lines, cur, spec.maxLevel, (lv) => fmtGold(itemCost(key, lv - 1)), previewLv),
     foot, level, spec.maxLevel);
 }
 
@@ -1880,6 +1903,7 @@ function buildShop(container, mode = 'classic') {
     wrap.appendChild(chip);
     curRow.appendChild(wrap);
     const w = { key, spec, el: b, wrap, kind: 'spell' };
+    if (PATCH_NOTES[key]) b.classList.add('updated');
     attachTip(b, (pv) => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel, pv));
     wares.push(w); inSection(w);
   };
@@ -1923,6 +1947,7 @@ function buildShop(container, mode = 'classic') {
     });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'element' };
+    if (PATCH_NOTES[key]) b.classList.add('updated');
     attachTip(b, (pv) => elementTip(key, spec, w.level || 0, pv));
     wares.push(w); inSection(w);
   };
@@ -1964,6 +1989,7 @@ function buildShop(container, mode = 'classic') {
     });
     curRow.appendChild(b);
     const w = { key, spec, el: b, kind: 'item' };
+    if (PATCH_NOTES[key]) b.classList.add('updated');
     attachTip(b, (pv) => itemTip(key, spec, w.level || 0, pv));
     wares.push(w); inSection(w);
   }
@@ -2751,6 +2777,9 @@ function updateUi(s) {
     // a direct hit drops it and the hit eats the whole number
     if (fin(+m.genkiDmg) && +m.genkiDmg > 0)
       buffs.push(`<span class="buff vanish">${ICONS.genki} charging · ${Math.round(+m.genkiDmg)} dmg</span>`);
+    // Round Ward (v9): your own absorb shield, counted down as it eats hits
+    if (fin(+m.absorb) && +m.absorb > 0)
+      buffs.push(`<span class="buff vanish">🛡️ ward · ${Math.ceil(+m.absorb)} hp</span>`);
     // Statue: the freeze is short and total, so the countdown is the whole HUD
     // story: how long until you can act again.
     if (fin(+m.statueT) && +m.statueT > 0)

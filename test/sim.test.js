@@ -8764,3 +8764,148 @@ describe('optimisations ⚡ (issue #13 v7)', () => {
     expect(state.roundSummary.detail.p0.stipend).toBe(OPTIMS.POOL.gold.add);
   });
 });
+
+describe('optimisations v9 (Ju approved the 8, plus his 4)', () => {
+  function battle2() {
+    const state = freshBattle(2);
+    state.players.p0.x = 0; state.players.p0.y = 0;
+    state.players.p1.x = 4; state.players.p1.y = 0;
+    return state;
+  }
+
+  it('swift and fireproof read straight out of stats()', () => {
+    const state = battle2();
+    const base = playerStats(state.players.p1);
+    state.players.p0.optims = { swift: true, fireproof: true };
+    const st = playerStats(state.players.p0);
+    expect(st.speed).toBeCloseTo(base.speed * OPTIMS.POOL.swift.mult, 5);
+    expect(st.lavaMult).toBeCloseTo(base.lavaMult * OPTIMS.POOL.fireproof.mult, 5);
+  });
+
+  it('fast ball and long throw ride the spawned projectile', () => {
+    const state = battle2();
+    state.players.p0.optims = { fastball: true, longthrow: true };
+    castSpell(state, 'p0', 'fireball', 10, 0);
+    const pr = state.projectiles[state.projectiles.length - 1];
+    expect(Math.hypot(pr.vx, pr.vy)).toBeCloseTo(
+      SPELLS.fireball.speed * OPTIMS.POOL.fastball.mult, 3);
+    expect(pr.range).toBeCloseTo(SPELLS.fireball.range * OPTIMS.POOL.longthrow.mult, 5);
+  });
+
+  it('sharp ball: the same hit costs 10% more hp', () => {
+    const mk = (boost) => {
+      const state = battle2();
+      if (boost) state.players.p0.optims = { sharp: true };
+      castSpell(state, 'p0', 'fireball', 10, 0);
+      run(state, 0.3);
+      return 100 - state.players.p1.hp;
+    };
+    const base = mk(false);
+    expect(base).toBeGreaterThan(0);
+    expect(mk(true)).toBeCloseTo(base * OPTIMS.POOL.sharp.mult, 5);
+  });
+
+  it('headhunter: a kill pays one extra gold', () => {
+    const state = battle2();
+    state.players.p0.optims = { headhunter: true };
+    const gold0 = state.players.p0.gold;
+    state.players.p1.hp = 1;
+    castSpell(state, 'p0', 'fireball', 10, 0);
+    run(state, 0.5);
+    expect(state.players.p1.alive).toBe(false);
+    // the kill also ends the round, so base + win income land beside the
+    // kill gold: PER_KILL + headhunter (no bounty at 0 gap)
+    expect(state.players.p0.gold).toBe(gold0 + GOLD.PER_KILL + OPTIMS.POOL.headhunter.add
+      + GOLD.ROUND_BASE + GOLD.ROUND_WIN);
+  });
+
+  it('tough hide applies on pick AND on auto-resolve', () => {
+    const state = createGame({ seed: 7, mode: 'elemental' });
+    for (const id of ['a', 'b']) addPlayer(state, id, id);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    for (const id of ['a', 'b']) {
+      const pl = state.players[id];
+      pl.optimOffer = { round: 3, options: ['tough'], picked: null };
+      pl.hp = 50;
+    }
+    state.phase = 'shop';
+    const hp0 = 50, max0 = state.players.a.maxHp;
+    expect(optimPick(state, 'a', 'tough').ok).toBe(true);
+    expect(state.players.a.maxHp).toBe(max0 + OPTIMS.POOL.tough.add);
+    expect(state.players.a.hp).toBe(hp0 + OPTIMS.POOL.tough.add);
+    run(state, ROUND.SHOP_TIME + 0.5);   // b never clicked: auto-resolve grants it
+    expect(state.players.b.maxHp).toBe(max0 + OPTIMS.POOL.tough.add);
+  });
+
+  it('veteran grows max hp at every round end', () => {
+    const state = battle2();
+    state.players.p0.optims = { growth: true };
+    const max0 = state.players.p0.maxHp;
+    state.players.p1.hp = 0.01;
+    state.players.p1.x = ARENA.START_RADIUS + 5;
+    run(state, 0.5 + ROUND.SUMMARY_TIME);
+    expect(state.phase).toBe('shop');
+    expect(state.players.p0.maxHp).toBe(max0 + OPTIMS.POOL.growth.add);
+  });
+
+  it('round ward: a fresh absorb each round eats damage but never the push', () => {
+    const state = battle2();
+    const p1 = state.players.p1;
+    p1.optims = { roundshield: true };
+    // walk into the next round so the respawn arms the ward
+    state.players.p1.hp = 0.01;
+    state.players.p1.x = ARENA.START_RADIUS + 5;
+    run(state, 0.5 + ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.phase).toBe('battle');
+    const ward0 = Math.round(p1.maxHp * OPTIMS.POOL.roundshield.frac);
+    expect(p1.optAbsorb).toBe(ward0);
+    // a point-blank fireball: hp untouched, ward pays, body still shoved
+    const p0 = state.players.p0;
+    p0.x = p1.x - 4; p0.y = p1.y;
+    const hp0 = p1.hp, x0 = p1.x;
+    p0.cooldowns = {};
+    castSpell(state, 'p0', 'fireball', p1.x + 10, p1.y);
+    run(state, 0.4);
+    expect(p1.hp).toBe(hp0);
+    expect(p1.optAbsorb).toBeLessThan(ward0);
+    expect(p1.x).toBeGreaterThan(x0);
+  });
+
+  it('slim silhouette shrinks the live radius 15%', () => {
+    const state = battle2();
+    state.players.p0.optims = { small: true };
+    run(state, 0.1);   // updateRadii runs in the loop
+    expect(state.players.p0.radius).toBeCloseTo(
+      state.players.p1.radius * OPTIMS.POOL.small.mult, 5);
+  });
+
+  it('extra mirage adds a decoy clone', () => {
+    const mk = (boost) => {
+      const state = battle2();
+      state.players.p0.spells.decoy = 1;
+      if (boost) state.players.p0.optims = { decoyclone: true };
+      castSpell(state, 'p0', 'decoy', 10, 0);
+      return state.clones.filter((c) => c.owner === 'p0').length;
+    };
+    expect(mk(true)).toBe(mk(false) + OPTIMS.POOL.decoyclone.add);
+  });
+
+  it('minRound: extra mirage is never offered at the round-3 window', () => {
+    const state = createGame({ seed: 7, mode: 'elemental' });
+    for (const id of ['a', 'b']) addPlayer(state, id, id);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    // own everything except the gated boost: the round-3 pool must come up EMPTY
+    for (const k of Object.keys(OPTIMS.POOL)) if (k !== 'decoyclone') state.players.a.optims[k] = true;
+    state.round = 3;
+    state.phase = 'roundEnd'; state.roundSummary = { final: false }; state.phaseT = 0;
+    step(state, DT);
+    expect(state.players.a.optimOffer).toBe(null);
+    // at the round-6 window it is finally on the table
+    state.round = OPTIMS.POOL.decoyclone.minRound;
+    state.phase = 'roundEnd'; state.roundSummary = { final: false }; state.phaseT = 0;
+    step(state, DT);
+    expect(state.players.a.optimOffer.options).toEqual(['decoyclone']);
+  });
+});

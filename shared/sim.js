@@ -200,6 +200,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     // deliberately never reset) and this shop's offer (same shape as draft's)
     optims: {},
     optimOffer: null,
+    optAbsorb: 0,          // Round Ward: absorb hp left this round (v9)
     cooldowns: {},
     shieldT: 0,
     // Blood Debt (SPELLS.debt, issue #1): debtT = absorb window left,
@@ -356,7 +357,8 @@ function updateRadii(state) {
   for (const pl of fs) {
     if (pl.team === TEAM.AI) { pl.radius = PLAYER.RADIUS * (pl.sizeMult || 1); continue; }
     const mult = clamp(1 + PER_KILL * (pl.kills - avg), MIN, MAX);
-    pl.radius = PLAYER.RADIUS * mult;
+    pl.radius = PLAYER.RADIUS * mult
+      * (pl.optims && pl.optims.small ? OPTIMS.POOL.small.mult : 1);
   }
 }
 
@@ -378,6 +380,11 @@ function stats(pl) {
   // maxed boots sprint (issue #9): +12% once unhurt long enough (see stepBattle)
   if (pl._sprinting) speed *= 1 + ITEM_FX.boots.sprintPct / 100;
   if (mult.lavaMult != null) lavaMult *= mult.lavaMult;
+  // optimisations (issue #13 v9): permanent picked boosts
+  if (pl.optims) {
+    if (pl.optims.swift) speed *= OPTIMS.POOL.swift.mult;
+    if (pl.optims.fireproof) lavaMult *= OPTIMS.POOL.fireproof.mult;
+  }
   if (mult.kbMult != null) kbMult *= mult.kbMult;
   regen += add.regen || 0;
   lifesteal += add.lifesteal || 0;
@@ -622,7 +629,10 @@ export function castSpell(state, id, key, tx, ty) {
         state.projectiles.push({
           id: state.nextId++, type: 'ricochet', owner: id, level: ricoLvl,
           x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
-          vx: dx * tspec.speed * body.speed, vy: dy * tspec.speed * body.speed,
+          vx: dx * tspec.speed * body.speed
+            * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
+          vy: dy * tspec.speed * body.speed
+            * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
           traveled: 0, hit: {}, pierce: false, pierced: 0,
           radius: tspec.radius * body.radius
             * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1),
@@ -880,7 +890,8 @@ export function castSpell(state, id, key, tx, ty) {
 function spawnClones(state, pl, level) {
   const spec = SPELLS.decoy;
   state.clones = (state.clones || []).filter(c => c.owner !== pl.id);
-  const n = lvl(spec, 'clones', level);
+  const n = lvl(spec, 'clones', level)
+    + (pl.optims && pl.optims.decoyclone ? OPTIMS.POOL.decoyclone.add : 0);
   for (let i = 0; i < n; i++) {
     state.clones.push({
       id: `${pl.id}~d${state.nextId++}`, owner: pl.id,
@@ -967,7 +978,7 @@ function stepClones(state, dt) {
       const spec = SPELLS[pr.type];
       pr.x += pr.vx * dt; pr.y += pr.vy * dt;
       pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
-      if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
+      if (pr.type === 'fireball' && pr.traveled >= (pr.range ?? spec.range)) continue;
       if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
       if (Math.hypot(pr.x, pr.y) > state.startRadius * 2) continue;
       keep.push(pr);
@@ -1016,7 +1027,8 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
   const body = elemBodyMults(elements);
   const radius = spec.radius * body.radius
     * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1);
-  const speed = spec.speed * body.speed;
+  const speed = spec.speed * body.speed
+    * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1);
   state.projectiles.push({
     id: state.nextId++, type: 'fireball', owner: pl.id, level,
     // half a body ahead of the caster
@@ -1044,6 +1056,10 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     ...(elements && elements.chainball > 0 ? { storm: elements.chainball } : {}),
     ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.engorged ? { engorged: opts.engorged } : {}),
+    // optimisation (v9): the ball carries ITS OWN range so both expiry checks
+    // (real and phantom) read one truth
+    ...(pl.optims && pl.optims.longthrow
+      ? { range: spec.range * OPTIMS.POOL.longthrow.mult } : {}),
   });
 }
 
@@ -1368,7 +1384,9 @@ function resolveDraftOffers(state) {
 function rollOptimOffers(state) {
   for (const pl of Object.values(state.players)) {
     if (pl.spectator || pl.wave) continue;
-    const pool = Object.keys(OPTIMS.POOL).filter(k => !pl.optims[k]);
+    // a boost may carry minRound (v9: Ju's Extra Mirage waits for round 6)
+    const pool = Object.keys(OPTIMS.POOL).filter(k => !pl.optims[k]
+      && state.round >= (OPTIMS.POOL[k].minRound || 0));
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(rng(state) * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -1376,6 +1394,16 @@ function rollOptimOffers(state) {
     const options = pool.slice(0, OPTIMS.OPTIONS);
     pl.optimOffer = options.length ? { round: state.round, options, picked: null } : null;
     if (pl.optimOffer && pl.bot) optimPick(state, pl.id, options[0]);
+  }
+}
+
+// Most boosts are read live where they act; the two with an immediate,
+// stateful effect apply here (also on auto-resolve, so nobody is shorted).
+function grantOptim(state, pl, k) {
+  pl.optims[k] = true;
+  if (k === 'tough') {
+    pl.maxHp += OPTIMS.POOL.tough.add;
+    pl.hp = Math.min(pl.maxHp, pl.hp + OPTIMS.POOL.tough.add);
   }
 }
 
@@ -1388,7 +1416,7 @@ export function optimPick(state, id, key) {
   if (off.picked) return { ok: false, err: 'already picked' };
   const k = String(key || '');
   if (!off.options.includes(k)) return { ok: false, err: 'not on offer' };
-  pl.optims[k] = true;
+  grantOptim(state, pl, k);
   off.picked = k;
   return { ok: true };
 }
@@ -1398,7 +1426,7 @@ function resolveOptimOffers(state) {
     const off = pl.optimOffer;
     if (!off) continue;
     if (!off.picked && OPTIMS.AUTO_PICK_FIRST && off.options.length)
-      pl.optims[off.options[0]] = true;
+      grantOptim(state, pl, off.options[0]);
     pl.optimOffer = null;
   }
 }
@@ -1486,6 +1514,14 @@ function applyDamage(state, target, amount, sourceId,
     amount += genkiState(target).dmg;
     state.events.push({ t: 'genkiFizzle', id: target.id, x: target.x, y: target.y });
     target.genki = null;
+  }
+  // optimisation (v9): Round Ward eats DAMAGE first (lava and ticks included);
+  // push and controls were never routed through here, so they pass by design.
+  if (target.optAbsorb > 0 && amount > 0) {
+    const eaten = Math.min(target.optAbsorb, amount);
+    target.optAbsorb -= eaten;
+    amount -= eaten;
+    if (amount <= 0) return false;  // fully absorbed: no riders, no lifesteal
   }
   const effective = Math.min(amount, Math.max(0, target.hp)); // no overkill credit
   target.hp -= amount;
@@ -1686,9 +1722,11 @@ function kill(state, target, directSourceId) {
     // destroyed for the rest of the game
     if (killer.kills >= 10) state.holdHoles = true;
     killer.roundKills++;
-    killer.gold += GOLD.PER_KILL + bounty;
-    killer.goldEarned += GOLD.PER_KILL + bounty;
-    killer.roundGold += GOLD.PER_KILL + bounty;
+    // optimisation (v9): Headhunter pays +1 on every kill
+    const hh = killer.optims && killer.optims.headhunter ? OPTIMS.POOL.headhunter.add : 0;
+    killer.gold += GOLD.PER_KILL + bounty + hh;
+    killer.goldEarned += GOLD.PER_KILL + bounty + hh;
+    killer.roundGold += GOLD.PER_KILL + bounty + hh;
     // multi-kill: chain kills inside MULTIKILL_WINDOW and the announcer wakes
     // up (double → triple → quadra → penta → MASSACRE)
     killer._mkStreak = (state.time - (killer._mkAt ?? -Infinity) <= ROUND.MULTIKILL_WINDOW)
@@ -1808,6 +1846,10 @@ function startRound(state) {
     pl.vx = 0; pl.vy = 0;
     pl.moveTarget = null;
     pl.hp = pl.maxHp;
+    // optimisation (v9): Round Ward, a fresh absorb shield each round; damage
+    // only, applyDamage consumes it (push and control pass through untouched)
+    pl.optAbsorb = pl.optims && pl.optims.roundshield
+      ? Math.round(pl.maxHp * OPTIMS.POOL.roundshield.frac) : 0;
     pl.alive = true;
     pl.cooldowns = {};
     // (a round boundary, not a cancel: nothing survives the respawn)
@@ -1969,6 +2011,8 @@ function endRound(state) {
     // kill + bounty gold shown here, already granted at kill time
     // optimisation (issue #13 v7): the Stipend boost pays beside the base
     const stipend = pl.optims && pl.optims.gold ? OPTIMS.POOL.gold.add : 0;
+    // optimisation (v9): Veteran grows the pool at every round end
+    if (pl.optims && pl.optims.growth) pl.maxHp += OPTIMS.POOL.growth.add;
     const base = GOLD.ROUND_BASE + stipend;
     let g = base + pl.roundKills * GOLD.PER_KILL + (pl.roundBounty || 0);
     pl.gold += base; pl.goldEarned += base; pl.roundGold += base;
@@ -2877,7 +2921,7 @@ function stepProjectiles(state, dt) {
     }
 
     // range expiry / world cull (fireballs have infinite range)
-    if (pr.type === 'fireball' && pr.traveled >= spec.range) continue;
+    if (pr.type === 'fireball' && pr.traveled >= (pr.range ?? spec.range)) continue;
     if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
     if (Math.hypot(pr.x, pr.y) > state.startRadius * 2) continue;
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance)
@@ -3130,11 +3174,14 @@ function stepProjectiles(state, dt) {
       // Mosquito's pair lead is the only user (ELEMENTS.mosquito): the lead
       // stings for full damage with every rider, and pushes nobody out of the
       // trailing ball's path.
-      // optimisation (issue #13 v7): the ball OWNER's picked boost, +10% push
-      // on every ball they throw, with the multipliers (before kbScale/kbMin)
+      // optimisations (issue #13 v7/v9): the ball OWNER's picked boosts, with
+      // the multipliers (before kbScale/kbMin)
       {
         const ownPl = state.players[pr.owner];
-        if (ownPl && ownPl.optims && ownPl.optims.push) kb *= OPTIMS.POOL.push.mult;
+        const po = ownPl && ownPl.optims;
+        if (po && po.push) kb *= OPTIMS.POOL.push.mult;
+        if (po && po.lavapush && other.inLava) kb *= OPTIMS.POOL.lavapush.mult;
+        if (po && po.sharp) { dmg *= OPTIMS.POOL.sharp.mult; ramp *= OPTIMS.POOL.sharp.mult; }
       }
       if (pr.kbScale != null) kb *= pr.kbScale;
       // a mine's last stored ball carries the trap's own shove as a FLOOR
@@ -3716,6 +3763,8 @@ export function snapshot(state, viewerId = null) {
       // until the round-3 window, so earlier snapshots are unchanged.
       ...(p.optimOffer && p.id === viewerId ? { optimOffer: p.optimOffer } : {}),
       ...(p.optims && Object.keys(p.optims).length ? { optims: p.optims } : {}),
+      // Round Ward: your OWN remaining absorb, for the HUD gauge (v9)
+      ...(p.optAbsorb > 0 && p.id === viewerId ? { absorb: round2(p.optAbsorb) } : {}),
       // how many of YOUR buys this shop can still be undone (drives the button)
       ...(p.id === viewerId && p.shopUndo && p.shopUndo.length ? { undoN: p.shopUndo.length } : {}),
       // per-card right-click refunds: {key: exact gold back} (issue #14 iter 4)
