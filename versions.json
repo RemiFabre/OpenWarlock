@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 40,
+  "serial": 41,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v6.2: Dark and Storm are independent fireball axes at 6 g a level (blind on the 2nd hit for 1-2 s, a faster/smaller arcing ball, 3+ in the arc paralysed), Ricochet bounces for a flat 3.2 s cooldown, and the maxed boots finally announce their sprint. Plus the Vomit Puddle, Guardian Angel, craters and the grapple.",
+      "summary": "Ju's arsenal, v7: at the end of rounds 3, 6 and 9 a window opens before the shop with 3 random optimisations (permanent boosts, TFT-augment style), pick one. Plus everything from v6.2: Dark and Storm fireball axes, the flat 3.2 s Ricochet, the sprint boots, the Vomit Puddle, Guardian Angel, craters and the grapple.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "f5378fd648ba7ac6811344a021f0de4520eef255"
+      "commit": "357fdf25c89d8e365606bc2a4e1b73b9bdc01aa3"
     },
     {
       "slug": "trash-talk",
