@@ -448,8 +448,12 @@ function onEvent(e) {
     // arcane lv3: your cooldowns just jumped back (a fireball landed)
     case 'refund':
       pushFloater(e, 'refund', 0.55, now);
+      fx.push({ ...e, type: 'refundGlint', at: now, dur: 0.6 });
       if (e.id === myId) playSfx('rewind');
       break;
+    // ghost passthrough (issue #14 VFX 08): a pale flash on the body the ball
+    // flew through. Silent: a lv3 ghost ball can pierce a whole line.
+    case 'pierce': fx.push({ ...e, type: 'pierce', at: now, dur: 0.45 }); break;
     // Vanish: the server only ever sends this to the player who cast it
     // (viewEvents strips events anchored on a hidden player), so this fx and its
     // sound are self-only by construction; do NOT add a fallback that draws it

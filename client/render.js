@@ -126,6 +126,30 @@ const ELEM_CORE = {
 // Both readings matter: the owner sees the build they bought fly, a defender
 // reads what is coming at them. Accents are cheap strokes on purpose; this
 // runs per projectile per frame, so no gradients and no allocations here.
+// The behind-layers of the fireball stack (issue #14 VFX contract): ghost's
+// afterimages and gale's air arcs render UNDER the flame body.
+const VFX_BEHIND = ['ghost', 'gale'];
+// One liquid-flame lobe: two mirrored quadratic flanks from a nose just ahead
+// of the hitbox to a tail tip behind it, control points wobbling with t.
+// No allocations; called three times per fireball per frame.
+function liquidLobe(ctx, x, y, r, ca, sa, t, len, wid, wob, color, alpha) {
+  const nx = x + ca * r * 0.95, ny = y + sa * r * 0.95;
+  const tx2 = x - ca * r * len, ty2 = y - sa * r * len;
+  const w1 = wid + wob * Math.sin(t * 13);
+  const w2 = wid - wob * Math.sin(t * 13 + 1.1);
+  const mx = x - ca * r * len * 0.38, my = y - sa * r * len * 0.38;
+  const tw = wob * Math.sin(t * 9 + 2.0);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(nx, ny);
+  ctx.quadraticCurveTo(mx - sa * r * w1, my + ca * r * w1,
+    tx2 - sa * r * tw, ty2 + ca * r * tw);
+  ctx.quadraticCurveTo(mx + sa * r * w2, my - ca * r * w2, nx, ny);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
 const ACCENTS = {
   // damage axis: hot sparks shedding off the back
   ember: (ctx, x, y, r, lv, ang, t) => {
@@ -154,7 +178,7 @@ const ACCENTS = {
   },
   // push axis: wind curls peeling off the sides
   gale: (ctx, x, y, r, lv, ang, t) => {
-    ctx.strokeStyle = 'rgba(230, 242, 255, 0.6)';
+    ctx.strokeStyle = `rgba(230, 242, 255, ${0.35 + 0.15 * lv})`;
     ctx.lineWidth = 1.4;
     const wob = 0.25 * Math.sin(t * 7);
     for (let s = -1; s <= 1; s += 2) {
@@ -166,7 +190,7 @@ const ACCENTS = {
   },
   // cadence axis: rune arcs spinning fast around the ball
   arcane: (ctx, x, y, r, lv, ang, t) => {
-    ctx.strokeStyle = 'rgba(196, 150, 255, 0.8)';
+    ctx.strokeStyle = `rgba(196, 150, 255, ${0.5 + 0.15 * lv})`;
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 3; i++) {
       const a = t * 5 + i * (TAU / 3);
@@ -611,26 +635,45 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       let core = '#ffab40', coreLv = 0;
       if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
       if (pr.engorged) core = '#ff2340';
-      // base ball: trail + core glow, both tinted (anger's red core comes from
-      // ELEM_CORE; the earned bank never inflates the ball's apparent size)
-      const tail = 4;
-      const g = ctx.createLinearGradient(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail, x, y);
-      g.addColorStop(0, 'rgba(255, 120, 30, 0)');
-      g.addColorStop(1, 'rgba(255, 150, 60, 0.6)');
-      ctx.strokeStyle = g; ctx.lineWidth = r * 1.4; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
-      ctx.lineTo(x, y); ctx.stroke();
-      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+      // Liquid Flame core (issue #14 VFX): a teardrop flame drawn as nested
+      // lobes around the true hitbox, oriented by velocity, with an animated
+      // wavy spine. Parametric on purpose: crisp at terra scale, alive at 3 px,
+      // and every overlay stays synchronized because they share `t` and `ang`.
+      // Layer contract (Sam): ghost/gale BEHIND, core, terra/ember/arcane above.
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      if (el) for (const k of VFX_BEHIND) {
+        if (el[k] > 0 && ACCENTS[k]) ACCENTS[k](ctx, x, y, r, el[k], ang, t);
+      }
+      // soft halo, tinted by the strongest rider (defender info, kept: the tint
+      // IS how you read what is flying at you; the flame shape is the style)
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.1);
       glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
-      glow.addColorStop(0.35, core);
+      glow.addColorStop(0.4, core);
       glow.addColorStop(1, pr.engorged ? 'rgba(200, 0, 30, 0)' : 'rgba(255, 90, 20, 0)');
       ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
-      // accents stack: every element the ball carries paints its own tell
+      ctx.globalAlpha = 0.75;
+      ctx.beginPath(); ctx.arc(x, y, r * 2.1, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+      liquidLobe(ctx, x, y, r, ca, sa, t, 3.7, 1.18, 0.32, core, 0.7);   // outer flame
+      liquidLobe(ctx, x, y, r, ca, sa, t, 2.3, 0.9, 0.18, core, 1);      // body
+      liquidLobe(ctx, x, y, r, ca, sa, t, 1.05, 0.55, 0.08,              // kernel
+        pr.engorged ? '#ffdfe4' : '#fff3c8', 0.95);
+      // two thin tail wisps riding the spine (the boards' liquid strands)
+      ctx.strokeStyle = 'rgba(255, 238, 190, 0.5)';
+      ctx.lineWidth = Math.max(0.8, r * 0.16);
+      for (let w = 0; w < 2; w++) {
+        const ph = t * 12 + w * 2.6;
+        ctx.beginPath();
+        ctx.moveTo(x + ca * r * 0.4, y + sa * r * 0.4);
+        ctx.quadraticCurveTo(
+          x - ca * r * 1.2 - sa * r * 0.45 * Math.sin(ph), y - sa * r * 1.2 + ca * r * 0.45 * Math.sin(ph),
+          x - ca * r * 2.4 - sa * r * 0.3 * Math.sin(ph + 1.3), y - sa * r * 2.4 + ca * r * 0.3 * Math.sin(ph + 1.3));
+        ctx.stroke();
+      }
+      // accents stack: every remaining element paints its tell ABOVE the core
       if (el) for (const k in el) {
         const accent = ACCENTS[k];
-        if (accent && el[k] > 0) accent(ctx, x, y, r, el[k], ang, t);
+        if (accent && el[k] > 0 && !VFX_BEHIND.includes(k)) accent(ctx, x, y, r, el[k], ang, t);
       }
       if (pr.engorged) drawEngorged(ctx, x, y, r, t);
     } else if (pr.type === 'genki') {
@@ -1524,6 +1567,36 @@ function drawFx(view, fx, now, baseAlpha = 1) {
           ctx.fillStyle = `rgba(230, 242, 255, ${a})`;
           ctx.fillText(`🌪 ${+f.stacks}/${+f.of}`, x, y - 30 - 14 * k);
         }
+        ctx.restore();
+        break;
+      }
+      // ghost passthrough (issue #14 VFX 08): the body the ball flew through
+      // flashes a pale double outline that slides along the ball's wake
+      case 'pierce': {
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(220, 214, 255, ${a * 0.9})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, (0.6 + 1.3 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = `rgba(220, 214, 255, ${a * 0.45})`;
+        ctx.beginPath(); ctx.arc(x, y, (0.3 + 2.1 * k) * scale, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      // arcane refund (issue #14 VFX 10): violet arcs snap INWARD onto the
+      // caster: time handed back, pulled in rather than thrown out
+      case 'refundGlint': {
+        const x = view.sx(f.x), y = view.sy(f.y);
+        ctx.save();
+        ctx.strokeStyle = `rgba(196, 150, 255, ${a})`;
+        ctx.lineWidth = 2;
+        const rr = (2.6 - 1.9 * k) * scale;   // collapsing radius
+        for (let i = 0; i < 3; i++) {
+          const ang = f.at * 4 + i * (Math.PI * 2 / 3) - k * 2.2;
+          ctx.beginPath(); ctx.arc(x, y, rr, ang, ang + 0.9); ctx.stroke();
+        }
+        ctx.fillStyle = `rgba(230, 210, 255, ${a})`;
+        ctx.beginPath(); ctx.arc(x, y, 2 + 1.5 * a, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
         break;
       }

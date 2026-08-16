@@ -2844,7 +2844,12 @@ function stepProjectiles(state, dt) {
       // hit the same person twice, and `pierced` tells the next victim they are
       // standing behind someone.
       if (!pr.pierce) dead = true;
-      else { pr.hit[other.id] = true; pr.pierced = (pr.pierced || 0) + 1; }
+      else {
+        pr.hit[other.id] = true; pr.pierced = (pr.pierced || 0) + 1;
+        // ghost passthrough (issue #14 VFX): a visual-only event so the client
+        // can flash the body the ball just flew through. No gameplay effect.
+        state.events.push({ t: 'pierce', id: other.id, x: round2(pr.x), y: round2(pr.y) });
+      }
       break;
     }
     if (!dead) keep.push(pr);
