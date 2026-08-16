@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 44,
+  "serial": 45,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -92,11 +92,11 @@
       "slug": "sam-hud",
       "name": "Sam's Clear Shop",
       "author": "@SamKhosravi",
-      "summary": "A pure readability pass, no gameplay changes. The arena wears painted artwork with a hotter boundary, the round ends on a full reveal with victory and defeat crests, and warlocks wear 23 illustrated avatars. The shop is illustrated now: 37 painted artworks, one per spell, element and item, on image-first cards that wear their state (dimmed when unaffordable, green when owned, gold when the next level is affordable, quiet at MAX). The Gathering lobby is rebuilt around Sam's information hierarchy: one match summary line, rules and controls behind a button, YOU as a player card, a MATCH SETTINGS block whose buttons name their own state, bots added in one click with their strategy chosen on their roster row, and 20 illustrated avatars worn in the lobby, on the scoreboard and in the arena itself. Plus the shop pass: shop cards wear their state (dimmed when unaffordable, LV badge when owned, gold glow when an upgrade is affordable, MAX when complete), four obvious shop blocks, a redesigned description-first tooltip floats beside the hovered card, and in combat only the spells you own are on the bar with bold cooldown seconds, plus right-click to refund this shop's purchases card by card.",
+      "summary": "Sam's overhaul, v10: the fireball is a Liquid Flame now, a procedural teardrop core with per-upgrade overlays (ember sparks, terra shell + scale, gale air arcs, ghost afterimages, arcane runes) and event effects for the gale gust, ghost passthrough, pillar break and arcane refund. On top of the illustrated shop, animated Knight, redesigned lobby/menus and arena artwork.",
       "issue": 14,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/14",
       "branch": "issue-14-hud-readability",
-      "commit": "d0a31cea35d722155dfd1aca534223477e807b19"
+      "commit": "337c9b41b4b0614e215a1d5baef747141d7d54b7"
     }
   ]
 }
