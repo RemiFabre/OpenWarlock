@@ -106,6 +106,12 @@ export const LAVA = {
   SPEED_MULT: 2.0,
 };
 
+// Issue #13 v11 (Ju): Meteor and Mine always break the ground for the round they
+// land in; this is the chance, rolled at the CAST, that this one crater stays
+// until the game ends. It replaces the old "anyone reached 10 kills" switch,
+// which turned every later impact permanent at once.
+export const HOLES = { PERM_CHANCE: 0.05 };
+
 export const ROUND = {
   COUNTDOWN: 3,
   SUMMARY_TIME: 3.5,      // victory/defeat banner between battle and shop
@@ -927,6 +933,17 @@ export const OPTIMS = {
                  desc: 'Freezes, slows, stuns and roots on you run out 20% sooner.' },
     trickshot: { icon: '🎱', name: 'Trick Shot',  mult: 1,
                  desc: 'Your Ricochet\'s bounced hits deal FULL damage (the 65% discount is gone).' },
+    // v11 (Ju's approvals of the agent's b/c, plus his own savings gamble)
+    lavalegs:  { icon: '🏊', name: 'Lava Legs',   mult: 1.15,
+                 desc: 'You swim 15% faster in the lava, on top of everyone\'s double speed.' },
+    bigpillar: { icon: '🗿', name: 'Broad Pillar', mult: 1.20,
+                 desc: 'Your Stone Pillars are 20% wider.' },
+    // A one-shot trade: the shelf shuts until the NEXT window, which pays the
+    // bonus on top of everything you were forced to save. maxRound keeps it off
+    // the LAST window, where no next window exists to unlock the shop again
+    // (a test pins it to ROUNDS, so changing ROUNDS cannot rot it silently).
+    savings:   { icon: '🏦', name: 'Forced Savings', add: 30, maxRound: 6,
+                 desc: 'You can buy nothing until the next optimisation. When it comes, you get +30 gold on top of everything you were forced to save.' },
   },
 };
 

@@ -499,6 +499,15 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.strokeStyle = 'rgba(255, 120, 50, 0.7)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.stroke();
+    // v11 (Ju): a crater that won the permanence roll wears a cracked GOLD rim,
+    // so you can tell at a glance which scars outlive the round.
+    if (h.perm) {
+      ctx.strokeStyle = 'rgba(255, 214, 102, 0.9)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([hr * 0.32, hr * 0.16]);
+      ctx.beginPath(); ctx.arc(x, y, hr * 0.92, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.restore();
   }
 

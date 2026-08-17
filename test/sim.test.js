@@ -11,7 +11,7 @@ import {
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, AVATARS, OPTIMS, itemCost,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, AVATARS, OPTIMS, HOLES, itemCost,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { itemFxAt } from '../shared/items.js';
@@ -8376,40 +8376,69 @@ describe('Ju v3 (issue #11)', () => {
     expect(Math.hypot(a.x - 15, a.y)).toBeGreaterThanOrEqual(4 + a.radius - 0.05);
   });
 
-  it('craters heal with the round — until anyone reaches 10 kills', () => {
-    const state = ground();
-    state.holes.push({ x: 10, y: 10, r: 3 });
-    // classic round cycle: kill p1, ride through roundEnd+shop into round 2
-    const b = state.players.p1;
-    b.x = 2; b.y = 0; b.hp = 1;
-    castSpell(state, 'p0', 'fireball', 5, 0);
-    run(state, 0.5);
-    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
-    expect(state.phase).toBe('battle');
-    expect(state.holes.length).toBe(0);          // healed
+  // v11 (Ju): the 10-kill switch is gone. A crater heals with the round unless
+  // its CAST won the HOLES.PERM_CHANCE roll, and then it stays all game.
+  it('craters heal with the round, and a perm crater does not', () => {
+    const cycle = (perm) => {
+      const state = ground();
+      state.holes.push({ x: 10, y: 10, r: 3, ...(perm ? { perm: true } : {}) });
+      // classic round cycle: kill p1, ride through roundEnd+shop into round 2
+      const b = state.players.p1;
+      b.x = 2; b.y = 0; b.hp = 1;
+      castSpell(state, 'p0', 'fireball', 5, 0);
+      run(state, 0.5);
+      run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+      expect(state.phase).toBe('battle');
+      return state.holes.length;
+    };
+    expect(cycle(false)).toBe(0);
+    expect(cycle(true)).toBe(1);
+  });
 
-    // now with a 10-kill leader: the crater survives the round change
-    const s2 = ground();
-    s2.holes.push({ x: 10, y: 10, r: 3 });
-    s2.players.p0.kills = 9;
-    const b2 = s2.players.p1;
-    b2.x = 2; b2.y = 0; b2.hp = 1;
-    castSpell(s2, 'p0', 'fireball', 5, 0);
-    run(s2, 0.5);                                 // 10th kill -> holdHoles
-    expect(s2.holdHoles).toBe(true);
-    run(s2, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
-    expect(s2.phase).toBe('battle');
-    expect(s2.holes.length).toBe(1);              // forever
+  it('the permanence of a crater is decided at the CAST and carried to the impact', () => {
+    const mk = (perm) => {
+      const state = ground((s, a) => { a.spells.meteor = 1; });
+      castSpell(state, 'p0', 'meteor', 10, 10);
+      state.meteors[0].perm = perm;       // the roll, forced
+      run(state, SPELLS.meteor.delay + 0.1);
+      return !!state.holes[0].perm;
+    };
+    expect(mk(true)).toBe(true);
+    expect(mk(false)).toBe(false);
+    // a mine carries the same flag from its plant to its blast
+    const state = ground((s, a) => { a.spells.nova = 1; });
+    castSpell(state, 'p0', 'nova', 0, 0);
+    state.mines[0].perm = true;
+    const b = state.players.p1;
+    b.x = 0.5; b.y = 0;
+    run(state, 0.2);
+    expect(state.holes[0].perm).toBe(true);
+  });
+
+  it('casts win permanence at about HOLES.PERM_CHANCE, and only at the cast', () => {
+    expect(HOLES.PERM_CHANCE).toBeGreaterThan(0);
+    expect(HOLES.PERM_CHANCE).toBeLessThan(1);
+    const state = ground((s, a) => { a.spells.meteor = 1; });
+    let perms = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      state.players.p0.cooldowns = {};
+      castSpell(state, 'p0', 'meteor', 10, 10);
+      if (state.meteors.pop().perm) perms++;
+    }
+    // seeded rng, so this is stable; the band is 3 sigma wide, not a pin
+    expect(perms / N).toBeGreaterThan(HOLES.PERM_CHANCE * 0.8);
+    expect(perms / N).toBeLessThan(HOLES.PERM_CHANCE * 1.2);
   });
 
   it('a crater swallowing a spawn point is restored at round start', () => {
     const state = ground();
-    state.holdHoles = true;
-    // one hole on a future spawn seat, one far out in the field
+    // one hole on a future spawn seat, one far out in the field (both permanent,
+    // so the round change cannot be what removes them)
     const r = state.startRadius * ARENA.SPAWN_RADIUS_FRAC;
     // 2 seats are dealt at (0, -r) and (0, +r) — cover one of them
-    state.holes.push({ x: 0, y: r, r: 4 });       // on a spawn seat
-    state.holes.push({ x: 5, y: 5, r: 2 });       // mid-field
+    state.holes.push({ x: 0, y: r, r: 4, perm: true });   // on a spawn seat
+    state.holes.push({ x: 5, y: 5, r: 2, perm: true });   // mid-field
     const b = state.players.p1;
     b.x = 2; b.y = 0; b.hp = 1;
     castSpell(state, 'p0', 'fireball', 5, 0);
@@ -8961,5 +8990,83 @@ describe('optimisations v10 (dethrone, iron will, trick shot)', () => {
     const base = mk(false);
     expect(base).toBeGreaterThan(0);
     expect(mk(true)).toBeCloseTo(base / spec.bounceDmgMult, 5);
+  });
+});
+
+describe('optimisations v11 (lava legs, broad pillar, forced savings)', () => {
+  function shopAfterRound(state, n) {
+    state.round = n;
+    state.phase = 'roundEnd';
+    state.roundSummary = { final: false };
+    state.phaseT = 0;
+    step(state, DT);
+    expect(state.phase).toBe('shop');
+  }
+  function game(players = ['a', 'b']) {
+    const state = createGame({ seed: 7, mode: 'elemental' });
+    for (const id of players) addPlayer(state, id, id.toUpperCase());
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    return state;
+  }
+
+  it('lava legs only pays IN the lava, on top of everyone\'s double speed', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    a.optims = { lavalegs: true };
+    expect(playerStats(a).speed).toBeCloseTo(playerStats(b).speed, 5);
+    a.inLava = true; b.inLava = true;
+    expect(playerStats(a).speed).toBeCloseTo(
+      playerStats(b).speed * OPTIMS.POOL.lavalegs.mult, 5);
+  });
+
+  it('broad pillar widens the stone YOU raise', () => {
+    const mk = (boost) => {
+      const state = freshBattle(2);
+      state.pillars = [];
+      state.players.p0.spells.pillar = 1;
+      if (boost) state.players.p0.optims = { bigpillar: true };
+      castSpell(state, 'p0', 'pillar', 10, 0);
+      return state.pillars[state.pillars.length - 1].r;
+    };
+    expect(mk(true)).toBeCloseTo(mk(false) * OPTIMS.POOL.bigpillar.mult, 5);
+  });
+
+  it('forced savings shuts every card until the next window, then pays the bonus', () => {
+    const state = game();
+    const a = state.players.a;
+    a.gold = 40;
+    shopAfterRound(state, OPTIMS.ROUNDS[0]);
+    a.optimOffer = { round: OPTIMS.ROUNDS[0], options: ['savings'], picked: null };
+    expect(optimPick(state, 'a', 'savings').ok).toBe(true);
+    expect(a.buyLock).toBe(OPTIMS.ROUNDS[1]);
+    // nothing is for sale, whatever the shelf
+    for (const thing of ['lightning', 'boots', 'ember'])
+      expect(buy(state, 'a', thing).ok).toBe(false);
+    expect(a.gold).toBe(40);
+    // the intermediate shops stay shut too
+    shopAfterRound(state, OPTIMS.ROUNDS[0] + 1);
+    expect(buy(state, 'a', 'boots').ok).toBe(false);
+    // the next window unlocks it and pays
+    shopAfterRound(state, OPTIMS.ROUNDS[1]);
+    expect(a.buyLock).toBe(0);
+    expect(a.gold).toBe(40 + OPTIMS.POOL.savings.add);
+    expect(buy(state, 'a', 'boots').ok).toBe(true);
+  });
+
+  it('forced savings is never offered at the LAST window (nothing would unlock it)', () => {
+    const state = game();
+    const a = state.players.a;
+    const last = OPTIMS.ROUNDS[OPTIMS.ROUNDS.length - 1];
+    // it needs a later window, so its gate IS the second-to-last one
+    expect(OPTIMS.POOL.savings.maxRound)
+      .toBe(OPTIMS.ROUNDS[OPTIMS.ROUNDS.length - 2]);
+    for (const k of Object.keys(OPTIMS.POOL)) if (k !== 'savings') a.optims[k] = true;
+    shopAfterRound(state, OPTIMS.POOL.savings.maxRound);
+    expect(a.optimOffer.options).toEqual(['savings']);
+    a.optims = {};
+    for (const k of Object.keys(OPTIMS.POOL)) if (k !== 'savings') a.optims[k] = true;
+    shopAfterRound(state, last);
+    expect(a.optimOffer).toBe(null);
   });
 });

@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, STACK_DECAY, AVATARS, OPTIMS, itemCost,
+  DRAFT, TEAMS, STACK_DECAY, AVATARS, OPTIMS, HOLES, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -68,9 +68,9 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     phantoms: [],          // the balls those mirages "throw": motion + culling only
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
     // Issue #11 (Ju v3): ground DESTROYED by mines/meteors — impassable holes.
-    // Cleared each round until anyone reaches 10 kills (holdHoles), then kept.
-    holes: [],             // [{x, y, r}]
-    holdHoles: false,
+    // v11: a hole heals at round end unless its cast won the HOLES.PERM_CHANCE
+    // roll, in which case it stays for the whole game (`perm`).
+    holes: [],             // [{x, y, r, perm?}]
     puddles: [],           // issue #13: vomit — {x,y,r,level,owner,victim,until}
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     // Mine (round 21.8, SPELLS.nova; key unchanged, the artillery bomb is gone)
@@ -390,7 +390,11 @@ function stats(pl) {
   lifesteal += add.lifesteal || 0;
   healOnHit += add.healOnHit || 0;
   maxHp += add.maxHp || 0;
-  if (pl.inLava) speed *= LAVA.SPEED_MULT; // lava is fast, and it burns
+  if (pl.inLava) {
+    speed *= LAVA.SPEED_MULT;              // lava is fast, and it burns
+    // optimisation (v11, Ju): Lava Legs rides on top of everyone's double speed
+    if (pl.optims && pl.optims.lavalegs) speed *= OPTIMS.POOL.lavalegs.mult;
+  }
   if (pl.slowT > 0) speed *= (pl.slowMultHit || 0.6); // frost chill (elemental)
   if (pl.stunT > 0) speed = 0;                        // frost stun (elemental)
   if (pl.statueT > 0) speed = 0;                      // statue: rooted (any mode)
@@ -795,7 +799,10 @@ export function castSpell(state, id, key, tx, ty) {
       const dist = Math.min(d, spec.range);
       const px = pl.x + dx * dist, py = pl.y + dy * dist;
       state.pillars.push({
-        x: px, y: py, r: spec.radius, sunk: false,
+        // optimisation (v11, Ju): Broad Pillar widens what YOU raise
+        x: px, y: py, sunk: false,
+        r: spec.radius * (pl.optims && pl.optims.bigpillar
+          ? OPTIMS.POOL.bigpillar.mult : 1),
         // Round 21.2 ruling (Remi): a placed pillar is PERMANENT: no timer,
         // and it survives every later round (see startRound). Revert = put
         // `until: state.time + lvl(spec, 'duration', level)` back.
@@ -809,6 +816,9 @@ export function castSpell(state, id, key, tx, ty) {
       state.meteors.push({
         x: pl.x + dx * dist, y: pl.y + dy * dist,
         t: spec.delay, owner: id, level,
+        // v11 (Ju): the permanence of this rock's crater is decided HERE, at the
+        // cast, as he asked ("a chaque lancement de la competence")
+        perm: rng(state) < HOLES.PERM_CHANCE,
       });
       break;
     }
@@ -819,6 +829,7 @@ export function castSpell(state, id, key, tx, ty) {
       state.mines.push({
         id: state.nextId++, x: pl.x, y: pl.y, r: spec.radius,
         owner: id, level, charges: [],
+        perm: rng(state) < HOLES.PERM_CHANCE,   // v11: rolled at the plant
       });
       state.events.push({ t: 'mineUp', id, x: pl.x, y: pl.y, r: spec.radius });
       break;
@@ -1090,6 +1101,10 @@ export function buy(state, id, thing) {
   if (!pl) return { ok: false, err: 'no player' };
   if (state.phase !== 'shop')
     return { ok: false, err: 'shop is closed' };
+  // optimisation (v11, Ju): Forced Savings shuts the whole shelf until the round
+  // that pays the bonus. One choke point, so no card can slip through.
+  if (pl.buyLock)
+    return { ok: false, err: `locked by Forced Savings until round ${pl.buyLock}` };
   // Misclick insurance (round 22.2, Remi): before every successful HUMAN buy,
   // remember the whole purchasable state; undoBuy() restores the last memo.
   // The stack dies when the round starts (startRound), so nothing bought in an
@@ -1384,9 +1399,19 @@ function resolveDraftOffers(state) {
 function rollOptimOffers(state) {
   for (const pl of Object.values(state.players)) {
     if (pl.spectator || pl.wave) continue;
-    // a boost may carry minRound (v9: Ju's Extra Mirage waits for round 6)
+    // Forced Savings (v11, Ju): the window it was waiting for is open, so the
+    // shelf unlocks and the bonus lands on top of the hoard.
+    if (pl.buyLock && state.round >= pl.buyLock) {
+      pl.buyLock = 0;
+      pl.gold += OPTIMS.POOL.savings.add;
+      pl.goldEarned += OPTIMS.POOL.savings.add;
+      state.events.push({ t: 'savingsPaid', id: pl.id, g: OPTIMS.POOL.savings.add });
+    }
+    // a boost may carry minRound (v9: Ju's Extra Mirage waits for round 6) or
+    // maxRound (v11: Forced Savings needs a LATER window to unlock the shop)
     const pool = Object.keys(OPTIMS.POOL).filter(k => !pl.optims[k]
-      && state.round >= (OPTIMS.POOL[k].minRound || 0));
+      && state.round >= (OPTIMS.POOL[k].minRound || 0)
+      && state.round <= (OPTIMS.POOL[k].maxRound ?? Infinity));
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(rng(state) * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -1408,6 +1433,9 @@ function grantOptim(state, pl, k) {
   // Dethrone (v10, Ju): ONE-SHOT: whoever leads on kills right now loses 1
   // from the score (every tied leader), gold untouched, never below zero.
   // The picker can be the leader: the option is readable before the click.
+  // Forced Savings (v11, Ju): buy nothing until the NEXT window, which pays the
+  // bonus (rollOptimOffers). maxRound guarantees that window exists.
+  if (k === 'savings') pl.buyLock = OPTIMS.ROUNDS.find(r => r > state.round) || 0;
   if (k === 'dethrone') {
     const fs = fighters(state).filter(p => !p.wave);
     const top = Math.max(0, ...fs.map(p => p.kills));
@@ -1726,9 +1754,6 @@ function kill(state, target, directSourceId) {
     const bounty = Math.min(GOLD.BOUNTY_MAX,
       Math.max(0, Math.floor(gap * GOLD.BOUNTY_PER_GAP)));
     killer.kills++;
-    // issue #11 (Ju v3): once anyone reaches 10 kills, destroyed ground stays
-    // destroyed for the rest of the game
-    if (killer.kills >= 10) state.holdHoles = true;
     killer.roundKills++;
     // optimisation (v9): Headhunter pays +1 on every kill
     const hh = killer.optims && killer.optims.headhunter ? OPTIMS.POOL.headhunter.add : 0;
@@ -1813,9 +1838,9 @@ function startRound(state) {
   // raised in an earlier round; no cap, a long game fills up (counterplay:
   // lightning, nova, blink, portals, terra 3). Revert = `makePillars(state)`.
   state.pillars = [...state.pillars.filter(p => p.placedBy), ...makePillars(state)];
-  // Issue #11 (Ju v3): destroyed ground heals with the round — until anyone
-  // has 10 kills, after which the craters are forever (holdHoles, kill()).
-  if (!state.holdHoles) state.holes = [];
+  // Issue #11 (Ju v3) + v11: destroyed ground heals with the round, except the
+  // craters whose cast won the permanence roll (HOLES.PERM_CHANCE, at the cast).
+  state.holes = state.holes.filter(h => h.perm);
   state.puddles = [];   // no humiliation outlives the round (issue #13)
   state.projectiles = [];
   state.delayedShots = [];
@@ -2219,7 +2244,8 @@ function stepBattle(state, dt) {
       const spec = SPELLS.meteor;
       state.events.push({ t: 'meteorHit', x: m.x, y: m.y, r: spec.radius, by: m.owner });
       // issue #11 (Ju v3): the impact destroys the ground under it
-      state.holes.push({ x: round2(m.x), y: round2(m.y), r: spec.radius });
+      state.holes.push({ x: round2(m.x), y: round2(m.y), r: spec.radius,
+        ...(m.perm ? { perm: true } : {}) });
       for (const pl of Object.values(state.players)) {
         // everyone under the rock eats it, the caster included, but never a
         // teammate (round 21.3: same team = spells ignore each other)
@@ -2261,7 +2287,8 @@ function stepBattle(state, dt) {
       const n = m.charges.length;
       state.events.push({ t: 'mineHit', id: m.owner, x: m.x, y: m.y, r: m.r, n });
       // issue #11 (Ju v3): the blast destroys the ground under the trap
-      state.holes.push({ x: round2(m.x), y: round2(m.y), r: Math.max(m.r, 2) });
+      state.holes.push({ x: round2(m.x), y: round2(m.y), r: Math.max(m.r, 2),
+        ...(m.perm ? { perm: true } : {}) });
       if (!n) {
         // bare trap: its own shove, radially out of the ring. ⚠ dead centre is
         // a real case (a blink or a swap can land you exactly on it) and a zero
@@ -3777,6 +3804,9 @@ export function snapshot(state, viewerId = null) {
       // until the round-3 window, so earlier snapshots are unchanged.
       ...(p.optimOffer && p.id === viewerId ? { optimOffer: p.optimOffer } : {}),
       ...(p.optims && Object.keys(p.optims).length ? { optims: p.optims } : {}),
+      // Forced Savings: the round your OWN shelf reopens, so the shop can say so
+      // instead of looking broken (v11)
+      ...(p.buyLock && p.id === viewerId ? { buyLock: p.buyLock } : {}),
       // Round Ward: your OWN remaining absorb, for the HUD gauge (v9)
       ...(p.optAbsorb > 0 && p.id === viewerId ? { absorb: round2(p.optAbsorb) } : {}),
       // how many of YOUR buys this shop can still be undone (drives the button)
@@ -3835,7 +3865,8 @@ export function snapshot(state, viewerId = null) {
     })),
     // issue #11 (Ju v3): destroyed ground — absent while there is none
     ...(state.holes && state.holes.length ? {
-      holes: state.holes.map(h => ({ x: h.x, y: h.y, r: h.r })),
+      holes: state.holes.map(h => ({ x: h.x, y: h.y, r: h.r,
+        ...(h.perm ? { perm: true } : {}) })),
     } : {}),
     // issue #13 (Ju v4): vomit puddles — `by` names whose retch it is (public:
     // the whole arena watched them vomit; that is the humiliation)

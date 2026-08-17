@@ -2095,6 +2095,9 @@ function buildShop(container, mode = 'classic') {
       }
       if (w.pips.children.length !== pmax) w.pips.innerHTML = '<i></i>'.repeat(pmax);
       for (let i = 0; i < pmax; i++) w.pips.children[i].classList.toggle('on', i < (w.level || 0));
+      // Forced Savings (v11, Ju): the whole shelf is shut, same rule as buy().
+      // Last word, after every per-kind branch has had its say.
+      if (m.buyLock) w.el.disabled = true;
     }
     // a section whose whole stock is in the draft pool would leave a dangling
     // heading, so a label lives or dies with its wares, and so does each row
@@ -2580,7 +2583,11 @@ function updateUi(s) {
       refreshShop = buildShop($('shopGrid'), shopMode);
     }
     const watching = !!(m && m.spectator);
-    $('shopGold').textContent = !watching && m ? `${m.gold} g` : '';
+    // Forced Savings (v11, Ju): say WHY nothing can be bought, or a locked shelf
+    // reads as a bug
+    $('shopGold').textContent = !watching && m
+      ? (m.buyLock ? `${m.gold} g · 🏦 locked until round ${m.buyLock} (+30 g)` : `${m.gold} g`)
+      : '';
     const timer = $('shopTimer');
     const pausedBy = shopPausedBy;
     // testing: the shop clock never runs; only readying up moves the game on
