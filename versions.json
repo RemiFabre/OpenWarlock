@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 45,
+  "serial": 46,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v10: the optimisation pool grows to 21 (now with Dethrone: the kill leader loses 1 kill on the spot) (movement, damage, range, a round-start ward, a smaller body, +4 max hp per round...), and every shop card that changed with v8 explains it in green on hover. On Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, craters, the grapple, sprint boots, and the pick-one windows at rounds 3/6/9.",
+      "summary": "Ju's arsenal, v11: the optimisation pool grows to 24 (Lava Legs, Broad Pillar and Forced Savings: buy nothing until the next window, then take +30 gold), and a Meteor or Mine crater now has a 5% chance per cast of scarring the map until the end of the game. On Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, craters, the grapple, sprint boots, and the pick-one windows at rounds 3/6/9.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "fe8968503796a813c2a7568e73de504a07b28cfc"
+      "commit": "d515e9197aaad1a80c2b24f95bd6bc6dfc697467"
     },
     {
       "slug": "trash-talk",
