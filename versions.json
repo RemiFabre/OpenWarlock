@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 47,
+  "serial": 48,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v12: merged with the current base game (anger release bar, midas coins, vampire feast, smoother netcode), warlocks are the classic moving discs again, ricochet now claims anger marks / rolls midas coins / echo-pairs, the pool grows to 26 (Lava Sniper +15% on swimmers, Blood Price: -10 max hp for +2 damage per ball), Extra Mirage clones fan out and count, and Rush deals up to double damage with distance, shields 10 hp on a whiff, and previews its range on hover. On Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, holes, and the pick-one windows at rounds 3/6/9.",
+      "summary": "Ju's arsenal, v13: the Rush whiff shield is public and short (gray hp slice + ring, 3 s), the Tab scoreboard always fits the window, map scars roll 9% per cast, every lifesteal source is cut 25%, and the pick pool grows to 28 (Executioner: +20% on enemies under 20% hp; Coin Magnet: your Midas coins fly to you under 5 units). On the current base game (anger release bar, midas coins, vampire feast, smoother netcode) and Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, holes, and the pick-one windows at rounds 3/6/9.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "4ebac63eef7c27c92c2beb3a83cca9137cb01856"
+      "commit": "7d76ebc04c6297f09761c4fe8814e55c8b9e1d37"
     },
     {
       "slug": "trash-talk",
