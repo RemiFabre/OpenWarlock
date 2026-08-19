@@ -68,7 +68,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     clones: [],            // mirages: {id, owner, x, y, vx, vy, hp, maxHp, r, speed, left, ...}
     phantoms: [],          // the balls those mirages "throw": motion + culling only
     hazards: [],           // generic ground hazards (no live spawner since round 19): {x,y,r,until,owner,dps}
-    coins: [],             // midas coins (24.9): {id,x,y,owner}; round-long, owner-only pickup
+    coins: [],             // midas coins (24.9): {id,x,y,owner,born}; melts after coinLife s (24.11), owner-only pickup
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     // Mine (round 21.8, SPELLS.nova; key unchanged, the artillery bomb is gone)
     mines: [],             // planted traps: {id,x,y,r,owner,level,charges:[ball payloads]}
@@ -2242,11 +2242,16 @@ function stepBattle(state, dt) {
   // moment the OWNER's body reaches it; everyone else walks straight through
   // (their read is the ambush: the owner WILL come for it). A statue cannot
   // collect (nothing applies during the freeze); an invisible owner can
-  // (their gamble to take). Uncollected coins die with the round (startRound).
+  // (their gamble to take). Uncollected coins MELT after coinLife seconds
+  // (24.11: the owner must come get it, no farming from range) and die with
+  // the round (startRound); a coin with no `born` (or no coinLife in the
+  // spec) is round-long, the pre-24.11 revert path.
   if (state.coins.length) {
     const reach = ELEMENTS.midas.fx.coinRadius;
+    const life = ELEMENTS.midas.fx.coinLife;
     const keep = [];
     for (const c of state.coins) {
+      if (life && c.born != null && state.time - c.born >= life) continue;
       const owner = state.players[c.owner];
       if (owner && owner.alive && owner.statueT <= 0 &&
           Math.hypot(owner.x - c.x, owner.y - c.y) <= reach) {
@@ -3102,7 +3107,7 @@ function applyElementsHit(state, pr, target) {
     // same self-guard vampire's marks live by. FIREBALLS ONLY (round-12 ruling).
     if (f.coinChance && eo != null && pr.type === 'fireball' &&
         target.id !== eo && rng(state) < efxV(f.coinChance, el)) {
-      state.coins.push({ id: state.nextId++, x: target.x, y: target.y, owner: eo });
+      state.coins.push({ id: state.nextId++, x: target.x, y: target.y, owner: eo, born: state.time });
       state.events.push({ t: 'coinDrop', id: target.id, by: eo,
         x: target.x, y: target.y });
     }
@@ -3337,7 +3342,11 @@ export function snapshot(state, viewerId = null) {
     // everyone sees where the owner wants to walk). Absent when none exist,
     // so classic snapshots stay byte-identical.
     ...(state.coins && state.coins.length ? {
-      coins: state.coins.map(c => ({ x: round2(c.x), y: round2(c.y), owner: c.owner })),
+      // `t` = seconds of life left (24.11), so the client can blink a coin
+      // that is about to melt; absent (old snapshot) = no blink.
+      coins: state.coins.map(c => ({ x: round2(c.x), y: round2(c.y), owner: c.owner,
+        ...(ELEMENTS.midas.fx.coinLife && c.born != null
+          ? { t: round2(Math.max(0, ELEMENTS.midas.fx.coinLife - (state.time - c.born))) } : {}) })),
     } : {}),
     winner: state.winner,
     ...(state.winTeam != null ? { winTeam: state.winTeam } : {}),

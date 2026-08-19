@@ -477,6 +477,19 @@ pure-frequency levels near the +35% default); meteor dmg [16,30] -> [25,35]
 [36,27,20] the same day (lv3 = the 22.5 cadence, no buff). Elo tables for
 the full 24.x batch: `docs/history/2026-08-14-round24x-elo-tables.md`.
 
+## Round 24.11: the live-play trim (2026-08-19, Remi's numbers, UNMEASURED)
+
+Remi's feel pass after the 08-17 games, all one-line reverts:
+**midas** `coinChance [0.20,0.32,0.45] -> [0.20,0.30,0.40]` and coins now
+MELT after `coinLife` 10 s (blink the last 3): the pierce+haste flywheel from
+his Hard-lobby game out-earned the 24.9 napkin, and the melt forces the
+owner into the fight instead of farming coins from range. **echo**
+`doubleEvery [5,4,3] -> [6,5,4]`: the trailing ball advances the counter, so
+[5,4,3] FELT like every-other-cast doubling at lv3; steady state is now
+single-single-pair and the 5/4/3rd button text is true from the caster's
+seat. **vampire** `lowHpMax 3 -> 2.5`: endgame proximity is forced, so the
+near-death multiplier was the overperforming part.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*

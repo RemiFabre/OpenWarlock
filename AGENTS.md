@@ -1,11 +1,10 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-14, rounds 23.1 + 24 through 24.7: playout rewind fix,
-vampire mark-and-feast, midas rework, instrument cleanup, and 24.7 = the elo
-report PAGE (tools/report.js) + the 53-row roster rework
-(`docs/history/2026-08-14-round247-roster-rework.md`, ⚠ awaiting Remi's
-review BEFORE the next standard elo run). Read this first, then
-REMI_NOTES.md (latest round only). That is the whole entry set.*
+*Last updated 2026-08-19, round 24.11: Remi's live-play trim (midas coin
+chance + 10 s coin melt, echo cadence back to [6,5,4], vampire lowHpMax 2.5).
+Rounds 23.1-24.10 (playout rewind, vampire feast, midas coins, anger bar,
+roster rework, report page) are in REMI_NOTES' archive pointer. Read this
+first, then REMI_NOTES.md (latest round only). That is the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 
@@ -247,15 +246,18 @@ build step, Node ESM, only dep is `ws`.
   RELEASE-GATED: a bar fills over 2× the default fireball CD (4.2 s), every
   cast drains it, the ball adds bank × charge. Spam = crumbs, BY DESIGN,
   mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
-  cast fires a PAIR (no-push lead + normal trailing ball, round 20.1),
+  ball fires a PAIR (no-push lead + normal trailing ball, round 20.1; the
+  trailing ball advances the counter, so lv3 steady state = single-single-pair;
+  24.11 reverted 24.8's [5,4,3], which felt like every-other-cast),
   vampire=mark-and-feast (round 24: every hit banks a never-fading mark on the
   victim; stepping inside feastR 7 vacuums the pile back at one mark per 0.1 s,
-  each healing [2,3,4] × 1→3 linear on the vampire's OWN missing hp; a started
-  feast always finishes; marks die with either party; no feast through
-  Vanish/NOPE),
+  each healing [2,3,4] × 1→2.5 linear on the vampire's OWN missing hp (24.11);
+  a started feast always finishes; marks die with either party; no feast
+  through Vanish/NOPE),
   midas=COIN MINI-GAME (24.9, marks deleted): every fireball hit rolls
-  **[20,32,45]%**; success drops a 1 g coin where the victim stood, PUBLIC,
-  owner-only pickup on walkover; coins die with the round; Hard+ bots detour
+  **[20,30,40]%** (24.11); success drops a 1 g coin where the victim stood,
+  PUBLIC, owner-only pickup on walkover; coins MELT after 10 s (24.11,
+  `coinLife`, blink the last 3) and die with the round; Hard+ bots detour
   to collect (`COIN_SEEK`); no malus of any kind
   (Remi's ruling: buying an element must never weaken the fireball). ⚠ FIREBALL RANGE IS 50 since
   22.5 (was infinite): balls fizzle past `SPELLS.fireball.range`, reflections
@@ -368,7 +370,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 498 green (incl. the guards)
+npx vitest run                                   # 530 green (incl. the guards)
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

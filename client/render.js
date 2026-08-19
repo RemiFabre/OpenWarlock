@@ -485,20 +485,23 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const mine = myId != null && c.owner === myId;
     const r = Math.max(3, 0.42 * scale);
     ctx.save();
+    // 24.11: coins melt after 10 s (`t` = seconds left in the snapshot);
+    // the last 3 s blink so a vanish never reads as a bug. No `t` = no blink.
+    const melt = fin(+c.t) && +c.t < 3 ? 0.3 + 0.7 * Math.abs(Math.sin(now / 130)) : 1;
     if (mine) {
       const glint = 0.5 + 0.5 * Math.sin(now / 220);
-      ctx.globalAlpha = 0.35 + 0.25 * glint;
+      ctx.globalAlpha = (0.35 + 0.25 * glint) * melt;
       ctx.strokeStyle = '#ffd76a';
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, r * (1.8 + 0.5 * glint), 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = melt;
       ctx.fillStyle = '#ffcf4d';
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#8a6a1a'; ctx.lineWidth = 1.2; ctx.stroke();
       ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.45 * glint})`;
       ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.28, 0, Math.PI * 2); ctx.fill();
     } else {
-      ctx.globalAlpha = 0.75;
+      ctx.globalAlpha = 0.75 * melt;
       ctx.fillStyle = '#8f7f57';
       ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#5c5138'; ctx.lineWidth = 1; ctx.stroke();

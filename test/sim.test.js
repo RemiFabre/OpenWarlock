@@ -2454,6 +2454,24 @@ describe('elemental mode', () => {
     expect(state.coins.length).toBe(0);
   });
 
+  it('midas 🪙 (24.11): an uncollected coin MELTS after coinLife seconds', () => {
+    const f = ELEMENTS.midas.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0;
+    // owner parked away from the coin (inside the ring) so pickup never fires
+    a.x = -5; a.y = -5; a.vx = a.vy = 0; a.moveTarget = null;
+    state.coins.push({ id: 902, x: 5, y: 5, owner: 'p0', born: state.time });
+    run(state, f.coinLife - 1);
+    expect(state.coins.length).toBe(1);        // still there just before
+    run(state, 1 + 2 * DT);
+    expect(state.coins.length).toBe(0);        // melted; nobody was paid
+    expect(a.roundGold).toBe(0);
+    // a coin with no `born` (pre-24.11 shape) stays round-long: the revert path
+    state.coins.push({ id: 903, x: 5, y: 5, owner: 'p0' });
+    run(state, f.coinLife + 1);
+    expect(state.coins.length).toBe(1);
+  });
+
   it('midas 🪙: no coin off your own body (a reflected ball hitting yourself)', () => {
     // Riders stay keyed to the element's owner on a reflection (22.4). A
     // self-coin would be free gold for eating your own reflected ball.

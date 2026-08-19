@@ -666,10 +666,15 @@ export const ELEMENTS = {
   // coin, only the owner can pick it up: a telegraphed mini-objective.
   // coinChance napkin: docs/history/2026-08-14-round249-mark-reworks.md.
   // Old mark spec (24.1): git log this file.
+  // Round 24.11 (Remi, live play: strong when played around fully, see the
+  // midas flywheel read in that session): coinChance [0.20,0.32,0.45] ->
+  // [0.20,0.30,0.40], and a coin now MELTS after coinLife seconds, so the
+  // owner must come get it instead of farming from range. Revert: old chances,
+  // or drop coinLife (sim treats missing as round-long).
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Hits shake out coins.',
-           long: 'Every fireball hit has a 20/32/45% chance to knock a 1 gold coin out of the victim, dropped where they stood. Everyone sees it; only you can pick it up.',
-           fx: { coinChance: [0.20, 0.32, 0.45], coinValue: 1, coinRadius: 1.4 } },
+           long: 'Every fireball hit has a 20/30/40% chance to knock a 1 gold coin out of the victim, dropped where they stood. Everyone sees it; only you can pick it up, and it melts after 10 s.',
+           fx: { coinChance: [0.20, 0.30, 0.40], coinValue: 1, coinRadius: 1.4, coinLife: 10 } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else; the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -725,14 +730,15 @@ export const ELEMENTS = {
   // never rename it.
   // Round 21.7 (Remi wanted "the ripple a drop makes on water"): icon 👯 → 🫧.
   // Alternates, one line each: 💧 🌊 (🌀 is Blink's, ◎ is not an emoji).
-  // Round 24.8 (Remi approved the agent's read): weakest volume mutation for
-  // its 26 g on BOTH the Hard and the all-Faker table (M4-echo-first mid-low
-  // twice, docs/history/2026-08-14-round247-elo-faker.md), so the pair rate
-  // steps up: doubleEvery [6,5,4] -> [5,4,3] (pair chance 20/25/33%).
+  // Round 24.11 (Remi, live play): [5,4,3] felt like every OTHER cast doubling
+  // at lv3, because the trailing ball advances the counter too ("all every-N
+  // counters count"). [6,5,4] makes the steady state single-single-pair at lv3
+  // and the button text (5/4/3rd) true from the caster's seat. Revert: [5,4,3]
+  // (24.8's step-up; its elo case: docs/history/2026-08-14-round247-elo-faker.md).
   mosquito: { name: 'Echo', icon: '🫧', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Doubled casts.',
            long: 'Every 5/4/3rd fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
-           fx: { doubleEvery: [5, 4, 3], trailDelay: 0.15 } },
+           fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
   // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).
@@ -758,10 +764,12 @@ export const ELEMENTS = {
   // own hp runs out, linear, read at each gulp). feastR 7 = Hat of Aura lv3.
   // ⚠ A started feast always finishes: escaping the ring mid-drain pays anyway.
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire (old)
+  // Round 24.11 (Remi): lowHpMax 3 -> 2.5. Endgame forces everyone close, so
+  // the near-death multiplier was the part that overperformed. Revert: 3.
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Mark, then feast.',
-           long: 'Your fireball hits leave blood marks that never fade. Get close and every mark on that enemy flies back to you, healing 2/3/4 each, up to tripled the lower your own hp.',
-           fx: { markHeal: [2, 3, 4], feastR: 7, gulpEvery: 0.1, lowHpMax: 3 } },
+           long: 'Your fireball hits leave blood marks that never fade. Get close and every mark on that enemy flies back to you, healing 2/3/4 each, up to 2.5x the lower your own hp.',
+           fx: { markHeal: [2, 3, 4], feastR: 7, gulpEvery: 0.1, lowHpMax: 2.5 } },
   // (Chronos, refund on ANY landed spell, was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
   // c38730f:shared/constants.js.)
