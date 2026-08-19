@@ -723,8 +723,10 @@ export const ELEMENTS = {
            long: 'A red mark appears on an opponent; a fireball hit on them banks +0.5 damage forever. Owning Anger lets you HOLD the fireball key: the ball grows and carries the bank, but overcharging wastes the cast.',
            // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
            // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
-           // CD_next = CD / 1.35, rounded. ANCHORED at lv3 = 20 s, the 22.5
-           // value ("we don't want to buff anger"): 20 x 1.35^2 = 36.45.
+           // CD_next = CD / 1.35, rounded. Round 24.13 (Remi): ANCHORED at
+           // lv3 = 15 s (buff: the held charge earned a better reward);
+           // 15 x 1.35 = 20.25, 15 x 1.35^2 = 27.3. Revert: [36, 27, 20]
+           // (the 24.2 lv3 = 20 anchor).
            // Round 24.12 (Remi): the 24.9 time-bar is DELETED; the bank is
            // HOLD-GATED instead (the issue-6 charge, see CHARGE): release
            // tier sets the bank fraction AND the ball size, holding past the
@@ -733,7 +735,7 @@ export const ELEMENTS = {
            // (git this file). markDelay 0 + revenge targeting (the round's
            // first mark = your last killer):
            // docs/history/2026-08-14-round249-mark-reworks.md.
-           fx: { markEvery: [36, 27, 20], markDmg: 0.5, markDelay: 0,
+           fx: { markEvery: [27, 20, 15], markDmg: 0.5, markDelay: 0,
                  rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead

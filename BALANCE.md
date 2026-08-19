@@ -514,6 +514,13 @@ what-bots-cannot-price flags: `docs/history/2026-08-19-round2412-elo.md`
 (short: anger rows UP on Hard vs 24.10, M1 1529 -> 1614, D2 1117 -> 1440;
 D1 anchor stable; the 24.11 midas/vampire trims read mild).
 
+## Round 24.13: anger cadence buff (2026-08-19, Remi's call, UNMEASURED)
+
+`markEvery [36,27,20] -> [27,20,15]`: the held charge made the bank harder
+to cash (a tap pays zero), so the mark reward gets faster. Same 1/x rule,
+same +35%/level ratio, re-anchored at lv3 = 15 s (15 x 1.35 = 20.25 -> 20,
+x 1.35^2 = 27.3 -> 27). Revert: [36,27,20] (the 24.2 anchor).
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*
