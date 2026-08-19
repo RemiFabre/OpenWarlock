@@ -1,11 +1,14 @@
 # OpenWarlock 🔥
 
+<p align="center">
+  <img src="docs/media/round1-brawl.gif" width="49%" alt="A free-for-all brawl in the default game">
+  <img src="docs/media/sam-liquid-flame.gif" width="49%" alt="The same brawl in Sam's Liquid Flame, a player-made version">
+</p>
+<p align="center">
+  <img src="docs/media/shop.png" width="98%" alt="The between-rounds shop">
+</p>
+
 ## ▶ [Play it now, no install](https://remifabre.github.io/OpenWarlock/client/)
-
-![Round 1 of a free-for-all: seven warlocks trading fireballs over a shrinking lava ring](docs/media/round1-brawl.gif)
-
-*Round 1 of a free-for-all against Hard bots: plain fireballs, knockback, and
-the lava ring does the killing.*
 
 ## 🧪 Player-made versions
 
@@ -13,12 +16,6 @@ the lava ring does the killing.*
 or [propose your own](https://github.com/RemiFabre/OpenWarlock/issues/new?template=game-idea.md).
 An AI coding agent turns accepted requests into separate playable versions,
 credited to their authors, without changing the default game.
-
-![Sam's Liquid Flame, a player-made version: procedural fireball VFX over a lava-art arena](docs/media/sam-liquid-flame.gif)
-
-*One of them: Sam's Liquid Flame (issue #14) reskins the arena and gives the
-fireball a procedural VFX stack. Every version stays playable forever at its
-own permanent link.*
 
 An open-source, web-native remake of **Warlock**, the classic Warcraft III
 minigame: knock other warlocks into the lava with physics-driven spells, earn
@@ -43,12 +40,6 @@ and join over WebRTC. Nothing to install for anyone.
 - **Teams** are a lobby setting, not a mode: pick the same team number as a
   friend and your spells pass through each other. Any shape works (2v2, 3v2).
 - **Add bot** fills seats at four difficulties. They fight and they shop.
-
-![The between-rounds shop: spells, elements and items in a three-column grid](docs/media/shop.png)
-
-*The between-rounds shop (shown here in Sam's Clear Shop player version):
-spells, eleven stacking elements, and three-level items, all priced in the
-same anti-snowball gold.*
 
 ## Run it yourself
 
