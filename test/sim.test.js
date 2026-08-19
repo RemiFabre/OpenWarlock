@@ -9587,7 +9587,7 @@ describe('Ju v12 (issue #13)', () => {
     expect(far.amount).toBeLessThanOrEqual(spec.damage[0] * spec.rangeDmgMax + 0.01);
   });
 
-  it('Rush v12: a dash that touches nobody grants the ward, and the ward eats the next damage', () => {
+  it('Rush: a whiffed dash grants the shield; it is PUBLIC, eats damage first, and fades in 3 s', () => {
     const state = battle3();
     const a = state.players.p0, b = state.players.p1;
     a.spells.rush = 1;
@@ -9595,9 +9595,12 @@ describe('Ju v12 (issue #13)', () => {
     state.events = [];
     castSpell(state, 'p0', 'rush', 10, 0);
     run(state, 0.6);
-    expect(a.optAbsorb).toBe(SPELLS.rush.whiffShield);
+    expect(a.rushShield).toBe(SPELLS.rush.whiffShield);
     expect(state.events.some(e => e.t === 'rushShield' && e.id === 'p0')).toBe(true);
-    // the ward eats damage before hp (shoot from just beyond where the dash
+    // v13 (Ju): the shield is PUBLIC: every viewer's snapshot carries it
+    const wire = snapshot(state, 'p1');
+    expect(wire.players.p0.shield).toBe(SPELLS.rush.whiffShield);
+    // the shield eats damage before hp (shoot from just beyond where the dash
     // actually parked the caster)
     const hp0 = a.hp;
     b.elements = {};
@@ -9605,8 +9608,8 @@ describe('Ju v12 (issue #13)', () => {
     b.cooldowns = {};
     castSpell(state, 'p1', 'fireball', -20, 0);
     run(state, 0.4);
-    expect(a.hp).toBeCloseTo(hp0, 1);            // the ward paid, not the hp
-    expect(a.optAbsorb).toBeLessThan(SPELLS.rush.whiffShield);
+    expect(a.hp).toBeCloseTo(hp0, 1);            // the shield paid, not the hp
+    expect(a.rushShield).toBeLessThan(SPELLS.rush.whiffShield);
     // a dash that HITS someone shields nothing
     const s2 = battle3();
     const a2 = s2.players.p0, b2 = s2.players.p1;
@@ -9614,6 +9617,50 @@ describe('Ju v12 (issue #13)', () => {
     a2.x = 0; a2.y = 0; b2.x = 8; b2.y = 0; b2.vx = b2.vy = 0; b2.moveTarget = null;
     castSpell(s2, 'p0', 'rush', 10, 0);
     run(s2, 0.5);
-    expect(a2.optAbsorb || 0).toBe(0);
+    expect(a2.rushShield || 0).toBe(0);
+    // v13 (Ju): the shield fades on its own clock (shieldTime), unhit
+    const s3 = battle3();
+    const a3 = s3.players.p0;
+    a3.spells.rush = 1;
+    s3.players.p1.x = -30; s3.players.p1.y = 0; s3.players.p1.moveTarget = null;
+    castSpell(s3, 'p0', 'rush', 10, 0);
+    run(s3, 0.6);
+    expect(a3.rushShield).toBe(SPELLS.rush.whiffShield);
+    run(s3, SPELLS.rush.shieldTime + 0.1);
+    expect(a3.rushShield).toBe(0);
+  });
+
+  it('v13: Executioner boosts balls on low victims; Coin Magnet reels coins in', () => {
+    // Executioner: victim under `below` of max hp takes mult more
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    a.optims = { executioner: true };
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.moveTarget = null; b.vx = b.vy = 0;
+    b.hp = b.maxHp * (OPTIMS.POOL.executioner.below - 0.05);
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const low = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(low.amount).toBeCloseTo(SPELLS.fireball.damage[0] * OPTIMS.POOL.executioner.mult, 5);
+    // healthy victim: base damage
+    a.cooldowns = {}; b.hp = b.maxHp; b.x = 8; b.y = 0;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const high = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(high.amount).toBeCloseTo(SPELLS.fireball.damage[0], 5);
+    // Coin Magnet: a coin inside `range` glides to its owner and pays
+    const s2 = battle3();
+    const o = s2.players.p0;
+    o.optims = { coinmagnet: true };
+    o.x = 0; o.y = 0; o.moveTarget = null;
+    s2.coins.push({ id: 999, x: OPTIMS.POOL.coinmagnet.range - 1, y: 0, owner: 'p0' });
+    const g0 = o.gold;
+    run(s2, 1.0);
+    expect(o.gold).toBe(g0 + ELEMENTS.midas.fx.coinValue);
+    // ...and a coin just OUTSIDE the range stays put
+    s2.coins.push({ id: 1000, x: OPTIMS.POOL.coinmagnet.range + 3, y: 0, owner: 'p0' });
+    run(s2, 1.0);
+    expect(s2.coins.some(c => c.id === 1000)).toBe(true);
   });
 });

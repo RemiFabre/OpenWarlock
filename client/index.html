@@ -244,7 +244,9 @@
      its frame back, in the same blue-black and bronze as everything else
      (v8.1, Sam: "a polished game scoreboard, not a debug data table"). */
   #scorepanel .scoreslab {
-    padding: 14px 16px; width: fit-content; max-width: min(1010px, 94vw); margin: 0 auto;
+    padding: 14px 16px; width: fit-content; margin: 0 auto;
+    /* v13 (Ju): no fixed cap; paintScoreboard scales the slab to the window,
+       so every column is always visible with no horizontal scroll */
     background: linear-gradient(180deg, rgba(9, 16, 25, .96), rgba(6, 11, 18, .96));
     border: 1px solid rgba(197, 154, 88, .45);
     box-shadow: 0 20px 60px rgba(0, 0, 0, .6);

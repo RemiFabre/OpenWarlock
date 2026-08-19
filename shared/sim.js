@@ -203,6 +203,8 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     optims: {},
     optimOffer: null,
     optAbsorb: 0,          // Round Ward: absorb hp left this round (v9)
+    rushShield: 0,         // Rush whiff ward hp (v13: PUBLIC, timed)
+    rushShieldT: 0,        // seconds before the rush shield fades
     cooldowns: {},
     shieldT: 0,
     // Blood Debt (SPELLS.debt, issue #1): debtT = absorb window left,
@@ -1591,6 +1593,15 @@ function applyDamage(state, target, amount, sourceId,
   }
   // optimisation (v9): Round Ward eats DAMAGE first (lava and ticks included);
   // push and controls were never routed through here, so they pass by design.
+  // Rush's whiff shield (v13, Ju) eats before the Round Ward: it expires in
+  // seconds, so it should be the first thing spent.
+  if (target.rushShield > 0 && amount > 0) {
+    const eaten = Math.min(target.rushShield, amount);
+    target.rushShield -= eaten;
+    if (target.rushShield <= 0) target.rushShieldT = 0;
+    amount -= eaten;
+    if (amount <= 0) return false;
+  }
   if (target.optAbsorb > 0 && amount > 0) {
     const eaten = Math.min(target.optAbsorb, amount);
     target.optAbsorb -= eaten;
@@ -1931,6 +1942,7 @@ function startRound(state) {
     pl.hp = pl.maxHp;
     // optimisation (v9): Round Ward, a fresh absorb shield each round; damage
     // only, applyDamage consumes it (push and control pass through untouched)
+    pl.rushShield = 0; pl.rushShieldT = 0;   // v13: the ward never crosses rounds
     pl.optAbsorb = pl.optims && pl.optims.roundshield
       ? Math.round(pl.maxHp * OPTIMS.POOL.roundshield.frac) : 0;
     pl.alive = true;
@@ -2662,6 +2674,17 @@ function stepBattle(state, dt) {
     const keep = [];
     for (const c of state.coins) {
       const owner = state.players[c.owner];
+      // Coin Magnet (v13, Ju): inside `range`, the coin flies to its owner
+      // (20 u/s: faster than a walker, catchable by eye). Pickup rule below
+      // is unchanged: the coin still pays on contact.
+      if (owner && owner.alive && owner.optims && owner.optims.coinmagnet) {
+        const d = Math.hypot(owner.x - c.x, owner.y - c.y);
+        if (d > 0 && d <= OPTIMS.POOL.coinmagnet.range) {
+          const pull = Math.min(20 * dt, d);
+          c.x += ((owner.x - c.x) / d) * pull;
+          c.y += ((owner.y - c.y) / d) * pull;
+        }
+      }
       if (owner && owner.alive && owner.statueT <= 0 &&
           Math.hypot(owner.x - c.x, owner.y - c.y) <= reach) {
         const pay = ELEMENTS.midas.fx.coinValue;
@@ -2808,6 +2831,11 @@ function stepBattle(state, dt) {
       }
     }
 
+    // the rush shield fades on its own clock (v13, Ju: 3 s max)
+    if (pl.rushShieldT > 0) {
+      pl.rushShieldT -= dt;
+      if (pl.rushShieldT <= 0) { pl.rushShieldT = 0; pl.rushShield = 0; }
+    }
     // dash movement (overrides normal control)
     if (pl.dash) {
       const spec = SPELLS.rush;
@@ -3388,6 +3416,11 @@ function stepProjectiles(state, dt) {
         if (po && po.lavasniper && other.inLava) {
           dmg *= OPTIMS.POOL.lavasniper.mult; ramp *= OPTIMS.POOL.lavasniper.mult;
         }
+        // Executioner (v13, Ju): read the victim's hp BEFORE this hit lands
+        if (po && po.executioner &&
+            other.hp / other.maxHp < OPTIMS.POOL.executioner.below) {
+          dmg *= OPTIMS.POOL.executioner.mult; ramp *= OPTIMS.POOL.executioner.mult;
+        }
       }
       if (pr.kbScale != null) kb *= pr.kbScale;
       // a mine's last stored ball carries the trap's own shove as a FLOOR
@@ -3489,7 +3522,10 @@ function endDash(state, pl) {
   pl.dash = null;
   const shield = SPELLS.rush.whiffShield;
   if (whiffed && shield > 0) {
-    pl.optAbsorb = Math.max(pl.optAbsorb || 0, shield);
+    // v13 (Ju): its own PUBLIC, timed pool (3 s), drawn on the hp bar for
+    // everyone. Refresh to full, never stack.
+    pl.rushShield = shield;
+    pl.rushShieldT = SPELLS.rush.shieldTime;
     state.events.push({ t: 'rushShield', id: pl.id, hp: shield });
   }
 }
@@ -3987,6 +4023,9 @@ export function snapshot(state, viewerId = null) {
       ...(p.buyLock && p.id === viewerId ? { buyLock: p.buyLock } : {}),
       // Round Ward: your OWN remaining absorb, for the HUD gauge (v9)
       ...(p.optAbsorb > 0 && p.id === viewerId ? { absorb: round2(p.optAbsorb) } : {}),
+      // Rush whiff ward (v13, Ju): PUBLIC, so every hp bar can gray the
+      // shielded slice and ring the body
+      ...(p.rushShield > 0 ? { shield: round2(p.rushShield) } : {}),
       // how many of YOUR buys this shop can still be undone (drives the button)
       ...(p.id === viewerId && p.shopUndo && p.shopUndo.length ? { undoN: p.shopUndo.length } : {}),
       // per-card right-click refunds: {key: exact gold back} (issue #14 iter 4)

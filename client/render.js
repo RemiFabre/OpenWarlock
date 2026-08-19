@@ -1330,6 +1330,19 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.fillRect(x - bw / 2 + bw * Math.max(0, frac - debtFrac),
         y - r - 12, bw * Math.min(frac, debtFrac), 5);
     }
+    // Rush whiff shield (v13, Ju): PUBLIC. The protected slice grays the TOP
+    // of the green bar (same grammar as Blood Debt's stored gray), and a pale
+    // ring hugs the body while the 3 s hold.
+    const shieldFrac = Math.min(Math.max(0, +pl.shield || 0), Math.max(0, +pl.hp || 0)) /
+      (+pl.maxHp || PLAYER.MAX_HP);
+    if (shieldFrac > 0) {
+      ctx.fillStyle = '#c8cdd4';
+      ctx.fillRect(x - bw / 2 + bw * Math.max(0, frac - shieldFrac),
+        y - r - 12, bw * Math.min(frac, shieldFrac), 5);
+      ctx.strokeStyle = 'rgba(200, 210, 225, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();
+    }
     ctx.restore();   // pairs with the Vanish ghosting save() above
   }
 

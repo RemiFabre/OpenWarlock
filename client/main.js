@@ -1337,6 +1337,7 @@ const SPELL_FIELDS = {
   // Rush v12 (Ju): the two new axes, spelled as what the player feels
   rangeDmgMax: ['damage at full range', (v) => `×${fmtNum(v)}`],
   whiffShield: ['hit nobody: shield', (v) => `${fmtNum(v)} hp`],
+  shieldTime: ['the shield lasts', fmtSec],
   outDistance: ['throw distance', fmtNum],
   charge: ['charge time', fmtSec],
   delay: ['impact delay', fmtSec],
@@ -1600,15 +1601,14 @@ function tipBody(lines, cur, max, costAt, previewLv) {
 // says so in green, so a returning player reads the diff inside the shop.
 // Hand-curated from the real constants diff v7 -> v8; rewrite at each version.
 const PATCH_NOTES = {
-  rush: ['REWORKED: damage grows with the distance dashed (base up close, double at max range).',
-    'A dash that touches nobody grants a 10 hp shield until the round ends.',
-    'Hover the card or the spell bar slot to see the dash range in the arena.'],
-  ricochet: ['Mutations interact now: ricochet hits claim Anger marks, roll Midas coins, and Echo pairs bounce too.'],
-  anger: ['Redesigned like the base game: a release BAR fills over 4.2 s; every cast drains it, the ball adds bank × charge.',
-    'The round\'s first mark lands instantly on your last killer.'],
-  midas: ['Redesigned like the base game: hits roll 20/32/45% to drop a 1 g coin where the victim stood. Only you can pick it up.'],
-  vampire: ['Redesigned like the base game: hits bank marks on the victim; walk close and the pile vacuums back as healing.'],
-  decoy: ['Extra Mirage fixed: the clones fan out so you can COUNT them, and the card says +1 while you own the boost.'],
+  rush: ['The whiff shield is VISIBLE now: a gray slice on your hp bar plus a ring, for everyone.',
+    'And it lasts 3 seconds instead of the whole round.'],
+  sword: ['Lifesteal cut 25%: 7.5/15/22.5% (was 10/20/30).'],
+  spoon: ['Heal per hit cut 25%: +0.75/1.5/2.25 (was +1/2/3).'],
+  vampire: ['Feast heal per mark cut 25%: 1.5/2.25/3 (was 2/3/4).'],
+  meteor: ['Permanent-scar chance per cast: 9% (was 5%).'],
+  nova: ['Permanent-scar chance per cast: 9% (was 5%).'],
+  midas: ['New pick in the pool: Coin Magnet pulls your coins to you under 5 units.'],
 };
 const patchHtml = (key) => PATCH_NOTES[key]
   ? `<div class="tpatch"><b>Changed in this version</b><ul>${
@@ -2285,6 +2285,14 @@ function paintScoreboard() {
     ps.filter((p) => !p.spectator).sort(byRank),
     ps.filter((p) => p.spectator),
     { showRound: true });
+  // v13 (Ju): every column visible left-to-right, NEVER a horizontal scroll.
+  // If the table outgrows the window, scale the whole slab down to fit.
+  const slab = document.querySelector('#scorepanel .scoreslab');
+  if (slab) {
+    slab.style.transform = '';
+    const w = slab.scrollWidth, max = window.innerWidth * 0.96;
+    if (w > max) slab.style.transform = `scale(${(max / w).toFixed(3)})`;
+  }
 }
 addEventListener('keydown', (e) => {
   if (e.key !== 'Tab' || capturing) return; // a rebind capture owns the keyboard
@@ -2871,6 +2879,8 @@ function updateUi(s) {
     // Round Ward (v9): your own absorb shield, counted down as it eats hits
     if (fin(+m.absorb) && +m.absorb > 0)
       buffs.push(`<span class="buff vanish">🛡️ ward · ${Math.ceil(+m.absorb)} hp</span>`);
+    if (fin(+m.shield) && +m.shield > 0)
+      buffs.push(`<span class="buff vanish">🛡️ shield · ${Math.ceil(+m.shield)} hp</span>`);
     // Statue: the freeze is short and total, so the countdown is the whole HUD
     // story: how long until you can act again.
     if (fin(+m.statueT) && +m.statueT > 0)

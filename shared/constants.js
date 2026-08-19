@@ -116,7 +116,8 @@ export const LAVA = {
 // land in; this is the chance, rolled at the CAST, that this one crater stays
 // until the game ends. It replaces the old "anyone reached 10 kills" switch,
 // which turned every later impact permanent at once.
-export const HOLES = { PERM_CHANCE: 0.05 };
+// v13 (Ju): 9% per cast (was 5%). Every destruction spell rolls this at cast.
+export const HOLES = { PERM_CHANCE: 0.09 };
 
 export const ROUND = {
   COUNTDOWN: 3,
@@ -367,9 +368,9 @@ export const SPELLS = {
     // base at point blank, x rangeDmgMax at full range, linear. A dash that
     // touches NO enemy grants a whiffShield hp absorb (reuses the Round Ward
     // absorb pool; refreshes, never stacks past the biggest grant).
-    rangeDmgMax: 2, whiffShield: 10,
+    rangeDmgMax: 2, whiffShield: 10, shieldTime: 3,
     desc: 'Dash through enemies: the further you fly, the harder it hits. Hit nobody: a 10 hp shield.',
-    long: 'Dash through enemies, damaging and shoving them aside; casting cancels your momentum. Damage scales with the distance covered before the impact: base up close, double at max range. If the dash touches no enemy, you gain a shield that absorbs the next 10 damage (until the round ends).',
+    long: 'Dash through enemies, damaging and shoving them aside; casting cancels your momentum. Damage scales with the distance covered before the impact: base up close, double at max range. If the dash touches no enemy, you gain a shield that absorbs the next 10 damage (3 s, visible to everyone on your hp bar).',
   },
   pillar: {
     // Round 21.1 (Remi): the pillar is the CHEAP tier now.
@@ -664,7 +665,8 @@ export const ITEM_FX = {
   // once: it nerfs the item the labs call mandatory-by-structure (question L),
   // and it moves the spoon's break-even from ~5 damage a hit to 13-20, which is
   // where a flat heal is supposed to win. Revert: [0.18, 0.30, 0.38].
-  sword: { lifesteal: [0.10, 0.20, 0.30] },
+  // v13 (Ju): every lifesteal source -25% (sword, spoon, vampire feast alike)
+  sword: { lifesteal: [0.075, 0.15, 0.225] },
   // Ability Haste (round 17, ex-cdrMult): cd = base / (1 + haste/100), and
   // haste SUMS across sources, so stacking it with arcane's fireball haste
   // has diminishing returns where the old multipliers compounded (midas-cdr
@@ -702,7 +704,7 @@ export const ITEM_FX = {
   // own build (blade +27% in anger, spoon +19% in plague, +37% in a plain kit).
   // At 0.05 the ticks stop mattering; at 0.2 the aura build runs +56%.
   // history: docs/history/2026-08-11-round21.8-elo.md#addendum
-  spoon: { healOnHit: [1, 2, 3], tickFrac: 0.1 },
+  spoon: { healOnHit: [0.75, 1.5, 2.25], tickFrac: 0.1 },   // v13 (Ju): -25%
   // Guardian Angel (issue #3): saves per ROUND, and the fraction of max HP you
   // stand back up with. Neither is a passive stat, so items.js ignores both.
   angel: { saves: [1, 2, 3, 4, 5, 6, 7, 8, 9], reviveFrac: 0.5 },
@@ -896,7 +898,7 @@ export const ELEMENTS = {
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Mark, then feast.',
            long: 'Your fireball hits leave blood marks that never fade. Get close and every mark on that enemy flies back to you, healing 2/3/4 each, up to tripled the lower your own hp.',
-           fx: { markHeal: [2, 3, 4], feastR: 7, gulpEvery: 0.1, lowHpMax: 3 } },
+           fx: { markHeal: [1.5, 2.25, 3], feastR: 7, gulpEvery: 0.1, lowHpMax: 3 } },   // v13 (Ju): -25%
   // (Chronos, refund on ANY landed spell, was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
   // c38730f:shared/constants.js.)
@@ -998,6 +1000,11 @@ export const OPTIMS = {
                  desc: 'Your balls deal 15% more damage to enemies who are IN the lava.' },
     bloodprice:{ icon: '🕯️', name: 'Blood Price', add: 2, hp: -10,
                  desc: '-10 max hp, forever. Every ball you throw deals +2 damage.' },
+    // v13 (Ju picked these two, with HIS numbers: 20%/20% and 5 units)
+    executioner:{ icon: '💀', name: 'Executioner', mult: 1.20, below: 0.20,
+                 desc: 'Your balls deal 20% more damage to enemies under 20% of their max hp.' },
+    coinmagnet:{ icon: '🧲', name: 'Coin Magnet', range: 5,
+                 desc: 'Your Midas coins fly to you when you come within 5 units.' },
   },
 };
 
