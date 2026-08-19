@@ -7,6 +7,7 @@ import {
   SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, OPTIMS, teamTint,
   itemCost,
 } from '../shared/constants.js';
+import { itemFxAt } from '../shared/items.js';
 import { rankTeams } from '../shared/sim.js';
 import { VERSION } from '../shared/version.js';
 import { makeView, draw, setRangePreview } from './render.js';
