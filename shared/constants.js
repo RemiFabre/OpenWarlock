@@ -13,10 +13,16 @@ export const ARENA = {
   // (humans + bots, interpretation), frozen for the whole game: a late joiner
   // never resizes a live arena. Set ANCHOR huge = revert to a fixed arena.
   SCALE_ANCHOR_PLAYERS: 5,
-  // Round 18 (Remi): 4 portals out in the lava; touch one and you are
-  // teleported to the arena center. Fixed positions (diagonals, a bit beyond
-  // the starting rim), versus only; the swim there is priced in lava HP.
-  PORTALS: { COUNT: 4, DIST_FRAC: 1.25, RADIUS: 2.2, ANGLE: Math.PI / 4 },
+  // Round 18 (Remi): 4 portals out in the lava. Fixed positions (diagonals, a
+  // bit beyond the starting rim), versus only; the swim there is priced in
+  // lava HP. Round 24.1 (Remi): the exact-center exit was a mine magnet (one
+  // mine at 0,0 punished every arrival), so each portal now has its OWN exit:
+  // on the portal->center line, EXIT_DIST past the center (a bit more than a
+  // player diameter, and beyond a center mine's trigger ring + body). The
+  // four exits form a cross, marked on the floor by the client.
+  // Remi (same day): 2.5 landed too bunched; doubled to 5.
+  PORTALS: { COUNT: 4, DIST_FRAC: 1.25, RADIUS: 2.2, ANGLE: Math.PI / 4,
+             EXIT_DIST: 5 },
   // TEST flag (round 16): the ring shrinks continuously START→0 so the whole
   // arena becomes lava; MIN_RADIUS/OVERTIME_* bypassed. false = classic
   // hold-then-sudden-death, untouched.
@@ -166,6 +172,9 @@ export const MULTIKILL_NAMES = [
 // the wire, the free-avatar roll and the no-duplicates rule are untouched; a
 // value that is not in this list (a co-op campaign unit, an old saved emoji)
 // still renders, as text, everywhere avatars are drawn.
+// AVATAR_GOLD (round 24 on main) kept as an export for merged code paths; the
+// illustrated roster has no golden-pillar portrait, so it is not offered here.
+export const AVATAR_GOLD = '🗿✨';
 export const AVATARS = [
   'lich', 'medic', 'orc', 'sorcerer', 'jack',
   'metero', 'vampire', 'golem', 'necromancer', 'turtle',
@@ -333,7 +342,7 @@ export const SPELLS = {
   },
   shield: {
     name: 'Shield', hotkey: 'D', maxLevel: 2, costs: [12, 6],
-    cooldown: [15, 12], duration: 1.25,
+    cooldown: [15, 11], duration: 1.25,   // 24.3: +35%/lvl frequency step
     desc: 'Reflects projectiles back at their owner.',
     // round 21.0 (Remi): say what it does NOT stop. Energy = anything that
     // flies as a projectile (fireball, boomerang, Switcheroo) plus the bolt and
@@ -346,13 +355,13 @@ export const SPELLS = {
     // hit within `repay` s dumps it on the victim; otherwise the caster takes
     // it, push-less. lv2 buys cooldown; duration and repay never level.
     name: 'Blood Debt', hotkey: 'Y', maxLevel: 2, costs: [12, 6],
-    cooldown: [15, 12], duration: 1.25, repay: 5,
+    cooldown: [15, 11], duration: 1.25, repay: 5,   // 24.3: +35%/lvl step
     desc: 'Absorb, then transfer.',
     long: 'For a moment, all damage and push become gray health. Hit an enemy with a fireball within 5 seconds to give them the stored damage; otherwise you take it yourself, without pushback.',
   },
   rush: {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 5],
-    cooldown: [10, 8], distance: 16, speed: 60, hitRadius: 1.6,
+    cooldown: [10, 7], distance: 16, speed: 60, hitRadius: 1.6,   // 24.3
     damage: [5, 8], knockback: [79, 79],
     desc: 'Dash through enemies: damage and knockback on the way. Casting cancels your momentum.',
   },
@@ -361,7 +370,8 @@ export const SPELLS = {
     name: 'Stone Pillar', hotkey: 'S', maxLevel: 2, costs: [8, 4],
     // Round 21.2 (Remi): pillars are PERMANENT; `duration` is inert (kept as
     // the revert path, see the cast in shared/sim.js), so lv2 buys cooldown.
-    cooldown: [14, 11], range: Infinity, radius: 2.2, duration: [10, 16],
+    // Round 24.3 (Remi): the pure-frequency family normalizes near +35%/lvl
+    cooldown: [14, 10], range: Infinity, radius: 2.2, duration: [10, 16],
     desc: 'Raise a permanent obsidian pillar: it blocks projectiles, bodies and knockback.',
   },
   statue: {
@@ -394,7 +404,8 @@ export const SPELLS = {
     name: 'Fire Walk', hotkey: 'H', maxLevel: 2, costs: [10, 5],
     cooldown: 15, duration: [3, 5],
     desc: 'Walk on lava.',
-    long: 'For a few seconds lava deals you no damage at all. You still swim it at double speed, so a burning shortcut becomes a free one.',
+    // Remi (24.2 polish): one sentence only; short shop text is the house style.
+    long: 'For a few seconds lava deals you no damage at all.',
   },
   // ---- power tier: expensive but fight-ending, buyable from the first shop --
   // ⚠ BOTS PILOT NONE OF THESE **except meteor** (round 20: CC-gated cast, see
@@ -419,9 +430,16 @@ export const SPELLS = {
     // Round 21.1: 14 was off the tier ladder; expensive tier is 12.
     name: 'Meteor', hotkey: 'T', tier: 'power', maxLevel: 2, costs: [12, 6],
     cooldown: [15, 13], range: Infinity, delay: 1.25, radius: 6,
-    // Round 21.8 (Remi): lv2 24 → 30; the upgrade was not worth its 6 g.
-    damage: [16, 30], knockback: [110, 130],
-    desc: 'Mark a spot, a rock falls on it: heavy damage and a radial blast.',
+    // Round 24.3 (Remi): [16,30] doubled for no reason; flatter step, net
+    // BUFF (dps +61%/lvl, was +116%).
+    damage: [25, 35], knockback: [110, 130],
+    // Round 24.1 (Remi, from Ju's hole idea but WALKABLE): the impact breaks
+    // the ground into a permanent lava pool of craterR. It is real lava
+    // (LAVA.DPS, treads, Fire Walk, swim speed), not a hazard with an owner.
+    // Round 24.3 (Remi): the ground-break is the LEVEL 2 special (craterR 0
+    // = lv1 leaves the floor intact).
+    craterR: [0, 4],
+    desc: 'Mark a spot, a rock falls on it: heavy damage, a radial blast, and the ground breaks into lava.',
   },
   nova: {
     // Round 21.8 REWORK (Remi, voice; the Bomb was "unsatisfying: not much
@@ -453,7 +471,9 @@ export const SPELLS = {
     //    (healing, arcane's refund), which the existing `src.alive` guards in
     //    applyDamage already handle. Contrast Decoy, whose clones die with you.
     name: 'Mine', hotkey: 'B', tier: 'power', maxLevel: 2, costs: [10, 5],
-    cooldown: [9, 8], radius: 1.32, damage: [10, 15], knockback: 100,
+    // Round 24.3 (Remi): cd FLAT (lv2 already buys damage + the 2nd stored
+    // ball, "almost the entire gimmick"; the cd trim on top was excessive)
+    cooldown: 9, radius: 1.32, damage: [10, 15], knockback: 100,
     stores: [1, 2], ballDelay: 1 / TICK_RATE,
     desc: 'Plant a trap. Feed it your own fireballs.',
     long: 'Drops an armed trap where you stand. Your own fireballs are swallowed by it and stored; when an enemy steps on the mine it hits them, and every stored fireball fires into them point blank.',
@@ -750,10 +770,6 @@ export const ELEMENTS = {
                  burstKbAdd: [25, 50, 75] } },
   // Round 17 §5: the +1 g is a TWO-HIT rhythm now; the first hit on a target
   // plants a 🪙 mark (private, like frost's stacks), the NEXT hit on that same
-  // target cashes +1 g and clears it. Halves the income RATE, which was the
-  // engine of the midas-cdr 86% auto-win (question J). +1 g cap unchanged
-  // forever; levels still only buy back the damage/push penalty.
-  // history: docs/history/2026-08-08-constants-sweeps.md#elements-midas
   // ---- Issue #13 (Ju v4): the BALL IDENTITIES. v6 (Ju): they are INDEPENDENT
   // fireball axes now — no composed physics, no shared cooldown, nothing
   // conditioned on what else is owned. Ricochet is the only one that still
@@ -773,12 +789,16 @@ export const ELEMENTS = {
     desc: 'Arcs to everyone nearby.',
     long: 'An axis of your fireball: 30% faster but 30% smaller, and its hit arcs to every enemy within 5x the victim size for 30% of the damage — 3+ bodies in the arc are paralysed 1.5/2/2.75 s. It chains off pillars too. Independent of the other identities.',
     fx: { projSpeedMult: 1.3, projRadiusMult: 0.7 } },
+  // Round 24.9 (Remi): the mark hunt is GONE; midas is a COIN mini-game now.
+  // Every fireball HIT rolls coinChance: success drops a 1 g coin exactly
+  // where the victim stood (the push carries them off it). Everyone SEES the
+  // coin, only the owner can pick it up: a telegraphed mini-objective.
+  // coinChance napkin: docs/history/2026-08-14-round249-mark-reworks.md.
+  // Old mark spec (24.1): git log this file.
   midas: { name: 'Midas', icon: '🪙', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Gold generation.',
-           long: 'Your first hit marks a target, the next hit on them cashes +1 g. The price: a weaker fireball, until lv3 lifts the penalty.',
-           // Round 22.5 (Remi): the damage penalty was too extreme; -30/-15/-0%
-           // now (push penalty untouched, lv3 still lifts both)
-           fx: { goldOnHit: [1, 1, 1], dmgMult: [0.7, 0.85, 1], kbMult: [0.5, 0.75, 1] } },
+           desc: 'Hits shake out coins.',
+           long: 'Every fireball hit has a 20/32/45% chance to knock a 1 gold coin out of the victim, dropped where they stood. Everyone sees it; only you can pick it up.',
+           fx: { coinChance: [0.20, 0.32, 0.45], coinValue: 1, coinRadius: 1.4 } },
   // 2026-08-08 (Remi, round 16): terra is the fireball's SIZE axis and nothing
   // else; the +1/+2/+3 dmgAdd and the grow-the-target-on-hit effect are GONE
   // (his instruction: "one only increases speed, the other only size", and
@@ -798,12 +818,24 @@ export const ELEMENTS = {
   // Levels buy mark FREQUENCY only. Round 20 nerf (Remi): markEvery slowed
   // again; revert is [15, 10, 5] (round 19.3, itself from [10,7,5]).
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-momentum
+  // Shop text ruling (Remi, 24.10b): desc = the classic two-word tag, and the
+  // hover NEVER reveals the revenge targeting; players discover on their own
+  // that the mark hunts their last killer.
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Infinite scaling.',
-           long: 'Every few seconds a red mark appears on an enemy. Claim it with a fireball hit for +0.5 fireball damage, forever.',
-           // Round 22.5 (Remi): still too strong; marks slowed [20,15,10] -> [30,25,20]
-           fx: { markEvery: [30, 25, 20], markDmg: 0.5, markDelay: 0.5,
-                 rampPermanent: true } },
+           long: 'A red mark appears on an opponent; a fireball hit on them banks +0.5 damage forever. Your anger bar fills over 4.2 s: every fireball you throw releases it, adding the banked damage scaled by the charge.',
+           // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
+           // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
+           // CD_next = CD / 1.35, rounded. ANCHORED at lv3 = 20 s, the 22.5
+           // value ("we don't want to buff anger"): 20 x 1.35^2 = 36.45.
+           // Round 24.9 (Remi): the bank is RELEASE-GATED. The bar fills over
+           // chargeCds x the DEFAULT (unhasted lv1) fireball cooldown; each
+           // cast releases it and the ball adds bank x charge fraction. Spam
+           // = crumbs, patience = the full hit; anti-synergy with haste/echo
+           // BY DESIGN. markDelay 0 + revenge targeting (the round's first
+           // mark = your last killer): docs/history/2026-08-14-round249-mark-reworks.md.
+           fx: { markEvery: [36, 27, 20], markDmg: 0.5, markDelay: 0,
+                 chargeCds: 2, rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead
   // ball (your own cast) carries ZERO knockback, the trailing one leaves
@@ -822,32 +854,43 @@ export const ELEMENTS = {
   // never rename it.
   // Round 21.7 (Remi wanted "the ripple a drop makes on water"): icon 👯 → 🫧.
   // Alternates, one line each: 💧 🌊 (🌀 is Blink's, ◎ is not an emoji).
+  // Round 24.8 (Remi approved the agent's read): weakest volume mutation for
+  // its 26 g on BOTH the Hard and the all-Faker table (M4-echo-first mid-low
+  // twice, docs/history/2026-08-14-round247-elo-faker.md), so the pair rate
+  // steps up: doubleEvery [6,5,4] -> [5,4,3] (pair chance 20/25/33%).
   mosquito: { name: 'Echo', icon: '🫧', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Doubled casts.',
-           long: 'Every 6/5/4th fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
-           fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
+           long: 'Every 5/4/3rd fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
+           fx: { doubleEvery: [5, 4, 3], trailDelay: 0.15 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
   // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).
   // Lv3 = ex-chronos refund on fireball hits, never the fireball's own CD
   // (self-refund = 74% feedback loop; revert on arcaneRefund in sim.js).
+  // Round 24.10 (Remi): lv3 10 -> 6 g (flat like lv1/2). The refund only pays
+  // when you OWN a kit spell, so the roster gates arcane 3 behind one spell
+  // instead of pricing the special into everyone (question M: CDR measured
+  // fairly-priced-at-best, three roster shapes). Revert: costs [6, 6, 10].
   // history: docs/history/2026-08-08-constants-sweeps.md#elements-arcane
-  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 6, 10],
+  arcane:{ name: 'Arcane', icon: '🔮', maxLevel: 3, costs: [6, 6, 6],
            desc: 'Faster casting.',
            long: 'Your fireball fires more often. Lv3: every fireball hit refunds 1 s of your other cooldowns (never the fireball\'s own).',
            fx: { haste: [18, 32, 32], hitRefund: [0, 0, 1],
                  cdFloor: 0.25 } },
-  // Every 5th fireball engorged: a flat heal on landing (22.5); an EVENT, not a
-  // trickle. As specced it won 74.7%; retuned across BOTH knobs (every 5 × 0.7).
-  // ⚠ Lifesteal pays only on damage ACTUALLY dealt (no lava/overkill); test it.
-  // ⚠ Probably bot-over-measured; chargeEvery/chargeHeal are one-line levers.
-  // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire
+  // Round 24 (Remi): mark-and-feast. Damage-scaled healing made vampire a
+  // high-damage-only pick (22.5's fix), the flat every-5th heal made it a
+  // high-FREQUENCY-only pick; both were the same too-strong synergy. Now the
+  // heal is gated on PROXIMITY and on the vampire's own missing hp instead:
+  // every fireball hit banks a mark on that victim (never fades, dies with
+  // either of you); stepping inside feastR vacuums the whole pile back, one
+  // mark per gulpEvery seconds, each healing markHeal × (1 → lowHpMax as your
+  // own hp runs out, linear, read at each gulp). feastR 7 = Hat of Aura lv3.
+  // ⚠ A started feast always finishes: escaping the ring mid-drain pays anyway.
+  // history: docs/history/2026-08-08-constants-sweeps.md#elements-vampire (old)
   vampire: { name: 'Vampire', icon: '🧛', maxLevel: 3, costs: [10, 8, 8],
-           desc: 'Burst lifesteal.',
-           // Round 22.5 (Remi): the % of damage scaled too well with the
-           // high-damage builds that already dominate. FLAT heal now.
-           long: 'Every 5th fireball is engorged: landing it heals you a flat amount.',
-           fx: { chargeEvery: 5, chargeHeal: [10, 20, 30] } },
+           desc: 'Mark, then feast.',
+           long: 'Your fireball hits leave blood marks that never fade. Get close and every mark on that enemy flies back to you, healing 2/3/4 each, up to tripled the lower your own hp.',
+           fx: { markHeal: [2, 3, 4], feastR: 7, gulpEvery: 0.1, lowHpMax: 3 } },
   // (Chronos, refund on ANY landed spell, was REMOVED in round 16: its
   // effect lives on as arcane's lv3, fireball-triggered. Old spec: git
   // c38730f:shared/constants.js.)
@@ -970,24 +1013,25 @@ export const BOTS = {
   // prowl ring is untouched, the 1.5 finish dive stops at 5). Extreme/Faker
   // kite on their own brain and take no knob. Revert = delete the fields.
   brawler:   { name: 'Brawler', label: 'Normal', difficulty: 2, brain: 'berserker',
-               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35, standoff: 13,
+               react: [0.30, 0.16], aimErr: [0.9, 0.16], boltDodge: 0.35, standoff: 18,   // 24.4: 13 -> 18
                desc: 'Hunts you and trades, but it reads you slowly, its aim is loose, and it keeps a respectful distance. Walks out of a lightning mark only a third of the time. A fair fight.' },
   berserker: { name: 'Berserker', label: 'Hard', difficulty: 3, brain: 'berserker',
-               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5, standoff: 5,
+               react: [0.16, 0.10], aimErr: [0.35, 0.10], boltDodge: 0.5, standoff: 12,   // 24.4: 5 -> 12 (and the wounded dive is gone)
                desc: 'Hyper-aggressive. Hunts you down, rushes, never retreats, and leads its shots well. Dodges your lightning half the time (a coin flip, not an oracle).' },
   // ⚠ stalker aimErr is [0.4, 0.05] on purpose (bigger floor, much flatter
   // distance term = accurate at range), NOT the berserker's pair; 65f5597
   // copied that in by mistake. Corrected with no behaviour change (h2h verified).
   // history: docs/history/2026-08-08-constants-sweeps.md#bots-stalker-aimerr
   stalker:   { name: 'Stalker', label: 'Extreme', difficulty: 4, brain: 'stalker',
-               react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 0.85,
+               // 24.4 (Remi): Extreme and Faker never eat a telegraphed bolt
+               react: [0.12, 0.08], aimErr: [0.4, 0.05], boltDodge: 1,
                desc: 'Dodges your projectiles AND nearly every lightning mark, leads its shots with a real intercept, and saves itself with blink and shield.' },
   // Issue #7 (Remi): a tier ABOVE Extreme whose whole identity is the combo:
   // it keeps every stalker behaviour and adds a layer that follows up on a body
   // it has just put in the air or on the floor. `combo` is that layer's own
   // clock and its windows; see stepFaker in shared/sim.js.
   faker:     { name: 'Faker', label: 'Faker', difficulty: 5, brain: 'faker',
-               react: [0.10, 0.06], aimErr: [0.25, 0.03], boltDodge: 0.95,
+               react: [0.10, 0.06], aimErr: [0.25, 0.03], boltDodge: 1,
                combo: {
                  // how often the combo layer gets to look, in seconds
                  think: [0.05, 0.05],
@@ -1003,10 +1047,13 @@ export const BOTS = {
   // Issue #7: the sparring partner, not a difficulty. It fights until the first
   // hit of the round lands on it, then runs from whoever hit it, and it NEVER
   // casts a mobility or defensive spell, so a combo that lands on it landed
-  // because it was a combo. Not in the lobby dropdown (see MODES/BOT list).
+  // because it was a combo.
+  // Round 24 (Remi): `unlisted` pulls it OUT of the lobby picker and chart (it
+  // muddied the difficulty ladder); the kind itself stays for the combo lab
+  // and the Faker arsenals. The engine still accepts addBot for it.
   runner:    { name: 'Runner', label: 'Runner', difficulty: 2, brain: 'runner',
                react: [0.14, 0.08], aimErr: [0.6, 0.12], boltDodge: 0,
-               spar: true,
+               spar: true, unlisted: true,
                desc: 'A sparring dummy (Remi\'s spec): it stands perfectly still until the first hit lands on it, then it just runs. It never casts anything, so whatever chains onto it was a real combo.' },
   // Round 22 (Remi): the immobile training tier. Unlike the Runner it never
   // reacts AT ALL: no step, no cast, hit or not. It still takes knockback,
@@ -1040,7 +1087,25 @@ export const BOT_TARGETING = {
   WOUNDED: 0.35,       // per missing HP: finish what someone already started
   CROWD: 0.8,          // per unit of "how much backup this one has within 18"
   RIM: 8,              // full bonus for standing on the edge, 0 at the centre
-  MY_STACKS: 4,        // per frost/gale/midas/malady mark of MINE on the body
+  MY_STACKS: 4,        // per frost/gale/malady stack of MINE on the body
+  // Round 24.1 (Remi): Hard and above HUNT the anger mark "whenever
+  // possible". 40 apparent units ≈ most of the arena: the marked enemy wins
+  // the draw unless someone else is drastically closer or nearly dead.
+  // Gated on BOTS[kind].difficulty >= Hard in pickPrey; Normal shares the
+  // brain but not the kind, so it is untouched by construction.
+  HUNT_MARK: 40,
+  // Round 24.5 (Remi, second cut): a build that WANTS melee range (vampire's
+  // feast, the Hat's burn) DIVES to the old wounded-dive ring CLOSE_SHARE of
+  // the time, re-rolled every CLOSE_REROLL s. The first cut used the old 8.5
+  // prowl ring and measured ZERO effect (8.5 never reached the 7-radius
+  // auras); the dive is what feeds them, so payload builds get the dive back
+  // half-time while everyone else keeps 24.4's no-dive rule.
+  CLOSE_SHARE: 0.5,
+  CLOSE_RING: 1.5,
+  CLOSE_REROLL: 5,
+  // Round 24.9 (midas coins): a Hard+ owner detours to collect its own coin
+  // when it lies within this many units; the walk itself is the counterplay.
+  COIN_SEEK: 30,
 };
 
 // ---- CC-gated casting (round 20: Remi's frost+gale+mosquito combo) ---------
@@ -1070,7 +1135,7 @@ export const BUILDS = {
   // tournament.md), deliberately UNLABELED in the UI. Legacy six
   // (bruiser/sniper/escape/turtle/rusher/boomer) retired the same day.
   tycoon: { name: 'Tycoon',
-    desc: 'Gets rich, then out-shops everyone: every hit pays and its paired fireballs double the payroll. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
+    desc: 'Gets rich, then out-shops everyone: it hunts its gold mark and every claim pays. Kill it EARLY or fight its round-10 build. Elemental picks: midas, mosquito.',
     order: ['fireball', 'midas', 'mosquito', 'midas', 'hourglass', 'midas', 'mosquito',
       'sword', 'amulet', 'sword', 'amulet', 'sword', 'boots', 'amulet', 'boots'] },
   warlord: { name: 'Warlord',
@@ -1078,7 +1143,7 @@ export const BUILDS = {
     order: ['fireball', 'ember', 'ember', 'sword', 'amulet', 'ember', 'sword', 'amulet',
       'arcane', 'arcane', 'sword', 'amulet', 'boots', 'boots', 'cape'] },
   leech: { name: 'Leech',
-    desc: 'Heals off your face: every 5th ball is a feast, every tap trickles life back. Burst it down between feasts. Elemental picks: vampire, mosquito.',
+    desc: 'Heals off your face: hits bank blood marks, then it dives in to vacuum them back as healing. Burst it while it is low; that is when it feeds hardest. Elemental picks: vampire, mosquito.',
     order: ['fireball', 'vampire', 'vampire', 'mosquito', 'sword', 'vampire', 'mosquito',
       'spoon', 'amulet', 'sword', 'spoon', 'amulet', 'mosquito', 'sword', 'amulet', 'boots'] },
   executioner: { name: 'Executioner',

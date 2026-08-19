@@ -1,11 +1,12 @@
-// Client: networking, interpolation, input, DOM HUD. Rendering in render.js.
+// Client: networking, interpolation, input, DOM HUD; rendering in render.js.
+// ⚠ This version keeps the PRE-round-23 monolith (Sam's issue-14 UI lives
+// here); main's ui.js/keys.js/shop.js split is deliberately not imported.
 
 import {
   SPELLS, ITEMS, ITEM_FX, ELEMENTS, BOTS, BUILDS, AVATARS, isAvatarArt,
   SNAPSHOT_RATE, ARENA, ROUND, GOLD, PLAYER, LAVA, TEAMS, OPTIMS, teamTint,
   itemCost,
 } from '../shared/constants.js';
-import { itemFxAt } from '../shared/items.js';
 import { rankTeams } from '../shared/sim.js';
 import { VERSION } from '../shared/version.js';
 import { makeView, draw } from './render.js';
@@ -16,10 +17,10 @@ import {
   applyLevelMusic, updateCoopHud,
 } from './coop.js';
 import { selectTransport, createRtcHostTransport } from './transport.js';
+import { createGapTracker } from '../shared/snapwire.js';
 import * as analytics from './analytics.js';
 const { sendEvent, trackSnapshot, modeName, fetchStats } = analytics;
 
-const $ = (id) => document.getElementById(id);
 const canvas = $('game');
 const view = makeView(canvas);
 view.resize();
@@ -166,7 +167,7 @@ const snaps = [];          // {at, s} ring buffer
 const fx = [];             // visual effects
 window.__fx = fx;          // test/debug hook: lets a test inject one to look at
 window.__sfx = playSfx;    // console hook: audition a sound, e.g. __sfx('angerBell')
-window.__keys = () => keyBindings;   // test/debug hook: the resolved bindings
+window.__keys = () => keyBindings;  // test/debug hook: the resolved bindings
 let moveMark = null;
 const mouse = { x: 0, y: 0 };
 let lastUiUpdate = 0;
@@ -258,7 +259,7 @@ function onMessage(m) {
     myId = m.id;
     window.__myId = myId;   // test/debug hook, like __phase and __keys
     snaps.length = 0; fx.length = 0; // drop state from any previous connection
-    gapEst = 1000 / SNAPSHOT_RATE; renderDelay = BASE_DELAY; // ...and its lag estimate
+    gaps.reset();                    // ...and its lag estimate
     setConnBanner(null);
     $('join').classList.add('hidden');
     // Version handshake (round 19.3, Remi): a mixed client/server pair must
@@ -275,7 +276,7 @@ function onMessage(m) {
     if (m.chat != null) m.s.chat = m.chat; // avatar reactions off when false
     snaps.push({ at: performance.now(), s: m.s });
     if (snaps.length > 40) snaps.shift();
-    trackSnapGap(snaps[snaps.length - 1].at);
+    gaps.track(snaps[snaps.length - 1].at);
     if (Array.isArray(m.e)) for (const e of m.e) if (e && typeof e === 'object') onEvent(e);
     window.__phase = m.s.phase; // test/debug hook
     window.__snapN = (window.__snapN || 0) + 1; // test hook: snapshots received
@@ -382,7 +383,23 @@ function onEvent(e) {
       fx.push({ ...e, type: 'grow', at: now, dur: 0.6 });
       playSfx('ding');
       break;
-    case 'meteorHit': fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 }); playSfx('boom'); playSfx('death'); break;
+    case 'meteorHit':
+      fx.push({ ...e, type: 'meteorHit', at: now, dur: 0.7 });
+      // 24.1: the ground breaks; a longer burst rides the same event (shards +
+      // a lava geyser over the fresh crater)
+      if (e.crater > 0) fx.push({ ...e, type: 'craterBurst', at: now, dur: 1.3 });
+      playSfx('boom'); playSfx('death'); break;
+    // midas (24.9): a coin dropped out of your victim (gold sparkle where it
+    // now lies), and the pickup pays with the coin sound. The +1 g popup is
+    // the generic 'gold' floater above.
+    case 'coinDrop':
+      fx.push({ ...e, type: 'midasMark', at: now, dur: 0.6 });
+      if (e.by === myId) playSfx('catch');
+      break;
+    case 'coinTake':
+      fx.push({ ...e, type: 'midasMark', at: now, dur: 0.4 });
+      if (e.id === myId) playSfx('buy');
+      break;
     // Mine (round 21.8): planting is quiet (a trap nobody should hear), the
     // charge is a soft click, the spring is a boom, and every stored ball
     // erupting is its own whoosh, so a loaded trap SOUNDS like the payoff.
@@ -431,8 +448,6 @@ function onEvent(e) {
       break;
     }
     case 'frost': pushFloater(e, 'frost', 0.7, now); break;
-    // midas: the mark planted (quiet; the cash's +1 g popup is the loud half)
-    case 'midasMark': fx.push({ ...e, type: 'midasMark', at: now, dur: 0.5 }); break;
     // gale: a gust stacked. Silent on purpose; it fires on every gale hit, and
     // a sound on each one would drown the burst it is counting down to.
     case 'gale': pushFloater(e, 'gale', 0.7, now); break;
@@ -449,8 +464,15 @@ function onEvent(e) {
       fx.push({ ...e, type: 'infected', at: now, dur: 0.7 });
       playSfx('drain');
       break;
-    // vampire: the engorged ball just paid out. Loud on purpose; this element's
-    // whole design goal is "an EVENT, not a passive trickle"
+    // vampire (round 24): a feast just started; the slurp marks the EVENT.
+    // The per-gulp pips ride vampGulp below, the green +N the lifesteal floater.
+    case 'vampFeast':
+      playSfx('drain');
+      break;
+    // one mark flying home; render.js lerps it from the victim to the vampire
+    case 'vampGulp':
+      fx.push({ ...e, type: 'vampGulp', at: now, dur: 0.35 });
+      break;
     case 'lifesteal':
       pushFloater(e, 'lifesteal', 1.1, now);
       if (e.id === myId) playSfx('drain');
@@ -570,32 +592,20 @@ function phaseMusic(s) {
 // ---- interpolation -----------------------------------------------------------
 
 // How far in the past to render, so there is always a NEWER snapshot to lerp
-// toward. One-and-a-bit snapshot intervals is enough on a healthy link.
-const BASE_DELAY = 1000 / SNAPSHOT_RATE * 1.6 + 25;
-const MAX_DELAY = 600;     // past this, lag is worse than the stutter it hides
-// ...but the interval is not a constant any more: the server SKIPS states for a
-// link that is falling behind (shared/snapwire.js), so a struggling player gets
-// fewer, complete updates. The delay follows the gap it actually observes:
-// peak-hold with a slow decay, so one hiccup widens it and a recovered link
-// tightens it back. Without this, sparse snapshots read as freeze-then-jump;
-// with it, the same motion is simply sampled more coarsely.
-// Revert: `renderDelay = BASE_DELAY` in one line.
-let gapEst = 1000 / SNAPSHOT_RATE;
-let renderDelay = BASE_DELAY;
-function trackSnapGap(at) {
-  const prev = snaps.length > 1 ? snaps[snaps.length - 2].at : null;
-  if (prev == null) return;
-  gapEst = Math.max(at - prev, gapEst * 0.92);
-  renderDelay = Math.min(MAX_DELAY, Math.max(BASE_DELAY, gapEst * 1.6 + 25));
-}
-window.__delay = () => ({ renderDelay, gapEst }); // test/debug hook
+// toward. The delay follows the arrival gaps it actually observes; the logic
+// lives in shared/snapwire.js (createGapTracker) so tests and tools/rtclab.js
+// run the exact code the client runs.
+// ⚠ mode 'slew' (round 23.1, Remi's go): the delay WALKS toward its target,
+// so a jitter spike can never rewind the drawn world in one frame. Revert to
+// the old stepping behavior: drop the mode option ('step' is the default).
+const gaps = createGapTracker({ intervalMs: 1000 / SNAPSHOT_RATE, mode: 'slew' });
+window.__delay = () => gaps.stats(); // test/debug hook: {renderDelay, gapEst}
 
-const fin = Number.isFinite;
 const lerp = (a, b, k) => (fin(a) && fin(b)) ? a + (b - a) * k : (fin(b) ? b : a);
 
 function interpolated(now) {
   if (!snaps.length) return null;
-  const rt = now - renderDelay;
+  const rt = now - gaps.delay(now);
   let i = snaps.length - 1;
   while (i > 0 && snaps[i - 1].at > rt) i--;
   const b = snaps[i];
@@ -671,10 +681,16 @@ function interpolated(now) {
     holes: Array.isArray(s.holes) ? s.holes : [],
     // issue #13: vomit puddles — they also sit still, mercifully
     puddles: Array.isArray(s.puddles) ? s.puddles : [],
+    // broken ground (24.1): craters never move either, straight off the snap
+    craters: Array.isArray(s.craters) ? s.craters : [],
+    // midas coins (24.9): they sit still too
+    coins: Array.isArray(s.coins) ? s.coins : [],
     hazards: Array.isArray(s.hazards) ? s.hazards : [],
     meteors: Array.isArray(s.meteors) ? s.meteors : [],
     // mines never move: no interpolation, straight off the snapshot
     mines: Array.isArray(s.mines) ? s.mines : [],
+    // midas coins (24.9): ground loot never moves either
+    coins: Array.isArray(s.coins) ? s.coins : [],
     bolts: Array.isArray(s.bolts) ? s.bolts : [],
     walls: Array.isArray(s.walls) ? s.walls : [],
     roundSummary: (s.roundSummary && typeof s.roundSummary === 'object') ? s.roundSummary : null,
@@ -1068,7 +1084,8 @@ $('testingGold').addEventListener('change', () => {
 });
 $('shopReadyBtn').addEventListener('click', () => send({ t: 'ready', ready: true }));
 // Browse-only shop (round 22): the same grid straight from the lobby, no more
-// testing→ready dance just to read the shelves. Buying stays phase-gated.
+// testing→ready dance just to read the shelves. Buying stays phase-gated (the
+// buy handlers check the flag); this does the surrounding DOM work.
 let shopPreview = false;
 function setShopPreview(on) {
   shopPreview = on;
@@ -1145,17 +1162,22 @@ $('againBtn').addEventListener('click', () => {
 // (🎲 random = the server rolls one of the six builds when the bot is seated).
 // The tiers are NAMED now (Easy / Normal / Hard / Extreme, round 12) instead of
 // wearing a star count: ★★ told you nothing about what the bot does, and there
-// are four of them. The list is BOTS in spec order, so a new tier appears here
-// (and in the 🎲 chart below) with no client change at all.
+// are four of them. Round 24 (Remi): SORTED by spec `difficulty` so the ladder
+// reads Dummy → Easy → … → Faker top to bottom, and an `unlisted` tier (the
+// Runner) is a lab tool, not an offer. A new tier still appears here (and in
+// the 🎲 chart below) with no client change at all.
 const botLabel = (kind) => (BOTS[kind] && BOTS[kind].label) || kind;
 // issue #14 (Sam v4): bot kind -> the pack's difficulty icon file.
 const BOT_ICON = {
   grunt: 'easy', brawler: 'normal', berserker: 'hard', stalker: 'extreme',
   faker: 'faker', runner: 'runner', dummy: 'dummy',
 };
+const listedBots = () => Object.entries(BOTS)
+  .filter(([, spec]) => !spec.unlisted)
+  .sort(([, a], [, b]) => a.difficulty - b.difficulty);
 {
   const wrap = $('botBtns');
-  for (const [kind, spec] of Object.entries(BOTS)) {
+  for (const [kind, spec] of listedBots()) {
     const group = document.createElement('span');
     group.className = 'botgroup';
     const b = document.createElement('button');
@@ -1202,8 +1224,7 @@ const BOT_ICON = {
         <div class="bicons">${icons}</div></div>
       </div>`;
   };
-  const diff = Object.entries(BOTS)
-    .sort(([, a], [, b]) => a.difficulty - b.difficulty).map(([k, b]) => kindCard(k, b)).join('');
+  const diff = listedBots().map(([k, b]) => kindCard(k, b)).join('');
   const strat = Object.values(BUILDS).map(buildCard).join('');
   const panes = {
     diff: `<div class="botcards">${diff}</div>
@@ -1249,13 +1270,6 @@ const BOT_ICON = {
   paint();
 }
 
-function toast(msg) {
-  const el = $('toast');
-  el.textContent = msg;
-  el.style.opacity = 1;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => { el.style.opacity = 0; }, 1800);
-}
 
 // ---- shop numbers -------------------------------------------------------------
 // EVERY number the shop shows is read out of shared/constants.js at runtime.
@@ -2216,11 +2230,12 @@ const spellEls = {};
     spellEls[key] = el;
   }
 }
-refreshKeyUi(); // paint current bindings on panel, spell bar, and join hint
+// The monolith's refreshKeyUi paints every binding surface itself; run it once
+// now that the spell bar above exists.
+refreshKeyUi();
 
 // ---- DOM update per phase -------------------------------------------------------
 
-function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
 
 // Standings order: most kills first, fewer deaths breaks ties, then gold.
 // Tab scoreboard (round 22.3, Remi): HOLD Tab anywhere inside a game (shop,
@@ -2393,6 +2408,9 @@ function statsTable(fighters, specs, opts = {}) {
   return `${head}<tbody>${rows}</tbody>`;
 }
 
+// last-built lobby list signature; see the rebuild guard in updateUi()
+let lobbySig = '';
+
 function updateUi(s) {
   if (!s || typeof s !== 'object') return;
   lastPings = (s.pings && typeof s.pings === 'object') ? s.pings : {};
@@ -2413,7 +2431,7 @@ function updateUi(s) {
   setVisible('shop', (!!myId && s.phase === 'shop') || shopPreview);
   drawOptimWin(m, s);
   setVisible('gameover', !!myId && (s.phase === 'gameover' || goPinned));
-  // ⚠ shopPreview guard (round 22.1): browsing happens in the LOBBY phase, and
+  // ⚠ browse-mode guard (round 22.1): browsing happens in the LOBBY phase, and
   // this line used to kill every hover tip 15 times a second while browsing
   if (s.phase !== 'shop' && !shopPreview) hideTip();
   // Dead and watching the rest of the round: the same scoreboard the end screen
@@ -2446,9 +2464,19 @@ function updateUi(s) {
     // the snap = solo or an old server: everyone keeps the controls)
     const amHost = !s.host || s.host === myId;
     const list = $('playerList');
+    // Rebuild ONLY when a rendered fact changes: wiping innerHTML at snapshot
+    // rate destroyed each row's ✕ between mousedown and mouseup, so single
+    // clicks never landed. Pings stay OUT of the signature (they move on their
+    // own 2 s stream and hold no listener); the badges refresh in place below.
+    const sig = JSON.stringify([amHost, s.mode, myId, playerList.map((p) =>
+      [p.id, p.name, p.color, p.avatar, p.spectator, p.bot, p.kind, p.build,
+        p.ready, p.team])]);
     // Replacing a focused native select closes its menu. Leave the list alone
     // until the player has picked a team, then the next snapshot refreshes it.
-    if (!(document.activeElement && document.activeElement.matches('#playerList select'))) {
+    const teamMenuOpen = document.activeElement &&
+      document.activeElement.matches('#playerList .teamsel select');
+    if (sig !== lobbySig && !teamMenuOpen) {
+      lobbySig = sig;
       list.innerHTML = '';
       for (const p of playerList) {
         const div = document.createElement('div');
@@ -2533,6 +2561,16 @@ function updateUi(s) {
         }
         list.appendChild(div);
       }
+    } else if (sig === lobbySig) {
+      // ping badges live outside the rebuild: swap/insert/remove the span in
+      // place (outerHTML = '' removes it), the buttons are never touched
+      playerList.forEach((p, i) => {
+        const who = list.children[i] && list.children[i].querySelector('.who');
+        if (!who) return;
+        const badge = who.querySelector('.ping');
+        if (badge) badge.outerHTML = pingBadge(p.id).trim();
+        else who.insertAdjacentHTML('beforeend', pingBadge(p.id));
+      });
     }
     $('readyBtn').textContent = m && m.ready ? 'Not ready' : 'I am ready';
     $('readyBtn').classList.toggle('primary', !(m && m.ready));
@@ -2743,13 +2781,23 @@ function updateUi(s) {
   if (inGame && m && !m.spectator) {
     const angLv = (m.elements && m.elements.anger) || 0;
     if (angLv > 0) {
-      // anger: the earned damage bank, plus whether your mark is out right now
-      // (the red pip on the enemy's body is the real UI; this just confirms it)
+      // anger (24.9): the bank + the BAR. The bank is release-gated now, so
+      // the bar is the thing to play: full bar = the whole bonus on one ball.
       const f = ELEMENTS.anger.fx;
       const marks = Math.max(0, +m.angerMarks || 0);
       const markUp = playerList.some(p => p.myStacks && p.myStacks.anger > 0);
+      const ch = Math.max(0, Math.min(1, +m.angerCharge || 0));
       buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg` +
+        `<span class="angerbar${ch >= 1 ? ' full' : ''}"><i style="width:${Math.round(ch * 100)}%"></i></span>` +
         (markUp ? ' · mark is OUT: hunt it' : '') + '</span>');
+    }
+    // midas (24.9): coins waiting on the ground, or the odds while none are
+    const midLv = (m.elements && m.elements.midas) || 0;
+    if (midLv > 0) {
+      const mine = (Array.isArray(s.coins) ? s.coins : []).filter(c => c.owner === m.id).length;
+      buffs.push(`<span class="buff vamp">${ELEMENTS.midas.icon} ` +
+        (mine > 0 ? `${mine} coin${mine > 1 ? 's' : ''} on the ground: go collect`
+          : `${Math.round(statAt(ELEMENTS.midas.fx.coinChance, midLv) * 100)}% coin per hit`) + '</span>');
     }
     // stacks riding on YOU: the worst single attacker's pile, i.e. how close
     // somebody is to detonating on you (counters are private now)
@@ -2762,15 +2810,16 @@ function updateUi(s) {
     if (onMe && onMe.gale > 0)
       buffs.push(`<span class="buff frost">${ELEMENTS.gale.icon} ` +
         `${onMe.gale}/${ELEMENTS.gale.fx.stacksToTrigger}</span>`);
-    // vampire: count the casts down, so "the next one is the big one" is a thing
-    // you KNOW rather than something you notice afterwards
+    // vampire (round 24): how many marks you have banked across everyone, and
+    // what ONE mark pays right now (your missing hp scales it, live)
     const vampLv = (m.elements && m.elements.vampire) || 0;
     if (vampLv > 0) {
-      const every = ELEMENTS.vampire.fx.chargeEvery;
-      const n = Math.max(0, +m.vampN || 0) % every;
-      const heal = statAt(ELEMENTS.vampire.fx.chargeHeal, vampLv);
+      const vf = ELEMENTS.vampire.fx;
+      const out = playerList.reduce((n, p) => n + ((p.myStacks && p.myStacks.vampire) || 0), 0);
+      const mult = 1 + (vf.lowHpMax - 1) * (1 - Math.max(0, Math.min(1, (+m.hp || 0) / (+m.maxHp || 1))));
+      const gulp = statAt(vf.markHeal, vampLv) * mult;
       buffs.push(`<span class="buff vamp">${ELEMENTS.vampire.icon} ` +
-        (n === every - 1 ? `NEXT BALL · +${heal} hp` : `${n}/${every}`) + '</span>');
+        `${out} mark${out === 1 ? '' : 's'} · +${gulp.toFixed(1)}/gulp</span>`);
     }
     // Vanish: your own invisibility, counted down. `vanishT` is only ever on YOUR
     // player entry (snapshot() strips the whole position for everyone else), so
@@ -2799,9 +2848,6 @@ function updateUi(s) {
   if (buffs.length) $('buffbar').innerHTML = buffs.join('');
 }
 
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 // ---- main loop ----------------------------------------------------------------
 

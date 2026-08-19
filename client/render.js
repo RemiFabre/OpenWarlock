@@ -1,6 +1,6 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, AVATARS, isAvatarArt, teamTint } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, AVATARS, isAvatarArt, teamTint, AVATAR_GOLD } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
@@ -113,7 +113,7 @@ const ELEM_CORE = {
   // anger: the red ball IS the brand; the core shifts hard toward red
   anger: '#ff5040',
   // round 12: a piercing ghost ball reads as pale and cold, a vampire ball as
-  // arterial red (and it also gets the engorged halo below)
+  // arterial red
   ghost: '#dcd6ff', vampire: '#e0405a',
   // issue #13 v6 (Ju): the storm ball reads white-gold, the dark ball violet
   chainball: '#fff2b8', umbra: '#a276ff',
@@ -122,7 +122,7 @@ const ELEM_CORE = {
 // Round 17 §12: the fireball is ONE additive stack of layers, in draw order:
 //   base ball (terra sizes it, the strongest rider tints it)
 //   → element accents (one per element the ball carries, they compose)
-//   → event overlay (engorged, which also owns the BASE color).
+//   → element accents compose freely (no event overlay since round 24).
 // (The old momentum tier wings are GONE. Remi: the giant tier balls LOOKED
 // like they hit but didn't. Every accent stays near the true hitbox radius.)
 // Both readings matter: the owner sees the build they bought fly, a defender
@@ -250,9 +250,8 @@ const ACCENTS = {
       ctx.stroke();
     }
   },
-  // lifesteal: an arterial crescent. Every chargeEvery'th cast the ball also
-  // goes engorged, and that overlay is the loud one; this is the "I own
-  // vampire" tell on the ordinary balls between charges.
+  // the "I own vampire" tell: an arterial crescent riding every ball (round
+  // 24: hits bank blood marks; the feast ring around the BODY is the loud part)
   vampire: (ctx, x, y, r, lv, ang) => {
     ctx.strokeStyle = 'rgba(224, 64, 90, 0.8)';
     ctx.lineWidth = 2;
@@ -272,28 +271,6 @@ const ACCENTS = {
     }
   },
 };
-
-// Vampire's engorged ball (every chargeEvery'th cast; 5 since round 16): an
-// halo with a 🧛 rider. It keeps every other layer; only the base color is
-// taken over, because "this one heals them for a lot" outranks any tint.
-function drawEngorged(ctx, x, y, r, t) {
-  ctx.save();   // this block sets textAlign/baseline; the fx pass draws damage
-                // numbers without setting them itself
-  const pulse = 0.7 + 0.3 * Math.sin(t * 22);
-  ctx.strokeStyle = `rgba(255, 40, 70, ${0.65 + 0.35 * pulse})`;
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(x, y, r * 2.9 * pulse, 0, TAU); ctx.stroke();
-  const bg = ctx.createRadialGradient(x, y, 0, x, y, r * 3.6);
-  bg.addColorStop(0, `rgba(255, 40, 70, ${0.42 * pulse})`);
-  bg.addColorStop(1, 'rgba(180, 0, 40, 0)');
-  ctx.fillStyle = bg;
-  ctx.beginPath(); ctx.arc(x, y, r * 3.6, 0, TAU); ctx.fill();
-  ctx.font = `${Math.round(Math.max(11, r * 1.6))}px serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🧛', x, y - r * 3.2);
-  ctx.textBaseline = 'alphabetic';
-  ctx.restore();
-}
 
 export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   if (vs) view.fitArena(vs.startRadius);   // arena size is per-game (round 21.2)
@@ -417,12 +394,48 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.beginPath(); ctx.arc(view.cx, view.cy, R * i / 3.4, 0, Math.PI * 2); ctx.stroke();
   }
 
+  // Broken ground (24.1): meteor craters are open lava. Radius-TRUE (the burn
+  // edge IS the drawn edge), molten core breathing on the lava's own slow
+  // clock, with a dark crusted lip so it reads as a HOLE in the rock, not a
+  // decal on top of it.
+  for (const c of (Array.isArray(vs.craters) ? vs.craters : [])) {
+    if (!fin(c.x) || !fin(c.y) || !fin(c.r)) continue;
+    const cx2 = view.sx(c.x), cy2 = view.sy(c.y), cr = c.r * scale;
+    const breath = 0.8 + 0.2 * Math.sin(now / 700 + c.x + c.y);
+    const g = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, cr);
+    g.addColorStop(0, `rgba(255, 170, 60, ${0.85 * breath})`);
+    g.addColorStop(0.55, `rgba(255, 93, 31, ${0.75 * breath})`);
+    g.addColorStop(1, 'rgba(140, 30, 8, 0.9)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx2, cy2, cr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(20, 10, 6, 0.85)';   // the crusted lip
+    ctx.lineWidth = Math.max(1.5, cr * 0.09);
+    ctx.beginPath(); ctx.arc(cx2, cy2, cr, 0, Math.PI * 2); ctx.stroke();
+  }
+
   // --- lava portals (round 18, versus only): touch one, surface at the center.
   // Cool-toned vortex so it can never be mistaken for lava FX; the swirl spins
   // so a static frame still reads as "this is a mechanism", not decoration.
   if (vs.mode !== 'coop' && ARENA.PORTALS) {
     const P = ARENA.PORTALS;
     const pd = R0 * P.DIST_FRAC;
+    // 24.1: each portal's landing spot (EXIT_DIST past the center on its own
+    // line; the four form a cross). A quiet cool-toned floor rune, same
+    // palette as the portals so "something arrives here" reads at a glance.
+    for (let i = 0; i < P.COUNT; i++) {
+      const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
+      const ex = view.sx(-Math.cos(pa) * P.EXIT_DIST);
+      const ey = view.sy(-Math.sin(pa) * P.EXIT_DIST);
+      const er = 0.9 * scale;
+      ctx.strokeStyle = 'rgba(140, 220, 255, 0.28)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.stroke();
+      const dg = er * 0.42;                  // an "x" inside (Remi: not a "+")
+      ctx.beginPath();
+      ctx.moveTo(ex - dg, ey - dg); ctx.lineTo(ex + dg, ey + dg);
+      ctx.moveTo(ex - dg, ey + dg); ctx.lineTo(ex + dg, ey - dg);
+      ctx.stroke();
+    }
     for (let i = 0; i < P.COUNT; i++) {
       const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
       const x = view.sx(Math.cos(pa) * pd), y = view.sy(Math.sin(pa) * pd);
@@ -639,6 +652,38 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.restore();
   }
 
+  // --- midas coins (24.9): ground loot everyone can SEE, only the owner can
+  // take. YOUR coin is the desirable one: bright gold, glinting, a pulsing
+  // pickup ring. Someone else's is a small dull disc (read: "the midas player
+  // will walk here", i.e. a free pre-aim spot), never confusable with yours.
+  const coins = Array.isArray(vs.coins) ? vs.coins : [];
+  for (const c of coins) {
+    if (!c || !fin(c.x) || !fin(c.y)) continue;
+    const x = view.sx(c.x), y = view.sy(c.y);
+    const mine = myId != null && c.owner === myId;
+    const r = Math.max(3, 0.42 * scale);
+    ctx.save();
+    if (mine) {
+      const glint = 0.5 + 0.5 * Math.sin(now / 220);
+      ctx.globalAlpha = 0.35 + 0.25 * glint;
+      ctx.strokeStyle = '#ffd76a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r * (1.8 + 0.5 * glint), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffcf4d';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#8a6a1a'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.45 * glint})`;
+      ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.28, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = '#8f7f57';
+      ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#5c5138'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // --- lightning telegraphs: the sky-bolt's impact zone, electric and urgent.
   // Same blink language as the meteor's, but in the bolt's per-level tint;
   // the zone appears the INSTANT of the cast; the dodge window IS the spell.
@@ -704,7 +749,6 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       // base tint: the strongest rider element, unless an event takes it over
       let core = '#ffab40', coreLv = 0;
       if (el) for (const k in el) if (ELEM_CORE[k] && el[k] > coreLv) { coreLv = el[k]; core = ELEM_CORE[k]; }
-      if (pr.engorged) core = '#ff2340';
       // base ball: trail + core glow, both tinted (anger's red core comes from
       // ELEM_CORE; the earned bank never inflates the ball's apparent size)
       const tail = 4;
@@ -716,9 +760,9 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.moveTo(x - Math.cos(ang) * r * tail, y - Math.sin(ang) * r * tail);
       ctx.lineTo(x, y); ctx.stroke();
       const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
-      glow.addColorStop(0, pr.engorged ? '#ffd0d8' : '#fff3c8');
+      glow.addColorStop(0, '#fff3c8');
       glow.addColorStop(0.35, core);
-      glow.addColorStop(1, pr.engorged ? 'rgba(200, 0, 30, 0)' : 'rgba(255, 90, 20, 0)');
+      glow.addColorStop(1, 'rgba(255, 90, 20, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
       // accents stack: every element the ball carries paints its own tell
@@ -726,7 +770,6 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         const accent = ACCENTS[k];
         if (accent && el[k] > 0) accent(ctx, x, y, r, el[k], ang, t);
       }
-      if (pr.engorged) drawEngorged(ctx, x, y, r, t);
     } else if (pr.type === 'genki') {
       // issue #12: the omega ball; radius-TRUE (its hitbox IS the show),
       // tinted by stage, with a slow inner swirl so it reads alive
@@ -934,6 +977,22 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.stroke();
     }
+    // Vampire feast ring (round 24): radius-TRUE like the Hat's, PUBLIC by
+    // design (Remi: "people see your range too"), and deliberately NOT the
+    // Hat's look, so owning both never confuses: dotted, dark blood red, no
+    // warm fill, and it breathes on its own slower clock. Skipped while
+    // vanished for the same stealth ruling as the Hat's ring.
+    const vampRingLv = pl.elements && pl.elements.vampire;
+    if (vampRingLv > 0 && !hidden) {
+      const vr = ELEMENTS.vampire.fx.feastR * scale;
+      const vb = 0.75 + 0.25 * Math.sin(now / 900);
+      ctx.save();
+      ctx.setLineDash([5, 6]);
+      ctx.strokeStyle = `rgba(200, 40, 70, ${0.38 * vb})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, vr, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
 
     // lava tint / shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -1030,7 +1089,17 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#fff';
-        ctx.fillText(pl.avatar, x, y);
+        // the Golden Pillar avatar: the moai through NOPE's gold filter. On an
+        // engine without ctx.filter the set is a silent no-op and the plain
+        // moai draws, which is an acceptable body, not a blank.
+        if (pl.avatar === AVATAR_GOLD) {
+          ctx.save();
+          ctx.filter = 'sepia(1) saturate(5.5) hue-rotate(-12deg) brightness(1.12)';
+          ctx.fillText('🗿', x, y);
+          ctx.restore();
+        } else {
+          ctx.fillText(pl.avatar, x, y);
+        }
         ctx.textBaseline = 'alphabetic';
       }
     }
@@ -1127,16 +1196,22 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         ctx.stroke();
       }
     }
-    // Midas mark (round 17 §5): this body owes you gold; your next hit
-    // cashes it. One gold pip on the RIGHT side: frost owns the top arc and
-    // gale the bottom dashes.
+    // Midas mark (24.1): the gold HUNT orb, anger's look in gold ("a big
+    // yellow mark like the big red mark", Remi). Right side: frost owns the
+    // top arc, gale the bottom dashes, anger the upper-right diagonal.
     if (mine && mine.midas > 0) {
-      ctx.fillStyle = 'rgba(255, 208, 70, 0.95)';
+      const px2 = x + r * 1.75, py2 = y;
+      ctx.fillStyle = 'rgba(255, 200, 40, 0.95)';
       ctx.strokeStyle = 'rgba(120, 85, 0, 0.9)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(x + r * 1.75, y, 3.2, 0, Math.PI * 2);
+      ctx.arc(px2, py2, 3.4, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+      // the glint that makes it an orb, not a dot (anger's tell)
+      ctx.fillStyle = 'rgba(255, 245, 200, 0.9)';
+      ctx.beginPath();
+      ctx.arc(px2 - 1, py2 - 1, 1.1, 0, Math.PI * 2);
+      ctx.fill();
     }
     // Malady mark (round 19): your first hit planted the 🦠; your next one
     // infects. One sickly-green pip on the LEFT: midas owns the right, frost
@@ -1166,6 +1241,27 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath();
       ctx.arc(px - 1, py - 1, 1.1, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // Vampire blood marks (round 24): this body owes you a feast. Upper-LEFT
+    // diagonal (the last free slot around a body: frost top, gale bottom,
+    // midas right, malady left, anger upper-right). The pile is unbounded, so
+    // past 1 the count is a NUMBER next to the drop, not more dots.
+    if (mine && mine.vampire > 0) {
+      const px = x - r * 1.24, py = y - r * 1.24;
+      ctx.fillStyle = 'rgba(200, 40, 70, 0.95)';
+      ctx.strokeStyle = 'rgba(90, 5, 20, 0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      if (mine.vampire > 1) {
+        ctx.save();
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(255, 200, 210, 0.95)';
+        ctx.fillText(String(mine.vampire), px + 5, py);
+        ctx.restore();
+      }
     }
     if (pl.charging) {
       // repulse wind-up: hard-blinking double ring; VERY visible on purpose
@@ -1243,7 +1339,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   }
 
   // --- fx ---
-  drawFx(view, fx, now, worldAlpha);
+  drawFx(view, fx, now, worldAlpha, vs);
 
   ctx.globalAlpha = 1;
   // Dark Ball blackout (issue #9): YOUR screen goes dark — the whole world,
@@ -1454,7 +1550,7 @@ function drawRoundEndBanner(view, vs, players, myId) {
   ctx.restore();
 }
 
-function drawFx(view, fx, now, baseAlpha = 1) {
+function drawFx(view, fx, now, baseAlpha = 1, vs = null) {
   const { ctx, scale } = view;
   for (const f of fx) {
     if (!f) continue;
@@ -1464,6 +1560,29 @@ function drawFx(view, fx, now, baseAlpha = 1) {
     if (!(fin(f.x) && fin(f.y))) continue; // skip malformed events
     const a = 1 - k;
     switch (f.type) {
+      case 'vampGulp': {
+        // one blood mark flying home: victim (f.x/f.y) → the vampire's CURRENT
+        // body, resolved every frame so the pip tracks a moving drinker; if the
+        // vampire left the wire (died mid-flight), the pip just fades in place
+        const dst = vs && Array.isArray(vs.players)
+          ? vs.players.find(p => p && p.id === f.id) : null;
+        const x0 = view.sx(f.x), y0 = view.sy(f.y);
+        const x1 = dst && fin(dst.x) ? view.sx(dst.x) : x0;
+        const y1 = dst && fin(dst.y) ? view.sy(dst.y) : y0;
+        const e = k * k * (3 - 2 * k);              // ease: leaves slow, lands fast
+        const px = x0 + (x1 - x0) * e, py = y0 + (y1 - y0) * e;
+        ctx.fillStyle = `rgba(220, 50, 80, ${0.9 * a + 0.1})`;
+        ctx.beginPath(); ctx.arc(px, py, 3.4 * (0.8 + 0.4 * a), 0, Math.PI * 2); ctx.fill();
+        // a short trailing streak back toward the victim
+        ctx.strokeStyle = `rgba(220, 50, 80, ${0.35 * a})`;
+        ctx.lineWidth = 2;
+        const bk = Math.max(0, e - 0.12);
+        ctx.beginPath();
+        ctx.moveTo(x0 + (x1 - x0) * bk, y0 + (y1 - y0) * bk);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        break;
+      }
       case 'boom': {
         const x = view.sx(f.x), y = view.sy(f.y);
         ctx.strokeStyle = `rgba(255, 150, 60, ${a})`;
@@ -1526,7 +1645,7 @@ function drawFx(view, fx, now, baseAlpha = 1) {
       case 'lifesteal': {
         // lifesteal payout, on the HEALER's body: a big green "+N hp" and a
         // rising blood ring. Round 16 (Remi): EVERY lifesteal heal >= 1 hp gets
-        // this (Blood Sword included, not just vampire's engorged ball). The
+        // this (Blood Sword and vampire gulps included alike). The
         // sword was deliberately silent before and read as broken because of it.
         const x = view.sx(f.x), y = view.sy(f.y) - 22 - 34 * k;
         const amt = Math.round(+f.amount || 0);
@@ -1903,6 +2022,45 @@ function drawFx(view, fx, now, baseAlpha = 1) {
         g3.addColorStop(1, 'rgba(255, 90, 20, 0)');
         ctx.fillStyle = g3;
         ctx.beginPath(); ctx.arc(x, y, R3, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'craterBurst': {
+        // 24.1: the ground gives way: dark rock shards fly out while a lava
+        // geyser climbs, hangs, and falls back into the fresh pool
+        const x = view.sx(f.x), y = view.sy(f.y);
+        const cr = (fin(+f.crater) ? +f.crater : 3) * scale;
+        // shards: deterministic per-event fan (seeded by f.at), gone by k=0.5
+        if (k < 0.5) {
+          const ka = k / 0.5;
+          ctx.fillStyle = `rgba(30, 22, 18, ${1 - ka})`;
+          for (let i = 0; i < 9; i++) {
+            const ang = (i / 9) * Math.PI * 2 + (f.at % 7);
+            const d = cr * (0.4 + 1.6 * ka);
+            const sx2 = x + Math.cos(ang) * d, sy2 = y + Math.sin(ang) * d - 14 * ka * (1 - ka) * 4;
+            ctx.beginPath(); ctx.arc(sx2, sy2, 2.6 * (1 - ka) + 0.6, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        // the geyser: a column that rises fast and collapses (peak ~k=0.35)
+        const lift = Math.sin(Math.min(1, k / 0.7) * Math.PI);
+        const gh = cr * 2.2 * lift;
+        if (gh > 1) {
+          const gg = ctx.createLinearGradient(x, y, x, y - gh);
+          gg.addColorStop(0, `rgba(255, 120, 40, ${0.85 * a})`);
+          gg.addColorStop(0.6, `rgba(255, 170, 60, ${0.7 * a})`);
+          gg.addColorStop(1, 'rgba(255, 220, 120, 0)');
+          ctx.fillStyle = gg;
+          ctx.beginPath();
+          ctx.ellipse(x, y - gh / 2, cr * 0.35 * (1 - 0.4 * k), gh / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // droplets at the crown
+          ctx.fillStyle = `rgba(255, 190, 80, ${0.8 * a})`;
+          for (let i = 0; i < 5; i++) {
+            const ang = (i / 5) * Math.PI * 2 + k * 6;
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(ang) * cr * 0.5 * k * 2, y - gh + Math.sin(ang) * 3, 1.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
         break;
       }
       case 'mineHit': {

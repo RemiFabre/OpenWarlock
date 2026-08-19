@@ -16,7 +16,9 @@ duel matrix; the intuition layer behind questions K, L and M).*
   point one seat gains is a point off the other three. The do-nothing floor is
   ~3%, not 25% (paying gold for nothing is actively bad).
 - **A strategy** is an exhaustive ordered buy list (identity core + shared
-  exhaust tail). The 25-strategy roster lives in **STRATEGIES.md**.
+  exhaust tail). The roster is CODE: `tools/roster.js` (53 rows since 24.7;
+  `docs/ARCHETYPES.md` is generated from it). Every elo run now opens its own
+  HTML report page (`tools/report.js`).
 - Bots never bait, aim bursts, or refuse trades, and a bot carrier lands a
   median **172 fireballs/game**, far above human pace: volume-scaling things
   (anger, ex-momentum) read inflated, aimed things read at their floor;
@@ -390,6 +392,91 @@ table above). Per-change reads, all two-seed:
 - **vampire**: could NOT be ablated (the % path was deleted from sim.js in
   22.5); the Elo table's D4-leech +219 is the only read.
 
+## Round 24: vampire mark-and-feast (shipped 2026-08-14)
+
+Remi's diagnosis: heal-per-damage made vampire a high-damage-only pick, the
+22.5 flat every-5th heal made it a high-frequency-only pick; both were the
+same over-tight synergy. The rework decouples the heal from BOTH axes: every
+fireball hit banks a MARK on that victim (never fades, dies with either
+party); stepping inside the feast ring (r 7 = Hat of Aura lv3) vacuums the
+whole pile back, one mark per 0.1 s, each healing `markHeal` [2,3,4] × a
+linear 1→3 multiplier on the vampire's OWN missing hp. A started feast always
+finishes. Full design, rulings and evidence:
+`docs/history/2026-08-14-round24-vampire-feast.md`.
+
+Measured (tools/elo.js standard 2000-game runs, seeds 1 AND 2; Elo 1500 =
+roster average, ±40 ≈ neighbour noise; D4-leech = vampire 3 + mosquito +
+sword/amulet): **D4-leech 1397 → 1603/1605 (+~206), rank 19 → 7 of 42**, now
+level with the best non-Faker row (C4) while the control rows moved <40 on
+both seeds. ⚠ BOT-FLATTERED:
+berserker brains brawl inside r 7 all game (permanent vacuum) and never
+burst a low vampire, which is the build's designed weakness. One-line
+levers if live play agrees it is too strong: `markHeal`, `lowHpMax`.
+(24.7: D4-leech was respecced to a frequency core, vampire+arcane+hourglass+
+echo, per Remi's ruling that marks scale with hit count; the numbers above
+measured the OLD core. New baseline: D4 1520, M6-vampire-first 1479, both
+mid-pack, `docs/history/2026-08-14-round247-elo.md`.)
+
+**Round 24.9 (2026-08-14, Remi's design pass on both mark mechanics)**:
+scaling in long games is ACCEPTED as the fantasy (the FFA lobby turning on
+the leader is the auto-balancer); what changed is visibility and setup.
+**Midas = coins**: marks deleted; every fireball hit rolls [20,32,45]% to
+drop a PUBLIC 1 g coin where the victim stood, owner-only pickup, coins die
+with the round, Hard+ bots detour to collect (napkin + tables:
+`docs/history/2026-08-14-round249-mark-reworks.md`). **Anger = release bar**:
+claims still bank +0.5 forever, but a bar fills over 2× the default fireball
+CD (4.2 s), every cast drains it, and the ball adds bank × charge; spam pays
+crumbs BY DESIGN (deliberate anti-synergy with haste/echo). The round's
+first mark lands immediately on your LAST KILLER (random if you didn't die).
+Echo cadence [5,4,3] since 24.8. All levers one-line: `coinChance`,
+`chargeCds`, `markEvery`.
+
+## Round 24.1: midas hunt, mark-hunting bots, meteor craters, portal cross (2026-08-14)
+
+Same-day follow-up to round 24; full report
+`docs/history/2026-08-14-round241-midas-meteor-portals.md`. Midas pays +2 g
+per claimed hunt mark (anger's cadence, NO malus of any kind; Remi's ruling
+that buying must never weaken you). Hard+ bots hunt anger/midas marks
+(`HUNT_MARK 40`; Normal untouched). Meteor leaves a permanent walkable lava
+crater (`craterR` [3,4], real lava rules). Portal exits sit 2.5 past the
+center on each portal's line (the four form a marked cross; the one-mine
+center camp is dead).
+
+Measured (standard 2000-game elo, seeds 1+2, vs the round-24 table):
+**D3-tycoon 1434 → 1199/1189** (the midas build; mostly the END of a bot
+artifact: bots volume-farmed the old +1 g-per-two-hits at 172 hits/game,
+the new income is cadence-capped, humans lose far less), **K5 flat at
+~2775/2753** (already at place 1.08: no headroom, the hunt cannot raise a
+ceiling), B3 +40 on one seed, everything else within noise, 4000/4000 games
+finished with craters in play. Levers if live play disagrees: `goldOnClaim`
+2, `markEvery`, `craterR`, `EXIT_DIST`.
+
+## Round 24.2: the 1/x cadence ruling (2026-08-14)
+
+Levels that scale a cooldown-gated effect are computed in FREQUENCY space
+now (the ruling lives in AGENTS.md): "+p% per level" = CD / (1+p), rounded.
+Applied at +35%/level: anger markEvery [30,25,20] -> [36,27,20] (anchored
+at lv3 = 20 s, Remi: "we don't want to buff anger"; an interim [30,22,16]
+lived for one push), midas [30,25,20] -> [20,15,11] (new 20 s base). Portal EXIT_DIST
+2.5 -> 5 the same day (too bunched), and the exit rune is an "x".
+
+Measured (standard 2000-game elo, seeds 1+2, vs the 24.1 table):
+**D3-tycoon 1199 -> 1307/1334** (the midas build; the faster cadence pays
+~61 g/game of claims, up from 43), B3 anger ~1620 (inside noise), K5 flat.
+The mixed-lobby gap to anger remains (depth beats breadth for bots; the
+full account is the gold-probe analysis in this round's notes). A full CD
+audit against the 35% default was reported to Remi in-chat; no other CDs
+were changed.
+
+## Round 24.3: the normalization pass (2026-08-14, Remi's numbers)
+
+Pillar [14,10], Shield [15,11], Blood Debt [15,11], Rush [10,7] (the
+pure-frequency levels near the +35% default); meteor dmg [16,30] -> [25,35]
+(flatter step, net buff) with the ground-break moved to LV2 only (craterR
+[0,4]); mine cd FLAT 9 (lv2 keeps damage + the second ball). Anger anchored
+[36,27,20] the same day (lv3 = the 22.5 cadence, no buff). Elo tables for
+the full 24.x batch: `docs/history/2026-08-14-round24x-elo-tables.md`.
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*
@@ -450,14 +537,12 @@ draft; teaching bots to BUY them is still open.
 ## How to reproduce
 
 ```bash
-node tools/arena.js --ladder=all --games=1500 --seed=1        # the item ladder
-node tools/arena.js --ladder=sword --games=1500 --seed=1 --fx=sword.lifesteal=0.12,0.20,0.28
-node tools/elo.js --games=2000 --seed=1                       # THE strategy ranking, ~5 min (Remi's standard run)
+node tools/elo.js --games=2000 --seed=1                       # THE strategy ranking, ~5 min, ONE seed (Remi's standard run)
+node tools/pair.js <A> <B> --games=400 --seed=1               # why an Elo gap: what each side DID (+ --fx sweeps)
 node tools/roster.js                                         # roster cost check (--doc regenerates docs/ARCHETYPES.md)
-node tools/strategy-study.js --games=4000 --seed=1            # the older strategy table (and --seed=7)
-node tools/strategy-study.js --games=2000 --kind=stalker      # the Extreme column
-node tools/h2h.js --games=400 brawler grunt                   # ladder (then berserker/brawler, stalker/berserker)
-node tools/arena.js --games=60 --players=4                    # lava share, comebacks, focus metric
+node tools/h2h.js --games=400 brawler grunt                   # bot tiers (then berserker/brawler, stalker/berserker)
+node tools/arena.js --games=60 --players=4                    # health: lava share, comebacks, focus metric
+# (retired round 24.4: strategy-study.js, duel.js, arena --isolate/--ladder/--mirror/--probe; git ad9d54e)
 node tools/coop.js --levels                                   # co-op mothballed: only if its tests break
 npx vitest run                                                # 376 green
 node test/harness/run.js test/harness/scenarios/bots.js

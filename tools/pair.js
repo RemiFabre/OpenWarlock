@@ -18,8 +18,8 @@
 import { createGame, addPlayer, startGame, step, stepBot, buy, setShopReady, makeRng }
   from '../shared/sim.js';
 import { ITEM_FX, ITEMS, ELEMENTS } from '../shared/constants.js';
-import { ROSTER, paddedCore, expandCore } from './roster.js';
-import { EXHAUST_PASS } from './strategy-study.js';
+import { ROSTER, paddedCore, expandCore, EXHAUST_PASS } from './roster.js';
+
 
 // --fx=<key>.<field>=<a,b,c>: same sweep hook arena.js has, so a "what if we
 // made it X" question is one command instead of an edit-run-revert cycle.

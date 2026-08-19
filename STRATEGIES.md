@@ -103,11 +103,11 @@ baseline 25%. The table is zero-sum, so read it as a ranking:*
 
 *Remi's report rule: a strategy name means nothing undecoded. Each list below
 is the strategy's CORE. After it, every strategy walks the same shared
-breadth tail (`EXHAUST_PASS` in `tools/strategy-study.js`: amulet, sword,
+breadth tail (`EXHAUST_PASS` in `tools/roster.js` since 24.4: amulet, sword,
 boots, lightning, cape, treads, hourglass, then every element), so late-game
 contents converge and the measured difference is the OPENING. A repeated name
 means "buy its next level". Regenerate this list with
-`node tools/strategy-study.js --list`.*
+the retired `tools/strategy-study.js` (round 24.4, superseded by elo.js; git ad9d54e).*
 
 | strategy | opening buys, in order |
 |---|---|

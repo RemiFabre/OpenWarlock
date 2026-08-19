@@ -76,7 +76,7 @@ async function runScenario(engineName, engine) {
     };
 
     // -- (a) join, 3 bots, ready, play 90+ s --------------------------------
-    await page.goto(BASE);
+    await page.goto(`${BASE}/?nobeacon=1`);
     await page.fill('#name', `Robo-${engineName}`);
     await page.click('#joinBtn');
     await page.waitForSelector('#lobby:not(.hidden)', { timeout: 8000 });

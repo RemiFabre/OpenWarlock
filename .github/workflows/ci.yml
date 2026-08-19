@@ -1,0 +1,79 @@
+# Free for this repo: GitHub Actions has no minute cap on standard runners for
+# PUBLIC repositories (the 2000 min/month allowance is a private-repo thing).
+#
+# Three jobs, split by what makes them slow, so a red tick tells you WHERE:
+#   checks  ~1 min   pure and CPU-bound (unit tests, the guards, the labs)
+#   browser ~4 min   real chromium + webkit (most of it is installing them)
+#   harness ~5 min   real-time scenarios: ~5 s of CPU, the rest is wall clock
+# Nothing here needs a secret; the whole suite runs without a GitHub token.
+#
+# ⚠ CI IS ADVISORY AND MUST STAY THAT WAY (Remi, round 23): a new version has to
+# be playable on its link the moment it is pushed, never after a green tick.
+# That holds today because GitHub Pages serves `main` DIRECTLY (Pages build_type
+# is `legacy`, source = branch main /), so publishing never touches Actions, and
+# because `main` has NO branch protection. Do not add required status checks, do
+# not move Pages to a workflow build, and do not add a deploy step here. A red
+# tick is information for a human, not a gate.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A push while a run is in flight supersedes it. The issue agent can land
+# several commits a minute, and only the newest tree is worth testing.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # the 494 unit tests plus the rot/portability guards
+      - run: npx vitest run
+      # the roster prices itself and throws on an unknown key
+      - run: node tools/roster.js
+      # games finish and kills stay sane, at both arena scales (21.2)
+      - run: node tools/arena.js --games=60 --players=4
+      - run: node tools/arena.js --games=60 --players=8
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      # zero page errors + a live rAF heartbeat, through a mid-battle server
+      # kill and a reconnect. This is what catches a blank client.
+      - run: PLAY_MS=3000 node test/client-robustness.js
+      # the in-tab solo mode: the client plays with no server at all
+      - run: node test/solo-static.js
+      # the screenshot lab still drives the real client end to end
+      - run: node tools/shot.js --self-test
+
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node test/harness/run.js test/harness/scenarios/bots.js
+      - run: node test/harness/run.js test/harness/scenarios/coop.js
+      # progress survives a dropped socket (spawns its own server)
+      - run: node tools/reconnect-test.js

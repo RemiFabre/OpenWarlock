@@ -68,9 +68,8 @@ purpose: grep the name. Regenerate after any change that moves code around.
 
 - QUEUE_LIMIT_SNAPS, QUEUE_FLOOR_BYTES, ACK_LIMIT_SNAPS, createSnapWire, createSnapSink
 
-## client/main.js (2311 lines)
+## client/main.js (1474 lines)
 
-- **key bindings (rebindable, persisted)**: loadKeys, saveKeys, spellForKey, keyLabel
 - **state**: me, latest
 - **error surfacing**: reportError, setConnBanner
 - **networking**: wireTransport, connect, onMessage, scheduleReconnect, send, pushFloater, onEvent
@@ -79,14 +78,23 @@ purpose: grep the name. Regenerate after any change that moves code around.
 - **interpolation**: trackSnapGap, interpolated
 - **input**: toWorld
 - **join / lobby / shop DOM**: doJoin
-- **hosting online (docs/BRIEF-browser-hosting.md §B3)**: inviteLink, showHostbar, copyInviteLink, doHost
-- **key bindings panel**: startCapture, cancelCapture, onCaptureClick, onCaptureKey, applyPreset, closeKeysPanel
-- **rebinding: ONE rule, both entry points**: bindKey, openRebind, closeRebind, onRebindKey, refreshKeyUi, setShopPreview, toast
-- **shop numbers**: fmtNum, fmtMult, tipRow, orderedFields, tipHead, tipShell, spellTip, elementTip, itemTip
-- **hover tooltip**: placeTip, showTip, hideTip, refreshTip, attachTip, buildShop, drawDraftBanner, thingSpec, thingName, thingDesc, thingIcon, thingCost
-- **DOM update per phase**: setVisible, paintScoreboard
-- **versus teams (round 21.3)**: kitIcons, pingBadge, statsTable, updateUi, esc
+- **hosting online (docs/BRIEF-browser-hosting.md §B3)**: inviteLink, showHostbar, copyInviteLink, doHost, setShopPreview
+- **DOM update per phase**: paintScoreboard
+- **versus teams (round 21.3)**: kitIcons, pingBadge, statsTable, updateUi
 - **main loop**: frame
+
+## client/shop.js (664 lines)
+
+- isPreview, setPreview
+- **number formatting**: fmtMult, tipRow, orderedFields, tipHead, tipShell, spellTip, elementTip, itemTip
+- **hover tooltip**: initShop, placeTip, showTip, hideTip, refreshTip, attachTip
+- **the card grid**: buildShop, drawDraftBanner, thingSpec, thingName, thingDesc, thingIcon, thingCost
+
+## client/keys.js (203 lines)
+
+- loadKeys, saveKeys, bindings, keyOf, spellForKey, keyLabel
+- **the Keys panel**: initKeys, isCapturing, startCapture, cancelCapture, onCaptureClick, onCaptureKey, applyPreset, closeKeysPanel
+- **rebinding: ONE rule, both entry points**: bindKey, openRebind, closeRebind, onRebindKey, refreshKeyUi
 
 ## client/render.js (1555 lines)
 

@@ -54,7 +54,7 @@ try {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.goto(`${BASE}/client/`);
+  await page.goto(`${BASE}/client/?nobeacon=1`);
   await page.waitForSelector('#owv-join');
   assert(await page.textContent('#owv-join').then((text) => text.includes('Default')), 'default version not identified');
   await page.click('#owv-button');
@@ -79,7 +79,7 @@ try {
   const directContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const direct = await directContext.newPage();
   direct.on('pageerror', (error) => errors.push(error.message));
-  await direct.goto(`${BASE}/v/${COMMIT}/client/?version=remis-blood-debt#r=ABCDEFGHJKM2`, { waitUntil: 'domcontentloaded' });
+  await direct.goto(`${BASE}/v/${COMMIT}/client/?version=remis-blood-debt&nobeacon=1#r=ABCDEFGHJKM2`, { waitUntil: 'domcontentloaded' });
   await direct.waitForSelector('#joinBtn', { timeout: 15000 });
   await direct.waitForSelector('#owv-join');
   assert(direct.url().includes(`#r=ABCDEFGHJKM2`), 'shared room hash was lost');
@@ -93,7 +93,7 @@ try {
   console.log('experimental version switched back to default');
 
   const invalid = 'a'.repeat(40);
-  await direct.goto(`${BASE}/v/${invalid}/client/`);
+  await direct.goto(`${BASE}/v/${invalid}/client/?nobeacon=1`);
   assert(await direct.textContent('body').then((text) => text.includes('no longer listed')), 'unlisted commit was not blocked');
   console.log('unlisted commit was blocked');
 

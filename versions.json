@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 12,
+  "serial": 46,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v6: the ball identities decouple — Dark and Storm are independent fireball axes at 6 g a level (blind on the 2nd hit, a faster/smaller arcing ball, 3+ in the arc paralysed 1.5-2.75 s), Ricochet keeps its bounce and cooldown tax, plus the Vomit Puddle, Guardian Angel, craters and the grapple.",
+      "summary": "Ju's arsenal, v11: the optimisation pool grows to 24 (Lava Legs, Broad Pillar and Forced Savings: buy nothing until the next window, then take +30 gold), and a Meteor or Mine crater now has a 5% chance per cast of scarring the map until the end of the game. On Sam's interface (credit @SamKhosravi), with the whole arsenal: Ricochet, Dark and Storm balls, Vomit Puddle, Guardian Angel, craters, the grapple, sprint boots, and the pick-one windows at rounds 3/6/9.",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "c31937016d0a16022d4ed3b780fa6f51689bbd01"
+      "commit": "d515e9197aaad1a80c2b24f95bd6bc6dfc697467"
     },
     {
       "slug": "trash-talk",
@@ -87,6 +87,16 @@
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/12",
       "branch": "issue-12-genki",
       "commit": "95f0e3b3f0b2c4743ea2bcb83583db0c85b810e3"
+    },
+    {
+      "slug": "sam-hud",
+      "name": "Sam's Clear Shop",
+      "author": "@SamKhosravi",
+      "summary": "Sam's overhaul, v10: the fireball is a Liquid Flame now, a procedural teardrop core with per-upgrade overlays (ember sparks, terra shell + scale, gale air arcs, ghost afterimages, arcane runes) and event effects for the gale gust, ghost passthrough, pillar break and arcane refund. On top of the illustrated shop, animated Knight, redesigned lobby/menus and arena artwork.",
+      "issue": 14,
+      "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/14",
+      "branch": "issue-14-hud-readability",
+      "commit": "337c9b41b4b0614e215a1d5baef747141d7d54b7"
     }
   ]
 }

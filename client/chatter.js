@@ -137,7 +137,7 @@ export function createChatter(rng = Math.random) {
         case 'infected': say(e.id, 'infected', now); return;
         // the hunter and the coin-stamper talk, not the thing they marked
         case 'angerClaim': say(e.by, 'anger', now); return;
-        case 'midasMark': say(e.by, 'midas', now); return;
+        case 'coinDrop': say(e.by, 'midas', now); return;
         case 'lifesteal': say(e.id, 'drain', now); return;
         case 'refund': say(e.id, 'refund', now); return;
         // the sky drops carry no id; whoever is standing near the crater

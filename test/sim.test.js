@@ -12,6 +12,7 @@ import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
   BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, AVATARS, OPTIMS, HOLES, itemCost,
+  LAVA,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { itemFxAt } from '../shared/items.js';
@@ -1477,9 +1478,8 @@ describe('elemental mode', () => {
     expect(a.myStacks).toBeUndefined();
     expect(a.stacksOnMe).toBeUndefined();
     expect(a.angerMarks).toBeUndefined();
-    expect(a.vampN).toBeUndefined();
-    // ...and neither do classic PROJECTILES: pierce/pierced/engorged are all
-    // internal or elemental-only, so the projectile wire is unchanged
+    // ...and neither do classic PROJECTILES: pierce/pierced are internal or
+    // elemental-only, so the projectile wire is unchanged
     castSpell(state, 'p0', 'fireball', 20, 0);
     step(state, DT);
     const pr = snapshot(state, 'p0').projectiles[0];
@@ -1857,9 +1857,11 @@ describe('elemental mode', () => {
     const h0 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(h0.bonus).toBeUndefined();
     expect(h0.amount).toBeCloseTo(base, 5);
-    // next fireball: base red number + markDmg white bonus, split on the event
+    // 24.9: the bank is RELEASE-GATED. A FULL bar (here: forced) pays the
+    // whole bank on one ball, split on the event as before.
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     a.x = 0; a.y = 0; a.cooldowns = {};
+    a._angerFireT = -Infinity;               // a patient bar: charged full
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
@@ -1867,6 +1869,20 @@ describe('elemental mode', () => {
     expect(h1.bonus).toBeCloseTo(f.markDmg, 5);
     expect(h1.amount - h1.bonus).toBeCloseTo(base, 5);
     expect(a.angerMarks).toBe(1);   // the unmarked hit banked nothing
+    // ...and a SPAMMED follow-up releases only the sliver refilled since:
+    // bonus = bank x (time since last cast) / (chargeCds x default fireball CD)
+    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    a.x = 0; a.y = 0; a.cooldowns = {};
+    const tPrev = a._angerFireT;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    const frac = Math.min(1, (a._angerFireT - tPrev) /
+      (f.chargeCds * SPELLS.fireball.cooldown[0]));
+    expect(frac).toBeGreaterThan(0);
+    expect(frac).toBeLessThan(0.5);          // 0.4 s into a 4.2 s bar
+    run(state, 0.4);
+    const h2 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h2.bonus).toBeCloseTo(f.markDmg * frac, 5);
   });
 
   it('a hit on a NON-marked target grants nothing: no mark, no bonus, no event', () => {
@@ -1973,7 +1989,27 @@ describe('elemental mode', () => {
     };
     expect(hunt(7)).toBe(hunt(7));
     expect(hunt(7).split(',').length).toBe(10);
-    expect(f.markDelay).toBeGreaterThan(0);   // and the delay is a real number
+    expect(f.markDelay).toBe(0);   // 24.9: the round's first mark is IMMEDIATE
+  });
+
+  it('anger 24.9: the round\'s FIRST mark is REVENGE (your last killer), then random again', () => {
+    const state = elementalBattle(4);
+    const b = state.players.p1;
+    b.elements = { anger: 1 };
+    // hand-place the memory: p3 killed p1 last (any earlier round)
+    b.lastKillerId = 'p3';
+    b._angerRevenge = true; b._angerTarget = null; b._angerNext = 0;
+    run(state, 3 * DT);
+    expect(b._angerTarget).toBe('p3');        // not a random roll
+    expect(stacksOf(state.players.p3, 'anger', 'p1')).toBe(1);
+    expect(b._angerRevenge).toBe(false);      // one shot per round
+    // fallback: no killer on file -> the roll is random among the living
+    const s2 = elementalBattle(4);
+    const c = s2.players.p1;
+    c.elements = { anger: 1 };
+    c.lastKillerId = null; c._angerRevenge = true; c._angerTarget = null; c._angerNext = 0;
+    run(s2, 3 * DT);
+    expect(['p0', 'p2', 'p3']).toContain(c._angerTarget);
   });
 
   it('co-op: anger marks never spawn (the campaign stays untouched)', () => {
@@ -1989,10 +2025,12 @@ describe('elemental mode', () => {
     expect(state.players.h._angerTarget == null).toBe(true);
   });
 
-  it('every damage multiplier scales BOTH halves: midas lv1 halves base AND bonus', () => {
-    const f = ELEMENTS.anger.fx;
+  it('midas costs NO damage or push: owning it changes the fireball not at all (24.1)', () => {
+    // Remi's ruling: spending gold must never make you weaker. The old
+    // dmgMult/kbMult malus (and the generic engine it drove) is deleted.
+    expect(ELEMENTS.midas.fx.dmgMult).toBeUndefined();
+    expect(ELEMENTS.midas.fx.kbMult).toBeUndefined();
     const base = SPELLS.fireball.damage[0];
-    const mult = ELEMENTS.midas.fx.dmgMult[0];
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
@@ -2004,8 +2042,8 @@ describe('elemental mode', () => {
     castSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
-    expect(h.bonus).toBeCloseTo(4 * f.markDmg * mult, 5);
-    expect(h.amount - h.bonus).toBeCloseTo(base * mult, 5);
+    expect(h.bonus).toBeCloseTo(4 * ELEMENTS.anger.fx.markDmg, 5);
+    expect(h.amount - h.bonus).toBeCloseTo(base, 5);
   });
 
   // ---- mosquito 🦟 (round 20.1 rework: every Nth cast fires as a PAIR) -----
@@ -2195,27 +2233,25 @@ describe('elemental mode', () => {
     expect(a.mosqDue).toBe(false);
   });
 
-  it('a trailing ball counts as a CAST for vampire, and can be the engorged one', () => {
-    // Remi (round 20.1): "the player should be rewarded for casting, all
-    // every-N counters count", so the trailing ball advances vampN and an
-    // on-threshold trailing ball flies engorged.
-    const f = ELEMENTS.mosquito.fx, vf = ELEMENTS.vampire.fx;
+  it('a trailing ball plants a vampire mark too: the pair banks two', () => {
+    // Round 24: every fireball HIT banks a mark, and Echo's trailing twin is a
+    // real fireball (round 20.1's "all every-N counters count" spirit).
+    const f = ELEMENTS.mosquito.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -20;
     state.pillars = [];
     a.elements = { mosquito: 1, vampire: 1 };
     a.mosqN = f.doubleEvery[0] - 1;      // this cast is the pair's lead
-    a.vampN = vf.chargeEvery - 2;        // lead -> N-1, trailing -> N (engorged)
-    a.hp = a.maxHp - 60;
     a.x = 0; a.y = 0; a.cooldowns = {};
-    b.x = 6; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    // outside feastR so the marks BANK instead of feeding straight back
+    b.x = ELEMENTS.vampire.fx.feastR + 5; b.y = 0;
+    b.vx = b.vy = 0; b.moveTarget = null;
     b.maxHp = 9999; b.hp = 9999;
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(!!state.projectiles[state.projectiles.length - 1].engorged).toBe(false);
+    castSpell(state, 'p0', 'fireball', 30, 0);
     run(state, 1);
-    expect(a.vampN).toBe(vf.chargeEvery);        // the trail advanced the counter
-    expect(a.healLifesteal).toBeCloseTo(vf.chargeHeal[0], 1); // FLAT since 22.5
+    expect(b.stacks.vampire.p0.n).toBe(2);       // lead + trailing, one each
+    expect(a.healLifesteal).toBe(0);             // banked, not paid: no feast yet
   });
 
   // ⚠ Two ROUND 21.0 RULINGS (Remi: "reflect the ball as it was" / "part of the
@@ -2421,76 +2457,133 @@ describe('elemental mode', () => {
     expect(state.events.some(e => e.t === 'galeBurst')).toBe(true);
   });
 
-  it('midas (round 17): the first hit plants a 🪙 mark, the SECOND cashes +1 g', () => {
-    const state = hitWith('midas');
+  it('midas 🪙 (24.9): a fireball hit can shake out a coin, dropped where the victim STOOD', () => {
+    const f = ELEMENTS.midas.fx;
+    const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
-    // hit 1: no gold yet; the mark is planted (private, on the stack store)
-    expect(a.gold).toBe(GOLD.START);
-    expect(stacksOf(b, 'midas', 'p0')).toBe(1);
-    expect(state.events.some(e => e.t === 'midasMark' && e.id === 'p1')).toBe(true);
-    const dealt = SPELLS.fireball.damage[0] * ELEMENTS.midas.fx.dmgMult[0];
-    expect(b.maxHp - b.hp).toBeGreaterThan(dealt - 0.7); // the softened penalty (22.5)
-    expect(b.maxHp - b.hp).toBeLessThan(dealt + 0.7);
-    // hit 2 on the SAME target: cash, and the mark is spent
-    b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(a.gold).toBe(GOLD.START + ELEMENTS.midas.fx.goldOnHit[0]);
-    expect(stacksOf(b, 'midas', 'p0')).toBe(0);
-    expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
-  });
-
-  it('midas marks are per-target and private per attacker', () => {
-    // a mark on b does not pay out on c: hitting c plants c's OWN mark
-    const state = hitWith('midas');
-    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
-    expect(stacksOf(b, 'midas', 'p0')).toBe(1);
-    c.x = 8; c.y = 0; c.vx = 0; c.vy = 0; c.moveTarget = null; c.maxHp = 500; c.hp = 500;
-    b.x = 0; b.y = 30; b.vx = 0; b.vy = 0;   // parked out of the shot line
-    a.x = 0; a.y = 0; a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(a.gold).toBe(GOLD.START);          // no cash: c had no mark
-    expect(stacksOf(c, 'midas', 'p0')).toBe(1);
-    expect(stacksOf(b, 'midas', 'p0')).toBe(1); // b's mark still waiting
-  });
-
-  it('midas cashes +1 g at EVERY level, never more', () => {
-    for (const level of [1, 2, 3]) {
-      const state = hitWith({ midas: level });
-      const a = state.players.p0, b = state.players.p1;
-      // two hits = plant + cash, at every level the same flat +1 g
-      b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0;
-      a.cooldowns = {};
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { midas: 3 };                 // 45%/hit: a few tries always land one
+    let dropped = null, victimAt = null;
+    for (let i = 0; i < 30 && !dropped; i++) {
+      a.x = 0; a.y = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      victimAt = { x: b.x, y: b.y };
+      state.events = [];
       castSpell(state, 'p0', 'fireball', 20, 0);
       run(state, 0.4);
-      expect(a.gold).toBe(GOLD.START + 1);
-      expect(a.roundGold).toBe(1);
+      dropped = (state.coins || []).find(c => c.owner === 'p0') || null;
     }
+    expect(dropped).toBeTruthy();
+    // the coin lies where the victim was HIT (the push carries them off it)
+    expect(Math.hypot(dropped.x - victimAt.x, dropped.y - victimAt.y)).toBeLessThan(1.5);
+    expect(state.events.some(e => e.t === 'coinDrop' && e.by === 'p0' && e.id === 'p1')).toBe(true);
+    // dropping pays NOTHING yet: the walk is the mechanic
+    expect(a.roundGold).toBe(0);
+    // pickup: the owner walks onto it and the coin pays coinValue
+    const before = a.gold;
+    a.x = dropped.x; a.y = dropped.y;
+    run(state, 2 * DT);
+    expect(a.gold).toBe(before + f.coinValue);
+    expect(a.roundGold).toBe(f.coinValue);
+    expect((state.coins || []).length).toBe(0);
+    expect(state.events.some(e => e.t === 'coinTake' && e.id === 'p0')).toBe(true);
+    expect(state.events.some(e => e.t === 'gold' && e.id === 'p0')).toBe(true);
+    // flat value at every level: levels buy drop CHANCE, never a bigger coin
+    expect(Array.isArray(f.coinValue)).toBe(false);
+    expect(f.coinChance[2]).toBeGreaterThan(f.coinChance[0]);
   });
 
-  it('midas lv1 is half a fireball, and levels buy the penalty back', () => {
+  it('midas 🪙: a coin is OWNER-ONLY and dies with the round', () => {
     const f = ELEMENTS.midas.fx;
-    const dealtAt = (level) => {
-      const state = hitWith({ midas: level });
-      const b = state.players.p1;
-      return b.maxHp - b.hp;
-    };
-    const base = SPELLS.fireball.damage[0];
-    const lv1 = dealtAt(1), lv3 = dealtAt(3);
-    expect(lv1).toBeGreaterThan(base * f.dmgMult[0] - 0.8); // ~half damage
-    expect(lv1).toBeLessThan(base * f.dmgMult[0] + 0.5);
-    expect(lv3).toBeGreaterThan(lv1 * 1.4);                 // lv3 buys it all back...
-    expect(lv3).toBeCloseTo(base, 1);                       // ...to a PENALTY-FREE fireball (round 17.2)
-    // push is halved at lv1 too
-    const peak = (level) => {
-      const state = hitWith({ midas: level });
-      const b = state.players.p1;
-      return Math.abs(b.vx);
-    };
-    expect(peak(1)).toBeLessThan(peak(3) * 0.8);
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    // hand-place a coin owned by p0 under p1's feet: nothing happens
+    b.x = 12; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    state.coins.push({ id: 900, x: b.x, y: b.y, owner: 'p0' });
+    const bGold = b.gold;
+    run(state, 5 * DT);
+    expect(b.gold).toBe(bGold);
+    expect(state.coins.length).toBe(1);
+    // a statue cannot collect (nothing applies during the freeze)
+    a.x = 12; a.y = 0; a.statueT = 1;
+    run(state, 2 * DT);
+    expect(state.coins.length).toBe(1);
+    a.statueT = 0;
+    run(state, 2 * DT);
+    expect(state.coins.length).toBe(0);
+    expect(a.roundGold).toBe(f.coinValue);
+    // uncollected coins die on the round boundary, like stacks. Move the
+    // owner away first so the pickup engine cannot race the boundary.
+    a.x = -30; a.y = -30;
+    state.coins.push({ id: 901, x: 30, y: 30, owner: 'p0' });
+    b.hp = 0.0001; b.alive = false;
+    state.players.p2.hp = 0.0001; state.players.p2.alive = false;
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.round).toBeGreaterThan(1);
+    expect(state.coins.length).toBe(0);
   });
+
+  it('midas 🪙: no coin off your own body (a reflected ball hitting yourself)', () => {
+    // Riders stay keyed to the element's owner on a reflection (22.4). A
+    // self-coin would be free gold for eating your own reflected ball.
+    // midas 3 = 45%/hit: 25 reflected self-hits with zero coins says guard.
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { midas: 3 };
+    for (let i = 0; i < 25; i++) {
+      a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null; a.hp = a.maxHp;
+      a.cooldowns = {};
+      b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      b.shieldT = 5;                          // the ball comes straight back
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 2);
+    }
+    expect(state.coins.filter(c => c.owner === 'p0').length).toBe(0);
+  });
+
+  it('Hard and above HUNT their red mark; Normal (same brain) does not (24.1)', () => {
+    // Geometry: the marked enemy is far (30), a decoy enemy is near (8).
+    // HUNT_MARK must flip the softmax for a berserker KIND, and must not
+    // exist for the brawler KIND, which shares the brain. (24.9: midas has
+    // no marks anymore; anger is the one hunt left.)
+    const draws = (kind) => {
+      const state = elementalBattle(3);
+      const bot = state.players.p0, marked = state.players.p1, near = state.players.p2;
+      bot.bot = true; bot.kind = kind;
+      bot.elements = { anger: 1 };
+      bot.x = 0; bot.y = 0;
+      marked.x = 30; marked.y = 0;
+      near.x = 8; near.y = 0;
+      marked.stacks = { anger: { p0: { n: 1, t: 9 } } };
+      let hits = 0;
+      for (let i = 0; i < 100; i++) if (pickPrey(state, bot).id === 'p1') hits++;
+      return hits;
+    };
+    expect(draws('berserker')).toBeGreaterThan(75);   // the hunt is on
+    expect(draws('brawler')).toBeLessThan(25);        // Normal: distance still rules
+  });
+
+  it('midas 🪙: a Hard+ owner WALKS to its own coin; Normal and strangers do not (24.9)', () => {
+    const walk = (kind, owner) => {
+      const state = elementalBattle(3);
+      const bot = state.players.p0;
+      bot.bot = true; bot.kind = kind;
+      bot.x = 0; bot.y = 0; bot.hp = bot.maxHp;
+      state.players.p1.x = 40; state.players.p1.y = 0;
+      state.players.p2.x = -40; state.players.p2.y = 0;
+      state.coins.push({ id: 1, x: 15, y: 3, owner });
+      for (let i = 0; i < 30; i++) { step(state, DT); stepBot(state, 'p0', DT); }
+      const mt = bot.moveTarget;
+      return mt ? Math.hypot(mt.x - 15, mt.y - 3) : Infinity;
+    };
+    expect(walk('berserker', 'p0')).toBeLessThan(2);    // detours to collect
+    expect(walk('brawler', 'p0')).toBeGreaterThan(4);   // Normal: untouched brain
+    expect(walk('berserker', 'p1')).toBeGreaterThan(4); // not my coin, not my walk
+  });
+
 
   // Round 16: terra is the fireball's SIZE axis and nothing else; the old
   // grow-the-target-on-hit effect (and its +1/+2/+3 damage) is gone.
@@ -2626,42 +2719,197 @@ describe('elemental mode', () => {
 
   // ---- vampire 🧛 -----------------------------------------------------------
 
-  it('vampire 🧛: every Nth CAST is engorged and heals a FLAT amount (22.5)', () => {
+  it('vampire 🧛: hits bank marks that NEVER fade, and the wire shows them', () => {
+    // Round 24: no more every-5th rhythm. Each fireball hit = one mark on that
+    // victim, private like every stack, exempt from STACK_DECAY by design
+    // (Remi: "they stay there until you die or until they die").
     const f = ELEMENTS.vampire.fx;
     const state = elementalBattle(3);
     const a = state.players.p0, b = state.players.p1;
     state.players.p2.x = 0; state.players.p2.y = -45;
     state.pillars = [];
     a.elements = { vampire: 1 };
-    const dmg = SPELLS.fireball.damage[0];
-    let healed = 0;
-    for (let n = 1; n <= f.chargeEvery; n++) {
+    for (let n = 1; n <= 2; n++) {
       a.x = 0; a.y = 0; a.vx = a.vy = 0; a.cooldowns = {};
-      a.hp = a.maxHp - 60;                 // room to heal, and no overkill cap
-      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
-      const before = a.hp;
+      // parked OUTSIDE the feast ring, so the marks bank instead of paying out
+      b.x = f.feastR + 5; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+      b.hp = b.maxHp;
       expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
-      const ball = state.projectiles[state.projectiles.length - 1];
-      // only the Nth ball is engorged, and it says so on the wire
-      const engorgedNow = n % f.chargeEvery === 0;
-      expect(!!ball.engorged).toBe(engorgedNow);
-      const wire = snapshot(state, 'p0').projectiles.find(p => p.id === ball.id);
-      expect(wire.engorged).toBe(engorgedNow ? 1 : undefined);
       run(state, 0.4);
-      healed = a.hp - before;
-      if (!engorgedNow) {
-        // regen is the only healing on a plain ball (no Blood Sword owned)
-        expect(healed).toBeLessThan(1);
-      }
+      expect(b.stacks.vampire.p0.n).toBe(n);
+      expect(state.events.some(e => e.t === 'vampMark' && e.id === 'p1')).toBe(true);
     }
-    // the engorged one pays the flat chargeHeal, however hard the ball hits
-    expect(healed).toBeCloseTo(f.chargeHeal[0], 1);
-    expect(a.healLifesteal).toBeCloseTo(f.chargeHeal[0], 1);
+    // no heal has been paid yet: marks are a bank, not a trickle
+    expect(a.healLifesteal).toBe(0);
+    // ...and unlike frost/gale/malady, the pile survives the decay clock
+    b.x = f.feastR + 20; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    a.x = -20; a.y = 0; a.vx = a.vy = 0;
+    run(state, STACK_DECAY.seconds + 1);
+    expect(b.stacks.vampire.p0.n).toBe(2);
+    // the attacker sees their pile on the victim (the generic private-stack
+    // wire: myStacks on their entry), like frost/midas/malady
+    const wire = snapshot(state, 'p0').players.p1;
+    expect(wire.myStacks.vampire).toBe(2);
+  });
+
+  it('vampire 🧛: closing inside feastR vacuums the WHOLE pile, one gulp per tick, scaled by the vampire\'s own missing hp', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    a.hp = a.maxHp - 50;                    // room to heal; missing hp scales it
+    b.x = f.feastR + 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 3, t: 0 } } };   // a banked pile of 3
+    state.events = [];
+    // walk into range: the whole pile is committed at once
+    b.x = f.feastR - 1;
+    step(state, DT);
+    expect(b.stacks.vampire.p0).toBeUndefined();   // the pile left the body
+    expect(state.events.some(e => e.t === 'vampFeast' && e.id === 'p0' && e.n === 3)).toBe(true);
+    // gulps arrive one per gulpEvery seconds, not all at once
+    const afterFirst = a.hp;
+    expect(afterFirst).toBeGreaterThan(a.maxHp - 50);           // first gulp landed
+    run(state, f.gulpEvery * 0.4);
+    expect(a.hp).toBeCloseTo(afterFirst, 3);                    // ...and only the first
+    run(state, f.gulpEvery * 4);
+    // expected total: the spec's own formula, re-read at EVERY gulp (healing
+    // up during the feast damps the later gulps; that is the design)
+    let hp = a.maxHp - 50;
+    for (let i = 0; i < 3; i++) {
+      const mult = 1 + (f.lowHpMax - 1) * (1 - hp / a.maxHp);
+      hp = Math.min(a.maxHp, hp + f.markHeal[0] * mult);
+    }
+    expect(a.hp).toBeCloseTo(hp, 1);
+    expect(a.healLifesteal).toBeCloseTo(hp - (a.maxHp - 50), 1);
+    expect(state.events.filter(e => e.t === 'vampGulp' && e.id === 'p0').length).toBe(3);
+    // the heal pops green numbers like any lifesteal
     expect(state.events.some(e => e.t === 'lifesteal' && e.id === 'p0')).toBe(true);
   });
 
+  it('vampire 🧛: a gulp at death\'s door heals lowHpMax times the full-hp gulp', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 3 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0;
+    a.hp = 1;                                // ~all hp missing: the max gulp
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 1, t: 0 } } };
+    step(state, DT);
+    const gulp = a.hp - 1;
+    const mult = 1 + (f.lowHpMax - 1) * (1 - 1 / a.maxHp);
+    expect(gulp).toBeCloseTo(f.markHeal[2] * mult, 1);
+    expect(gulp).toBeGreaterThan(f.markHeal[2] * (f.lowHpMax - 0.2));
+  });
+
+  it('vampire 🧛: a started feast always finishes: escaping the ring pays anyway', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = a.maxHp - 60;
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 5, t: 0 } } };
+    step(state, DT);                          // committed: pile leaves the victim
+    b.x = 100; b.y = 100;                     // blink to the far side of the map
+    run(state, f.gulpEvery * 6);
+    expect(state.events.filter(e => e.t === 'vampGulp' && e.id === 'p0').length).toBe(5);
+    expect(b.stacks.vampire.p0).toBeUndefined(); // nothing grew back
+  });
+
+  it('vampire 🧛: the vampire\'s death voids their marks AND the rest of their feast', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    c.x = 40; c.y = 40; c.vx = c.vy = 0; c.moveTarget = null;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = 1;
+    // a banked pile on c (far away), and a feast just triggered off b (close)
+    c.stacks = { vampire: { p0: { n: 4, t: 0 } } };
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 30, t: 0 } } };
+    step(state, DT);                          // feast starts (and first gulp lands)
+    const gulped = state.events.filter(e => e.t === 'vampGulp').length;
+    expect(gulped).toBeGreaterThan(0);
+    // b turns around and kills the 1-hp vampire mid-drain
+    b.cooldowns = {};
+    a.hp = 0.5;
+    expect(castSpell(state, 'p1', 'fireball', -20, 0)).toBe(true);
+    run(state, 1);
+    expect(a.alive).toBe(false);
+    const gulpedAtDeath = state.events.filter(e => e.t === 'vampGulp').length;
+    run(state, 1);
+    // no gulp after death, and the far pile is gone with its owner
+    expect(state.events.filter(e => e.t === 'vampGulp').length).toBe(gulpedAtDeath);
+    expect(c.stacks.vampire.p0).toBeUndefined();
+  });
+
+  it('vampire 🧛: the victim\'s death does NOT stop a committed feast', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = a.maxHp - 60;
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 4, t: 0 } } };
+    step(state, DT);                          // committed
+    b.hp = 0.0001; b.alive = false;           // the blunt mid-drain death
+    run(state, f.gulpEvery * 5);
+    expect(state.events.filter(e => e.t === 'vampGulp' && e.id === 'p0').length).toBe(4);
+  });
+
+  it('vampire 🧛: no feast through a Vanish (an invisible body is not findable)', () => {
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.hp = a.maxHp - 60;
+    b.x = f.feastR - 1; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.stacks = { vampire: { p0: { n: 3, t: 0 } } };
+    b.vanishT = 2;                            // invisible: the vacuum must not tell
+    run(state, 0.3);
+    expect(b.stacks.vampire.p0.n).toBe(3);
+    expect(a.healLifesteal).toBe(0);
+    b.vanishT = 0;                            // reappear: NOW the feast starts
+    run(state, f.gulpEvery * 5);
+    expect(b.stacks.vampire.p0).toBeUndefined();
+    expect(a.healLifesteal).toBeGreaterThan(0);
+  });
+
+  it('vampire 🧛: a reflected ball never marks the vampire themself', () => {
+    // Riders stay keyed to the element's owner on a reflection (22.4), and a
+    // self-mark would be a free heal battery standing inside your own ring.
+    const f = ELEMENTS.vampire.fx;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { vampire: 1 };
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    b.x = 10; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    b.shieldT = 5;                            // the ball comes straight back
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 2);
+    expect((a.stacks && a.stacks.vampire) || undefined).toBeUndefined();
+    // the shielded reflector was never HIT by the enemy ball, so no mark there
+    // either; nothing anywhere pays a heal
+    expect(a.healLifesteal).toBe(0);
+  });
+
   // Round 16 (Remi): "lifesteal needs a visual indicator". The Blood Sword used
-  // to be deliberately silent (only vampire's engorged ball got the green
+  // to be deliberately silent (only vampire's old engorged ball got the green
   // number) and read as broken because of it; now ANY lifesteal heal >= 1 hp
   // is an event the client turns into a green "+N" over the healed player.
   it('the Blood Sword pops the green lifesteal number too, on the healer', () => {
@@ -2691,57 +2939,21 @@ describe('elemental mode', () => {
     expect(ev.amount).toBeCloseTo(SPELLS.fireball.damage[0] * steal, 1);
   });
 
-  it('vampire pays its flat heal only when damage LANDS, and never from lava (22.5)', () => {
-    const f = ELEMENTS.vampire.fx;
-    const state = elementalBattle(3);
-    const a = state.players.p0, b = state.players.p1;
-    state.players.p2.x = 0; state.players.p2.y = -45;
-    state.pillars = [];
-    a.elements = { vampire: 3 };
-    a.vampN = f.chargeEvery - 1;          // the next cast is the engorged one
-    a.hp = 10;
-    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
-    // 1 hp AND 1 max hp: the rest of the hit is overkill, and regen cannot top
-    // the victim up in the ball's flight time (which would inflate the payout)
-    b.maxHp = 1; b.hp = 1;
-    const before = a.hp;
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    run(state, 0.4);
-    expect(b.alive).toBe(false);
-    // FLAT by design since 22.5: a 1-hp overkill still pays the full heal —
-    // the payout no longer scales with damage at all. Some damage must land,
-    // which the lava half below is the negative case for.
-    const paid = a.healLifesteal;
-    expect(paid).toBeCloseTo(f.chargeHeal[2], 1);
-    expect(before + paid).toBeGreaterThan(a.hp - 1);
-    // ...and the lava pays nothing at all, however engorged you are
-    const hpNow = a.hp;
-    a.healLifesteal = 0;
-    state.arenaRadius = 1;                 // everyone is swimming
-    a.hp = hpNow;
-    run(state, 0.5);
-    expect(a.healLifesteal).toBe(0);
-  });
-
-  it('the vampire charge counter RESETS on a round boundary (unlike anger marks)', () => {
-    const f = ELEMENTS.vampire.fx;
+  it('vampire 🧛: marks and half-drunk feasts die on the round boundary', () => {
     const state = elementalBattle(2);
-    const a = state.players.p0;
+    const a = state.players.p0, b = state.players.p1;
     a.elements = { vampire: 1 };
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(a.vampN).toBe(1);
+    b.stacks = { vampire: { p0: { n: 7, t: 0 } } };
+    a._feasts = [{ from: 'p1', x: 0, y: 0, left: 3, next: state.time + 99 }];
     // end the round the blunt way, then run into the next one
-    state.players.p1.hp = 0.0001;
-    state.players.p1.alive = false;
+    b.hp = 0.0001;
+    b.alive = false;
     run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
     expect(state.round).toBeGreaterThan(1);
-    expect(a.vampN).toBe(0);
-    // and the first cast of the new round is charge 1 of chargeEvery again
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'fireball', 20, 0);
-    expect(a.vampN).toBe(1);
-    expect(f.chargeEvery).toBeGreaterThan(1);
+    // pl.stacks is wiped with everything else round-long, and the queue with it
+    expect(b.stacks.vampire).toBeUndefined();
+    expect(a._feasts.length).toBe(0);
+    expect(a.healLifesteal).toBe(0);   // the stale queue never paid
   });
 
   // ---- arcane 🔮 (round 16: cadence lv1/2, on-hit refund lv3) --------------
@@ -3331,6 +3543,77 @@ describe('power spells & pillar', () => {
     expect(Math.abs(b.vx) + Math.abs(b.vy)).toBeGreaterThan(20); // blasted
   });
 
+  it('meteor: the LV2 impact breaks the ground into a walkable lava crater (lv1 does not, 24.3)', () => {
+    const state = freshBattle(3);            // classic on purpose: craters are not elemental
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.meteor = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; b.x = 30; b.y = 0; b.vx = 0; b.moveTarget = null;
+    state.players.p2.y = -40;
+    // lv1: heavy rock, intact floor (the ground-break is the lv2 special)
+    castSpell(state, 'p0', 'meteor', 20, 0);
+    run(state, SPELLS.meteor.delay + 0.1);
+    expect(state.craters.length).toBe(0);
+    a.spells.meteor = 2;
+    a.cooldowns = {};
+    castSpell(state, 'p0', 'meteor', 20, 0);
+    run(state, SPELLS.meteor.delay + 0.1);
+    expect(state.craters.length).toBe(1);
+    const c = state.craters[0];
+    expect(c.x).toBeCloseTo(20, 1);
+    expect(c.r).toBeCloseTo(SPELLS.meteor.craterR[1], 5);
+    // the impact event tells the client to play the ground-break
+    expect(state.events.some(e => e.t === 'meteorHit' && e.crater > 0)).toBe(true);
+    // standing in the crater IS standing in lava: burn + double swim speed
+    b.x = 20; b.y = 0; b.vx = 0; b.vy = 0; b.hp = b.maxHp;
+    step(state, DT);
+    expect(b.inLava).toBe(true);
+    const hp0 = b.hp;
+    run(state, 1);
+    expect(hp0 - b.hp).toBeGreaterThan(LAVA.DPS * 0.8);   // ~a second of lava
+    // ...and it is on the wire for every viewer, classic included
+    const wire = snapshot(state, 'p0');
+    expect(wire.craters.length).toBe(1);
+    expect(JSON.stringify(wire)).toBe(JSON.stringify(snapshot(state)));
+  });
+
+  it('meteor 24.1: Fire Walk ignores a crater, and craters persist across rounds', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    state.pillars = [];
+    state.craters = [{ x: 0, y: 0, r: 4 }];
+    a.x = 0; a.y = 0; a.vx = a.vy = 0; a.moveTarget = null;
+    a.fireWalkT = 3;                          // lava-proof: no burn, still inLava
+    b.x = 30; b.y = 0;
+    const hp0 = a.hp;
+    run(state, 0.5);
+    expect(a.inLava).toBe(true);
+    expect(a.hp).toBeCloseTo(hp0, 3);
+    // the ground stays broken on the round boundary, like a pillar stays built
+    b.hp = 0.0001; b.alive = false;
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.round).toBeGreaterThan(1);
+    expect(state.craters.length).toBe(1);
+  });
+
+  it('meteor 24.1: a spawn seat is never dealt inside a crater', () => {
+    const state = freshBattle(2);
+    // pave the exact seat ring positions of both seats with craters
+    const r = state.startRadius * ARENA.SPAWN_RADIUS_FRAC;
+    state.craters = [0, 1].map(i => {
+      const ang = (i / 2) * Math.PI * 2 - Math.PI / 2;
+      return { x: Math.cos(ang) * r, y: Math.sin(ang) * r, r: 4 };
+    });
+    state.players.p1.hp = 0.0001; state.players.p1.alive = false;
+    run(state, ROUND.SUMMARY_TIME + ROUND.SHOP_TIME + ROUND.COUNTDOWN + 1);
+    expect(state.round).toBeGreaterThan(1);
+    for (const pl of Object.values(state.players)) {
+      for (const c of state.craters) {
+        expect(Math.hypot(pl.x - c.x, pl.y - c.y)).toBeGreaterThan(c.r);
+      }
+    }
+  });
+
   // ---- swap 🔀 (round 17: the hook's yank became a full state exchange) ----
 
   // step until the swap lands (or the cap runs out); returns the event
@@ -3709,7 +3992,8 @@ describe('power spells & pillar', () => {
     expect(castSpell(state, 'p0', 'repulse', a.x, a.y)).toBe(true);
     const e = stepToBoom(state, 'p0');
     expect(e).toBeTruthy();
-    expect(Math.hypot(e.x, e.y)).toBeLessThan(2);   // ported home, blew up there
+    // ported home, blew up there (home = this portal's own exit since 24.1)
+    expect(Math.hypot(e.x, e.y)).toBeCloseTo(ARENA.PORTALS.EXIT_DIST, 1);
     // and the ring the client draws is the spell's OWN radius
     expect(e.r).toBe(SPELLS.repulse.radius[0]);
   });
@@ -4419,6 +4703,54 @@ describe('difficulty tiers (BOTS is the data, sim.js is the machinery)', () => {
       const d = Math.hypot(bot.moveTarget.x - h.x, bot.moveTarget.y - h.y);
       expect(d, kind).toBeGreaterThanOrEqual(BOTS[kind].standoff);
     }
+  });
+
+  it('Hard+ casts Blood Debt on an imminent ball when Shield cannot answer (24.6); Normal never does', () => {
+    const tryDebt = (kind) => {
+      const state = tierBattle(kind);
+      const bot = state.players.b, h = state.players.h;
+      bot.spells.debt = 1;                 // owns debt, owns NO shield
+      bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+      h.x = 10; h.y = 0; h.vx = h.vy = 0; h.moveTarget = null;
+      castSpell(state, 'h', 'fireball', -20, 0);   // a ball inbound at the bot
+      let cast = false;
+      for (let i = 0; i < 12 && !cast; i++) {
+        bot._botT = 0;
+        stepBot(state, 'b', DT);
+        step(state, DT);
+        cast = bot.debtT > 0;
+      }
+      return cast;
+    };
+    expect(tryDebt('berserker')).toBe(true);   // Hard reads the window
+    expect(tryDebt('brawler')).toBe(false);    // Normal: no change, per Remi
+  });
+
+  it('a melee-payload build (vampire/Hat) drops the standoff about half the time (24.5)', () => {
+    // Sample the prowl point over many re-roll windows: a vampire owner must
+    // sometimes prowl the close ring (below its standoff) and sometimes honour
+    // it; a build with neither payload must NEVER drop below the standoff.
+    const ringsSeen = (elements) => {
+      const state = tierBattle('berserker');
+      const bot = state.players.b, h = state.players.h;
+      if (elements) bot.elements = elements;
+      let below = 0, at = 0;
+      for (let i = 0; i < 40; i++) {
+        state.time += BOT_TARGETING.CLOSE_REROLL + 0.5;   // a fresh window
+        bot.x = 0; bot.y = 0; bot.vx = bot.vy = 0;
+        h.x = 4; h.y = 0; h.vx = h.vy = 0; h.hp = h.maxHp; h.moveTarget = null;
+        bot._botT = 0; bot.cooldowns.fireball = 99;
+        stepBot(state, 'b', DT);
+        const d = Math.hypot(bot.moveTarget.x - h.x, bot.moveTarget.y - h.y);
+        if (d < BOTS.berserker.standoff - 0.1) below++; else at++;
+      }
+      return { below, at };
+    };
+    const vamp = ringsSeen({ vampire: 1 });
+    expect(vamp.below).toBeGreaterThan(5);    // DIVES in a real share of windows
+    expect(vamp.at).toBeGreaterThan(5);       // ...and still backs off in others
+    const plain = ringsSeen(null);
+    expect(plain.below).toBe(0);              // no payload: the standoff always holds
   });
 
   it('standoff never backs a bot into the lava: no room = the point comes inside', () => {
@@ -5717,7 +6049,7 @@ describe('arena scales with the seat count (round 21.2)', () => {
     pl.x = Math.cos(P.ANGLE) * d; pl.y = Math.sin(P.ANGLE) * d;
     pl.moveTarget = null; pl.vx = 0; pl.vy = 0;
     step(big, DT);
-    expect(Math.hypot(pl.x, pl.y)).toBeLessThan(1);
+    expect(Math.hypot(pl.x, pl.y)).toBeCloseTo(P.EXIT_DIST, 1);
   });
 });
 
@@ -5738,22 +6070,44 @@ describe('lava portals (round 18)', () => {
     }
   });
 
-  it('touching a portal teleports you to the arena center, dead stop', () => {
+  it('touching a portal teleports you to ITS exit past the center, dead stop (24.1)', () => {
     const state = freshBattle(2);
     const pl = state.players.p0;
+    const P = ARENA.PORTALS;
     const { x, y } = portalXY(1);
     pl.x = x; pl.y = y; pl.vx = 30; pl.vy = -10;
     pl.moveTarget = { x: x + 5, y };
     pl.hp = pl.maxHp;
     state.events = [];
     step(state, DT);
-    expect(Math.hypot(pl.x, pl.y)).toBeLessThan(1);
+    // the exit sits on the portal->center line, EXIT_DIST beyond the center
+    const n = Math.hypot(x, y);
+    expect(pl.x).toBeCloseTo(-x / n * P.EXIT_DIST, 1);
+    expect(pl.y).toBeCloseTo(-y / n * P.EXIT_DIST, 1);
     expect(pl.vx).toBe(0);
     expect(pl.vy).toBe(0);
     expect(pl.moveTarget).toBe(null);
     expect(state.events.some(e => e.t === 'portal' && e.id === 'p0')).toBe(true);
     // the tick that ports you home does not also burn you: you left the lava
     expect(pl.hp).toBe(pl.maxHp);
+  });
+
+  it('the four exits form a cross a center mine cannot cover (the 24.1 point)', () => {
+    const P = ARENA.PORTALS;
+    // past a mine at exactly 0,0: trigger ring + a body radius must not reach
+    expect(P.EXIT_DIST).toBeGreaterThan(SPELLS.nova.radius + PLAYER.RADIUS * 0.5);
+    // four DISTINCT exits (one per portal), all EXIT_DIST from the center
+    const state = freshBattle(2);
+    const seen = new Set();
+    for (let i = 0; i < P.COUNT; i++) {
+      const pl = state.players.p0;
+      const { x, y } = portalXY(i);
+      pl.x = x; pl.y = y; pl.vx = 0; pl.vy = 0; pl.moveTarget = null;
+      step(state, DT);
+      expect(Math.hypot(pl.x, pl.y)).toBeCloseTo(P.EXIT_DIST, 1);
+      seen.add(Math.round(Math.atan2(pl.y, pl.x) * 100));
+    }
+    expect(seen.size).toBe(P.COUNT);
   });
 
   it('swimming NEAR a portal does not trigger it', () => {
@@ -5891,7 +6245,9 @@ describe('mine 💣 (the trap, round 21.8)', () => {
       a.spells.nova = level;
       a.cooldowns = {};
       expect(castSpell(state, 'p0', 'nova', 20, 0)).toBe(true);
-      expect(a.cooldowns.nova).toBeCloseTo(spec.cooldown[level - 1], 5);
+      // 24.3: the cd is FLAT (a scalar); keep the test level-shaped anyway
+      const cd = Array.isArray(spec.cooldown) ? spec.cooldown[level - 1] : spec.cooldown;
+      expect(a.cooldowns.nova).toBeCloseTo(cd, 5);
     }
   });
 
@@ -6181,7 +6537,7 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     const state = mineBattle(3, 'elemental');
     const a = state.players.p0, b = state.players.p1;
     a.spells.nova = 2;
-    a.elements = { midas: 1, frost: 1, malady: 1 };
+    a.elements = { vampire: 1, frost: 1, malady: 1 };
     const m = plant(state, 'p0', 10, 0);
     castSpell(state, 'p0', 'fireball', 40, 0);
     run(state, 0.5);
@@ -6191,7 +6547,9 @@ describe('mine 💣 (the trap, round 21.8)', () => {
     const hp0 = b.hp;
     run(state, 0.4);
     expect(b.hp).toBeLessThan(hp0);               // ground hit + the stored ball
-    for (const el of ['midas', 'frost', 'malady'])
+    // (midas left this list in 24.1: it is a timed HUNT mark now, not an
+    // on-hit stack; vampire's blood mark joined in round 24)
+    for (const el of ['vampire', 'frost', 'malady'])
       expect(b.stacks[el] && b.stacks[el].p0 && b.stacks[el].p0.n).toBe(1);
     expect(a.dmgDealt).toBeGreaterThan(0);        // the damage column is theirs
   });
@@ -6364,7 +6722,12 @@ describe('versus teams', () => {
       const [a, mate, foe] = ['p0', 'p1', 'p2'].map(id => state.players[id]);
       a.spells[spell] = 1;
       a.x = 20; a.y = 20;             // out of its own blast, inside nova's range
-      mate.x = 0; mate.y = 0; foe.x = 1; foe.y = 0;
+      // 24.1: the meteor SPELL spares the mate, but its crater is TERRAIN and
+      // burns whoever stands in it, ally or not; park the mate inside the
+      // blast, outside the crater
+      const safe = spell === 'meteor' ? SPELLS.meteor.craterR[0] + 1.2 : 0;
+      mate.x = safe; mate.y = 0; foe.x = 1; foe.y = 0;
+      mate.moveTarget = null; foe.moveTarget = null;
       const mateHp = mate.hp, foeHp = foe.hp;
       castSpell(state, 'p0', spell, 0, 0);
       run(state, 4);
@@ -7358,17 +7721,16 @@ describe('decoy 👥 (the mirage)', () => {
     expect(state.phantoms.length).toBe(0);
   });
 
-  it('a phantom cast arms NOTHING: no vampire, echo, anger or malady counter', () => {
+  it('a phantom cast arms NOTHING: no echo, anger, malady or vampire effect', () => {
     const state = decoyBattle(2, 'elemental', 2);
     const a = state.players.p0;
     a.elements = { vampire: 1, mosquito: 1, anger: 1, malady: 1, midas: 1 };
     castSpell(state, 'p0', 'decoy', 5, 0);
     expect(state.clones.length).toBe(2);
-    const v0 = a.vampN || 0, m0 = a.mosqN || 0;
+    const m0 = a.mosqN || 0;
     expect(castSpell(state, 'p0', 'fireball', 40, 0)).toBe(true);
     // ONE keypress = ONE tick of every every-Nth counter, whatever the mirages
     // are doing on screen (two phantom balls flew)
-    expect(a.vampN - v0).toBe(1);
     expect(a.mosqN - m0).toBe(1);
     expect(state.phantoms.length).toBe(2);
     // …and the phantoms are not projectiles, so nothing downstream can see them

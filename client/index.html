@@ -112,6 +112,16 @@
 
   /* ---- lobby ---- */
   #playerList { margin: 0 0 14px; }
+  /* Round 23 (Remi): hosting adds the invite card and the WHOLE lobby grew a
+     scrollbar. Only the warlock list may scroll now; the config, the bots and
+     the invite card stay put, because those are the things you came to click. */
+  #lobby .scroller { display: flex; flex-direction: column; min-height: 0; }
+  /* The list RESERVES its height (flex-basis) and scrolls inside it: the slab
+     is vertically centered, so a list that grew the slab shifted the add-bot
+     buttons under the cursor (the round-22 no-shift rule; round 23 dropped the
+     reserve by mistake). It may still shrink to 64px on a short window, and
+     the outer scroller keeps overflow auto as the last fallback. */
+  #lobby #playerList { flex: 1 1 216px; min-height: 64px; overflow-y: auto; }
   #playerList .pl {
     display: flex; align-items: center; gap: 10px;
     padding: 7px 4px; border-bottom: 1px solid var(--line);
@@ -443,6 +453,9 @@
   .warewrap .ware .cost { align-self: flex-start; }
   /* quiet category label on the row's left edge (round 20: Offense / Defense /
      Special); sideways, tiny, muted: a whisper, not a header */
+  /* ⚠ Absolutely positioned since round 23, NOT a grid cell: as a cell it ate
+     column 1 of every implicit row, so the 8th item wrapped INTO the 15 px
+     label slot and rendered as a squashed pile. */
   .catlabel {
     flex: none; align-self: stretch; display: flex;
     align-items: center; justify-content: center; width: 17px;
@@ -739,6 +752,15 @@
     font-variant-numeric: tabular-nums;
   }
   #buffbar .buff.crit { border-color: #a3392f; color: #ff9b8c; }
+  /* anger 24.9: the release bar inside the chip; full = ready to spend */
+  #buffbar .angerbar {
+    display: inline-block; width: 42px; height: 6px; margin: 0 2px 0 6px;
+    vertical-align: middle; background: #2a1512; border: 1px solid #5a2620;
+  }
+  #buffbar .angerbar i {
+    display: block; height: 100%; background: #c0392b; transition: width .12s linear;
+  }
+  #buffbar .angerbar.full i { background: #ff5540; box-shadow: 0 0 6px #ff5540; }
   #buffbar .buff.frost { border-color: #3f6a8c; color: #a8d8ff; }
   #buffbar .buff.malady { border-color: #3f7a3f; color: #9fe08f; }
   #buffbar .buff.vamp { border-color: #8c2f3f; color: #ff8fa3; }
