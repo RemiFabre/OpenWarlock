@@ -1,14 +1,20 @@
 # OpenWarlock 🔥
 
-<p align="center">
-  <img src="docs/media/round1-brawl.gif" width="49%" alt="A free-for-all brawl in the default game">
-  <img src="docs/media/sam-liquid-flame.gif" width="49%" alt="The same brawl in Sam's Liquid Flame, a player-made version">
-</p>
+## ▶ [Play it now, no install](https://remifabre.github.io/OpenWarlock/client/)
+
+<table>
+  <tr>
+    <th width="50%">Original version</th>
+    <th width="50%">Improved by the community</th>
+  </tr>
+  <tr>
+    <td><img src="docs/media/round1-brawl.gif" alt="A free-for-all brawl in the default game"></td>
+    <td><img src="docs/media/sam-liquid-flame.gif" alt="The same brawl in Sam's Liquid Flame, a player-made version"></td>
+  </tr>
+</table>
 <p align="center">
   <img src="docs/media/shop.png" width="98%" alt="The between-rounds shop">
 </p>
-
-## ▶ [Play it now, no install](https://remifabre.github.io/OpenWarlock/client/)
 
 ## 🧪 Player-made versions
 
