@@ -264,6 +264,10 @@ export function createRtcHostTransport({ onRoom = () => {}, onError = () => {} }
       if (m.t === 'full') { p.wire.requestFull(); return; } // guest's decoder hit a gap
       if (m.t === 'ack') { p.wire.ack(m.q); return; }       // ...and how far behind it is
       if (m.t === 'rtt') { engine.setPing(connId, m.ms); return; } // guest-measured RTT -> everyone's ms badge
+      if (m.t === 'lagr') { // guest playout self-report -> the journal (numbers only)
+        log('lagr', { connId, d: +m.d || 0, g: +m.g || 0, hz: +m.hz || 0, ...(+m.heap ? { heap: +m.heap } : {}) });
+        return;
+      }
       engine.message(connId, m);
     };
     p.ctrl.onclose = () => dropPeer(p, 'ctrl closed');

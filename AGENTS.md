@@ -1,9 +1,11 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-19, round 24.12: echo back to its strong [5,4,3] with
-honest button text, and the ANGER HELD CHARGE (the 24.9 release bar is
-deleted; hold-to-charge from issue-6, bots charge too). 24.11 (midas coin
-trim + melt, vampire lowHpMax 2.5) holds. Older rounds: REMI_NOTES' archive
+*Last updated 2026-08-19, rounds 24.13 + 24.14: anger markEvery buffed to
+[27,20,15] (lv3 re-anchored 15 s, same 1/x ratio), and the refresh-lag hunt:
+echo keyframes now stretch their cadence to a byte budget instead of growing
+unbounded on the ordered channel, and RTC guests self-report playout stats
+into the host journal (`docs/history/2026-08-19-refresh-lag-investigation.md`).
+24.12 (held charge, echo [5,4,3]) holds. Older rounds: REMI_NOTES' archive
 pointers. Read this first, then REMI_NOTES.md (latest round only). That is
 the whole entry set.*
 
@@ -163,7 +165,7 @@ build step, Node ESM, only dep is `ws`.
 | `shared/sim.js` | pure simulation + bot brains (grunt random, berserker piloted, stalker dodging; Normal = berserker brain with worse params) + elements, hazards, Vanish wire-masking |
 | `shared/campaign.js` | co-op campaign: 10 levels as pure data. Levels are data, never code |
 | `shared/engine.js` | the authoritative ROOM behind a transport seam (round 19): seating, wire switch, ghosts, bans, snapshots. Node server AND the in-tab solo mode both run it |
-| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING: events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it. Also home of `createGapTracker` (2026-08-14), the client's PLAYOUT delay: mode 'step' = shipped peak-hold (spikes REWIND the drawn world), 'slew' = the staged bounded-walk fix. History: `docs/history/2026-08-14-playout-rewind.md` |
+| `shared/snapwire.js` | round 21.10: the ONE place that decides what a connection is sent and when it is sent NOTHING: events split off, state delta-coded, skipped-not-queued when it falls behind. Both send halves (ws adapter, RTC host) and both receive halves (`createSnapSink`) go through it. Since 24.14 echo keyframes stretch their cadence to a byte budget (`ECHO_BUDGET_PER_FRAME`) instead of growing unbounded on the ordered channel. Also home of `createGapTracker` (2026-08-14), the client's PLAYOUT delay: mode 'step' = peak-hold (spikes REWIND the drawn world), 'slew' = SHIPPED since 23.1 (bounded walk). History: `docs/history/2026-08-14-playout-rewind.md` |
 | `server/index.js` | now an ADAPTER over engine.js: http, `/health` (+ per-player wire stats), ws + heartbeat/RTT pings + permessage-deflate, JSONL journal, IP bans |
 | `client/transport.js` | ws + solo + RTC transports behind one seam (`?mode=`, `#r=CODE`, else /health probe). Hosting record: `docs/history/2026-08-09-browser-hosting-phaseB.md` |
 | `server/signal.js` | optional WebRTC signalling relay (`npm run signal`), ~100 lines, zero game logic, disposable mid-game |
@@ -243,7 +245,8 @@ build step, Node ESM, only dep is `ws`.
   never the reflector (the game-night shared-ice bug),
   anger=REVENGE MARK + HELD CHARGE (24.12; the 24.9 bar is deleted): first
   mark of the round lands IMMEDIATELY on your last killer (random if you
-  didn't die), later marks random every **[36,27,20] s**; claim = +0.5 banked
+  didn't die), later marks random every **[27,20,15] s** (24.13 buff, lv3
+  re-anchored 20 -> 15, same +35%/lvl ratio); claim = +0.5 banked
   forever, and the bank is HOLD-GATED: an anger owner's fireball key HOLDS
   (`CHARGE` in constants, issue-6 machinery: 5 equal-time tiers over 1.5 s,
   back-loaded), release fires bank × bankFrac[tier] and grows the ball up to
@@ -367,9 +370,15 @@ build step, Node ESM, only dep is `ws`.
 - **"A friend lags late-game" is a wire question first** (21.10/21.11):
   `/health` reports per-player `queued` / `behind` / `skipped`; the ms badge
   works on BOTH paths (RTC guests self-measure via getStats since 21.11), and
-  the RTC host journal logs a per-guest `wire` line. Repro: `tools/slowlink.js`
-  (ws, bandwidth) or `tools/rtclab.js` (RTC, loss/jitter/bandwidth). Root-cause
-  record: `docs/history/2026-08-12-rtc-lag-rootcause.md`.
+  the RTC host journal logs a per-guest `wire` line every 2 s plus, since
+  24.14, a guest-reported `lagr` line every 5 s (renderDelay/gap/Hz/heap): a
+  laggy game becomes data if Remi presses ⬇ log before closing the host tab.
+  Repro: `tools/slowlink.js` (ws, bandwidth) or `tools/rtclab.js` (RTC,
+  loss/jitter/bandwidth). Root-cause records:
+  `docs/history/2026-08-12-rtc-lag-rootcause.md` (wire),
+  `...2026-08-14-playout-rewind.md` (playout),
+  `...2026-08-19-refresh-lag-investigation.md` (growing echo keyframes; the
+  refresh lead).
 - Final standings wait for every human (45 s grace). After pulling: restart
   the server AND hard-refresh clients.
 

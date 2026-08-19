@@ -4,7 +4,7 @@
 // history: docs/history/2026-08-12-snapshot-bandwidth.md
 
 import { describe, it, expect } from 'vitest';
-import { createSnapWire, createSnapSink, QUEUE_FLOOR_BYTES } from '../shared/snapwire.js';
+import { createSnapWire, createSnapSink, QUEUE_FLOOR_BYTES, ECHO_BUDGET_PER_FRAME, ECHO_MAX_EVERY } from '../shared/snapwire.js';
 import { createSnapDecoder } from '../shared/snapdelta.js';
 
 // wire -> (a lossy pipe) -> sink, the whole contract end to end
@@ -383,6 +383,32 @@ describe('snapwire: echo mode (cadence keyframes ride BESIDE the delta)', () => 
     const f = w.frame(snap('shop', { time: 10 }));
     expect(f.key).toBe(null);                                       // requested gap fill
     expect(JSON.parse(f.state).f).toBeDefined();
+  });
+
+  it('a GROWING keyframe stretches the echo cadence to hold its byte budget', () => {
+    // The late-game killer (2026-08-19): permanent pillars/craters grow the
+    // keyframe ~7× over a game, and a fixed 2 s cadence shipped that on the
+    // reliable ORDERED channel where a lost chunk stalls every event behind it.
+    const big = { pillars: Array.from({ length: 400 }, (_, i) => ({ x: i, y: i % 37, r: 2.2 })) };
+    const w = createSnapWire({ echo: true, fullEvery: 3 });
+    const echoGap = (extra) => {
+      // frames between one echo keyframe and the next
+      let n = 0, t = 100;
+      while (w.frame(snap('battle', { time: t++, ...extra })).key === null && n < 1000) n++;
+      let gap = 1;
+      while (w.frame(snap('battle', { time: t++, ...extra })).key === null && gap < 1000) gap++;
+      return gap;
+    };
+    // small state: the configured cadence holds (tiny keyframe, under budget)
+    expect(echoGap({})).toBe(3);
+    // big state: the cadence stretches to keyBytes / budget, capped
+    const gap = echoGap(big);
+    const keyBytes = JSON.stringify({ t: 'snap', q: 0, f: { s: snap('battle', big).s } }).length;
+    expect(gap).toBeGreaterThan(3);
+    expect(gap).toBeLessThanOrEqual(ECHO_MAX_EVERY);
+    expect(gap).toBeGreaterThanOrEqual(Math.min(ECHO_MAX_EVERY, keyBytes / ECHO_BUDGET_PER_FRAME) - 2);
+    // a keyframe is still produced (stretched, never silenced)
+    expect(gap).toBeLessThan(1000);
   });
 });
 

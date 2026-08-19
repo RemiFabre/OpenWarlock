@@ -429,6 +429,23 @@ function phaseMusic(s) {
 // so a jitter spike can never rewind the drawn world in one frame. Revert to
 // the old stepping behavior: drop the mode option ('step' is the default).
 const gaps = createGapTracker({ intervalMs: 1000 / SNAPSHOT_RATE, mode: 'slew' });
+// The friend-trace instrument (2026-08-19): every 5 s an RTC guest reports its
+// playout numbers (renderDelay, gap estimate, applied Hz, JS heap MB) to the
+// host, which journals them beside the per-guest wire stats; one ⬇ log after a
+// laggy game shows each guest's timeline, including across a page refresh.
+// history: docs/history/2026-08-19-refresh-lag-investigation.md
+let lagrSnapN = 0;
+setInterval(() => {
+  if (!transport || transport.kind !== 'rtc' || myId == null) return;
+  const s = gaps.stats();
+  const n = window.__snapN || 0;
+  const heap = performance.memory && Math.round(performance.memory.usedJSHeapSize / 1048576);
+  send({
+    t: 'lagr', d: Math.round(s.renderDelay), g: Math.round(s.gapEst),
+    hz: Math.round((n - lagrSnapN) * 2) / 10, ...(heap ? { heap } : {}),
+  });
+  lagrSnapN = n;
+}, 5000);
 window.__delay = () => gaps.stats(); // test/debug hook: {renderDelay, gapEst}
 
 const lerp = (a, b, k) => (fin(a) && fin(b)) ? a + (b - a) * k : (fin(b) ? b : a);

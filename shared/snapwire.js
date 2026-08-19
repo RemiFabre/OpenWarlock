@@ -43,6 +43,15 @@ export const QUEUE_FLOOR_BYTES = 8192;
 //     throttled for being far away. A congested pipe's backlog GROWS; a merely
 //     distant one's is a constant offset, so compare against the floor.
 export const ACK_LIMIT_SNAPS = 6;   // ~400 ms of backlog ABOVE this link's floor
+// The echo keyframe's bandwidth budget, in bytes per snapshot FRAME (~2.5 KB/s
+// at 15 Hz). The keyframe GROWS all game (pillars/craters accumulate) and rides
+// the reliable ORDERED channel, where a lost chunk stalls every event behind
+// it; a fixed 2 s cadence made that cost grow ~7× over a long game (measured,
+// docs/history/2026-08-19-refresh-lag-investigation.md). So the cadence
+// stretches to hold the budget; recovery stays on the guest's requestFull path,
+// which round-trips faster than the old 2 s cadence anyway.
+export const ECHO_BUDGET_PER_FRAME = 170;
+export const ECHO_MAX_EVERY = 300;  // never sparser than ~20 s at 15 Hz
 
 export function createSnapWire({
   delta = true,                 // false = the pre-21.10 shape, whole every time
@@ -128,7 +137,13 @@ export function createSnapWire({
         : { t: 'snap', ...payload, ...(hasEvents ? { e: msg.e } : { e: [] }) };
       // `full` above is what we ASKED for; the encoder also keyframes on its own
       // fullEvery cadence, so read the answer off the message it produced.
-      if (wire.echo) { out.key = JSON.stringify(wire.echo); delete wire.echo; }
+      if (wire.echo) {
+        out.key = JSON.stringify(wire.echo); delete wire.echo;
+        // stretch the next cadence so echo keyframes stay inside their budget
+        // (never denser than the configured fullEvery, never sparser than the cap)
+        enc.setFullEvery(Math.min(ECHO_MAX_EVERY,
+          Math.max(fullEvery, out.key.length / ECHO_BUDGET_PER_FRAME)));
+      }
       out.full = wire.f !== undefined || !delta;
       if (wire.q != null) sentQ = wire.q;
       out.state = JSON.stringify(wire);
