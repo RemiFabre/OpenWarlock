@@ -1,0 +1,1145 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy Elo · 2565 games · seed 1 · berserker seats</title>
+<style>
+:root{
+  --bg:#171310; --panel:#201a15; --edge:#37291d; --ink:#e9decd; --dim:#a5927a;
+  --ember:#ff9d45; --ember2:#c85a1e; --pin:#ffd76a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 ui-sans-serif,system-ui,sans-serif}
+header{padding:26px 28px 10px;border-bottom:1px solid var(--edge)}
+h1{font-family:'Iowan Old Style',Palatino,Georgia,serif;font-weight:600;
+  font-size:30px;margin:0 0 8px;letter-spacing:.01em}
+h1 .flame{filter:drop-shadow(0 0 6px rgba(255,157,69,.55))}
+.explain{max-width:72ch;color:var(--dim);font-size:13.5px;margin:0 0 8px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:0;align-items:start}
+main{padding:10px 8px 60px 16px;min-width:0}
+table{border-collapse:collapse;width:100%}
+th{font:600 11px ui-monospace,monospace;color:var(--dim);text-align:left;
+  padding:6px 8px;text-transform:uppercase;letter-spacing:.08em}
+td{padding:5px 8px;border-top:1px solid #241d16}
+.row{cursor:pointer;outline:none}
+.row:hover td,.row:focus td{background:#241c14}
+.row.pinned td{background:#2b2013;box-shadow:inset 3px 0 0 var(--pin)}
+.num{font-family:ui-monospace,'SF Mono',monospace;font-size:13px;text-align:right;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.elo{color:var(--ember);font-weight:700;font-size:14px}
+.name{font-family:ui-monospace,'SF Mono',monospace;font-size:13.5px;white-space:nowrap}
+.k{color:#ff6a6a}
+.dim{color:var(--dim)}
+.one{max-width:34ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.gauge{width:120px;min-width:60px}
+.gauge i{display:block;height:9px;border-radius:5px;
+  background:linear-gradient(90deg,var(--ember2),var(--ember));
+  box-shadow:0 0 6px rgba(255,157,69,.35)}
+.fam{display:inline-block;font:700 11px ui-monospace,monospace;padding:1px 7px;
+  border-radius:9px;background:hsl(var(--h) 45% 22%);color:hsl(var(--h) 70% 78%);
+  border:1px solid hsl(var(--h) 45% 32%)}
+.famhead{font-family:'Iowan Old Style',Palatino,Georgia,serif;font-size:17px;
+  font-weight:600;color:var(--ink);margin:26px 0 4px;border-bottom:1px solid var(--edge);
+  padding-bottom:4px}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;padding:16px;
+  border-left:1px solid var(--edge);background:var(--panel)}
+.card h2{font-family:'Iowan Old Style',Palatino,Georgia,serif;font-size:20px;
+  margin:2px 0 6px}
+.card h3{font:600 11px ui-monospace,monospace;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px}
+.cost{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--dim);margin:0 0 8px}
+.runline{font-family:ui-monospace,monospace;font-size:13px;margin:0 0 8px}
+.runline b{color:var(--ember);font-size:16px}
+.fantasy{font-family:'Iowan Old Style',Palatino,Georgia,serif;font-style:italic;
+  font-size:15.5px;margin:8px 0;color:#f3ead9}
+.tests{font-size:13px;color:var(--dim);margin:6px 0}
+.tests b{color:var(--ink)}
+.note{font-size:13px;background:#2b2013;border-left:3px solid var(--pin);
+  padding:7px 9px;border-radius:0 6px 6px 0;margin:8px 0}
+.caps{font-size:13px;color:#ff8f8f;margin:6px 0}
+.badge{font:600 10.5px ui-monospace,monospace;background:#3a2c1c;color:var(--ember);
+  border-radius:8px;padding:1px 7px;vertical-align:middle}
+.badge.dim{color:var(--dim);background:#2a231c}
+.order{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chip{font-size:19px;background:#2a2118;border:1px solid var(--edge);
+  border-radius:8px;padding:3px 5px 1px;line-height:1;cursor:default}
+.chip sub{font:700 10px ui-monospace,monospace;color:var(--ember);margin-left:1px}
+.chip.fill{opacity:.62}
+.chip.late{opacity:.34}
+.divider{font:600 10px ui-monospace,monospace;color:var(--dim);
+  border-left:2px dotted var(--dim);padding-left:6px;margin-left:2px;white-space:nowrap}
+.divider.warn{color:var(--ember);border-color:var(--ember2)}
+.goldicon{filter:sepia(1) saturate(2.4) hue-rotate(-12deg) brightness(1.1)}
+.hint{color:var(--dim);font-size:13px}
+.notes{max-width:78ch;padding:4px 28px 0;color:var(--ink)}
+.notes h2{font-family:'Iowan Old Style',Palatino,Georgia,serif;font-size:19px;margin:14px 0 4px}
+.notes h3{font-size:15px;margin:14px 0 4px;color:var(--ember)}
+.notes p,.notes li{font-size:13.5px;color:#cfc0ab}
+@media (max-width:980px){.layout{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-left:none;border-top:1px solid var(--edge)}}
+@media (prefers-reduced-motion:no-preference){.card{animation:in .12s ease-out}
+  @keyframes in{from{opacity:.4}to{opacity:1}}}
+.row:focus-visible td{outline:2px solid var(--ember);outline-offset:-2px}
+</style>
+<header>
+  <h1><span class="flame">🔥</span> Strategy Elo · 2565 games · seed 1 · berserker seats</h1>
+  <p class="explain">Elo fitted by Bradley-Terry over every pairwise placement in 2565 random 4-of-roster berserker lobbies (seed 1, elemental). 1500 = the roster average; +173 ≈ a 73% favourite in a pair; neighbours within ~40 are noise. "place" = mean finishing place of 4; "seats" = games played. <br>⚠ Bot read only: bots do not lead targets, bait, or chain CC windows; reactive tools (shield, debt, blink) and contagion read at a floor; anger saturates bot instruments. This ranks what BOTS extract, not what you would.</p>
+</header>
+
+<div class="layout">
+<main>
+<table><thead><tr><th>#</th><th></th><th>elo</th><th></th><th>strategy</th><th>cost</th><th>place</th><th>seats</th></tr></thead>
+      <tbody><tr class="row" data-id="K4-faker-galeforce" tabindex="0">
+    <td class="num">1</td>
+     <td class="gauge"><i style="width:100%"></i></td>
+     <td class="num elo">2900</td>
+    <td><span class="fam" style="--h:0">K</span></td>
+    <td class="name">K4-faker-galeforce <span class="k">★</span></td>
+    <td class="num dim">155g</td>
+    <td class="num dim">1.06</td><td class="num dim">189</td>
+  </tr>
+<tr class="row" data-id="K3-faker-minefield" tabindex="0">
+    <td class="num">2</td>
+     <td class="gauge"><i style="width:98%"></i></td>
+     <td class="num elo">2851</td>
+    <td><span class="fam" style="--h:0">K</span></td>
+    <td class="name">K3-faker-minefield <span class="k">★</span></td>
+    <td class="num dim">151g</td>
+    <td class="num dim">1.06</td><td class="num dim">204</td>
+  </tr>
+<tr class="row" data-id="K2-faker-permafrost" tabindex="0">
+    <td class="num">3</td>
+     <td class="gauge"><i style="width:96%"></i></td>
+     <td class="num elo">2827</td>
+    <td><span class="fam" style="--h:0">K</span></td>
+    <td class="name">K2-faker-permafrost <span class="k">★</span></td>
+    <td class="num dim">151g</td>
+    <td class="num dim">1.05</td><td class="num dim">203</td>
+  </tr>
+<tr class="row" data-id="K5-faker-vendetta" tabindex="0">
+    <td class="num">4</td>
+     <td class="gauge"><i style="width:82%"></i></td>
+     <td class="num elo">2537</td>
+    <td><span class="fam" style="--h:0">K</span></td>
+    <td class="name">K5-faker-vendetta <span class="k">★</span></td>
+    <td class="num dim">153g</td>
+    <td class="num dim">1.20</td><td class="num dim">175</td>
+  </tr>
+<tr class="row" data-id="K1-faker-hookstorm" tabindex="0">
+    <td class="num">5</td>
+     <td class="gauge"><i style="width:78%"></i></td>
+     <td class="num elo">2454</td>
+    <td><span class="fam" style="--h:0">K</span></td>
+    <td class="name">K1-faker-hookstorm <span class="k">★</span></td>
+    <td class="num dim">153g</td>
+    <td class="num dim">1.19</td><td class="num dim">200</td>
+  </tr>
+<tr class="row" data-id="G2-warlord-debt" tabindex="0">
+    <td class="num">6</td>
+     <td class="gauge"><i style="width:42%"></i></td>
+     <td class="num elo">1723</td>
+    <td><span class="fam" style="--h:40">G</span></td>
+    <td class="name">G2-warlord-debt</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">1.63</td><td class="num dim">177</td>
+  </tr>
+<tr class="row" data-id="G1-warlord-shield" tabindex="0">
+    <td class="num">7</td>
+     <td class="gauge"><i style="width:41%"></i></td>
+     <td class="num elo">1701</td>
+    <td><span class="fam" style="--h:40">G</span></td>
+    <td class="name">G1-warlord-shield</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">1.76</td><td class="num dim">165</td>
+  </tr>
+<tr class="row" data-id="C4-boomerang-main" tabindex="0">
+    <td class="num">8</td>
+     <td class="gauge"><i style="width:39%"></i></td>
+     <td class="num elo">1653</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C4-boomerang-main</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">1.89</td><td class="num dim">184</td>
+  </tr>
+<tr class="row" data-id="M1-anger-first" tabindex="0">
+    <td class="num">9</td>
+     <td class="gauge"><i style="width:37%"></i></td>
+     <td class="num elo">1614</td>
+    <td><span class="fam" style="--h:95">M</span></td>
+    <td class="name">M1-anger-first</td>
+    <td class="num dim">172g</td>
+    <td class="num dim">1.93</td><td class="num dim">211</td>
+  </tr>
+<tr class="row" data-id="D1-warlord" tabindex="0">
+    <td class="num">10</td>
+     <td class="gauge"><i style="width:37%"></i></td>
+     <td class="num elo">1604</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D1-warlord</td>
+    <td class="num dim">151g</td>
+    <td class="num dim">1.95</td><td class="num dim">176</td>
+  </tr>
+<tr class="row" data-id="M3-malady-first" tabindex="0">
+    <td class="num">11</td>
+     <td class="gauge"><i style="width:36%"></i></td>
+     <td class="num elo">1596</td>
+    <td><span class="fam" style="--h:95">M</span></td>
+    <td class="name">M3-malady-first</td>
+    <td class="num dim">172g</td>
+    <td class="num dim">1.94</td><td class="num dim">179</td>
+  </tr>
+<tr class="row" data-id="D4-leech" tabindex="0">
+    <td class="num">12</td>
+     <td class="gauge"><i style="width:36%"></i></td>
+     <td class="num elo">1591</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D4-leech</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">1.93</td><td class="num dim">210</td>
+  </tr>
+<tr class="row" data-id="M4-echo-first" tabindex="0">
+    <td class="num">13</td>
+     <td class="gauge"><i style="width:35%"></i></td>
+     <td class="num elo">1579</td>
+    <td><span class="fam" style="--h:95">M</span></td>
+    <td class="name">M4-echo-first</td>
+    <td class="num dim">172g</td>
+    <td class="num dim">2.07</td><td class="num dim">207</td>
+  </tr>
+<tr class="row" data-id="E2-chronomancer" tabindex="0">
+    <td class="num">14</td>
+     <td class="gauge"><i style="width:34%"></i></td>
+     <td class="num elo">1544</td>
+    <td><span class="fam" style="--h:160">E</span></td>
+    <td class="name">E2-chronomancer</td>
+    <td class="num dim">156g</td>
+    <td class="num dim">2.12</td><td class="num dim">177</td>
+  </tr>
+<tr class="row" data-id="B1-element-depth" tabindex="0">
+    <td class="num">15</td>
+     <td class="gauge"><i style="width:34%"></i></td>
+     <td class="num elo">1540</td>
+    <td><span class="fam" style="--h:265">B</span></td>
+    <td class="name">B1-element-depth</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">2.08</td><td class="num dim">203</td>
+  </tr>
+<tr class="row" data-id="C2-bolt-splash" tabindex="0">
+    <td class="num">16</td>
+     <td class="gauge"><i style="width:30%"></i></td>
+     <td class="num elo">1478</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C2-bolt-splash</td>
+    <td class="num dim">151g</td>
+    <td class="num dim">2.30</td><td class="num dim">174</td>
+  </tr>
+<tr class="row" data-id="C3-kit-width" tabindex="0">
+    <td class="num">17</td>
+     <td class="gauge"><i style="width:30%"></i></td>
+     <td class="num elo">1473</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C3-kit-width</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">2.35</td><td class="num dim">179</td>
+  </tr>
+<tr class="row" data-id="D7-stormcaller" tabindex="0">
+    <td class="num">18</td>
+     <td class="gauge"><i style="width:30%"></i></td>
+     <td class="num elo">1463</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D7-stormcaller</td>
+    <td class="num dim">153g</td>
+    <td class="num dim">2.34</td><td class="num dim">194</td>
+  </tr>
+<tr class="row" data-id="B3-mutation-depth" tabindex="0">
+    <td class="num">19</td>
+     <td class="gauge"><i style="width:29%"></i></td>
+     <td class="num elo">1455</td>
+    <td><span class="fam" style="--h:265">B</span></td>
+    <td class="name">B3-mutation-depth</td>
+    <td class="num dim">153g</td>
+    <td class="num dim">2.39</td><td class="num dim">192</td>
+  </tr>
+<tr class="row" data-id="G4-warlord-no-arcane" tabindex="0">
+    <td class="num">20</td>
+     <td class="gauge"><i style="width:29%"></i></td>
+     <td class="num elo">1450</td>
+    <td><span class="fam" style="--h:40">G</span></td>
+    <td class="name">G4-warlord-no-arcane</td>
+    <td class="num dim">151g</td>
+    <td class="num dim">2.35</td><td class="num dim">185</td>
+  </tr>
+<tr class="row" data-id="B2-element-breadth" tabindex="0">
+    <td class="num">21</td>
+     <td class="gauge"><i style="width:29%"></i></td>
+     <td class="num elo">1448</td>
+    <td><span class="fam" style="--h:265">B</span></td>
+    <td class="name">B2-element-breadth</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">2.43</td><td class="num dim">201</td>
+  </tr>
+<tr class="row" data-id="A5-spells-only" tabindex="0">
+    <td class="num">22</td>
+     <td class="gauge"><i style="width:29%"></i></td>
+     <td class="num elo">1446</td>
+    <td><span class="fam" style="--h:200">A</span></td>
+    <td class="name">A5-spells-only</td>
+    <td class="num dim">88g</td>
+    <td class="num dim">2.43</td><td class="num dim">162</td>
+  </tr>
+<tr class="row" data-id="M5-midas-first" tabindex="0">
+    <td class="num">23</td>
+     <td class="gauge"><i style="width:29%"></i></td>
+     <td class="num elo">1442</td>
+    <td><span class="fam" style="--h:95">M</span></td>
+    <td class="name">M5-midas-first</td>
+    <td class="num dim">172g</td>
+    <td class="num dim">2.41</td><td class="num dim">172</td>
+  </tr>
+<tr class="row" data-id="D2-executioner" tabindex="0">
+    <td class="num">24</td>
+     <td class="gauge"><i style="width:29%"></i></td>
+     <td class="num elo">1440</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D2-executioner</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">2.40</td><td class="num dim">175</td>
+  </tr>
+<tr class="row" data-id="A3-elements-only" tabindex="0">
+    <td class="num">25</td>
+     <td class="gauge"><i style="width:28%"></i></td>
+     <td class="num elo">1437</td>
+    <td><span class="fam" style="--h:200">A</span></td>
+    <td class="name">A3-elements-only</td>
+    <td class="num dim">88g</td>
+    <td class="num dim">2.48</td><td class="num dim">180</td>
+  </tr>
+<tr class="row" data-id="M6-vampire-first" tabindex="0">
+    <td class="num">26</td>
+     <td class="gauge"><i style="width:28%"></i></td>
+     <td class="num elo">1424</td>
+    <td><span class="fam" style="--h:95">M</span></td>
+    <td class="name">M6-vampire-first</td>
+    <td class="num dim">172g</td>
+    <td class="num dim">2.50</td><td class="num dim">159</td>
+  </tr>
+<tr class="row" data-id="G3-warlord-no-sword" tabindex="0">
+    <td class="num">27</td>
+     <td class="gauge"><i style="width:27%"></i></td>
+     <td class="num elo">1409</td>
+    <td><span class="fam" style="--h:40">G</span></td>
+    <td class="name">G3-warlord-no-sword</td>
+    <td class="num dim">155g</td>
+    <td class="num dim">2.57</td><td class="num dim">181</td>
+  </tr>
+<tr class="row" data-id="E1-hastemaker" tabindex="0">
+    <td class="num">28</td>
+     <td class="gauge"><i style="width:27%"></i></td>
+     <td class="num elo">1404</td>
+    <td><span class="fam" style="--h:160">E</span></td>
+    <td class="name">E1-hastemaker</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">2.51</td><td class="num dim">175</td>
+  </tr>
+<tr class="row" data-id="M2-frost-first" tabindex="0">
+    <td class="num">29</td>
+     <td class="gauge"><i style="width:26%"></i></td>
+     <td class="num elo">1380</td>
+    <td><span class="fam" style="--h:95">M</span></td>
+    <td class="name">M2-frost-first</td>
+    <td class="num dim">172g</td>
+    <td class="num dim">2.63</td><td class="num dim">197</td>
+  </tr>
+<tr class="row" data-id="D13-bastion" tabindex="0">
+    <td class="num">30</td>
+     <td class="gauge"><i style="width:25%"></i></td>
+     <td class="num elo">1370</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D13-bastion</td>
+    <td class="num dim">151g</td>
+    <td class="num dim">2.63</td><td class="num dim">199</td>
+  </tr>
+<tr class="row" data-id="C7-statue-guard" tabindex="0">
+    <td class="num">31</td>
+     <td class="gauge"><i style="width:25%"></i></td>
+     <td class="num elo">1368</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C7-statue-guard</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">2.65</td><td class="num dim">210</td>
+  </tr>
+<tr class="row" data-id="F1-spoon-volume" tabindex="0">
+    <td class="num">32</td>
+     <td class="gauge"><i style="width:25%"></i></td>
+     <td class="num elo">1367</td>
+    <td><span class="fam" style="--h:330">F</span></td>
+    <td class="name">F1-spoon-volume</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">2.65</td><td class="num dim">235</td>
+  </tr>
+<tr class="row" data-id="D10-skirmisher" tabindex="0">
+    <td class="num">33</td>
+     <td class="gauge"><i style="width:24%"></i></td>
+     <td class="num elo">1344</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D10-skirmisher</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">2.71</td><td class="num dim">215</td>
+  </tr>
+<tr class="row" data-id="A6-no-elements" tabindex="0">
+    <td class="num">34</td>
+     <td class="gauge"><i style="width:24%"></i></td>
+     <td class="num elo">1342</td>
+    <td><span class="fam" style="--h:200">A</span></td>
+    <td class="name">A6-no-elements</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">2.72</td><td class="num dim">199</td>
+  </tr>
+<tr class="row" data-id="D14-hyperscaler" tabindex="0">
+    <td class="num">35</td>
+     <td class="gauge"><i style="width:24%"></i></td>
+     <td class="num elo">1338</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D14-hyperscaler</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">2.78</td><td class="num dim">172</td>
+  </tr>
+<tr class="row" data-id="A1-items-sustain" tabindex="0">
+    <td class="num">36</td>
+     <td class="gauge"><i style="width:24%"></i></td>
+     <td class="num elo">1337</td>
+    <td><span class="fam" style="--h:200">A</span></td>
+    <td class="name">A1-items-sustain</td>
+    <td class="num dim">147g</td>
+    <td class="num dim">2.74</td><td class="num dim">196</td>
+  </tr>
+<tr class="row" data-id="D12-hatburner" tabindex="0">
+    <td class="num">37</td>
+     <td class="gauge"><i style="width:23%"></i></td>
+     <td class="num elo">1324</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D12-hatburner</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">2.79</td><td class="num dim">196</td>
+  </tr>
+<tr class="row" data-id="D9-phantom" tabindex="0">
+    <td class="num">38</td>
+     <td class="gauge"><i style="width:22%"></i></td>
+     <td class="num elo">1312</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D9-phantom</td>
+    <td class="num dim">151g</td>
+    <td class="num dim">2.89</td><td class="num dim">178</td>
+  </tr>
+<tr class="row" data-id="C1-bolt-rush" tabindex="0">
+    <td class="num">39</td>
+     <td class="gauge"><i style="width:22%"></i></td>
+     <td class="num elo">1302</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C1-bolt-rush</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">2.90</td><td class="num dim">189</td>
+  </tr>
+<tr class="row" data-id="F4-sword-burst" tabindex="0">
+    <td class="num">40</td>
+     <td class="gauge"><i style="width:22%"></i></td>
+     <td class="num elo">1297</td>
+    <td><span class="fam" style="--h:330">F</span></td>
+    <td class="name">F4-sword-burst</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">2.92</td><td class="num dim">198</td>
+  </tr>
+<tr class="row" data-id="D5-plaguebearer" tabindex="0">
+    <td class="num">41</td>
+     <td class="gauge"><i style="width:21%"></i></td>
+     <td class="num elo">1288</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D5-plaguebearer</td>
+    <td class="num dim">150g</td>
+    <td class="num dim">2.88</td><td class="num dim">197</td>
+  </tr>
+<tr class="row" data-id="F2-sword-volume" tabindex="0">
+    <td class="num">42</td>
+     <td class="gauge"><i style="width:21%"></i></td>
+     <td class="num elo">1283</td>
+    <td><span class="fam" style="--h:330">F</span></td>
+    <td class="name">F2-sword-volume</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">2.97</td><td class="num dim">192</td>
+  </tr>
+<tr class="row" data-id="F3-spoon-burst" tabindex="0">
+    <td class="num">43</td>
+     <td class="gauge"><i style="width:20%"></i></td>
+     <td class="num elo">1254</td>
+    <td><span class="fam" style="--h:330">F</span></td>
+    <td class="name">F3-spoon-burst</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">3.04</td><td class="num dim">202</td>
+  </tr>
+<tr class="row" data-id="B5-item-depth" tabindex="0">
+    <td class="num">44</td>
+     <td class="gauge"><i style="width:18%"></i></td>
+     <td class="num elo">1222</td>
+    <td><span class="fam" style="--h:265">B</span></td>
+    <td class="name">B5-item-depth</td>
+    <td class="num dim">147g</td>
+    <td class="num dim">3.13</td><td class="num dim">202</td>
+  </tr>
+<tr class="row" data-id="B6-item-breadth" tabindex="0">
+    <td class="num">45</td>
+     <td class="gauge"><i style="width:18%"></i></td>
+     <td class="num elo">1220</td>
+    <td><span class="fam" style="--h:265">B</span></td>
+    <td class="name">B6-item-breadth</td>
+    <td class="num dim">147g</td>
+    <td class="num dim">3.17</td><td class="num dim">189</td>
+  </tr>
+<tr class="row" data-id="D11-spoonbearer" tabindex="0">
+    <td class="num">46</td>
+     <td class="gauge"><i style="width:18%"></i></td>
+     <td class="num elo">1214</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D11-spoonbearer</td>
+    <td class="num dim">156g</td>
+    <td class="num dim">3.16</td><td class="num dim">183</td>
+  </tr>
+<tr class="row" data-id="C5-meteor-value" tabindex="0">
+    <td class="num">47</td>
+     <td class="gauge"><i style="width:17%"></i></td>
+     <td class="num elo">1204</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C5-meteor-value</td>
+    <td class="num dim">154g</td>
+    <td class="num dim">3.20</td><td class="num dim">191</td>
+  </tr>
+<tr class="row" data-id="D8-juggernaut" tabindex="0">
+    <td class="num">48</td>
+     <td class="gauge"><i style="width:15%"></i></td>
+     <td class="num elo">1170</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D8-juggernaut</td>
+    <td class="num dim">147g</td>
+    <td class="num dim">3.23</td><td class="num dim">185</td>
+  </tr>
+<tr class="row" data-id="D3-tycoon" tabindex="0">
+    <td class="num">49</td>
+     <td class="gauge"><i style="width:14%"></i></td>
+     <td class="num elo">1149</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D3-tycoon</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">3.29</td><td class="num dim">196</td>
+  </tr>
+<tr class="row" data-id="C6-bolt-combo" tabindex="0">
+    <td class="num">50</td>
+     <td class="gauge"><i style="width:14%"></i></td>
+     <td class="num elo">1142</td>
+    <td><span class="fam" style="--h:48">C</span></td>
+    <td class="name">C6-bolt-combo</td>
+    <td class="num dim">153g</td>
+    <td class="num dim">3.38</td><td class="num dim">158</td>
+  </tr>
+<tr class="row" data-id="D6-sumo" tabindex="0">
+    <td class="num">51</td>
+     <td class="gauge"><i style="width:13%"></i></td>
+     <td class="num elo">1112</td>
+    <td><span class="fam" style="--h:25">D</span></td>
+    <td class="name">D6-sumo</td>
+    <td class="num dim">152g</td>
+    <td class="num dim">3.41</td><td class="num dim">176</td>
+  </tr>
+<tr class="row" data-id="B4-mutation-breadth" tabindex="0">
+    <td class="num">52</td>
+     <td class="gauge"><i style="width:12%"></i></td>
+     <td class="num elo">1096</td>
+    <td><span class="fam" style="--h:265">B</span></td>
+    <td class="name">B4-mutation-breadth</td>
+    <td class="num dim">153g</td>
+    <td class="num dim">3.46</td><td class="num dim">215</td>
+  </tr>
+<tr class="row" data-id="A4-mutations-only" tabindex="0">
+    <td class="num">53</td>
+     <td class="gauge"><i style="width:10%"></i></td>
+     <td class="num elo">1063</td>
+    <td><span class="fam" style="--h:200">A</span></td>
+    <td class="name">A4-mutations-only</td>
+    <td class="num dim">130g</td>
+    <td class="num dim">3.53</td><td class="num dim">194</td>
+  </tr>
+<tr class="row" data-id="A2-items-mobility" tabindex="0">
+    <td class="num">54</td>
+     <td class="gauge"><i style="width:8%"></i></td>
+     <td class="num elo">1018</td>
+    <td><span class="fam" style="--h:200">A</span></td>
+    <td class="name">A2-items-mobility</td>
+    <td class="num dim">147g</td>
+    <td class="num dim">3.61</td><td class="num dim">207</td>
+  </tr></tbody></table>
+</main>
+<aside>
+  <p class="hint" id="hint">Hover a row for the full build; click to pin it.</p>
+  <div class="card" id="card-A1-items-sustain" hidden>
+    <h2><span class="fam" style="--h:200">A</span> A1-items-sustain </h2>
+    <p class="cost">147 g core+fill (band 150-185) <span class="badge dim">item shelf exhausted below the band</span></p>
+    <p class="runline">Elo <b>1337</b> · 196 seats · mean place 2.74 of 4</p>
+    <p class="fantasy">The item shelf&#39;s best self: HP and both kinds of healing.</p>
+    <p class="tests"><b>isolates:</b> items as a class (sustain half) vs the element families</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Health Amulet lv1 (7 g, total 7 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 14 g)">🗡️<sub>1</sub></span><span class="chip  " title="Slow Spoon lv1 (7 g, total 21 g)">🥄<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 28 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 35 g)">🗡️<sub>2</sub></span><span class="chip  " title="Slow Spoon lv2 (7 g, total 42 g)">🥄<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 49 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 56 g)">🗡️<sub>3</sub></span><span class="chip  " title="Slow Spoon lv3 (7 g, total 63 g)">🥄<sub>3</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 68 g)">🧣<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 73 g)">🧣<sub>2</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 80 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 87 g)">⏳<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 92 g)">👢<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 97 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 103 g)">🎩<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 108 g)">👢<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 113 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 119 g)">🎩<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 124 g)">👢<sub>3</sub></span><span class="chip fill " title="Cape of the Magi lv3 (5 g, total 129 g)">🧣<sub>3</sub></span><span class="chip fill " title="Lava Treads lv3 (5 g, total 134 g)">🥾<sub>3</sub></span><span class="chip fill " title="Hourglass lv3 (7 g, total 141 g)">⏳<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv3 (6 g, total 147 g)">🎩<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-A2-items-mobility" hidden>
+    <h2><span class="fam" style="--h:200">A</span> A2-items-mobility </h2>
+    <p class="cost">147 g core+fill (band 150-185) <span class="badge dim">item shelf exhausted below the band</span></p>
+    <p class="runline">Elo <b>1018</b> · 207 seats · mean place 3.61 of 4</p>
+    <p class="fantasy">The item shelf&#39;s utility half: speed, lava, armor.</p>
+    <p class="tests"><b>isolates:</b> items as a class (mobility half)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Boots of Speed lv1 (5 g, total 5 g)">👢<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 10 g)">🥾<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 15 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 20 g)">🧣<sub>1</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 25 g)">👢<sub>3</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 30 g)">🥾<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 35 g)">🧣<sub>2</sub></span><span class="chip  " title="Lava Treads lv3 (5 g, total 40 g)">🥾<sub>3</sub></span><span class="chip  " title="Cape of the Magi lv3 (5 g, total 45 g)">🧣<sub>3</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 52 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 59 g)">⏳<sub>2</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 66 g)">⏳<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 73 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Health Amulet lv1 (7 g, total 80 g)">❤️<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 86 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 93 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 100 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Health Amulet lv2 (7 g, total 107 g)">❤️<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 113 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 120 g)">🥄<sub>2</sub></span><span class="chip fill " title="Blood Sword lv3 (7 g, total 127 g)">🗡️<sub>3</sub></span><span class="chip fill " title="Health Amulet lv3 (7 g, total 134 g)">❤️<sub>3</sub></span><span class="chip fill " title="Hat of Aura lv3 (6 g, total 140 g)">🎩<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv3 (7 g, total 147 g)">🥄<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-A3-elements-only" hidden>
+    <h2><span class="fam" style="--h:200">A</span> A3-elements-only </h2>
+    <p class="cost">88 g core+fill (band 150-185) <span class="badge dim">noPad: shelf exhausts by design</span></p>
+    <p class="runline">Elo <b>1437</b> · 180 seats · mean place 2.48 of 4</p>
+    <p class="fantasy">Pure fireball stat scaling, zero items.</p>
+    <p class="tests"><b>isolates:</b> the stat-element shelf as a class</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 16 g)">🔮<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 22 g)">🌪️<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 28 g)">🪨<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 34 g)">👻<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 41 g)">🔥<sub>3</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 47 g)">🔮<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 53 g)">🌪️<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 59 g)">🪨<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 65 g)">👻<sub>2</sub></span><span class="chip  " title="Terra lv3 (7 g, total 72 g)">🪨<sub>3</sub></span><span class="chip  " title="Ghost lv3 (10 g, total 82 g)">👻<sub>3</sub></span><span class="chip  " title="Gale lv3 (6 g, total 88 g)">🌪️<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-A4-mutations-only" hidden>
+    <h2><span class="fam" style="--h:200">A</span> A4-mutations-only </h2>
+    <p class="cost">130 g core+fill (band 150-185) <span class="badge dim">noPad: shelf exhausts by design</span></p>
+    <p class="runline">Elo <b>1063</b> · 194 seats · mean place 3.53 of 4</p>
+    <p class="fantasy">Pure behavior-changers, zero items or stat axes.</p>
+    <p class="tests"><b>isolates:</b> the mutation shelf as a class</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Frost lv1 (10 g, total 20 g)">❄️<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 28 g)">🔴<sub>2</sub></span><span class="chip  " title="Frost lv2 (8 g, total 36 g)">❄️<sub>2</sub></span><span class="chip  " title="Anger lv3 (8 g, total 44 g)">🔴<sub>3</sub></span><span class="chip  " title="Frost lv3 (8 g, total 52 g)">❄️<sub>3</sub></span><span class="chip  " title="Malady lv1 (10 g, total 62 g)">🦠<sub>1</sub></span><span class="chip  " title="Malady lv2 (8 g, total 70 g)">🦠<sub>2</sub></span><span class="chip  " title="Midas lv1 (10 g, total 80 g)">🪙<sub>1</sub></span><span class="chip  " title="Malady lv3 (8 g, total 88 g)">🦠<sub>3</sub></span><span class="chip  " title="Echo lv1 (10 g, total 98 g)">🫧<sub>1</sub></span><span class="chip  " title="Echo lv2 (8 g, total 106 g)">🫧<sub>2</sub></span><span class="chip  " title="Echo lv3 (8 g, total 114 g)">🫧<sub>3</sub></span><span class="chip  " title="Midas lv2 (8 g, total 122 g)">🪙<sub>2</sub></span><span class="chip  " title="Midas lv3 (8 g, total 130 g)">🪙<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-A5-spells-only" hidden>
+    <h2><span class="fam" style="--h:200">A</span> A5-spells-only </h2>
+    <p class="cost">88 g core+fill (band 150-185) <span class="badge dim">noPad: shelf exhausts by design</span></p>
+    <p class="runline">Elo <b>1446</b> · 162 seats · mean place 2.43 of 4</p>
+    <p class="fantasy">The kit shelf as a class: buttons, no elements.</p>
+    <p class="tests"><b>isolates:</b> spells as a class</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Lightning lv1 (10 g, total 10 g)">⚡<sub>1</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 20 g)">🪃<sub>1</sub></span><span class="chip  " title="Rush lv1 (10 g, total 30 g)">💨<sub>1</sub></span><span class="chip  " title="Shield lv1 (12 g, total 42 g)">🛡️<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 47 g)">⚡<sub>2</sub></span><span class="chip  " title="Boomerang lv2 (5 g, total 52 g)">🪃<sub>2</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 57 g)">⚡<sub>3</sub></span><span class="chip  " title="Shield lv2 (6 g, total 63 g)">🛡️<sub>2</sub></span><span class="chip  " title="Boomerang lv3 (5 g, total 68 g)">🪃<sub>3</sub></span><span class="chip  " title="Rush lv2 (5 g, total 73 g)">💨<sub>2</sub></span><span class="chip  " title="Blink lv1 (10 g, total 83 g)">🌀<sub>1</sub></span><span class="chip  " title="Blink lv2 (5 g, total 88 g)">🌀<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-A6-no-elements" hidden>
+    <h2><span class="fam" style="--h:200">A</span> A6-no-elements </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1342</b> · 199 seats · mean place 2.72 of 4</p>
+    <p class="fantasy">Items + spells, elements refused: prices the element shelf by absence.</p>
+    <p class="tests"><b>isolates:</b> control: what skipping elements costs</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Health Amulet lv1 (7 g, total 7 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 14 g)">🗡️<sub>1</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 19 g)">👢<sub>1</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 29 g)">⚡<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 36 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 43 g)">🗡️<sub>2</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 53 g)">🪃<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 58 g)">🧣<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 63 g)">🥾<sub>1</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 70 g)">⏳<sub>1</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 77 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 84 g)">🗡️<sub>3</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 89 g)">⚡<sub>2</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 94 g)">👢<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 100 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 107 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 112 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 117 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 124 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 130 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 137 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 142 g)">👢<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 147 g)">🧣<sub>3</sub></span><span class="chip fill late" title="Lava Treads lv3 (5 g, total 152 g)">🥾<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-B1-element-depth" hidden>
+    <h2><span class="fam" style="--h:265">B</span> B1-element-depth </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1540</b> · 203 seats · mean place 2.08 of 4</p>
+    <p class="fantasy">Rush two stat axes to max before anything else.</p>
+    <p class="tests"><b>isolates:</b> depth (vs B2) for stat elements</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Ember lv3 (7 g, total 17 g)">🔥<sub>3</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 23 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 29 g)">🔮<sub>2</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 39 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 45 g)">🔮<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 52 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 59 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 66 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 73 g)">❤️<sub>2</sub></span><span class="chip  " title="Gale lv1 (6 g, total 79 g)">🌪️<sub>1</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 86 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 93 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 98 g)">👢<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 103 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 108 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 115 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 121 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 128 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 133 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 138 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 143 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv2 (7 g, total 150 g)">⏳<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-B2-element-breadth" hidden>
+    <h2><span class="fam" style="--h:265">B</span> B2-element-breadth </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1448</b> · 201 seats · mean place 2.43 of 4</p>
+    <p class="fantasy">Level 1 of every stat axis before any level 2.</p>
+    <p class="tests"><b>isolates:</b> breadth (vs B1) for stat elements</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 11 g)">🪨<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 17 g)">🔮<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 23 g)">🌪️<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 29 g)">👻<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 34 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 40 g)">🪨<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 46 g)">🔮<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 52 g)">🌪️<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 58 g)">👻<sub>2</sub></span><span class="chip  " title="Ember lv3 (7 g, total 65 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 72 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 79 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 86 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 93 g)">❤️<sub>2</sub></span><span class="chip  " title="Terra lv3 (7 g, total 100 g)">🪨<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 105 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 110 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 115 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 122 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 128 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 135 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 140 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 145 g)">🧣<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Lava Treads lv2 (5 g, total 150 g)">🥾<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-B3-mutation-depth" hidden>
+    <h2><span class="fam" style="--h:265">B</span> B3-mutation-depth </h2>
+    <p class="cost">153 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1455</b> · 192 seats · mean place 2.39 of 4</p>
+    <p class="fantasy">Max one mutation immediately (anger, the scaler).</p>
+    <p class="tests"><b>isolates:</b> depth (vs B4) for mutations</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 18 g)">🔴<sub>2</sub></span><span class="chip  " title="Anger lv3 (8 g, total 26 g)">🔴<sub>3</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 33 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 40 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 47 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 54 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 61 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 68 g)">🗡️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 73 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 78 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 83 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 88 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 95 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 101 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 108 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 113 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 118 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 125 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 131 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 138 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 143 g)">👢<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 148 g)">🧣<sub>3</sub></span><span class="chip fill late" title="Lava Treads lv3 (5 g, total 153 g)">🥾<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-B4-mutation-breadth" hidden>
+    <h2><span class="fam" style="--h:265">B</span> B4-mutation-breadth </h2>
+    <p class="cost">153 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1096</b> · 215 seats · mean place 3.46 of 4</p>
+    <p class="fantasy">One level of five mutations: does cross-synergy beat depth?</p>
+    <p class="tests"><b>isolates:</b> breadth (vs B3) for mutations + cross-mutation synergy</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Frost lv1 (10 g, total 20 g)">❄️<sub>1</sub></span><span class="chip  " title="Midas lv1 (10 g, total 30 g)">🪙<sub>1</sub></span><span class="chip  " title="Malady lv1 (10 g, total 40 g)">🦠<sub>1</sub></span><span class="chip  " title="Echo lv1 (10 g, total 50 g)">🫧<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 58 g)">🔴<sub>2</sub></span><span class="chip  " title="Frost lv2 (8 g, total 66 g)">❄️<sub>2</sub></span><span class="chip  " title="Midas lv2 (8 g, total 74 g)">🪙<sub>2</sub></span><span class="chip  " title="Malady lv2 (8 g, total 82 g)">🦠<sub>2</sub></span><span class="chip  " title="Anger lv3 (8 g, total 90 g)">🔴<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 97 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 104 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 111 g)">❤️<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 116 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 121 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 126 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 133 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 139 g)">🎩<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv1 (7 g, total 146 g)">🥄<sub>1</sub></span><span class="chip fill late" title="Health Amulet lv2 (7 g, total 153 g)">❤️<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-B5-item-depth" hidden>
+    <h2><span class="fam" style="--h:265">B</span> B5-item-depth </h2>
+    <p class="cost">147 g core+fill (band 150-185) <span class="badge dim">item shelf exhausted below the band</span></p>
+    <p class="runline">Elo <b>1222</b> · 202 seats · mean place 3.13 of 4</p>
+    <p class="fantasy">Max the two best items before touching the rest.</p>
+    <p class="tests"><b>isolates:</b> depth (vs B6) for items</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Blood Sword lv1 (7 g, total 7 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 14 g)">🗡️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 21 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 28 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 35 g)">❤️<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 42 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 47 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 52 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 57 g)">🧣<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 62 g)">🥾<sub>1</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 67 g)">👢<sub>3</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 72 g)">🧣<sub>2</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 79 g)">⏳<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 85 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 92 g)">🥄<sub>1</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 97 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 104 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 110 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 117 g)">🥄<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv3 (5 g, total 122 g)">🧣<sub>3</sub></span><span class="chip fill " title="Lava Treads lv3 (5 g, total 127 g)">🥾<sub>3</sub></span><span class="chip fill " title="Hourglass lv3 (7 g, total 134 g)">⏳<sub>3</sub></span><span class="chip fill " title="Hat of Aura lv3 (6 g, total 140 g)">🎩<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv3 (7 g, total 147 g)">🥄<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-B6-item-breadth" hidden>
+    <h2><span class="fam" style="--h:265">B</span> B6-item-breadth </h2>
+    <p class="cost">147 g core+fill (band 150-185) <span class="badge dim">noPad: shelf exhausts by design</span></p>
+    <p class="runline">Elo <b>1220</b> · 189 seats · mean place 3.17 of 4</p>
+    <p class="fantasy">One of everything before any second level (the round-15 champion).</p>
+    <p class="tests"><b>isolates:</b> breadth (vs B5) for items, post-reworks</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Blood Sword lv1 (7 g, total 7 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 14 g)">❤️<sub>1</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 19 g)">👢<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 24 g)">🧣<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 29 g)">🥾<sub>1</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 36 g)">⏳<sub>1</sub></span><span class="chip  " title="Hat of Aura lv1 (6 g, total 42 g)">🎩<sub>1</sub></span><span class="chip  " title="Slow Spoon lv1 (7 g, total 49 g)">🥄<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 56 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 63 g)">❤️<sub>2</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 68 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 73 g)">🧣<sub>2</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 78 g)">🥾<sub>2</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 85 g)">⏳<sub>2</sub></span><span class="chip  " title="Hat of Aura lv2 (6 g, total 91 g)">🎩<sub>2</sub></span><span class="chip  " title="Slow Spoon lv2 (7 g, total 98 g)">🥄<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 105 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 112 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 117 g)">👢<sub>3</sub></span><span class="chip  " title="Cape of the Magi lv3 (5 g, total 122 g)">🧣<sub>3</sub></span><span class="chip  " title="Lava Treads lv3 (5 g, total 127 g)">🥾<sub>3</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 134 g)">⏳<sub>3</sub></span><span class="chip  " title="Hat of Aura lv3 (6 g, total 140 g)">🎩<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Slow Spoon lv3 (7 g, total 147 g)">🥄<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-C1-bolt-rush" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C1-bolt-rush </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1302</b> · 189 seats · mean place 2.90 of 4</p>
+    <p class="fantasy">Max one spell immediately: is spell depth worth 22 g?</p>
+    <p class="tests"><b>isolates:</b> spell depth (vs C2, its control)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Lightning lv1 (10 g, total 10 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 15 g)">⚡<sub>2</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 20 g)">⚡<sub>3</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 27 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 34 g)">⏳<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 41 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 48 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 55 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 62 g)">🗡️<sub>2</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 69 g)">⏳<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 76 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 83 g)">🗡️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 88 g)">👢<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 93 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 98 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 104 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 111 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 116 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 121 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 126 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 132 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 139 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 144 g)">👢<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 149 g)">🧣<sub>3</sub></span><span class="chip fill late" title="Lava Treads lv3 (5 g, total 154 g)">🥾<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-C2-bolt-splash" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C2-bolt-splash </h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1478</b> · 174 seats · mean place 2.30 of 4</p>
+    <p class="fantasy">Spell lv1 as a tool, stats do the killing.</p>
+    <p class="tests"><b>isolates:</b> the control for C1: same shell, minimum spell investment</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Lightning lv1 (10 g, total 10 g)">⚡<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 15 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 20 g)">🔥<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 27 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 34 g)">🗡️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 41 g)">🔥<sub>3</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 48 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 55 g)">🗡️<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 61 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 67 g)">🔮<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 74 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 81 g)">🗡️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 86 g)">👢<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 91 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 96 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 103 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 109 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 116 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 121 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 126 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 131 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 138 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 144 g)">🎩<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 151 g)">🥄<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-C3-kit-width" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C3-kit-width </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1473</b> · 179 seats · mean place 2.35 of 4</p>
+    <p class="fantasy">Five buttons at lv1: is width its own power?</p>
+    <p class="tests"><b>isolates:</b> kit width vs C1 depth</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Lightning lv1 (10 g, total 10 g)">⚡<sub>1</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 20 g)">🪃<sub>1</sub></span><span class="chip  " title="Shield lv1 (12 g, total 32 g)">🛡️<sub>1</sub></span><span class="chip  " title="Blink lv1 (10 g, total 42 g)">🌀<sub>1</sub></span><span class="chip  " title="Rush lv1 (10 g, total 52 g)">💨<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 57 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 62 g)">🔥<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 69 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 76 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 83 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 90 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 97 g)">❤️<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 102 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 107 g)">👢<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 112 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 117 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 124 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 130 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 137 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 142 g)">🧣<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Lava Treads lv2 (5 g, total 147 g)">🥾<sub>2</sub></span><span class="chip fill late" title="Hourglass lv2 (7 g, total 154 g)">⏳<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-C4-boomerang-main" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C4-boomerang-main </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1653</b> · 184 seats · mean place 1.89 of 4</p>
+    <p class="fantasy">The forgotten spell, maxed: does anything justify boomerang lv3?</p>
+    <p class="tests"><b>isolates:</b> boomerang scaling</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Boomerang lv1 (10 g, total 10 g)">🪃<sub>1</sub></span><span class="chip  " title="Boomerang lv2 (5 g, total 15 g)">🪃<sub>2</sub></span><span class="chip  " title="Boomerang lv3 (5 g, total 20 g)">🪃<sub>3</sub></span><span class="chip  " title="Ember lv1 (5 g, total 25 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 30 g)">🔥<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 37 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 44 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 51 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 58 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 65 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 72 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 79 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 84 g)">👢<sub>1</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 91 g)">⏳<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 96 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 101 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 107 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 114 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 119 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 124 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 129 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 136 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 142 g)">🎩<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 149 g)">🥄<sub>2</sub></span><span class="chip fill late" title="Boots of Speed lv3 (5 g, total 154 g)">👢<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-C5-meteor-value" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C5-meteor-value </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1204</b> · 191 seats · mean place 3.20 of 4</p>
+    <p class="fantasy">The 2 s stun is a landing pad for the rock.</p>
+    <p class="tests"><b>isolates:</b> meteor priced against C6 (same shell, cheaper bolt)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Frost lv1 (10 g, total 10 g)">❄️<sub>1</sub></span><span class="chip  " title="Frost lv2 (8 g, total 18 g)">❄️<sub>2</sub></span><span class="chip  " title="Frost lv3 (8 g, total 26 g)">❄️<sub>3</sub></span><span class="chip  " title="Meteor lv1 (12 g, total 38 g)">☄️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 45 g)">❤️<sub>1</sub></span><span class="chip  " title="Meteor lv2 (6 g, total 51 g)">☄️<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 58 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 65 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 72 g)">🗡️<sub>2</sub></span><span class="chip  " title="Terra lv1 (6 g, total 78 g)">🪨<sub>1</sub></span><span class="chip  " title="Terra lv2 (6 g, total 84 g)">🪨<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 91 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 96 g)">👢<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 101 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 106 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 113 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 119 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 126 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 131 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 136 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 141 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv2 (7 g, total 148 g)">⏳<sub>2</sub></span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 154 g)">🎩<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-C6-bolt-combo" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C6-bolt-combo </h2>
+    <p class="cost">153 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1142</b> · 158 seats · mean place 3.38 of 4</p>
+    <p class="fantasy">The Chainer: freeze, bolt, shove, repeat (the live lobby build).</p>
+    <p class="tests"><b>isolates:</b> lightning in the same CC shell as C5</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Frost lv1 (10 g, total 10 g)">❄️<sub>1</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 20 g)">⚡<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 26 g)">🌪️<sub>1</sub></span><span class="chip  " title="Echo lv1 (10 g, total 36 g)">🫧<sub>1</sub></span><span class="chip  " title="Frost lv2 (8 g, total 44 g)">❄️<sub>2</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 49 g)">⚡<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 55 g)">🌪️<sub>2</sub></span><span class="chip  " title="Echo lv2 (8 g, total 63 g)">🫧<sub>2</sub></span><span class="chip  " title="Frost lv3 (8 g, total 71 g)">❄️<sub>3</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 76 g)">⚡<sub>3</sub></span><span class="chip  " title="Gale lv3 (6 g, total 82 g)">🌪️<sub>3</sub></span><span class="chip  " title="Echo lv3 (8 g, total 90 g)">🫧<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 97 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 104 g)">❤️<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 109 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 114 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 119 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 126 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 132 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 139 g)">🥄<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Blood Sword lv2 (7 g, total 146 g)">🗡️<sub>2</sub></span><span class="chip fill late" title="Health Amulet lv2 (7 g, total 153 g)">❤️<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-C7-statue-guard" hidden>
+    <h2><span class="fam" style="--h:48">C</span> C7-statue-guard </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1368</b> · 210 seats · mean place 2.65 of 4</p>
+    <p class="fantasy">A 2 s invulnerable statue as the panic button on a plain fighting kit.</p>
+    <p class="tests"><b>isolates:</b> what a total-immunity root is worth on the ONE reading a bot can make of it (hurt + a ball inbound); a floor for a spell whose real value is human timing</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="NOPE lv1 (10 g, total 10 g)"><span class="goldicon">🗿</span><sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 15 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 20 g)">🔥<sub>2</sub></span><span class="chip  " title="NOPE lv2 (5 g, total 25 g)"><span class="goldicon">🗿</span><sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 32 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 39 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 46 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 53 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 60 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 67 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 74 g)">❤️<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 79 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 84 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 89 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 96 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 102 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 109 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 114 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 119 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 124 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 131 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 137 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 144 g)">🥄<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Boots of Speed lv3 (5 g, total 149 g)">👢<sub>3</sub></span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 154 g)">🧣<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D1-warlord" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D1-warlord </h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1604</b> · 176 seats · mean place 1.95 of 4</p>
+    <p class="fantasy">No tricks, bigger numbers: win every straight trade.</p>
+    <p class="tests"><b>isolates:</b> ember&#39;s dominance + sword-by-structure (question L) in one kit; ALSO the control every family-G variant is measured against (24.7)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 17 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 24 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 31 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 38 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 45 g)">❤️<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 51 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 57 g)">🔮<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 64 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 71 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 76 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 81 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 86 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 91 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 98 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 104 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 111 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 116 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 121 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 128 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 134 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 141 g)">🥄<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Boots of Speed lv3 (5 g, total 146 g)">👢<sub>3</sub></span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 151 g)">🧣<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D2-executioner" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D2-executioner </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1440</b> · 175 seats · mean place 2.40 of 4</p>
+    <p class="fantasy">The mark appears, someone dies: build entirely around claiming.</p>
+    <p class="tests"><b>isolates:</b> anger&#39;s claim rate when built for the chase (question K&#39;s missing half)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 15 g)">👢<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 23 g)">🔴<sub>2</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 29 g)">👻<sub>1</sub></span><span class="chip  " title="Anger lv3 (8 g, total 37 g)">🔴<sub>3</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 42 g)">👢<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 48 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 55 g)">🗡️<sub>1</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 60 g)">👢<sub>3</sub></span><span class="chip  " title="Ghost lv3 (10 g, total 70 g)">👻<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 77 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 84 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 91 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 98 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 105 g)">❤️<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 110 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 115 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 122 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 128 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 135 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 140 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 145 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv2 (7 g, total 152 g)">⏳<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-D3-tycoon" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D3-tycoon </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1149</b> · 196 seats · mean place 3.29 of 4</p>
+    <p class="fantasy">Every mark is a paycheck: run it down, cash it, outspend the lobby.</p>
+    <p class="tests"><b>isolates:</b> the reworked midas (24.1: timed hunt, +2 g flat claim) built for claim rate; D2&#39;s exact core with midas swapped for anger, so the two mark hunts price each other</p>
+    <p class="note">Redesigned round 24.7 (Remi): the midas-echo combo this build existed for no longer exists.</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Midas lv1 (10 g, total 10 g)">🪙<sub>1</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 15 g)">👢<sub>1</sub></span><span class="chip  " title="Midas lv2 (8 g, total 23 g)">🪙<sub>2</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 29 g)">👻<sub>1</sub></span><span class="chip  " title="Midas lv3 (8 g, total 37 g)">🪙<sub>3</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 42 g)">👢<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 48 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 55 g)">🗡️<sub>1</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 60 g)">👢<sub>3</sub></span><span class="chip  " title="Ghost lv3 (10 g, total 70 g)">👻<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 77 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 84 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 91 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 98 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 105 g)">❤️<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 110 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 115 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 122 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 128 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 135 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 140 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 145 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv2 (7 g, total 152 g)">⏳<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-D4-leech" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D4-leech </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1591</b> · 210 seats · mean place 1.93 of 4</p>
+    <p class="fantasy">Cast twice as often, bank twice the marks, wade in and drink the pile back.</p>
+    <p class="tests"><b>isolates:</b> the round-24 mark-and-feast fed by CAST RATE (arcane+hourglass haste, echo pairs) instead of raw damage (Remi, 24.7); the 24.5 dive logic keys on vampire, so this row dives half the time</p>
+    <p class="note">Respecced round 24.7 (Remi): marks scale with hit count, so the build now buys frequency (arcane, hourglass, echo), not damage.</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Vampire lv1 (10 g, total 10 g)">🧛<sub>1</sub></span><span class="chip  " title="Vampire lv2 (8 g, total 18 g)">🧛<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 24 g)">🔮<sub>1</sub></span><span class="chip  " title="Echo lv1 (10 g, total 34 g)">🫧<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 41 g)">🗡️<sub>1</sub></span><span class="chip  " title="Vampire lv3 (8 g, total 49 g)">🧛<sub>3</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 55 g)">🔮<sub>2</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 62 g)">⏳<sub>1</sub></span><span class="chip  " title="Echo lv2 (8 g, total 70 g)">🫧<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 77 g)">❤️<sub>1</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 87 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 93 g)">🔮<sub>3</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 100 g)">⏳<sub>2</sub></span><span class="chip  " title="Echo lv3 (8 g, total 108 g)">🫧<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 115 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 122 g)">❤️<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 127 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 132 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 137 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 143 g)">🎩<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv1 (7 g, total 150 g)">🥄<sub>1</sub></span></div>
+  </div>
+<div class="card" id="card-D5-plaguebearer" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D5-plaguebearer </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1288</b> · 197 seats · mean place 2.88 of 4</p>
+    <p class="fantasy">Wade into the pack; everyone leaves sick.</p>
+    <p class="tests"><b>isolates:</b> contagion value (the lab is blind to it; this is the human entry)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Malady lv1 (10 g, total 10 g)">🦠<sub>1</sub></span><span class="chip  " title="Malady lv2 (8 g, total 18 g)">🦠<sub>2</sub></span><span class="chip  " title="Terra lv1 (6 g, total 24 g)">🪨<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 29 g)">🥾<sub>1</sub></span><span class="chip  " title="Malady lv3 (8 g, total 37 g)">🦠<sub>3</sub></span><span class="chip  " title="Terra lv2 (6 g, total 43 g)">🪨<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 50 g)">❤️<sub>1</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 55 g)">🥾<sub>2</sub></span><span class="chip  " title="Terra lv3 (7 g, total 62 g)">🪨<sub>3</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 69 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 76 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 83 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 90 g)">❤️<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 95 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 100 g)">🧣<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 107 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 113 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 120 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 125 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 130 g)">🧣<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 137 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 143 g)">🎩<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 150 g)">🥄<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-D6-sumo" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D6-sumo </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1112</b> · 176 seats · mean place 3.41 of 4</p>
+    <p class="fantasy">Never mind damage: you fly, I don&#39;t.</p>
+    <p class="tests"><b>isolates:</b> today&#39;s gale buff vs cape buff, head-on; lava economics</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Gale lv1 (6 g, total 6 g)">🌪️<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 11 g)">🧣<sub>1</sub></span><span class="chip  " title="Gale lv2 (6 g, total 17 g)">🌪️<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 22 g)">👢<sub>1</sub></span><span class="chip  " title="Gale lv3 (6 g, total 28 g)">🌪️<sub>3</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 33 g)">🧣<sub>2</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 38 g)">🥾<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv3 (5 g, total 43 g)">🧣<sub>3</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 48 g)">👢<sub>2</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 53 g)">🥾<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 60 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 67 g)">❤️<sub>2</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 72 g)">👢<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 79 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 86 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 92 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 99 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 106 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 113 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 119 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 126 g)">🥄<sub>2</sub></span><span class="chip fill " title="Blood Sword lv3 (7 g, total 133 g)">🗡️<sub>3</sub></span><span class="chip fill " title="Health Amulet lv3 (7 g, total 140 g)">❤️<sub>3</sub></span><span class="chip fill " title="Lava Treads lv3 (5 g, total 145 g)">🥾<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv3 (7 g, total 152 g)">⏳<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D7-stormcaller" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D7-stormcaller </h2>
+    <p class="cost">153 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1463</b> · 194 seats · mean place 2.34 of 4</p>
+    <p class="fantasy">The kit never stops: bolt on cooldown, refund on every hit.</p>
+    <p class="tests"><b>isolates:</b> question M: is a dedicated cadence build viable-but-honest?</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Arcane lv1 (6 g, total 6 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 12 g)">🔮<sub>2</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 22 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 28 g)">🔮<sub>3</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 35 g)">⏳<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 40 g)">⚡<sub>2</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 47 g)">⏳<sub>2</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 52 g)">⚡<sub>3</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 59 g)">⏳<sub>3</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 69 g)">🪃<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 76 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 90 g)">🗡️<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 95 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 100 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 105 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 111 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 118 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 125 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 130 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 135 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 140 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 146 g)">🎩<sub>2</sub></span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 153 g)">🥄<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-D8-juggernaut" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D8-juggernaut </h2>
+    <p class="cost">147 g core+fill (band 150-185) <span class="badge dim">item shelf exhausted below the band</span></p>
+    <p class="runline">Elo <b>1170</b> · 185 seats · mean place 3.23 of 4</p>
+    <p class="fantasy">Outlive everyone; the ring does the killing.</p>
+    <p class="tests"><b>isolates:</b> question H: the offense-first meta, probed by its opposite</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Health Amulet lv1 (7 g, total 7 g)">❤️<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 12 g)">🧣<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 17 g)">🥾<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 24 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 31 g)">🗡️<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 36 g)">🧣<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 43 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 50 g)">🗡️<sub>2</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 55 g)">🥾<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv3 (5 g, total 60 g)">🧣<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 67 g)">🗡️<sub>3</sub></span><span class="chip  " title="Lava Treads lv3 (5 g, total 72 g)">🥾<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 77 g)">👢<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 84 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 90 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 97 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 102 g)">👢<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 109 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 115 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 122 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 127 g)">👢<sub>3</sub></span><span class="chip fill " title="Hourglass lv3 (7 g, total 134 g)">⏳<sub>3</sub></span><span class="chip fill " title="Hat of Aura lv3 (6 g, total 140 g)">🎩<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv3 (7 g, total 147 g)">🥄<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D9-phantom" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D9-phantom </h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1312</b> · 178 seats · mean place 2.89 of 4</p>
+    <p class="fantasy">One line, three victims.</p>
+    <p class="tests"><b>isolates:</b> ghost lv3 pierce value under bot aim (floor read, stated)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ghost lv1 (6 g, total 6 g)">👻<sub>1</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 12 g)">👻<sub>2</sub></span><span class="chip  " title="Ember lv1 (5 g, total 17 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 22 g)">🔥<sub>2</sub></span><span class="chip  " title="Ghost lv3 (10 g, total 32 g)">👻<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 39 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 46 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 53 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 60 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 67 g)">❤️<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 72 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 77 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 82 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 89 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 95 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 102 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 107 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 112 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 117 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 124 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 130 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 137 g)">🥄<sub>2</sub></span><span class="chip fill " title="Blood Sword lv3 (7 g, total 144 g)">🗡️<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Health Amulet lv3 (7 g, total 151 g)">❤️<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D10-skirmisher" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D10-skirmisher </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1344</b> · 215 seats · mean place 2.71 of 4</p>
+    <p class="fantasy">Mobility wins fights: dash in, blink out.</p>
+    <p class="tests"><b>isolates:</b> the mobility-spell package (rush+blink) as a fighting style</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Boots of Speed lv1 (5 g, total 5 g)">👢<sub>1</sub></span><span class="chip  " title="Rush lv1 (10 g, total 15 g)">💨<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 20 g)">🔥<sub>1</sub></span><span class="chip  " title="Blink lv1 (10 g, total 30 g)">🌀<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 35 g)">🔥<sub>2</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 40 g)">👢<sub>2</sub></span><span class="chip  " title="Shield lv1 (12 g, total 52 g)">🛡️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 59 g)">🔥<sub>3</sub></span><span class="chip  " title="Rush lv2 (5 g, total 64 g)">💨<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 71 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 78 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 85 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 92 g)">❤️<sub>2</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 97 g)">👢<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 102 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 107 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 114 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 120 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 127 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 132 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 137 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 144 g)">⏳<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 150 g)">🎩<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-D11-spoonbearer" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D11-spoonbearer </h2>
+    <p class="cost">156 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1214</b> · 183 seats · mean place 3.16 of 4</p>
+    <p class="fantasy">Low damage, endless uptime: hold them still and heal a flat amount off every tap.</p>
+    <p class="tests"><b>isolates:</b> the Slow Spoon&#39;s premise (round 21.8): does a flat heal-per-hit carry a deliberately LOW-damage utility kit, where lifesteal pays almost nothing?</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Slow Spoon lv1 (7 g, total 7 g)">🥄<sub>1</sub></span><span class="chip  " title="Frost lv1 (10 g, total 17 g)">❄️<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 23 g)">🌪️<sub>1</sub></span><span class="chip  " title="Slow Spoon lv2 (7 g, total 30 g)">🥄<sub>2</sub></span><span class="chip  " title="Frost lv2 (8 g, total 38 g)">❄️<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 44 g)">🌪️<sub>2</sub></span><span class="chip  " title="Slow Spoon lv3 (7 g, total 51 g)">🥄<sub>3</sub></span><span class="chip  " title="Frost lv3 (8 g, total 59 g)">❄️<sub>3</sub></span><span class="chip  " title="Gale lv3 (6 g, total 65 g)">🌪️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 70 g)">👢<sub>1</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 75 g)">🥾<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 82 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Health Amulet lv1 (7 g, total 89 g)">❤️<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 94 g)">🧣<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 101 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 107 g)">🎩<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 114 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Health Amulet lv2 (7 g, total 121 g)">❤️<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 126 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 131 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 136 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 143 g)">⏳<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 149 g)">🎩<sub>2</sub></span><span class="chip fill late" title="Blood Sword lv3 (7 g, total 156 g)">🗡️<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D12-hatburner" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D12-hatburner </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1324</b> · 196 seats · mean place 2.79 of 4</p>
+    <p class="fantasy">Stand in the pack and cook: a burning ring that follows them out of it.</p>
+    <p class="tests"><b>isolates:</b> passive damage as a build: the Hat of Aura&#39;s ring + its round-21.8 linger, paired with the plague that wants the same close range</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Hat of Aura lv1 (6 g, total 6 g)">🎩<sub>1</sub></span><span class="chip  " title="Malady lv1 (10 g, total 16 g)">🦠<sub>1</sub></span><span class="chip  " title="Hat of Aura lv2 (6 g, total 22 g)">🎩<sub>2</sub></span><span class="chip  " title="Malady lv2 (8 g, total 30 g)">🦠<sub>2</sub></span><span class="chip  " title="Hat of Aura lv3 (6 g, total 36 g)">🎩<sub>3</sub></span><span class="chip  " title="Malady lv3 (8 g, total 44 g)">🦠<sub>3</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 49 g)">🥾<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 56 g)">❤️<sub>1</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 61 g)">🥾<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 68 g)">❤️<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 75 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 80 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 85 g)">🧣<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 92 g)">⏳<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 99 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 106 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 111 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 116 g)">🧣<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 123 g)">⏳<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 130 g)">🥄<sub>2</sub></span><span class="chip fill " title="Blood Sword lv3 (7 g, total 137 g)">🗡️<sub>3</sub></span><span class="chip fill " title="Health Amulet lv3 (7 g, total 144 g)">❤️<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Boots of Speed lv3 (5 g, total 149 g)">👢<sub>3</sub></span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 154 g)">🧣<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-D13-bastion" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D13-bastion </h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1370</b> · 199 seats · mean place 2.63 of 4</p>
+    <p class="fantasy">Nothing gets through: reflect it, or bank it and hand it back.</p>
+    <p class="tests"><b>isolates:</b> the two reactive windows stacked (24.6: Hard+ casts Shield, and Blood Debt as the understudy) on a max-armor shell; defense WITH buttons vs D8 (armor only)</p>
+    <p class="note">New round 24.7: answers 24.6&#39;s open question &quot;which builds should shop Blood Debt&quot;.</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Shield lv1 (12 g, total 12 g)">🛡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 19 g)">❤️<sub>1</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 24 g)">🧣<sub>1</sub></span><span class="chip  " title="Blood Debt lv1 (12 g, total 36 g)">🩶<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 43 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 50 g)">❤️<sub>2</sub></span><span class="chip  " title="Shield lv2 (6 g, total 56 g)">🛡️<sub>2</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 61 g)">🥾<sub>1</sub></span><span class="chip  " title="Blood Debt lv2 (6 g, total 67 g)">🩶<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv2 (5 g, total 72 g)">🧣<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 79 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 86 g)">❤️<sub>3</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 91 g)">🥾<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv3 (5 g, total 96 g)">🧣<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 103 g)">🗡️<sub>3</sub></span><span class="chip  " title="Lava Treads lv3 (5 g, total 108 g)">🥾<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 113 g)">👢<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 120 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 126 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 133 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 138 g)">👢<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 145 g)">⏳<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 151 g)">🎩<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-D14-hyperscaler" hidden>
+    <h2><span class="fam" style="--h:25">D</span> D14-hyperscaler </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1338</b> · 172 seats · mean place 2.78 of 4</p>
+    <p class="fantasy">Two marks, two clocks, one snowball: claim everything, forever.</p>
+    <p class="tests"><b>isolates:</b> anger + midas leveled in lockstep (lv1 both, lv2 both, lv3 both): do the two mark engines compound or contend? Read vs M1/M5 (each engine alone on a full scaffold)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Midas lv1 (10 g, total 20 g)">🪙<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 28 g)">🔴<sub>2</sub></span><span class="chip  " title="Midas lv2 (8 g, total 36 g)">🪙<sub>2</sub></span><span class="chip  " title="Anger lv3 (8 g, total 44 g)">🔴<sub>3</sub></span><span class="chip  " title="Midas lv3 (8 g, total 52 g)">🪙<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 59 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 66 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 73 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 80 g)">❤️<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 85 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 90 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 95 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 102 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 108 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 115 g)">🥄<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv2 (5 g, total 120 g)">👢<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 125 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 130 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 137 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 143 g)">🎩<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 150 g)">🥄<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-E1-hastemaker" hidden>
+    <h2><span class="fam" style="--h:160">E</span> E1-hastemaker </h2>
+    <p class="cost">150 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1404</b> · 175 seats · mean place 2.51 of 4</p>
+    <p class="fantasy">Cast faster, and every so often the cast is two balls.</p>
+    <p class="tests"><b>isolates:</b> question M: CDR x fireball throughput. Arcane+hourglass haste multiplied by mosquito&#39;s pair, with a pilotable kit for the lv3 refund to shave</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Arcane lv1 (6 g, total 6 g)">🔮<sub>1</sub></span><span class="chip  " title="Echo lv1 (10 g, total 16 g)">🫧<sub>1</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 23 g)">⏳<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 29 g)">🔮<sub>2</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 39 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 45 g)">🔮<sub>3</sub></span><span class="chip  " title="Echo lv2 (8 g, total 53 g)">🫧<sub>2</sub></span><span class="chip  " title="Echo lv3 (8 g, total 61 g)">🫧<sub>3</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 71 g)">🪃<sub>1</sub></span><span class="chip  " title="Shield lv1 (12 g, total 83 g)">🛡️<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 88 g)">⚡<sub>2</sub></span><span class="chip  " title="Boomerang lv2 (5 g, total 93 g)">🪃<sub>2</sub></span><span class="chip  " title="Blink lv1 (10 g, total 103 g)">🌀<sub>1</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 108 g)">⚡<sub>3</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 115 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Health Amulet lv1 (7 g, total 122 g)">❤️<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 127 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 132 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 137 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 143 g)">🎩<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv1 (7 g, total 150 g)">🥄<sub>1</sub></span></div>
+  </div>
+<div class="card" id="card-E2-chronomancer" hidden>
+    <h2><span class="fam" style="--h:160">E</span> E2-chronomancer </h2>
+    <p class="cost">156 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1544</b> · 177 seats · mean place 2.12 of 4</p>
+    <p class="fantasy">Five buttons, none of them ever off cooldown for long.</p>
+    <p class="tests"><b>isolates:</b> question M: CDR x kit WIDTH. The same maxed haste core feeding five pilotable buttons, so arcane lv3&#39;s per-hit refund has the most cooldowns to shave (vs D7&#39;s one-spell depth)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Hourglass lv1 (7 g, total 7 g)">⏳<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 13 g)">🔮<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 20 g)">⏳<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 26 g)">🔮<sub>2</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 33 g)">⏳<sub>3</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 43 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 49 g)">🔮<sub>3</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 59 g)">🪃<sub>1</sub></span><span class="chip  " title="Shield lv1 (12 g, total 71 g)">🛡️<sub>1</sub></span><span class="chip  " title="Rush lv1 (10 g, total 81 g)">💨<sub>1</sub></span><span class="chip  " title="Blink lv1 (10 g, total 91 g)">🌀<sub>1</sub></span><span class="chip  " title="Shield lv2 (6 g, total 97 g)">🛡️<sub>2</sub></span><span class="chip  " title="Rush lv2 (5 g, total 102 g)">💨<sub>2</sub></span><span class="chip  " title="Blink lv2 (5 g, total 107 g)">🌀<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 114 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Health Amulet lv1 (7 g, total 121 g)">❤️<sub>1</sub></span><span class="chip fill " title="Boots of Speed lv1 (5 g, total 126 g)">👢<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 131 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 136 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 142 g)">🎩<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv1 (7 g, total 149 g)">🥄<sub>1</sub></span><span class="chip fill late" title="Blood Sword lv2 (7 g, total 156 g)">🗡️<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-F1-spoon-volume" hidden>
+    <h2><span class="fam" style="--h:330">F</span> F1-spoon-volume </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1367</b> · 235 seats · mean place 2.65 of 4</p>
+    <p class="fantasy">Cast constantly, heal a flat crumb off every single connection.</p>
+    <p class="tests"><b>isolates:</b> the Slow Spoon against the Blood Sword, identical kit, identical gold, NEITHER seat allowed the other item (vs F2)</p>
+    <p class="caps">never buys: 🗡️ Blood Sword</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Arcane lv1 (6 g, total 6 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 12 g)">🔮<sub>2</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 22 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 28 g)">🔮<sub>3</sub></span><span class="chip  " title="Echo lv1 (10 g, total 38 g)">🫧<sub>1</sub></span><span class="chip  " title="Echo lv2 (8 g, total 46 g)">🫧<sub>2</sub></span><span class="chip  " title="Echo lv3 (8 g, total 54 g)">🫧<sub>3</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 61 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 68 g)">⏳<sub>2</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 75 g)">⏳<sub>3</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 85 g)">🪃<sub>1</sub></span><span class="chip  " title="Rush lv1 (10 g, total 95 g)">💨<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 101 g)">👻<sub>1</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 107 g)">👻<sub>2</sub></span><span class="chip  " title="Slow Spoon lv1 (7 g, total 114 g)">🥄<sub>1</sub></span><span class="chip  " title="Slow Spoon lv2 (7 g, total 121 g)">🥄<sub>2</sub></span><span class="chip  " title="Slow Spoon lv3 (7 g, total 128 g)">🥄<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 133 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 138 g)">👢<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 145 g)">❤️<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Health Amulet lv2 (7 g, total 152 g)">❤️<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-F3-spoon-burst" hidden>
+    <h2><span class="fam" style="--h:330">F</span> F3-spoon-burst </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1254</b> · 202 seats · mean place 3.04 of 4</p>
+    <p class="fantasy">Big hits, and a flat crumb of healing per hit that barely notices them.</p>
+    <p class="tests"><b>isolates:</b> the Slow Spoon where lifesteal SHOULD win: few, large hits (vs F4)</p>
+    <p class="caps">never buys: 🗡️ Blood Sword</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Ember lv3 (7 g, total 17 g)">🔥<sub>3</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 27 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 32 g)">⚡<sub>2</sub></span><span class="chip  " title="Meteor lv1 (12 g, total 44 g)">☄️<sub>1</sub></span><span class="chip  " title="Meteor lv2 (6 g, total 50 g)">☄️<sub>2</sub></span><span class="chip  " title="Terra lv1 (6 g, total 56 g)">🪨<sub>1</sub></span><span class="chip  " title="Terra lv2 (6 g, total 62 g)">🪨<sub>2</sub></span><span class="chip  " title="Terra lv3 (7 g, total 69 g)">🪨<sub>3</sub></span><span class="chip  " title="Slow Spoon lv1 (7 g, total 76 g)">🥄<sub>1</sub></span><span class="chip  " title="Slow Spoon lv2 (7 g, total 83 g)">🥄<sub>2</sub></span><span class="chip  " title="Slow Spoon lv3 (7 g, total 90 g)">🥄<sub>3</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 97 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 104 g)">❤️<sub>2</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 111 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 118 g)">⏳<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 123 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 128 g)">👢<sub>2</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 133 g)">👢<sub>3</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 138 g)">🥾<sub>1</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 143 g)">🥾<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Cape of the Magi lv1 (5 g, total 148 g)">🧣<sub>1</sub></span><span class="chip fill late" title="Hat of Aura lv1 (6 g, total 154 g)">🎩<sub>1</sub></span></div>
+  </div>
+<div class="card" id="card-F4-sword-burst" hidden>
+    <h2><span class="fam" style="--h:330">F</span> F4-sword-burst </h2>
+    <p class="cost">154 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1297</b> · 198 seats · mean place 2.92 of 4</p>
+    <p class="fantasy">Big hits, and a percentage of every one of them.</p>
+    <p class="tests"><b>isolates:</b> the control for F3: the Blood Sword on the same big-hit kit</p>
+    <p class="caps">never buys: 🥄 Slow Spoon</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Ember lv3 (7 g, total 17 g)">🔥<sub>3</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 27 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 32 g)">⚡<sub>2</sub></span><span class="chip  " title="Meteor lv1 (12 g, total 44 g)">☄️<sub>1</sub></span><span class="chip  " title="Meteor lv2 (6 g, total 50 g)">☄️<sub>2</sub></span><span class="chip  " title="Terra lv1 (6 g, total 56 g)">🪨<sub>1</sub></span><span class="chip  " title="Terra lv2 (6 g, total 62 g)">🪨<sub>2</sub></span><span class="chip  " title="Terra lv3 (7 g, total 69 g)">🪨<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 76 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 83 g)">🗡️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 90 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 97 g)">❤️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 104 g)">❤️<sub>2</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 111 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 118 g)">⏳<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 123 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 128 g)">👢<sub>2</sub></span><span class="chip  " title="Boots of Speed lv3 (5 g, total 133 g)">👢<sub>3</sub></span><span class="chip  " title="Lava Treads lv1 (5 g, total 138 g)">🥾<sub>1</sub></span><span class="chip  " title="Lava Treads lv2 (5 g, total 143 g)">🥾<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Cape of the Magi lv1 (5 g, total 148 g)">🧣<sub>1</sub></span><span class="chip fill late" title="Hat of Aura lv1 (6 g, total 154 g)">🎩<sub>1</sub></span></div>
+  </div>
+<div class="card" id="card-F2-sword-volume" hidden>
+    <h2><span class="fam" style="--h:330">F</span> F2-sword-volume </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1283</b> · 192 seats · mean place 2.97 of 4</p>
+    <p class="fantasy">The same barrage, paid for in lifesteal instead.</p>
+    <p class="tests"><b>isolates:</b> the control for F1: the Blood Sword in the identical high-volume kit, Slow Spoon banned</p>
+    <p class="caps">never buys: 🥄 Slow Spoon</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Arcane lv1 (6 g, total 6 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 12 g)">🔮<sub>2</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 22 g)">⚡<sub>1</sub></span><span class="chip  " title="Arcane lv3 (6 g, total 28 g)">🔮<sub>3</sub></span><span class="chip  " title="Echo lv1 (10 g, total 38 g)">🫧<sub>1</sub></span><span class="chip  " title="Echo lv2 (8 g, total 46 g)">🫧<sub>2</sub></span><span class="chip  " title="Echo lv3 (8 g, total 54 g)">🫧<sub>3</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 61 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 68 g)">⏳<sub>2</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 75 g)">⏳<sub>3</sub></span><span class="chip  " title="Boomerang lv1 (10 g, total 85 g)">🪃<sub>1</sub></span><span class="chip  " title="Rush lv1 (10 g, total 95 g)">💨<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 101 g)">👻<sub>1</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 107 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 114 g)">🗡️<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 121 g)">🗡️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 128 g)">🗡️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 133 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 138 g)">👢<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 145 g)">❤️<sub>1</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Health Amulet lv2 (7 g, total 152 g)">❤️<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-G1-warlord-shield" hidden>
+    <h2><span class="fam" style="--h:40">G</span> G1-warlord-shield </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1701</b> · 165 seats · mean place 1.76 of 4</p>
+    <p class="fantasy">The Warlord who answers: every trade, plus a reflection window.</p>
+    <p class="tests"><b>isolates:</b> ONE variable vs D1: +Shield (12+6 g, bought early); is a piloted reactive worth 18 g of items?</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 17 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 24 g)">❤️<sub>1</sub></span><span class="chip  " title="Shield lv1 (12 g, total 36 g)">🛡️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 43 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 50 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 57 g)">❤️<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 69 g)">🔮<sub>2</sub></span><span class="chip  " title="Shield lv2 (6 g, total 75 g)">🛡️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 82 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 89 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 94 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 99 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 104 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 109 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 116 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 122 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 129 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 134 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 139 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv2 (7 g, total 146 g)">⏳<sub>2</sub></span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 152 g)">🎩<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-G2-warlord-debt" hidden>
+    <h2><span class="fam" style="--h:40">G</span> G2-warlord-debt </h2>
+    <p class="cost">152 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1723</b> · 177 seats · mean place 1.63 of 4</p>
+    <p class="fantasy">The Warlord who banks the hit and mails it back.</p>
+    <p class="tests"><b>isolates:</b> ONE variable vs D1: +Blood Debt in the exact slots G1 gives Shield (same 12+6 g), so G1-G2 is Shield vs Debt on the same bot read (24.6)</p>
+    <p class="note">First roster row to shop Blood Debt (with D13), closing 24.6&#39;s open question.</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 17 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 24 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Debt lv1 (12 g, total 36 g)">🩶<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 43 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 50 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 57 g)">❤️<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 69 g)">🔮<sub>2</sub></span><span class="chip  " title="Blood Debt lv2 (6 g, total 75 g)">🩶<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 82 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 89 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 94 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 99 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 104 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 109 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 116 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 122 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 129 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 134 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 139 g)">🥾<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv2 (7 g, total 146 g)">⏳<sub>2</sub></span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 152 g)">🎩<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-G3-warlord-no-sword" hidden>
+    <h2><span class="fam" style="--h:40">G</span> G3-warlord-no-sword </h2>
+    <p class="cost">155 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1409</b> · 181 seats · mean place 2.57 of 4</p>
+    <p class="fantasy">The Warlord without the vampire sword: pure damage, no drain.</p>
+    <p class="tests"><b>isolates:</b> ONE variable vs D1: sword BANNED (caps, padder included); prices lifesteal-by-structure (question L) as an ablation, gold goes to the generic shelf instead</p>
+    <p class="caps">never buys: 🗡️ Blood Sword</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 17 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 24 g)">🔥<sub>3</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 31 g)">❤️<sub>2</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 37 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 43 g)">🔮<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 50 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 55 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 60 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 65 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 70 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 77 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 83 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 90 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 95 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 100 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 107 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 113 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 120 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 125 g)">👢<sub>3</sub></span><span class="chip fill " title="Cape of the Magi lv3 (5 g, total 130 g)">🧣<sub>3</sub></span><span class="chip fill " title="Lava Treads lv3 (5 g, total 135 g)">🥾<sub>3</sub></span><span class="chip fill " title="Hourglass lv3 (7 g, total 142 g)">⏳<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv3 (6 g, total 148 g)">🎩<sub>3</sub></span><span class="chip fill late" title="Slow Spoon lv3 (7 g, total 155 g)">🥄<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-G4-warlord-no-arcane" hidden>
+    <h2><span class="fam" style="--h:40">G</span> G4-warlord-no-arcane </h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1450</b> · 185 seats · mean place 2.35 of 4</p>
+    <p class="fantasy">The Warlord who never learns to cast faster.</p>
+    <p class="tests"><b>isolates:</b> ONE variable vs D1: arcane BANNED (caps); prices the haste axis inside the base build, its 12 g goes to the generic shelf instead</p>
+    <p class="caps">never buys: 🔮 Arcane</p>
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Ember lv1 (5 g, total 5 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 10 g)">🔥<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 17 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 24 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv3 (7 g, total 31 g)">🔥<sub>3</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 38 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 45 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 52 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 59 g)">❤️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 64 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 69 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 74 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 79 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 86 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 92 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 99 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 104 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 109 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 116 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 122 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 129 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 134 g)">👢<sub>3</sub></span><span class="chip fill " title="Cape of the Magi lv3 (5 g, total 139 g)">🧣<sub>3</sub></span><span class="chip fill " title="Lava Treads lv3 (5 g, total 144 g)">🥾<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hourglass lv3 (7 g, total 151 g)">⏳<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-M1-anger-first" hidden>
+    <h2><span class="fam" style="--h:95">M</span> M1-anger-first </h2>
+    <p class="cost">172 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1614</b> · 211 seats · mean place 1.93 of 4</p>
+    <p class="fantasy">Max the grudge, then build like everyone else.</p>
+    <p class="tests"><b>isolates:</b> anger isolated on the shared scaffold (vs its M siblings)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 18 g)">🔴<sub>2</sub></span><span class="chip  " title="Anger lv3 (8 g, total 26 g)">🔴<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 33 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 40 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 45 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 51 g)">🪨<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 57 g)">🌪️<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 69 g)">👻<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 76 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Ember lv2 (5 g, total 88 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 94 g)">🪨<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 100 g)">🌪️<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 106 g)">🔮<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 112 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 119 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 126 g)">❤️<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 133 g)">🔥<sub>3</sub></span><span class="chip  " title="Terra lv3 (7 g, total 140 g)">🪨<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Gale lv3 (6 g, total 146 g)">🌪️<sub>3</sub></span><span class="chip  late" title="Lightning lv1 (10 g, total 156 g)">⚡<sub>1</sub></span><span class="chip  late" title="Arcane lv3 (6 g, total 162 g)">🔮<sub>3</sub></span><span class="chip  late" title="Ghost lv3 (10 g, total 172 g)">👻<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-M2-frost-first" hidden>
+    <h2><span class="fam" style="--h:95">M</span> M2-frost-first </h2>
+    <p class="cost">172 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1380</b> · 197 seats · mean place 2.63 of 4</p>
+    <p class="fantasy">Max the cold, then build like everyone else.</p>
+    <p class="tests"><b>isolates:</b> frost isolated on the shared scaffold; stack-fade (22.4) means bots must feed the pile</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Frost lv1 (10 g, total 10 g)">❄️<sub>1</sub></span><span class="chip  " title="Frost lv2 (8 g, total 18 g)">❄️<sub>2</sub></span><span class="chip  " title="Frost lv3 (8 g, total 26 g)">❄️<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 33 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 40 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 45 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 51 g)">🪨<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 57 g)">🌪️<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 69 g)">👻<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 76 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Ember lv2 (5 g, total 88 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 94 g)">🪨<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 100 g)">🌪️<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 106 g)">🔮<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 112 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 119 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 126 g)">❤️<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 133 g)">🔥<sub>3</sub></span><span class="chip  " title="Terra lv3 (7 g, total 140 g)">🪨<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Gale lv3 (6 g, total 146 g)">🌪️<sub>3</sub></span><span class="chip  late" title="Lightning lv1 (10 g, total 156 g)">⚡<sub>1</sub></span><span class="chip  late" title="Arcane lv3 (6 g, total 162 g)">🔮<sub>3</sub></span><span class="chip  late" title="Ghost lv3 (10 g, total 172 g)">👻<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-M3-malady-first" hidden>
+    <h2><span class="fam" style="--h:95">M</span> M3-malady-first </h2>
+    <p class="cost">172 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1596</b> · 179 seats · mean place 1.94 of 4</p>
+    <p class="fantasy">Max the plague, then build like everyone else.</p>
+    <p class="tests"><b>isolates:</b> malady isolated on the shared scaffold; contagion still reads at a floor (bots do not cluster on purpose)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Malady lv1 (10 g, total 10 g)">🦠<sub>1</sub></span><span class="chip  " title="Malady lv2 (8 g, total 18 g)">🦠<sub>2</sub></span><span class="chip  " title="Malady lv3 (8 g, total 26 g)">🦠<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 33 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 40 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 45 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 51 g)">🪨<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 57 g)">🌪️<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 69 g)">👻<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 76 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Ember lv2 (5 g, total 88 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 94 g)">🪨<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 100 g)">🌪️<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 106 g)">🔮<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 112 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 119 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 126 g)">❤️<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 133 g)">🔥<sub>3</sub></span><span class="chip  " title="Terra lv3 (7 g, total 140 g)">🪨<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Gale lv3 (6 g, total 146 g)">🌪️<sub>3</sub></span><span class="chip  late" title="Lightning lv1 (10 g, total 156 g)">⚡<sub>1</sub></span><span class="chip  late" title="Arcane lv3 (6 g, total 162 g)">🔮<sub>3</sub></span><span class="chip  late" title="Ghost lv3 (10 g, total 172 g)">👻<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-M4-echo-first" hidden>
+    <h2><span class="fam" style="--h:95">M</span> M4-echo-first </h2>
+    <p class="cost">172 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1579</b> · 207 seats · mean place 2.07 of 4</p>
+    <p class="fantasy">Max the echo, then build like everyone else.</p>
+    <p class="tests"><b>isolates:</b> mosquito (Echo) isolated on the shared scaffold: every 4th cast pairs</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Echo lv1 (10 g, total 10 g)">🫧<sub>1</sub></span><span class="chip  " title="Echo lv2 (8 g, total 18 g)">🫧<sub>2</sub></span><span class="chip  " title="Echo lv3 (8 g, total 26 g)">🫧<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 33 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 40 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 45 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 51 g)">🪨<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 57 g)">🌪️<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 69 g)">👻<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 76 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Ember lv2 (5 g, total 88 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 94 g)">🪨<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 100 g)">🌪️<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 106 g)">🔮<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 112 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 119 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 126 g)">❤️<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 133 g)">🔥<sub>3</sub></span><span class="chip  " title="Terra lv3 (7 g, total 140 g)">🪨<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Gale lv3 (6 g, total 146 g)">🌪️<sub>3</sub></span><span class="chip  late" title="Lightning lv1 (10 g, total 156 g)">⚡<sub>1</sub></span><span class="chip  late" title="Arcane lv3 (6 g, total 162 g)">🔮<sub>3</sub></span><span class="chip  late" title="Ghost lv3 (10 g, total 172 g)">👻<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-M5-midas-first" hidden>
+    <h2><span class="fam" style="--h:95">M</span> M5-midas-first </h2>
+    <p class="cost">172 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1442</b> · 172 seats · mean place 2.41 of 4</p>
+    <p class="fantasy">Max the gold mark, then build like everyone else.</p>
+    <p class="tests"><b>isolates:</b> midas isolated on the shared scaffold: its +2 g claims should show as a DEEPER tail, which is the whole value of gold</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Midas lv1 (10 g, total 10 g)">🪙<sub>1</sub></span><span class="chip  " title="Midas lv2 (8 g, total 18 g)">🪙<sub>2</sub></span><span class="chip  " title="Midas lv3 (8 g, total 26 g)">🪙<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 33 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 40 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 45 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 51 g)">🪨<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 57 g)">🌪️<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 69 g)">👻<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 76 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Ember lv2 (5 g, total 88 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 94 g)">🪨<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 100 g)">🌪️<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 106 g)">🔮<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 112 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 119 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 126 g)">❤️<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 133 g)">🔥<sub>3</sub></span><span class="chip  " title="Terra lv3 (7 g, total 140 g)">🪨<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Gale lv3 (6 g, total 146 g)">🌪️<sub>3</sub></span><span class="chip  late" title="Lightning lv1 (10 g, total 156 g)">⚡<sub>1</sub></span><span class="chip  late" title="Arcane lv3 (6 g, total 162 g)">🔮<sub>3</sub></span><span class="chip  late" title="Ghost lv3 (10 g, total 172 g)">👻<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-M6-vampire-first" hidden>
+    <h2><span class="fam" style="--h:95">M</span> M6-vampire-first </h2>
+    <p class="cost">172 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>1424</b> · 159 seats · mean place 2.50 of 4</p>
+    <p class="fantasy">Max the feast, then build like everyone else.</p>
+    <p class="tests"><b>isolates:</b> vampire isolated on the shared scaffold (no frequency support here; D4 is the synergy build)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Vampire lv1 (10 g, total 10 g)">🧛<sub>1</sub></span><span class="chip  " title="Vampire lv2 (8 g, total 18 g)">🧛<sub>2</sub></span><span class="chip  " title="Vampire lv3 (8 g, total 26 g)">🧛<sub>3</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 33 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 40 g)">❤️<sub>1</sub></span><span class="chip  " title="Ember lv1 (5 g, total 45 g)">🔥<sub>1</sub></span><span class="chip  " title="Terra lv1 (6 g, total 51 g)">🪨<sub>1</sub></span><span class="chip  " title="Gale lv1 (6 g, total 57 g)">🌪️<sub>1</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 63 g)">🔮<sub>1</sub></span><span class="chip  " title="Ghost lv1 (6 g, total 69 g)">👻<sub>1</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 76 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 83 g)">❤️<sub>2</sub></span><span class="chip  " title="Ember lv2 (5 g, total 88 g)">🔥<sub>2</sub></span><span class="chip  " title="Terra lv2 (6 g, total 94 g)">🪨<sub>2</sub></span><span class="chip  " title="Gale lv2 (6 g, total 100 g)">🌪️<sub>2</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 106 g)">🔮<sub>2</sub></span><span class="chip  " title="Ghost lv2 (6 g, total 112 g)">👻<sub>2</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 119 g)">🗡️<sub>3</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 126 g)">❤️<sub>3</sub></span><span class="chip  " title="Ember lv3 (7 g, total 133 g)">🔥<sub>3</sub></span><span class="chip  " title="Terra lv3 (7 g, total 140 g)">🪨<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip  late" title="Gale lv3 (6 g, total 146 g)">🌪️<sub>3</sub></span><span class="chip  late" title="Lightning lv1 (10 g, total 156 g)">⚡<sub>1</sub></span><span class="chip  late" title="Arcane lv3 (6 g, total 162 g)">🔮<sub>3</sub></span><span class="chip  late" title="Ghost lv3 (10 g, total 172 g)">👻<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-K1-faker-hookstorm" hidden>
+    <h2><span class="fam" style="--h:0">K</span> K1-faker-hookstorm <span class="badge">faker brain</span></h2>
+    <p class="cost">153 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>2454</b> · 200 seats · mean place 1.19 of 4</p>
+    <p class="fantasy">The hook: Switcheroo into the bolt, the rock onto the landing point.</p>
+    <p class="tests"><b>isolates:</b> does the combo layer out-earn raw value at equal cost</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Lightning lv1 (10 g, total 10 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 15 g)">⚡<sub>2</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 20 g)">⚡<sub>3</sub></span><span class="chip  " title="Switcheroo lv1 (10 g, total 30 g)">🎭<sub>1</sub></span><span class="chip  " title="Switcheroo lv2 (5 g, total 35 g)">🎭<sub>2</sub></span><span class="chip  " title="Switcheroo lv3 (5 g, total 40 g)">🎭<sub>3</sub></span><span class="chip  " title="Meteor lv1 (12 g, total 52 g)">☄️<sub>1</sub></span><span class="chip  " title="Meteor lv2 (6 g, total 58 g)">☄️<sub>2</sub></span><span class="chip  " title="Ember lv1 (5 g, total 63 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 68 g)">🔥<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 73 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 78 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 83 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 90 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Health Amulet lv1 (7 g, total 97 g)">❤️<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 102 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 109 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 115 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 122 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 129 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Health Amulet lv2 (7 g, total 136 g)">❤️<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 141 g)">🧣<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Lava Treads lv2 (5 g, total 146 g)">🥾<sub>2</sub></span><span class="chip fill late" title="Hourglass lv2 (7 g, total 153 g)">⏳<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-K2-faker-permafrost" hidden>
+    <h2><span class="fam" style="--h:0">K</span> K2-faker-permafrost <span class="badge">faker brain</span></h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>2827</b> · 203 seats · mean place 1.05 of 4</p>
+    <p class="fantasy">The freeze: the third stack is spent on purpose, with the bolt loaded.</p>
+    <p class="tests"><b>isolates:</b> frost-hold combos vs the chainer, on a brain that times them</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Frost lv1 (10 g, total 10 g)">❄️<sub>1</sub></span><span class="chip  " title="Frost lv2 (8 g, total 18 g)">❄️<sub>2</sub></span><span class="chip  " title="Frost lv3 (8 g, total 26 g)">❄️<sub>3</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 36 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 41 g)">⚡<sub>2</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 46 g)">⚡<sub>3</sub></span><span class="chip  " title="Hourglass lv1 (7 g, total 53 g)">⏳<sub>1</sub></span><span class="chip  " title="Hourglass lv2 (7 g, total 60 g)">⏳<sub>2</sub></span><span class="chip  " title="Hourglass lv3 (7 g, total 67 g)">⏳<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 72 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 77 g)">👢<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 84 g)">🗡️<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Health Amulet lv1 (7 g, total 91 g)">❤️<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 96 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 101 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 107 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 114 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 121 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Health Amulet lv2 (7 g, total 128 g)">❤️<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 133 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 138 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 144 g)">🎩<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 151 g)">🥄<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-K3-faker-minefield" hidden>
+    <h2><span class="fam" style="--h:0">K</span> K3-faker-minefield <span class="badge">faker brain</span></h2>
+    <p class="cost">151 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>2851</b> · 204 seats · mean place 1.06 of 4</p>
+    <p class="fantasy">The detonator: a loaded trap underfoot, Switcheroo drops you on it.</p>
+    <p class="tests"><b>isolates:</b> the trap-hook chain: the biggest measured true combos (tools/combo.js)</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Lightning lv1 (10 g, total 10 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 15 g)">⚡<sub>2</sub></span><span class="chip  " title="Mine lv1 (10 g, total 25 g)">💣<sub>1</sub></span><span class="chip  " title="Mine lv2 (5 g, total 30 g)">💣<sub>2</sub></span><span class="chip  " title="Switcheroo lv1 (10 g, total 40 g)">🎭<sub>1</sub></span><span class="chip  " title="Switcheroo lv2 (5 g, total 45 g)">🎭<sub>2</sub></span><span class="chip  " title="Switcheroo lv3 (5 g, total 50 g)">🎭<sub>3</sub></span><span class="chip  " title="Ember lv1 (5 g, total 55 g)">🔥<sub>1</sub></span><span class="chip  " title="Ember lv2 (5 g, total 60 g)">🔥<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 65 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 70 g)">👢<sub>2</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Blood Sword lv1 (7 g, total 77 g)">🗡️<sub>1</sub></span><span class="chip fill " title="Health Amulet lv1 (7 g, total 84 g)">❤️<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 89 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 94 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 101 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 107 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 114 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 121 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Health Amulet lv2 (7 g, total 128 g)">❤️<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 133 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 138 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 145 g)">⏳<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Hat of Aura lv2 (6 g, total 151 g)">🎩<sub>2</sub></span></div>
+  </div>
+<div class="card" id="card-K4-faker-galeforce" hidden>
+    <h2><span class="fam" style="--h:0">K</span> K4-faker-galeforce <span class="badge">faker brain</span></h2>
+    <p class="cost">155 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>2900</b> · 189 seats · mean place 1.06 of 4</p>
+    <p class="fantasy">The wind: every third ball shoves, the bolt is already falling there.</p>
+    <p class="tests"><b>isolates:</b> gust-into-bolt chains; the weakest combo identity in the lab, priced here</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Gale lv1 (6 g, total 6 g)">🌪️<sub>1</sub></span><span class="chip  " title="Gale lv2 (6 g, total 12 g)">🌪️<sub>2</sub></span><span class="chip  " title="Gale lv3 (6 g, total 18 g)">🌪️<sub>3</sub></span><span class="chip  " title="Lightning lv1 (10 g, total 28 g)">⚡<sub>1</sub></span><span class="chip  " title="Lightning lv2 (5 g, total 33 g)">⚡<sub>2</sub></span><span class="chip  " title="Lightning lv3 (5 g, total 38 g)">⚡<sub>3</sub></span><span class="chip  " title="Arcane lv1 (6 g, total 44 g)">🔮<sub>1</sub></span><span class="chip  " title="Arcane lv2 (6 g, total 50 g)">🔮<sub>2</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 55 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 60 g)">👢<sub>2</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 67 g)">🗡️<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Health Amulet lv1 (7 g, total 74 g)">❤️<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv1 (5 g, total 79 g)">🧣<sub>1</sub></span><span class="chip fill " title="Lava Treads lv1 (5 g, total 84 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 91 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 97 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 104 g)">🥄<sub>1</sub></span><span class="chip fill " title="Blood Sword lv2 (7 g, total 111 g)">🗡️<sub>2</sub></span><span class="chip fill " title="Health Amulet lv2 (7 g, total 118 g)">❤️<sub>2</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 123 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 128 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 135 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 141 g)">🎩<sub>2</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Slow Spoon lv2 (7 g, total 148 g)">🥄<sub>2</sub></span><span class="chip fill late" title="Blood Sword lv3 (7 g, total 155 g)">🗡️<sub>3</sub></span></div>
+  </div>
+<div class="card" id="card-K5-faker-vendetta" hidden>
+    <h2><span class="fam" style="--h:0">K</span> K5-faker-vendetta <span class="badge">faker brain</span></h2>
+    <p class="cost">153 g core+fill (band 150-185) </p>
+    <p class="runline">Elo <b>2537</b> · 175 seats · mean place 1.20 of 4</p>
+    <p class="fantasy">The grudge: max anger first, claim every mark, snowball forever.</p>
+    <p class="tests"><b>isolates:</b> anger in Faker hands: B3&#39;s core (the best anger build on Hard) piloted by the top bot tier</p>
+    
+    <h3>buy order</h3>
+    <div class="order"><span class="chip  " title="Anger lv1 (10 g, total 10 g)">🔴<sub>1</sub></span><span class="chip  " title="Anger lv2 (8 g, total 18 g)">🔴<sub>2</sub></span><span class="chip  " title="Anger lv3 (8 g, total 26 g)">🔴<sub>3</sub></span><span class="chip  " title="Health Amulet lv1 (7 g, total 33 g)">❤️<sub>1</sub></span><span class="chip  " title="Blood Sword lv1 (7 g, total 40 g)">🗡️<sub>1</sub></span><span class="chip  " title="Health Amulet lv2 (7 g, total 47 g)">❤️<sub>2</sub></span><span class="chip  " title="Blood Sword lv2 (7 g, total 54 g)">🗡️<sub>2</sub></span><span class="chip  " title="Health Amulet lv3 (7 g, total 61 g)">❤️<sub>3</sub></span><span class="chip  " title="Blood Sword lv3 (7 g, total 68 g)">🗡️<sub>3</sub></span><span class="chip  " title="Boots of Speed lv1 (5 g, total 73 g)">👢<sub>1</sub></span><span class="chip  " title="Boots of Speed lv2 (5 g, total 78 g)">👢<sub>2</sub></span><span class="chip  " title="Cape of the Magi lv1 (5 g, total 83 g)">🧣<sub>1</sub></span><span class="divider" title="end of the hand-written core; auto-fill items from here">auto-fill →</span><span class="chip fill " title="Lava Treads lv1 (5 g, total 88 g)">🥾<sub>1</sub></span><span class="chip fill " title="Hourglass lv1 (7 g, total 95 g)">⏳<sub>1</sub></span><span class="chip fill " title="Hat of Aura lv1 (6 g, total 101 g)">🎩<sub>1</sub></span><span class="chip fill " title="Slow Spoon lv1 (7 g, total 108 g)">🥄<sub>1</sub></span><span class="chip fill " title="Cape of the Magi lv2 (5 g, total 113 g)">🧣<sub>2</sub></span><span class="chip fill " title="Lava Treads lv2 (5 g, total 118 g)">🥾<sub>2</sub></span><span class="chip fill " title="Hourglass lv2 (7 g, total 125 g)">⏳<sub>2</sub></span><span class="chip fill " title="Hat of Aura lv2 (6 g, total 131 g)">🎩<sub>2</sub></span><span class="chip fill " title="Slow Spoon lv2 (7 g, total 138 g)">🥄<sub>2</sub></span><span class="chip fill " title="Boots of Speed lv3 (5 g, total 143 g)">👢<sub>3</sub></span><span class="divider warn" title="an average seat earns ~145 g in a full game (measured); buys past this line rarely happen">~145 g →</span><span class="chip fill late" title="Cape of the Magi lv3 (5 g, total 148 g)">🧣<sub>3</sub></span><span class="chip fill late" title="Lava Treads lv3 (5 g, total 153 g)">🥾<sub>3</sub></span></div>
+  </div>
+</aside>
+</div>
+<script>
+let pinned = null, shown = null;
+const hint = document.getElementById('hint');
+function show(id){
+  if (shown) document.getElementById('card-'+shown).hidden = true;
+  hint.hidden = true;
+  document.getElementById('card-'+id).hidden = false;
+  shown = id;
+}
+for (const row of document.querySelectorAll('.row')) {
+  const id = row.dataset.id;
+  row.addEventListener('mouseenter', () => { if (!pinned) show(id); });
+  row.addEventListener('focus', () => { if (!pinned) show(id); });
+  row.addEventListener('click', () => {
+    if (pinned === id) { pinned = null; row.classList.remove('pinned'); return; }
+    document.querySelectorAll('.row.pinned').forEach(r => r.classList.remove('pinned'));
+    pinned = id; row.classList.add('pinned'); show(id);
+  });
+  row.addEventListener('keydown', e => { if (e.key === 'Enter') row.click(); });
+}
+const first = document.querySelector('.row');
+if (first) show(first.dataset.id);
+</script>

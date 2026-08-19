@@ -555,6 +555,10 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
+// 24.12: which spell keys are physically down, so a stray key-up (alt-tab,
+// a rebind mid-press) can never release a charge nobody started.
+const heldKeys = new Set();
+
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (!$('keysPanel').classList.contains('hidden')) {
@@ -566,8 +570,29 @@ window.addEventListener('keydown', (e) => {
   const spell = spellForKey(e.key.toLowerCase());
   if (spell) {
     const w = toWorld(mouse.x, mouse.y);
+    heldKeys.add(e.key.toLowerCase());
     send({ t: 'cast', key: spell, x: w.x, y: w.y });
   }
+});
+
+// Hold-to-charge (24.12, anger): every spell key sends a release on key-up.
+// The server ignores it unless that key was actually holding a charge, so
+// nothing changes for the spells that do not charge.
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (!heldKeys.delete(k)) return;
+  const spell = spellForKey(k);
+  if (!spell) return;
+  const w = toWorld(mouse.x, mouse.y);
+  send({ t: 'release', key: spell, x: w.x, y: w.y });
+});
+window.addEventListener('blur', () => {
+  // the tab lost focus mid-hold: let go of everything, or the charge fizzles
+  for (const k of heldKeys) {
+    const spell = spellForKey(k);
+    if (spell) { const w = toWorld(mouse.x, mouse.y); send({ t: 'release', key: spell, x: w.x, y: w.y }); }
+  }
+  heldKeys.clear();
 });
 
 // ---- join / lobby / shop DOM ------------------------------------------------------
@@ -1438,14 +1463,12 @@ function updateUi(s) {
   if (inGame && m && !m.spectator) {
     const angLv = (m.elements && m.elements.anger) || 0;
     if (angLv > 0) {
-      // anger (24.9): the bank + the BAR. The bank is release-gated now, so
-      // the bar is the thing to play: full bar = the whole bonus on one ball.
+      // anger (24.12): the bank is HOLD-gated now; the over-head charge bar
+      // is the live meter, so the chip just states the bank and the move.
       const f = ELEMENTS.anger.fx;
       const marks = Math.max(0, +m.angerMarks || 0);
       const markUp = playerList.some(p => p.myStacks && p.myStacks.anger > 0);
-      const ch = Math.max(0, Math.min(1, +m.angerCharge || 0));
-      buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg` +
-        `<span class="angerbar${ch >= 1 ? ' full' : ''}"><i style="width:${Math.round(ch * 100)}%"></i></span>` +
+      buffs.push(`<span class="buff crit">${ELEMENTS.anger.icon} +${fmtNum(marks * f.markDmg)} dmg banked · hold to unleash` +
         (markUp ? ' · mark is OUT: hunt it' : '') + '</span>');
     }
     // midas (24.9): coins waiting on the ground, or the odds while none are

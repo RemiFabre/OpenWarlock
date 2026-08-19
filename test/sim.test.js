@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, buy,
+  createGame, addPlayer, removePlayer, setMoveTarget, castSpell, releaseSpell, buy,
   startGame, step, snapshot, viewEvents, stepBot, botShop, setShopReady,
   setSpectator, setMode, botElementFor, playerStats, setShopPause,
   setDraft, setTesting, draftPick, draftDue, MODES, pickPrey, killLead,
-  arenaStartRadius, setTeam, teamTally,
+  arenaStartRadius, setTeam, teamTally, chargeTier,
 } from '../shared/sim.js';
 import { catalogue, draftable, ownedLevel } from '../shared/catalogue.js';
 import {
   ARENA, PLAYER, SPELLS, ITEMS, ITEM_FX, ELEMENTS, GOLD, ROUND, BOTS, BUILDS,
-  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, itemCost,
-  LAVA,
+  BOT_MEMORY, BOT_TARGETING, DRAFT, TEAMS, TICK_RATE, STACK_DECAY, CHARGE,
+  itemCost, LAVA,
 } from '../shared/constants.js';
 import { CAMPAIGN, MAX_LEVEL, SCALE, waveUnits } from '../shared/campaign.js';
 import { createEngine } from '../shared/engine.js';
@@ -1156,6 +1156,9 @@ describe('elemental mode', () => {
     a.elements = typeof elements === 'string' ? { [elements]: 1 } : { ...elements };
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
+    // 24.12: an anger owner's press is a HOLD; a tap-release fires the plain
+    // tier-0 ball every non-anger caster gets from the press alone
+    if (a.charge) releaseSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4); // enough for the hit, not the cooldown
     return state;
   }
@@ -1777,6 +1780,7 @@ describe('elemental mode', () => {
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
+    releaseSpell(state, 'p0', 'fireball', 20, 0);      // a tap: tier 0
     run(state, 0.4);
     expect(a.angerMarks).toBe(1);
     expect(angerOn(b, 'p0')).toBe(0);                  // consumed
@@ -1787,32 +1791,105 @@ describe('elemental mode', () => {
     const h0 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(h0.bonus).toBeUndefined();
     expect(h0.amount).toBeCloseTo(base, 5);
-    // 24.9: the bank is RELEASE-GATED. A FULL bar (here: forced) pays the
-    // whole bank on one ball, split on the event as before.
+    // 24.12: the bank is HOLD-GATED. A FULL hold pays the whole bank on one
+    // ball, split on the event as before.
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     a.x = 0; a.y = 0; a.cooldowns = {};
-    a._angerFireT = -Infinity;               // a patient bar: charged full
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, CHARGE.fireball.max * 0.85);  // deep in the top tier
+    expect(a.charge && a.charge.tier).toBe(CHARGE.TIERS - 1);
+    releaseSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     const h1 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(h1.bonus).toBeCloseTo(f.markDmg, 5);
     expect(h1.amount - h1.bonus).toBeCloseTo(base, 5);
     expect(a.angerMarks).toBe(1);   // the unmarked hit banked nothing
-    // ...and a SPAMMED follow-up releases only the sliver refilled since:
-    // bonus = bank x (time since last cast) / (chargeCds x default fireball CD)
+    // ...and a SPAMMED follow-up (tap = tier 0) releases NOTHING: crumbs are
+    // gone entirely, the bank rides only what you dare to hold.
     b.hp = b.maxHp; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     a.x = 0; a.y = 0; a.cooldowns = {};
-    const tPrev = a._angerFireT;
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
-    const frac = Math.min(1, (a._angerFireT - tPrev) /
-      (f.chargeCds * SPELLS.fireball.cooldown[0]));
-    expect(frac).toBeGreaterThan(0);
-    expect(frac).toBeLessThan(0.5);          // 0.4 s into a 4.2 s bar
+    releaseSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     const h2 = state.events.find(e => e.t === 'hit' && e.id === 'p1');
-    expect(h2.bonus).toBeCloseTo(f.markDmg * frac, 5);
+    expect(h2.bonus).toBeUndefined();
+    expect(h2.amount).toBeCloseTo(base, 5);
+  });
+
+  it('anger 24.12: the held charge grows the ball, pays bankFrac, and overholding fizzles', () => {
+    const f = ELEMENTS.anger.fx, cm = CHARGE.fireball;
+    const state = elementalBattle(3);
+    const a = state.players.p0, b = state.players.p1;
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    a.elements = { anger: 1 };
+    a.angerMarks = 4;                          // an earned bank
+    a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    // the press starts a hold and spends the cooldown; no ball yet
+    state.events = [];
+    expect(castSpell(state, 'p0', 'fireball', 20, 0)).toBe(true);
+    expect(state.events.some(e => e.t === 'chargeStart')).toBe(true);
+    expect(state.projectiles.length).toBe(0);
+    expect(a.cooldowns.fireball).toBeGreaterThan(0);
+    // while holding, other casts are locked (mobility whitelist excepted)
+    a.spells.pillar = 1;
+    expect(castSpell(state, 'p0', 'pillar', 5, 5)).toBe(false);
+    // release mid-window: tier 2 by the spec's own math
+    run(state, cm.max * 0.5);
+    const tier = chargeTier(cm, a.charge.t);
+    expect(tier).toBe(2);
+    releaseSpell(state, 'p0', 'fireball', 20, 0);
+    const pr = state.projectiles.find(p => p.type === 'fireball');
+    expect(pr).toBeTruthy();
+    // the ball GREW by the tier's multiplier (no terra: base radius x mult)
+    expect(pr.radius).toBeCloseTo(SPELLS.fireball.radius * cm.radiusMult[tier], 5);
+    run(state, 0.6);
+    const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h.bonus).toBeCloseTo(4 * f.markDmg * cm.bankFrac[tier], 5);
+    // overholding: the cast is LOST, the cooldown stays spent
+    a.cooldowns = {}; state.events = [];
+    const nProj = state.projectiles.length;
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, cm.max + 0.2);
+    expect(state.events.some(e => e.t === 'chargeFizzle')).toBe(true);
+    expect(a.charge).toBe(null);
+    expect(state.projectiles.length).toBe(nProj);      // nothing fired
+    expect(releaseSpell(state, 'p0', 'fireball', 20, 0)).toBe(false);
+    // classic mode / no anger: the press fires immediately, no hold
+    const s2 = elementalBattle(3);
+    s2.players.p0.elements = {};
+    castSpell(s2, 'p0', 'fireball', 20, 0);
+    expect(s2.players.p0.charge).toBeFalsy();
+    expect(s2.projectiles.some(p => p.type === 'fireball')).toBe(true);
+  });
+
+  it('anger 24.12: bots commit to a hold at the press: Extreme+ perfect, below 50-100%', () => {
+    const cm = CHARGE.fireball;
+    for (const [kind, perfect] of [['stalker', true], ['faker', true], ['berserker', false], ['brawler', false]]) {
+      const state = createGame({ seed: 5, mode: 'elemental' });
+      addPlayer(state, 'b0', 'Bot', { bot: true, kind });
+      addPlayer(state, 'h1', 'Human');
+      startGame(state);
+      run(state, ROUND.COUNTDOWN + DT);
+      const bot = state.players.b0;
+      bot.elements = { anger: 1 };
+      bot.x = 0; bot.y = 0;
+      state.players.h1.x = 10; state.players.h1.y = 0;
+      castSpell(state, 'b0', 'fireball', 10, 0);
+      expect(bot.charge).toBeTruthy();
+      if (perfect) expect(bot.charge.botAt).toBeCloseTo(cm.max, 5);
+      else {
+        expect(bot.charge.botAt).toBeGreaterThanOrEqual(cm.max * 0.5);
+        expect(bot.charge.botAt).toBeLessThanOrEqual(cm.max);
+      }
+      // the auto-release actually fires the ball: no bot ever fizzles
+      run(state, cm.max + 0.2);
+      expect(bot.charge).toBe(null);
+      expect(state.events.some(e => e.t === 'chargeFizzle' && e.id === 'b0')).toBe(false);
+      expect(state.events.some(e => e.t === 'chargeFire' && e.id === 'b0')).toBe(true);
+    }
   });
 
   it('a hit on a NON-marked target grants nothing: no mark, no bonus, no event', () => {
@@ -1834,6 +1911,7 @@ describe('elemental mode', () => {
     a._angerTarget = 'p1';
     a.x = 0; a.y = 0; b.x = 8; b.y = 0;
     castSpell(state, 'p0', 'fireball', 20, 0);
+    releaseSpell(state, 'p0', 'fireball', 20, 0);   // 24.12: tap the hold out
     run(state, 0.4);
     expect(a.angerMarks).toBe(1);
     const claim = state.events.find(e => e.t === 'angerClaim');
@@ -1967,9 +2045,11 @@ describe('elemental mode', () => {
     state.pillars = [];
     a.elements = { anger: 1, midas: 1 };
     a.angerMarks = 4;                          // an earned bank, mid-game sized
-    a.x = 0; a.y = 0; b.x = 8; b.y = 0;
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
     state.events = [];
     castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, CHARGE.fireball.max * 0.85);    // 24.12: a full hold
+    releaseSpell(state, 'p0', 'fireball', 20, 0);
     run(state, 0.4);
     const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
     expect(h.bonus).toBeCloseTo(4 * ELEMENTS.anger.fx.markDmg, 5);
@@ -7674,6 +7754,7 @@ describe('decoy 👥 (the mirage)', () => {
     expect(state.clones.length).toBe(2);
     const m0 = a.mosqN || 0;
     expect(castSpell(state, 'p0', 'fireball', 40, 0)).toBe(true);
+    releaseSpell(state, 'p0', 'fireball', 40, 0);   // 24.12: anger owner holds
     // ONE keypress = ONE tick of every every-Nth counter, whatever the mirages
     // are doing on screen (two phantom balls flew)
     expect(a.mosqN - m0).toBe(1);

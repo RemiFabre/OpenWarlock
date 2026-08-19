@@ -4,7 +4,7 @@
 import {
   ARENA, PLAYER, LAVA, ROUND, GOLD, SPELLS, ITEMS, ITEM_FX, ELEMENTS, COLORS,
   BOTS, BUILDS, MULTIKILL_NAMES, BOT_MEMORY, BOT_TARGETING, BOT_CC_CAST,
-  DRAFT, TEAMS, STACK_DECAY, itemCost,
+  DRAFT, TEAMS, STACK_DECAY, CHARGE, itemCost,
 } from './constants.js';
 import { draftable, kindOf, ownedLevel } from './catalogue.js';
 import { itemBonuses, itemFxAt, itemFxDelta } from './items.js';
@@ -210,6 +210,7 @@ export function addPlayer(state, id, name, { bot = false, color, avatar, kind, b
     fireWalkT: 0,
     // ---- elemental mode only (all stay empty/0 for the whole game in classic)
     elements: {},          // owned element levels, e.g. {frost: 2, ember: 1}
+    charge: null,          // 24.12: {key, t, level, tier, dx, dy, botAt} while held
     slowT: 0,              // frost: seconds of slow remaining
     slowMultHit: 1,        // frost: strength of the slow that hit us
     // Per-attacker stack store: {kind: {attackerId: n}}. Stacks are PRIVATE to
@@ -534,6 +535,9 @@ export function castSpell(state, id, key, tx, ty) {
   // disappear: the burst fires from stealth but everyone saw the windup start
   // (the reverse order, vanish-then-charge, now reveals at the repulse press).
   if (pl.charging && key !== 'teleport' && key !== 'rush' && key !== 'vanish') return false;
+  // Round 24.12: a HELD fireball charge locks the same way the repulse
+  // wind-up does, with the same mobility whitelist (issue-6 semantics).
+  if (pl.charge && key !== 'teleport' && key !== 'rush' && key !== 'vanish') return false;
 
   let dx = tx - pl.x, dy = ty - pl.y;
   const d = Math.hypot(dx, dy) || 1;
@@ -543,6 +547,34 @@ export function castSpell(state, id, key, tx, ty) {
   if (key === 'fireball') haste += fireballHasteOf(state, pl);
   const cd = lvl(spec, 'cooldown', level) / (1 + haste / 100);
   pl.cooldowns[key] = cd;
+
+  // Round 24.12 (Remi): an ANGER owner's fireball is a held cast. The press
+  // spends the cooldown and starts the hold; releaseSpell fires it; holding
+  // past CHARGE.fireball.max fizzles it in stepBattle (the risk). Bots commit
+  // to a hold length here: Extreme+ a perfect full charge, everyone below
+  // 50-100% of the window, re-rolled per cast (seeded rng).
+  if (key === 'fireball' && !pl.charge && angerChargeable(state, pl)) {
+    pl.charge = { key, t: 0, level, tier: 0, dx, dy };
+    if (pl.bot) {
+      const diff = (BOTS[pl.kind] && BOTS[pl.kind].difficulty) || 0;
+      pl.charge.botAt = diff >= BOTS.stalker.difficulty
+        ? CHARGE.fireball.max
+        : CHARGE.fireball.max * (0.5 + 0.5 * rng(state));
+      // Remember who the aim was FOR (the enemy nearest the aim point), so
+      // the auto-release can TRACK them: a human holds while re-aiming with
+      // the cursor, and without this every bot ball flew down a stale line
+      // and the whole anger family read rank-bottom (the 24.12 first run).
+      let best = null, bd = Infinity;
+      for (const e of Object.values(state.players)) {
+        if (!e.alive || e.id === pl.id || allied(state, pl, e)) continue;
+        const dd = Math.hypot(e.x - tx, e.y - ty);
+        if (dd < bd) { bd = dd; best = e; }
+      }
+      if (best && bd < 12) pl.charge.targetId = best.id;
+    }
+    state.events.push({ t: 'chargeStart', id, spell: key, x: pl.x, y: pl.y });
+    return true;
+  }
 
   // Round 18.1 (Remi): a cast REVEALS an invisible caster; re-casting vanish
   // refreshes instead (its case below). The auto repulse burst in stepBattle
@@ -562,39 +594,11 @@ export function castSpell(state, id, key, tx, ty) {
 
   switch (key) {
     case 'fireball': {
-      // Vampire (elemental, round 24): no cast counter anymore; the mark rides
-      // the generic on-hit dispatch (applyElementsHit) like frost/midas, and
-      // the payout lives in stepBattle's feast engine.
-      //
-      // Mosquito (elemental): on the doubleEvery'th cast this ball is the PAIR's
-      // LEAD: kbScale 0 (zero knockback from every source: base, kbAdd riders
-      // and gale's gust alike; damage and every on-hit rider are untouched),
-      // and the trailing ball is queued a beat behind on the same aim.
-      const pair = mosquitoPair(state, pl, false);
-      // Anger 24.9 (Remi): the bank is release-gated. The bar fills over
-      // chargeCds x the DEFAULT lv1 fireball cooldown (haste never speeds
-      // it: spam = crumbs, patience = the full hit, BY DESIGN), every cast
-      // drains it, and the released fraction rides THIS cast's own ball only
-      // (an echo trail or a decoy phantom never carries a second release).
-      let angerCharge = null;
-      if (state.mode === 'elemental' && pl.elements && pl.elements.anger > 0) {
-        const full = ELEMENTS.anger.fx.chargeCds * SPELLS.fireball.cooldown[0];
-        angerCharge = Math.min(1, (state.time - (pl._angerFireT ?? -Infinity)) / full);
-        pl._angerFireT = state.time;
-      }
-      spawnFireball(state, pl, level, dx, dy, {
-        ...(pair ? { kbScale: 0 } : {}),
-        ...(angerCharge != null ? { angerCharge } : {}),
-      });
-      if (pair) {
-        // ⚠ RULING (round 21.0, Remi: "part of the game physics"): only the AIM
-        // is pinned. The trail leaves from the owner's CURRENT position a beat
-        // later, so a knock/portal/blink inside trailDelay really does move
-        // where the twin comes from. Round 20.4 pinned the muzzle; reverted;
-        // do not re-"fix" this.
-        state.delayedShots.push(
-          { t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy });
-      }
+      // A plain (unheld) fireball: only NON-anger owners reach this branch,
+      // since anger owners route through the charge-start above and fire via
+      // releaseSpell -> fireFireball. Vampire has no cast counter (round 24);
+      // its mark rides the generic on-hit dispatch.
+      fireFireball(state, pl, level, dx, dy, null);
       break;
     }
     case 'boomerang': {
@@ -772,6 +776,71 @@ export function castSpell(state, id, key, tx, ty) {
   return true;
 }
 
+// ---- The held anger charge (round 24.12; machinery from issue #6) ----------
+
+// Anger owners hold-to-charge their fireball (elemental only). One predicate,
+// so castSpell, stepBattle and the tests agree on who charges.
+function angerChargeable(state, pl) {
+  return state.mode === 'elemental' && pl.elements && (pl.elements.anger || 0) > 0;
+}
+
+// Which of the five equal-time steps `t` seconds of holding has reached.
+export function chargeTier(spec, t) {
+  return clamp(Math.floor((t / spec.max) * CHARGE.TIERS), 0, CHARGE.TIERS - 1);
+}
+
+// The ONE place a player-initiated fireball leaves the hand: the plain cast
+// (tier null) and the released charge both come through here, so the echo
+// pair counter advances and pays identically on both.
+// Mosquito: on the doubleEvery'th ball this is the PAIR's LEAD: kbScale 0
+// (zero knockback from every source; damage and on-hit riders untouched),
+// and the trailing ball is queued a beat behind on the same aim.
+function fireFireball(state, pl, level, dx, dy, tier) {
+  const pair = mosquitoPair(state, pl, false);
+  spawnFireball(state, pl, level, dx, dy, {
+    ...(pair ? { kbScale: 0 } : {}),
+    // the released tier sets the ball's SIZE (spawnFireball) and the bank
+    // fraction it carries; an echo trail or decoy phantom never carries one
+    ...(tier != null
+      ? { chargeTier: tier, angerCharge: CHARGE.fireball.bankFrac[tier] } : {}),
+  });
+  if (pair) {
+    // ⚠ RULING (round 21.0, Remi: "part of the game physics"): only the AIM
+    // is pinned. The trail leaves from the owner's CURRENT position a beat
+    // later, so a knock/portal/blink inside trailDelay really does move
+    // where the twin comes from. Round 20.4 pinned the muzzle; reverted;
+    // do not re-"fix" this.
+    state.delayedShots.push(
+      { t: ELEMENTS.mosquito.fx.trailDelay, owner: pl.id, level, dx, dy });
+  }
+}
+
+// The key came back up: fire whatever the hold earned. A hold that ran past
+// the window was already thrown away by stepBattle (chargeFizzle), so there
+// is nothing left to release and this is a no-op. Clones mime the RELEASE
+// (the press spawned nothing to copy), so a decoy still apes your fireballs.
+export function releaseSpell(state, id, key, tx, ty) {
+  const pl = state.players[id];
+  if (!pl || !pl.charge || pl.charge.key !== key) return false;
+  const { t, level } = pl.charge;
+  pl.charge = null;
+  if (!pl.alive || state.phase !== 'battle' || pl.stunT > 0 || pl.statueT > 0) return false;
+  const tier = chargeTier(CHARGE.fireball, t);
+  let dx = tx - pl.x, dy = ty - pl.y;
+  const d = Math.hypot(dx, dy) || 1;
+  dx /= d; dy /= d;
+  if (pl.vanishT > 0) pl.vanishT = 0;   // releasing IS the cast: it reveals you
+  const miming = state.clones && state.clones.length
+    ? state.clones.filter(c => c.owner === id) : null;
+  const projFrom = state.projectiles.length;
+  state.events.push({ t: 'chargeFire', id, spell: key, tier, x: pl.x, y: pl.y });
+  fireFireball(state, pl, level, dx, dy, tier);
+  if (miming && miming.length)
+    mimicCast(state, pl, miming, key, dx, dy, state.projectiles.slice(projFrom));
+  state.events.push({ t: 'cast', id, spell: key, x: pl.x, y: pl.y, dx, dy, charged: tier });
+  return true;
+}
+
 // ---- Decoy: the mirage (SPELLS.decoy, round 21.6) -------------------------
 // A clone is COSMETIC ONLY. It has no body, no collision, no team interaction
 // and no counters: enemy and friendly projectiles, repulse, zones, terra smash,
@@ -900,8 +969,11 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
       (elements = elements || {})[k] = v;
     }
   }
+  // 24.12: a charged (anger) ball GROWS with the released tier, on top of
+  // terra's multiplier; the bar you held IS the ball you threw.
   const radius = spec.radius * (elements && elements.terra
-    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1);
+    ? efxV(ELEMENTS.terra.fx.projRadiusMult, elements.terra) : 1)
+    * (opts.chargeTier != null ? CHARGE.fireball.radiusMult[opts.chargeTier] : 1);
   // ghost lv1/2 (round 16): the fireball's SPEED axis; it just flies faster
   const speed = spec.speed * (elements && elements.ghost
     ? efxV(ELEMENTS.ghost.fx.projSpeedMult, elements.ghost) : 1);
@@ -1597,10 +1669,9 @@ function startRound(state) {
     // dies with the round (stacks wiped above); the hunt re-arms below.
     pl._angerTarget = null;
     pl._angerNext = ELEMENTS.anger.fx.markDelay;
-    // anger 24.9: the round's FIRST mark is revenge (your last killer); the
-    // bar starts FULL, so the opening ball can carry the whole bank
+    // anger 24.9: the round's FIRST mark is revenge (your last killer)
     pl._angerRevenge = true;
-    pl._angerFireT = -Infinity;
+    pl.charge = null;   // 24.12: nobody carries a held key across a round
     pl._mkStreak = 0; pl._mkAt = -Infinity;
     pl.lastHitBy = null;
     pl.roundKills = 0;
@@ -2360,6 +2431,43 @@ function stepBattle(state, dt) {
       }
       pl.poisonT = Math.max(0, pl.poisonT - dt);
       if (pl.poisonT === 0) { pl.poisonTick = 0; pl.poisonBy = null; pl.malady = null; } // CURED
+    }
+
+    // 24.12: the HELD anger charge (issue-6 machinery). Unlike the repulse
+    // wind-up below it is driven by the player's key and CAN be thrown away:
+    // hold past the window and the cast is simply lost (the cooldown was
+    // spent at the press). Stun, Statue and death drop it too: you cannot
+    // hold a spell you cannot cast.
+    if (pl.charge) {
+      if (!pl.alive || pl.stunT > 0 || pl.statueT > 0 || !angerChargeable(state, pl)) {
+        pl.charge = null;
+      } else {
+        pl.charge.t += dt;
+        pl.charge.tier = chargeTier(CHARGE.fireball, pl.charge.t);
+        // bots cannot hold a key: they committed to a hold length at the
+        // press (botAt); the release check runs BEFORE the fizzle check, so
+        // a perfect botAt = max never fizzles.
+        if (pl.charge.botAt != null && pl.charge.t >= pl.charge.botAt) {
+          const { dx, dy, targetId } = pl.charge;
+          let ax = pl.x + dx * 20, ay = pl.y + dy * 20;
+          const tgt = targetId ? state.players[targetId] : null;
+          // re-aim at release with a first-order lead (a committed shot may
+          // still track, like a human's cursor); a VANISHED target falls
+          // back to the stale press line: bots never see through vanish.
+          if (tgt && tgt.alive && !(tgt.vanishT > 0)) {
+            const speed = SPELLS.fireball.speed * (pl.elements && pl.elements.ghost
+              ? efxV(ELEMENTS.ghost.fx.projSpeedMult, pl.elements.ghost) : 1);
+            const eta = Math.hypot(tgt.x - pl.x, tgt.y - pl.y) / speed;
+            ax = tgt.x + (tgt.vx || 0) * eta;
+            ay = tgt.y + (tgt.vy || 0) * eta;
+          }
+          releaseSpell(state, pl.id, pl.charge.key, ax, ay);
+        } else if (pl.charge.t > CHARGE.fireball.max) {
+          state.events.push({ t: 'chargeFizzle', id: pl.id, spell: pl.charge.key,
+            x: pl.x, y: pl.y });
+          pl.charge = null;
+        }
+      }
     }
 
     // repulse charge: 2 s of visible wind-up, then a radial burst.
@@ -3295,12 +3403,15 @@ export function snapshot(state, viewerId = null) {
           maladyR: round2(efxV(ELEMENTS.malady.fx.auraR, p.malady.inst.level)),
         } : {}),
         angerMarks: p.angerMarks || 0, // HUD + scoreboard: claimed marks = the permanent bonus
-        // anger 24.9: YOUR OWN bar's charge fraction (0..1), for the HUD bar.
-        // Never on anyone else's entry: reading an enemy's charge would be a
-        // free "his next ball is loaded" wallhack.
-        ...(p.id === viewerId && p.elements && p.elements.anger > 0 ? {
-          angerCharge: round2(Math.min(1, (state.time - (p._angerFireT ?? -Infinity)) /
-            (ELEMENTS.anger.fx.chargeCds * SPELLS.fireball.cooldown[0]))),
+        // 24.12: the HELD charge is PUBLIC (issue-6 semantics): the enemy
+        // reads your timing as well as you do, which is the whole risk. The
+        // vanish strip removes the position anyway, so a vanished holder's
+        // bar is never drawn. Absent when nobody is holding.
+        ...(p.charge ? {
+          charge: {
+            key: p.charge.key, tier: p.charge.tier,
+            frac: round2(Math.min(1, p.charge.t / CHARGE.fireball.max)),
+          },
         } : {}),
         // PRIVATE: only the stacks the VIEWER put on this body. This is the one
         // thing you need to see to play a stacking element (is my frost

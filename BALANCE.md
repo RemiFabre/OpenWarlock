@@ -490,6 +490,30 @@ single-single-pair and the 5/4/3rd button text is true from the caster's
 seat. **vampire** `lowHpMax 3 -> 2.5`: endgame proximity is forced, so the
 near-death multiplier was the overperforming part.
 
+## Round 24.12: echo un-nerfed with honest text, anger = the held charge (2026-08-19)
+
+**Echo back to `doubleEvery [5,4,3]`** (24.11's [6,5,4] had silently undone
+24.8's measured strength patch: M4-echo 1417 -> 1516 on Hard; echo was never
+strong). The button now states the FELT cadence ("every 4/3/2nd fireball"),
+which is truthful because the trailing ball advances the counter.
+
+**Anger's 24.9 release bar is DELETED; the bank is HOLD-GATED** (Remi's
+design, issue-6 charge machinery): an anger owner's fireball key holds;
+five equal-time tiers over 1.5 s, gains back-loaded (`CHARGE` in
+constants.js: radiusMult up to 1.4, bankFrac [0,.15,.35,.6,1]); release
+fires bank x bankFrac and the ball GROWS; holding past the window fizzles
+the cast with the cooldown already spent. A tap = tier 0 = zero bank: spam
+now pays NOTHING (24.9's bar paid ~50% to spam). Marks, cadence
+[36,27,20], revenge targeting, +0.5/claim all unchanged. Bots commit to a
+hold at the press: Extreme+ perfect full charge, below that 50-100% rolled
+per cast (Remi's spec), and at release the bot RE-AIMS its committed
+target with a first-order lead (never through Vanish): without that, the
+first 24.12 run put the whole anger family at rank-bottom (a 1.5 s stale
+aim line is a pilot no human resembles). Both runs, deltas and the
+what-bots-cannot-price flags: `docs/history/2026-08-19-round2412-elo.md`
+(short: anger rows UP on Hard vs 24.10, M1 1529 -> 1614, D2 1117 -> 1440;
+D1 anchor stable; the 24.11 midas/vampire trims read mild).
+
 ## Open questions
 
 *These need Remi, not more games. Ordered by how much rides on them.*

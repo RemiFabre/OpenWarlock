@@ -1,10 +1,11 @@
 # AGENTS.md (handoff for the next session)
 
-*Last updated 2026-08-19, round 24.11: Remi's live-play trim (midas coin
-chance + 10 s coin melt, echo cadence back to [6,5,4], vampire lowHpMax 2.5).
-Rounds 23.1-24.10 (playout rewind, vampire feast, midas coins, anger bar,
-roster rework, report page) are in REMI_NOTES' archive pointer. Read this
-first, then REMI_NOTES.md (latest round only). That is the whole entry set.*
+*Last updated 2026-08-19, round 24.12: echo back to its strong [5,4,3] with
+honest button text, and the ANGER HELD CHARGE (the 24.9 release bar is
+deleted; hold-to-charge from issue-6, bots charge too). 24.11 (midas coin
+trim + melt, vampire lowHpMax 2.5) holds. Older rounds: REMI_NOTES' archive
+pointers. Read this first, then REMI_NOTES.md (latest round only). That is
+the whole entry set.*
 
 ## ⚠ CONTEXT POLICY (Remi, 2026-08-08; non-negotiable)
 
@@ -54,8 +55,8 @@ Agent context usage on this project is **CRITICAL**. The rules:
   shared/version.js (rN, corner display, welcome-handshake mismatch warning)
   and must NEVER be bypassed; Pages lags pushes by up to ~10 min (CDN).
 - ⚠ STRATEGIES.md's 25-row table predates rounds 17.2-22. Current balance:
-  `docs/history/2026-08-14-round247-elo.md` (53 rows, 2500 g seed 1, the
-  24.7 roster; interactive page `...elo-2500g-seed1.html` beside it).
+  `docs/history/2026-08-19-round2412-elo.md` (54 rows, 2565 g seed 1, the
+  24.12 build; page `...2026-08-19-elo-2565g-seed1-2.html` beside it).
   Pre-rework baselines: `...round23-elo-faker-anger.md` (r368, 42 rows),
   `...round22.5-elo.md` (r353, 8000x2).
 - **Remi may be hosting when you start**: check `pgrep -fl "server/index.js"`
@@ -240,15 +241,20 @@ build step, Node ESM, only dep is `ws`.
   `STACK_DECAY.seconds` (9), reapply resets; midas/anger never fade. A
   REFLECTED ball's riders stay keyed to the element's owner (`pr.elemOwner`),
   never the reflector (the game-night shared-ice bug),
-  anger=REVENGE MARK + RELEASE BAR (24.9): first mark of the round lands
-  IMMEDIATELY on your last killer (random if you didn't die), later marks
-  random every **[36,27,20] s**; claim = +0.5 banked forever, but the bank is
-  RELEASE-GATED: a bar fills over 2× the default fireball CD (4.2 s), every
-  cast drains it, the ball adds bank × charge. Spam = crumbs, BY DESIGN,
-  mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [6,5,4]th
+  anger=REVENGE MARK + HELD CHARGE (24.12; the 24.9 bar is deleted): first
+  mark of the round lands IMMEDIATELY on your last killer (random if you
+  didn't die), later marks random every **[36,27,20] s**; claim = +0.5 banked
+  forever, and the bank is HOLD-GATED: an anger owner's fireball key HOLDS
+  (`CHARGE` in constants, issue-6 machinery: 5 equal-time tiers over 1.5 s,
+  back-loaded), release fires bank × bankFrac[tier] and grows the ball up to
+  +40%, holding past the window FIZZLES the cast (cooldown already spent).
+  A tap = tier 0 = zero bank, BY DESIGN. Bots commit at the press: Extreme+
+  hold a perfect full charge, everyone below rolls 50-100% per cast,
+  mosquito (DISPLAYS as **Echo 🫧** since 21.1, key unchanged)=every [5,4,3]th
   ball fires a PAIR (no-push lead + normal trailing ball, round 20.1; the
-  trailing ball advances the counter, so lv3 steady state = single-single-pair;
-  24.11 reverted 24.8's [5,4,3], which felt like every-other-cast),
+  trailing ball advances the counter, so the FELT cadence is every 4/3/2nd
+  cast, which is what the button says since 24.12; 24.11's [6,5,4] undid
+  24.8's strength patch and was itself reverted),
   vampire=mark-and-feast (round 24: every hit banks a never-fading mark on the
   victim; stepping inside feastR 7 vacuums the pile back at one mark per 0.1 s,
   each healing [2,3,4] × 1→2.5 linear on the vampire's OWN missing hp (24.11);
@@ -370,7 +376,7 @@ build step, Node ESM, only dep is `ws`.
 ## Verification ritual (run before claiming anything works)
 
 ```bash
-npx vitest run                                   # 530 green (incl. the guards)
+npx vitest run                                   # 532 green (incl. the guards)
 node test/harness/run.js test/harness/scenarios/bots.js
 node test/harness/run.js test/harness/scenarios/coop.js
 PLAY_MS=30000 node test/client-robustness.js     # chromium + webkit

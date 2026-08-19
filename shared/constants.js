@@ -461,6 +461,27 @@ export const SPELLS = {
   },
 };
 
+// ---- The held charge (round 24.12; machinery from issue #6 Hold the Line) --
+// Anger's release mechanic: an anger owner's fireball key HOLDS instead of
+// firing; release throws the ball, holding past `max` fizzles (the cooldown
+// was spent at the press, which is the whole risk). Five equal-time tiers,
+// gains BACK-LOADED per Remi ("the later stages are faster and harder to
+// hit"): the top tier is only the last 0.3 s before the fizzle.
+// - radiusMult: the ball GROWS, up to +40% at full charge (Remi's number).
+// - bankFrac: the share of the anger bank (angerMarks x markDmg) the ball
+//   carries. A tap is tier 0 = zero bank: spam pays nothing, BY DESIGN.
+// Bots commit to a hold length at the press (they cannot time a release):
+// Extreme and above hold to a perfect full charge, everyone below rolls
+// 50-100% of the window per cast (Remi's spec, in castSpell).
+export const CHARGE = {
+  TIERS: 5,
+  fireball: {
+    max: 1.5,
+    radiusMult: [1, 1.08, 1.16, 1.26, 1.4],
+    bankFrac: [0, 0.15, 0.35, 0.6, 1],
+  },
+};
+
 // ---- Items (passive, 3 LEVELS each) ------------------------------------
 // mode: 'elemental' = exists only under the elemental ruleset. Hard cap 3
 // levels, SAME gold cost per level; the diminishing effect is the brake.
@@ -699,19 +720,21 @@ export const ELEMENTS = {
   // that the mark hunts their last killer.
   anger: { name: 'Anger', icon: '🔴', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Infinite scaling.',
-           long: 'A red mark appears on an opponent; a fireball hit on them banks +0.5 damage forever. Your anger bar fills over 4.2 s: every fireball you throw releases it, adding the banked damage scaled by the charge.',
+           long: 'A red mark appears on an opponent; a fireball hit on them banks +0.5 damage forever. Owning Anger lets you HOLD the fireball key: the ball grows and carries the bank, but overcharging wastes the cast.',
            // Round 24.2 (Remi): mark cadences are computed in FREQUENCY space
            // (the 1/x ruling in AGENTS.md): +35% mark rate per level, so
            // CD_next = CD / 1.35, rounded. ANCHORED at lv3 = 20 s, the 22.5
            // value ("we don't want to buff anger"): 20 x 1.35^2 = 36.45.
-           // Round 24.9 (Remi): the bank is RELEASE-GATED. The bar fills over
-           // chargeCds x the DEFAULT (unhasted lv1) fireball cooldown; each
-           // cast releases it and the ball adds bank x charge fraction. Spam
-           // = crumbs, patience = the full hit; anti-synergy with haste/echo
-           // BY DESIGN. markDelay 0 + revenge targeting (the round's first
-           // mark = your last killer): docs/history/2026-08-14-round249-mark-reworks.md.
+           // Round 24.12 (Remi): the 24.9 time-bar is DELETED; the bank is
+           // HOLD-GATED instead (the issue-6 charge, see CHARGE): release
+           // tier sets the bank fraction AND the ball size, holding past the
+           // window fizzles the cast. Skill IS the release timing now. Revert:
+           // restore `chargeCds: 2` here and the bar branch in castSpell
+           // (git this file). markDelay 0 + revenge targeting (the round's
+           // first mark = your last killer):
+           // docs/history/2026-08-14-round249-mark-reworks.md.
            fx: { markEvery: [36, 27, 20], markDmg: 0.5, markDelay: 0,
-                 chargeCds: 2, rampPermanent: true } },
+                 rampPermanent: true } },
   // Round 20.1 REWORK (Remi, final): NO tax and NO trap; every ordinary ball is
   // a plain fireball, and every doubleEvery'th CAST fires as a PAIR: the lead
   // ball (your own cast) carries ZERO knockback, the trailing one leaves
@@ -730,15 +753,16 @@ export const ELEMENTS = {
   // never rename it.
   // Round 21.7 (Remi wanted "the ripple a drop makes on water"): icon 👯 → 🫧.
   // Alternates, one line each: 💧 🌊 (🌀 is Blink's, ◎ is not an emoji).
-  // Round 24.11 (Remi, live play): [5,4,3] felt like every OTHER cast doubling
-  // at lv3, because the trailing ball advances the counter too ("all every-N
-  // counters count"). [6,5,4] makes the steady state single-single-pair at lv3
-  // and the button text (5/4/3rd) true from the caster's seat. Revert: [5,4,3]
-  // (24.8's step-up; its elo case: docs/history/2026-08-14-round247-elo-faker.md).
+  // Round 24.12 (Remi): 24.11's [6,5,4] revert took back 24.8's deliberate
+  // strength patch (M4-echo 1417 -> 1516 on Hard, still weak on Faker), so
+  // [5,4,3] is BACK and the text now states the FELT cadence instead: the
+  // trailing ball advances the counter ("all every-N counters count"), so
+  // every-N is felt as every N-1 casts once rolling (lv3: every other cast).
+  // Elo case for the strength: docs/history/2026-08-14-round247-elo-faker.md.
   mosquito: { name: 'Echo', icon: '🫧', maxLevel: 3, costs: [10, 8, 8],
            desc: 'Doubled casts.',
-           long: 'Every 5/4/3rd fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
-           fx: { doubleEvery: [6, 5, 4], trailDelay: 0.15 } },
+           long: 'Every 4/3/2nd fireball you throw is doubled: the lead ball hits without pushback so its twin can land too.',
+           fx: { doubleEvery: [5, 4, 3], trailDelay: 0.15 } },
   // Round 16: arcane is the fireball's CADENCE axis, FIREBALL cooldown only
   // (global haste is the Hourglass item). Round 17: percentages → additive
   // Ability Haste (sums with the hourglass; converted from [0.85, 0.72]).

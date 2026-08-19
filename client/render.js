@@ -1,6 +1,6 @@
 // Canvas rendering: lava sea, obsidian platform, warlocks, projectiles, FX.
 
-import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, teamTint, AVATAR_GOLD } from '../shared/constants.js';
+import { ARENA, PLAYER, ROUND, SPELLS, ELEMENTS, CHARGE, teamTint, AVATAR_GOLD } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
@@ -981,6 +981,37 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.stroke();
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, r * 1.9, 0, Math.PI * 2); ctx.stroke();
+    }
+    // 24.12, the held anger charge: PUBLIC five-segment bar above the name
+    // (never under the HP bar, the round-21 scar), gold at full, flashing red
+    // in the final moments before the hold fizzles.
+    if (pl.charge && fin(+pl.charge.frac)) {
+      const cw = 52, chh = 7, tiers = CHARGE.TIERS;
+      const cy2 = y - r - 40;
+      const frac = Math.max(0, Math.min(1, +pl.charge.frac));
+      const tier = Math.max(0, Math.min(tiers - 1, pl.charge.tier | 0));
+      const full = tier >= tiers - 1;
+      const doomed = frac > 0.93;      // let go NOW
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(x - cw / 2, cy2, cw, chh);
+      const seg = cw / tiers;
+      for (let i = 0; i <= tier; i++) {
+        ctx.fillStyle = doomed && (now / 83 | 0) % 2 === 0 ? '#ff4d3d'
+          : full ? '#ffcc55' : '#ff9a5a';
+        ctx.fillRect(x - cw / 2 + i * seg + 1, cy2 + 1, seg - 2, chh - 2);
+      }
+      ctx.strokeStyle = full ? 'rgba(255, 210, 120, 0.95)' : 'rgba(220, 235, 255, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - cw / 2, cy2, cw, chh);
+      // your own hold also previews the growing ball you are about to throw
+      if (pl.id === myId && pl.charge.key === 'fireball') {
+        const pr = SPELLS.fireball.radius * CHARGE.fireball.radiusMult[tier] * scale * 2.2;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, pr);
+        g.addColorStop(0, full ? 'rgba(255, 230, 170, 0.75)' : 'rgba(255, 190, 110, 0.5)');
+        g.addColorStop(1, 'rgba(255, 120, 30, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, pr, 0, Math.PI * 2); ctx.fill();
+      }
     }
     if (fin(pl.shieldT) && pl.shieldT > 0) {
       ctx.strokeStyle = 'rgba(140, 210, 255, 0.9)';
