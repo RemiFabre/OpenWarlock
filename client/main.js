@@ -21,6 +21,22 @@ import { createGapTracker } from '../shared/snapwire.js';
 import * as analytics from './analytics.js';
 const { sendEvent, trackSnapshot, modeName, fetchStats } = analytics;
 
+// DOM/format helpers: main's round-23 split moved these into ui.js; this
+// version keeps the monolith, so they live here.
+const $ = (id) => document.getElementById(id);
+const fin = Number.isFinite;
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function setVisible(id, on) { $(id).classList.toggle('hidden', !on); }
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; }, 1800);
+}
+
 const canvas = $('game');
 const view = makeView(canvas);
 view.resize();

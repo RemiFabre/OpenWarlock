@@ -53,6 +53,7 @@ describe('portability: no machine or OS specifics in the scripts', () => {
     'test/version-platform.js:4523',  // serves the version menu alone
     'test/rtc-host.js:4530',          // its own static server
     'test/rtc-host.js:4531',          // its signalling relay child
+    'test/avatars-e2e.js:4521',       // its own static server (Sam, issue #14)
   ]);
 
   it('points every localhost URL at the server default or a documented private port', () => {

@@ -3543,38 +3543,19 @@ describe('power spells & pillar', () => {
     expect(Math.abs(b.vx) + Math.abs(b.vy)).toBeGreaterThan(20); // blasted
   });
 
-  it('meteor: the LV2 impact breaks the ground into a walkable lava crater (lv1 does not, 24.3)', () => {
-    const state = freshBattle(3);            // classic on purpose: craters are not elemental
-    const a = state.players.p0, b = state.players.p1;
-    a.spells.meteor = 1;
+  it('meteor: in this version the impact digs a HOLE, never a walkable crater (issue #11 supersedes 24.1)', () => {
+    const state = freshBattle(3);
+    const a = state.players.p0;
+    a.spells.meteor = 2;                     // even at lv2, no crater here
     state.pillars = [];
-    a.x = 0; a.y = 0; b.x = 30; b.y = 0; b.vx = 0; b.moveTarget = null;
+    a.x = 0; a.y = 0;
+    state.players.p1.x = 30; state.players.p1.y = 0;
     state.players.p2.y = -40;
-    // lv1: heavy rock, intact floor (the ground-break is the lv2 special)
     castSpell(state, 'p0', 'meteor', 20, 0);
     run(state, SPELLS.meteor.delay + 0.1);
-    expect(state.craters.length).toBe(0);
-    a.spells.meteor = 2;
-    a.cooldowns = {};
-    castSpell(state, 'p0', 'meteor', 20, 0);
-    run(state, SPELLS.meteor.delay + 0.1);
-    expect(state.craters.length).toBe(1);
-    const c = state.craters[0];
-    expect(c.x).toBeCloseTo(20, 1);
-    expect(c.r).toBeCloseTo(SPELLS.meteor.craterR[1], 5);
-    // the impact event tells the client to play the ground-break
-    expect(state.events.some(e => e.t === 'meteorHit' && e.crater > 0)).toBe(true);
-    // standing in the crater IS standing in lava: burn + double swim speed
-    b.x = 20; b.y = 0; b.vx = 0; b.vy = 0; b.hp = b.maxHp;
-    step(state, DT);
-    expect(b.inLava).toBe(true);
-    const hp0 = b.hp;
-    run(state, 1);
-    expect(hp0 - b.hp).toBeGreaterThan(LAVA.DPS * 0.8);   // ~a second of lava
-    // ...and it is on the wire for every viewer, classic included
-    const wire = snapshot(state, 'p0');
-    expect(wire.craters.length).toBe(1);
-    expect(JSON.stringify(wire)).toBe(JSON.stringify(snapshot(state)));
+    expect((state.craters || []).length).toBe(0);
+    expect(state.holes.length).toBe(1);
+    expect(state.holes[0]).toMatchObject({ x: 20, y: 0, r: SPELLS.meteor.radius });
   });
 
   it('meteor 24.1: Fire Walk ignores a crater, and craters persist across rounds', () => {
