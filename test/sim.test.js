@@ -718,8 +718,11 @@ describe('spells', () => {
     state.players.p2.y = 40;
     castSpell(state, 'p0', 'rush', 20, 0);
     run(state, 0.6);
-    expect(b.hp).toBeGreaterThanOrEqual(b.maxHp - SPELLS.rush.damage[0]);
-    expect(b.hp).toBeLessThan(b.maxHp - SPELLS.rush.damage[0] + 1);
+    // v12 (Ju): damage scales with distance flown before impact (x1 at 0,
+    // x rangeDmgMax at full range), so bound it instead of pinning one value
+    const dealt = b.maxHp - b.hp;
+    expect(dealt).toBeGreaterThanOrEqual(SPELLS.rush.damage[0]);
+    expect(dealt).toBeLessThanOrEqual(SPELLS.rush.damage[0] * SPELLS.rush.rangeDmgMax);
     expect(a.dash).toBe(null);
   });
 });
@@ -7596,8 +7599,9 @@ describe('decoy 👥 (the mirage)', () => {
       expect(state.clones.length).toBe(spec.clones[level - 1]);
       for (const c of state.clones) {
         expect(c.owner).toBe('p0');
-        expect(c.x).toBeCloseTo(a.x, 5);
-        expect(c.y).toBeCloseTo(a.y, 5);
+        // v12 (Ju): mirages FAN OUT around the caster (countable bodies),
+        // still within a couple of body widths of the cast point
+        expect(Math.hypot(c.x - a.x, c.y - a.y)).toBeLessThan(a.radius * 4);
         expect(c.hp).toBe(73);
         expect(c.maxHp).toBe(a.maxHp);
       }
@@ -9411,5 +9415,205 @@ describe('optimisations v11 (lava legs, broad pillar, forced savings)', () => {
     for (const k of Object.keys(OPTIMS.POOL)) if (k !== 'savings') a.optims[k] = true;
     shopAfterRound(state, last);
     expect(a.optimOffer).toBe(null);
+  });
+});
+
+// ---- Ju v12 (issue #13): mutations interact, two new picks, the Rush rework -
+describe('Ju v12 (issue #13)', () => {
+  const DT = 1 / 30;
+  function run(state, seconds) { for (let t = 0; t < seconds; t += DT) step(state, DT); }
+  function battle3() {
+    const state = createGame({ seed: 42, mode: 'elemental' });
+    for (let i = 0; i < 3; i++) addPlayer(state, `p${i}`, `Player${i}`);
+    startGame(state);
+    run(state, ROUND.COUNTDOWN + DT);
+    expect(state.phase).toBe('battle');
+    state.players.p2.x = 0; state.players.p2.y = -45;
+    state.pillars = [];
+    return state;
+  }
+
+  it('ricochet x anger: the bouncing ball claims the mark, and a full bar releases the bank', () => {
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    a.elements = { ricochet: 1, anger: 1 };
+    b.stacks = { anger: { p0: { n: 1, t: 9 } } };
+    a._angerTarget = 'p1';
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.moveTarget = null;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);   // the key casts the ricochet
+    run(state, 0.4);
+    expect(state.projectiles.concat().length + state.events.length).toBeGreaterThan(0);
+    expect(a.angerMarks).toBe(1);                 // the bounce family claims
+    const claim = state.events.find(e => e.t === 'angerClaim');
+    expect(claim && claim.id).toBe('p1');
+    // a FULL bar on the next cast releases the whole bank on the ricochet
+    a.angerMarks = 4;
+    a._angerFireT = -Infinity;                    // bar forced full
+    a.cooldowns = {};
+    b.hp = b.maxHp; b.x = 8; b.y = 0;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h && h.bonus).toBeCloseTo(4 * ELEMENTS.anger.fx.markDmg, 5);
+  });
+
+  it('ricochet x midas: a ricochet hit shakes out coins too', () => {
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    a.elements = { ricochet: 1, midas: 3 };
+    let dropped = null;
+    for (let i = 0; i < 30 && !dropped; i++) {
+      a.x = 0; a.y = 0; a.cooldowns = {};
+      b.x = 8; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null; b.hp = b.maxHp;
+      castSpell(state, 'p0', 'fireball', 20, 0);
+      run(state, 0.4);
+      dropped = (state.coins || []).find(c => c.owner === 'p0') || null;
+    }
+    expect(dropped).toBeTruthy();
+  });
+
+  it('ricochet x mosquito: the pair cadence fires, and the trailing twin is a RICOCHET', () => {
+    const state = battle3();
+    const a = state.players.p0;
+    a.elements = { ricochet: 1, mosquito: 3 };
+    const every = ELEMENTS.mosquito.fx.doubleEvery[2];
+    for (let i = 0; i < every; i++) {
+      a.cooldowns = {};
+      castSpell(state, 'p0', 'fireball', 20, 0);
+    }
+    expect(state.delayedShots.length).toBe(1);
+    const before = state.projectiles.length;
+    run(state, ELEMENTS.mosquito.fx.trailDelay + 0.1);
+    const fresh = state.projectiles.slice(before).filter(p => p.owner === 'p0');
+    expect(fresh.some(p => p.type === 'ricochet')).toBe(true);
+    expect(fresh.every(p => p.type !== 'fireball')).toBe(true);
+  });
+
+  it('Extra Mirage: +1 clone at both decoy levels, and the mirages fan OUT (countable bodies)', () => {
+    for (const lv of [1, 2]) {
+      const state = battle3();
+      const a = state.players.p0;
+      a.spells.decoy = lv;
+      a.optims = { decoyclone: true };
+      castSpell(state, 'p0', 'decoy', 5, 5);
+      const mine = state.clones.filter(c => c.owner === 'p0');
+      expect(mine.length).toBe(SPELLS.decoy.clones[lv - 1] + 1);
+      // no clone sits ON the caster or on a twin: every body is countable
+      for (const c of mine) expect(Math.hypot(c.x - a.x, c.y - a.y)).toBeGreaterThan(a.radius);
+    }
+  });
+
+  it('optimisations are LATENT: picked before the skill exists, they apply when it arrives', () => {
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    // Broad Pillar picked long before any pillar is owned or raised
+    a.optims = { bigpillar: true, decoyclone: true };
+    a.spells.pillar = 1;                        // "bought later"
+    castSpell(state, 'p0', 'pillar', 10, 10);
+    const p = state.pillars[state.pillars.length - 1];
+    expect(p.r).toBeCloseTo(SPELLS.pillar.radius * OPTIMS.POOL.bigpillar.mult, 5);
+    // Extra Mirage the same way
+    a.spells.decoy = 1; a.cooldowns = {};
+    castSpell(state, 'p0', 'decoy', 5, 5);
+    expect(state.clones.filter(c => c.owner === 'p0').length).toBe(SPELLS.decoy.clones[0] + 1);
+  });
+
+  it('Blood Price: -10 max hp on the pick, +2 damage on every ball', () => {
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    const maxBefore = a.maxHp;
+    a.optimOffer = { round: state.round, options: ['bloodprice'], picked: null };
+    state.phase = 'shop';
+    expect(optimPick(state, 'p0', 'bloodprice').ok).toBe(true);
+    state.phase = 'battle';
+    expect(a.maxHp).toBe(maxBefore + OPTIMS.POOL.bloodprice.hp);
+    expect(a.hp).toBeLessThanOrEqual(a.maxHp);
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.moveTarget = null;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const h = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(h.amount).toBeCloseTo(SPELLS.fireball.damage[0] + OPTIMS.POOL.bloodprice.add, 5);
+  });
+
+  it('Lava Sniper: +15% ball damage, only while the victim swims', () => {
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    a.optims = { lavasniper: true };
+    // dry victim on the platform: base damage
+    a.x = 0; a.y = 0; b.x = 8; b.y = 0; b.moveTarget = null; b.vx = b.vy = 0;
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', 20, 0);
+    run(state, 0.4);
+    const dry = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(dry.amount).toBeCloseTo(SPELLS.fireball.damage[0], 5);
+    // victim actually swimming in the lava past the rim: +15%
+    const R = state.arenaRadius;
+    a.cooldowns = {}; a.x = R - 6; a.y = 0;
+    b.hp = b.maxHp; b.x = R + 2; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    run(state, DT * 2);                        // let inLava recompute as true
+    expect(b.inLava).toBe(true);
+    state.events = [];
+    castSpell(state, 'p0', 'fireball', R + 5, 0);   // aim AT the swimmer
+    run(state, 0.5);
+    const wet = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(wet.amount).toBeCloseTo(SPELLS.fireball.damage[0] * OPTIMS.POOL.lavasniper.mult, 5);
+  });
+
+  it('Rush v12: base damage point blank, double at full range', () => {
+    const spec = SPELLS.rush;
+    // point blank: the victim right at the start of the dash
+    let state = battle3();
+    let a = state.players.p0, b = state.players.p1;
+    a.spells.rush = 1;
+    a.x = 0; a.y = 0; b.x = 2; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    state.events = [];
+    castSpell(state, 'p0', 'rush', 10, 0);
+    run(state, 0.5);
+    const close = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(close.amount).toBeLessThan(spec.damage[0] * 1.25);
+    // full range: the victim at the far end of the dash
+    state = battle3();
+    a = state.players.p0; b = state.players.p1;
+    a.spells.rush = 1;
+    a.x = 0; a.y = 0; b.x = spec.distance; b.y = 0; b.vx = b.vy = 0; b.moveTarget = null;
+    state.events = [];
+    castSpell(state, 'p0', 'rush', 10, 0);
+    run(state, 0.5);
+    const far = state.events.find(e => e.t === 'hit' && e.id === 'p1');
+    expect(far.amount).toBeGreaterThan(spec.damage[0] * 1.7);
+    expect(far.amount).toBeLessThanOrEqual(spec.damage[0] * spec.rangeDmgMax + 0.01);
+  });
+
+  it('Rush v12: a dash that touches nobody grants the ward, and the ward eats the next damage', () => {
+    const state = battle3();
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.rush = 1;
+    a.x = 0; a.y = 0; b.x = -30; b.y = 0; b.moveTarget = null;  // far behind: a whiff
+    state.events = [];
+    castSpell(state, 'p0', 'rush', 10, 0);
+    run(state, 0.6);
+    expect(a.optAbsorb).toBe(SPELLS.rush.whiffShield);
+    expect(state.events.some(e => e.t === 'rushShield' && e.id === 'p0')).toBe(true);
+    // the ward eats damage before hp (shoot from just beyond where the dash
+    // actually parked the caster)
+    const hp0 = a.hp;
+    b.elements = {};
+    b.x = a.x + 8; b.y = a.y; b.moveTarget = null;
+    b.cooldowns = {};
+    castSpell(state, 'p1', 'fireball', -20, 0);
+    run(state, 0.4);
+    expect(a.hp).toBeCloseTo(hp0, 1);            // the ward paid, not the hp
+    expect(a.optAbsorb).toBeLessThan(SPELLS.rush.whiffShield);
+    // a dash that HITS someone shields nothing
+    const s2 = battle3();
+    const a2 = s2.players.p0, b2 = s2.players.p1;
+    a2.spells.rush = 1;
+    a2.x = 0; a2.y = 0; b2.x = 8; b2.y = 0; b2.vx = b2.vy = 0; b2.moveTarget = null;
+    castSpell(s2, 'p0', 'rush', 10, 0);
+    run(s2, 0.5);
+    expect(a2.optAbsorb || 0).toBe(0);
   });
 });

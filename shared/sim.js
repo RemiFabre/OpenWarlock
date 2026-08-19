@@ -610,28 +610,25 @@ export function castSpell(state, id, key, tx, ty) {
       // exception (a ball cannot both pop-on-first-body and pass through).
       const ricoLvl = pl.elements.ricochet || 0;
       if (ricoLvl > 0) {
-        const tspec = SPELLS.ricochet;
         // v6.2 (Ju): the bounce cast costs a flat SPELLS.ricochet.cooldown,
         // not twice the fireball's. `cd` is already hasted, so rescale it.
-        pl.cooldowns[key] = cd * (tspec.cooldown / lvl(spec, 'cooldown', level));
-        let elements = null;
-        for (const [k, v] of Object.entries(pl.elements))
-          if (v > 0) (elements = elements || {})[k] = v;
-        const body = elemBodyMults(elements);
-        state.projectiles.push({
-          id: state.nextId++, type: 'ricochet', owner: id, level: ricoLvl,
-          x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
-          vx: dx * tspec.speed * body.speed
-            * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
-          vy: dy * tspec.speed * body.speed
-            * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
-          traveled: 0, hit: {}, pierce: false, pierced: 0,
-          radius: tspec.radius * body.radius
-            * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1),
-          life: null, elements,
-          ...(pl.elements.umbra > 0 ? { dark: pl.elements.umbra } : {}),
-          ...(pl.elements.chainball > 0 ? { storm: pl.elements.chainball } : {}),
+        pl.cooldowns[key] = cd * (SPELLS.ricochet.cooldown / lvl(spec, 'cooldown', level));
+        // v12 (Ju): the ricochet IS this build's fireball, so the fireball's
+        // mutation rhythms run here too: mosquito's pair cadence, and anger's
+        // release bar (drained by every cast, exactly like a real ball).
+        const rPair = mosquitoPair(state, pl, false);
+        let rCharge = null;
+        if (pl.elements.anger > 0) {
+          const full = ELEMENTS.anger.fx.chargeCds * SPELLS.fireball.cooldown[0];
+          rCharge = Math.min(1, (state.time - (pl._angerFireT ?? -Infinity)) / full);
+          pl._angerFireT = state.time;
+        }
+        spawnRicochet(state, pl, dx, dy, {
+          ...(rPair ? { kbScale: 0 } : {}),
+          ...(rCharge != null ? { angerCharge: rCharge } : {}),
         });
+        if (rPair) state.delayedShots.push(
+          { t: ELEMENTS.mosquito.fx.trailDelay, owner: id, level, dx, dy });
         break;
       }
       const pair = mosquitoPair(state, pl, false);
@@ -903,9 +900,13 @@ function spawnClones(state, pl, level) {
   const n = lvl(spec, 'clones', level)
     + (pl.optims && pl.optims.decoyclone ? OPTIMS.POOL.decoyclone.add : 0);
   for (let i = 0; i < n; i++) {
+    // v12 (Ju): fan the mirages out around the caster instead of stacking them
+    // on one point; an Extra Mirage you cannot COUNT reads as a missing clone.
+    const fan = n > 1 ? ((i / n) * Math.PI * 2 + rng(state) * 0.5) : rng(state) * Math.PI * 2;
     state.clones.push({
       id: `${pl.id}~d${state.nextId++}`, owner: pl.id,
-      x: pl.x, y: pl.y, vx: 0, vy: 0,
+      x: pl.x + Math.cos(fan) * pl.radius * 2.2,
+      y: pl.y + Math.sin(fan) * pl.radius * 2.2, vx: 0, vy: 0,
       hp: Math.max(1, Math.ceil(pl.hp)), maxHp: pl.maxHp, r: pl.radius,
       speed: stats(pl).speed, left: spec.duration, pickT: 0, tx: pl.x, ty: pl.y,
     });
@@ -1073,6 +1074,35 @@ function spawnFireball(state, pl, level, dx, dy, opts = {}) {
     // Absent on echo trails and any ball not fired by the owner's own cast,
     // and the ramp treats absent as 0, so a missed spawn path fails LOUD
     // (anger deals nothing) instead of silently keeping the old always-on.
+    ...(opts.angerCharge != null ? { angerCharge: opts.angerCharge } : {}),
+  });
+}
+
+// The ricochet cast (issue #13): the transformed fireball. One spawn site for
+// the real cast AND mosquito's trailing twin, so the two can never disagree.
+// Anger/midas/mosquito treat it exactly as the fireball it replaces (v12, Ju:
+// mutations must interact with each other).
+function spawnRicochet(state, pl, dx, dy, opts = {}) {
+  const tspec = SPELLS.ricochet;
+  let elements = null;
+  for (const [k, v] of Object.entries(pl.elements || {}))
+    if (v > 0) (elements = elements || {})[k] = v;
+  const body = elemBodyMults(elements);
+  state.projectiles.push({
+    id: state.nextId++, type: 'ricochet', owner: pl.id,
+    level: (pl.elements && pl.elements.ricochet) || 1,
+    x: pl.x + dx * pl.radius * 0.5, y: pl.y + dy * pl.radius * 0.5,
+    vx: dx * tspec.speed * body.speed
+      * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
+    vy: dy * tspec.speed * body.speed
+      * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
+    traveled: 0, hit: {}, pierce: false, pierced: 0,
+    radius: tspec.radius * body.radius
+      * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1),
+    life: null, elements,
+    ...(elements && elements.umbra > 0 ? { dark: elements.umbra } : {}),
+    ...(elements && elements.chainball > 0 ? { storm: elements.chainball } : {}),
+    ...(opts.kbScale != null ? { kbScale: opts.kbScale } : {}),
     ...(opts.angerCharge != null ? { angerCharge: opts.angerCharge } : {}),
   });
 }
@@ -1439,6 +1469,11 @@ function grantOptim(state, pl, k) {
   // Forced Savings (v11, Ju): buy nothing until the NEXT window, which pays the
   // bonus (rollOptimOffers). maxRound guarantees that window exists.
   if (k === 'savings') pl.buyLock = OPTIMS.ROUNDS.find(r => r > state.round) || 0;
+  // Blood Price (v12, Ju): the -10 max hp is paid ON THE SPOT and forever
+  if (k === 'bloodprice') {
+    pl.maxHp = Math.max(20, pl.maxHp + OPTIMS.POOL.bloodprice.hp);
+    pl.hp = Math.min(pl.hp, pl.maxHp);
+  }
   if (k === 'dethrone') {
     const fs = fighters(state).filter(p => !p.wave);
     const top = Math.max(0, ...fs.map(p => p.kills));
@@ -2779,8 +2814,8 @@ function stepBattle(state, dt) {
       const move = Math.min(spec.speed * dt, pl.dash.left);
       pl.x += pl.dash.dx * move; pl.y += pl.dash.dy * move;
       pl.dash.left -= move;
-      // a pillar stops the dash cold
-      if (resolvePillarHit(state, pl)) pl.dash = null;
+      // a pillar stops the dash cold (still a finished dash: a whiff shields)
+      if (resolvePillarHit(state, pl)) endDash(state, pl);
     }
     if (pl.dash) {
       const spec = SPELLS.rush;
@@ -2795,10 +2830,14 @@ function stepBattle(state, dt) {
           const ky = pl.dash.dx * side * 0.8 + pl.dash.dy * 0.4;
           const n = Math.hypot(kx, ky) || 1;
           applyKnockback(state, other, kx / n, ky / n, lvl(spec, 'knockback', pl.dash.level));
-          applyDamage(state, other, lvl(spec, 'damage', pl.dash.level), pl.id);
+          // v12 (Ju): damage scales with the distance dashed BEFORE this
+          // impact: base at 0, x rangeDmgMax at full range, linear
+          const flew = Math.min(1, Math.max(0, (spec.distance - pl.dash.left) / spec.distance));
+          applyDamage(state, other,
+            lvl(spec, 'damage', pl.dash.level) * (1 + (spec.rangeDmgMax - 1) * flew), pl.id);
         }
       }
-      if (pl.dash.left <= 0) pl.dash = null;
+      if (pl.dash.left <= 0) endDash(state, pl);
     } else {
       // control movement toward target
       if (pl.moveTarget) {
@@ -2884,7 +2923,10 @@ function stepBattle(state, dt) {
       if (owner && owner.alive) {
         mosquitoPair(state, owner, true);
         const projFrom = state.projectiles.length;
-        spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
+        // v12 (Ju): a ricochet build's trailing twin is a ricochet too
+        if (state.mode === 'elemental' && owner.elements && owner.elements.ricochet > 0)
+          spawnRicochet(state, owner, ds.dx, ds.dy);
+        else spawnFireball(state, owner, ds.level, ds.dx, ds.dy);
         // decoy (21.6): the mirages throw the twin too, or an Echo owner's
         // pair would count the bodies for the enemy
         const miming = (state.clones || []).filter(c => c.owner === owner.id);
@@ -3340,6 +3382,12 @@ function stepProjectiles(state, dt) {
         if (po && po.push) kb *= OPTIMS.POOL.push.mult;
         if (po && po.lavapush && other.inLava) kb *= OPTIMS.POOL.lavapush.mult;
         if (po && po.sharp) { dmg *= OPTIMS.POOL.sharp.mult; ramp *= OPTIMS.POOL.sharp.mult; }
+        // v12 (Ju): Blood Price's flat bite, then Lava Sniper's multiplier on
+        // swimmers (multipliers hit both halves, adds only the base)
+        if (po && po.bloodprice) dmg += OPTIMS.POOL.bloodprice.add;
+        if (po && po.lavasniper && other.inLava) {
+          dmg *= OPTIMS.POOL.lavasniper.mult; ramp *= OPTIMS.POOL.lavasniper.mult;
+        }
       }
       if (pr.kbScale != null) kb *= pr.kbScale;
       // a mine's last stored ball carries the trap's own shove as a FLOOR
@@ -3433,6 +3481,19 @@ function stepProjectiles(state, dt) {
 // ADVANCES the counter (Remi: "all every-N counters count") but can never
 // double. A threshold crossed on one is remembered in `mosqDue` and paid by the
 // next player-initiated cast instead. Test-locked.
+// Rush's landing (v12, Ju): a dash that touched NO enemy pays a consolation
+// shield, riding the Round Ward absorb pool (one gauge, one HUD chip, one
+// applyDamage drain). Refresh to the bigger value, never stack.
+function endDash(state, pl) {
+  const whiffed = pl.dash && Object.keys(pl.dash.hit).length === 0;
+  pl.dash = null;
+  const shield = SPELLS.rush.whiffShield;
+  if (whiffed && shield > 0) {
+    pl.optAbsorb = Math.max(pl.optAbsorb || 0, shield);
+    state.events.push({ t: 'rushShield', id: pl.id, hp: shield });
+  }
+}
+
 function mosquitoPair(state, pl, trailing) {
   const lv = state.mode === 'elemental' && pl.elements
     ? (pl.elements.mosquito || 0) : 0;
@@ -3726,7 +3787,8 @@ function applyElementsHit(state, pr, target) {
     // carries them off it). Owner-only pickup, in stepBattle. Seeded rng.
     // No coin off your own body (a reflected ball hitting yourself), the
     // same self-guard vampire's marks live by. FIREBALLS ONLY (round-12 ruling).
-    if (f.coinChance && eo != null && pr.type === 'fireball' &&
+    // v12 (Ju): the ricochet IS the owner's fireball for both mark hunts
+    if (f.coinChance && eo != null && (pr.type === 'fireball' || pr.type === 'ricochet') &&
         target.id !== eo && rng(state) < efxV(f.coinChance, el)) {
       state.coins.push({ id: state.nextId++, x: target.x, y: target.y, owner: eo });
       state.events.push({ t: 'coinDrop', id: target.id, by: eo,
@@ -3736,7 +3798,7 @@ function applyElementsHit(state, pr, target) {
     // permanent bank (never reset in startRound), and the next mark waits
     // markEvery s from NOW. FIREBALLS ONLY (the round-12 ruling that stopped
     // "lightning claims the mark" from being the whole meta).
-    if (f.markDmg && eo != null && pr.type === 'fireball' &&
+    if (f.markDmg && eo != null && (pr.type === 'fireball' || pr.type === 'ricochet') &&
         stackCount(target, 'anger', eo) > 0) {
       const owner = state.players[eo];
       if (owner) {

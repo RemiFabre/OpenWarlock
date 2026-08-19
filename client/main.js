@@ -9,7 +9,7 @@ import {
 } from '../shared/constants.js';
 import { rankTeams } from '../shared/sim.js';
 import { VERSION } from '../shared/version.js';
-import { makeView, draw } from './render.js';
+import { makeView, draw, setRangePreview } from './render.js';
 import { createChatter } from './chatter.js';
 import { initSfx, playSfx, isMuted, setMuted } from './sfx.js';
 import { initMusic, setLevel, setMusicMuted, isMusicMuted } from './music.js';
@@ -421,6 +421,9 @@ function onEvent(e) {
     // erupting is its own whoosh, so a loaded trap SOUNDS like the payoff.
     case 'mineUp': fx.push({ ...e, type: 'grow', at: now, dur: 0.35 }); if (e.id === myId) playSfx('buy'); break;
     case 'mineCharge': fx.push({ ...e, type: 'grow', at: now, dur: 0.3 }); if (e.id === myId) playSfx('catch'); break;
+    // Rush whiffed on purpose or not; the consolation ward pops (v12, Ju).
+    // The HUD ward chip carries the number; this is the moment marker.
+    case 'rushShield': fx.push({ ...e, type: 'grow', at: now, dur: 0.35 }); if (e.id === myId) playSfx('catch'); break;
     case 'mineHit': fx.push({ ...e, type: 'mineHit', at: now, dur: 0.5 }); playSfx('boom'); break;
     case 'mineShot': playSfx('whoosh'); break;
     // swap: one flash at EACH end of the trade, plus its own crossing sound;
@@ -1330,6 +1333,9 @@ const SPELL_FIELDS = {
   duration: ['duration', fmtSec],
   distance: ['dash distance', fmtNum],
   hitRadius: ['dash hit radius', fmtNum],
+  // Rush v12 (Ju): the two new axes, spelled as what the player feels
+  rangeDmgMax: ['damage at full range', (v) => `×${fmtNum(v)}`],
+  whiffShield: ['hit nobody: shield', (v) => `${fmtNum(v)} hp`],
   outDistance: ['throw distance', fmtNum],
   charge: ['charge time', fmtSec],
   delay: ['impact delay', fmtSec],
@@ -1467,6 +1473,9 @@ function orderedFields(obj, dict, skip) {
 // issue #14 iteration 4 (Sam): what the viewer could right-click-refund this
 // shop ({key: exact gold back}); refresh() keeps it in step with the snapshot.
 let myRefunds = {};
+// v12 (Ju): my picked optimisations, so a card whose numbers they change can
+// say so (the Decoy card owed Extra Mirage a mention)
+let myOptims = {};
 
 // issue #14 iteration 3 (Sam): the tooltip stopped being a 3-column table.
 // It reads top-down — name+level, identity, description, an interactive
@@ -1590,19 +1599,15 @@ function tipBody(lines, cur, max, costAt, previewLv) {
 // says so in green, so a returning player reads the diff inside the shop.
 // Hand-curated from the real constants diff v7 -> v8; rewrite at each version.
 const PATCH_NOTES = {
-  fireball: ['Range is 50 now (was infinite): balls fizzle at distance.'],
-  treads: ['Lava resist is 25/40/50% now (was 25/50/65%).',
-    'And lava itself bites harder: 16 dps (was 14).'],
-  firewalk: ['NEW spell in this version.'],
-  debt: ['NEW spell in this version.'],
-  genki: ['NEW power spell in this version.'],
-  midas: ['Fireball damage penalty softened: -30/-15/0% (was -50/-25/0%).'],
-  anger: ['Marks land slower: every 30/25/20 s (was 20/15/10).'],
-  vampire: ['The engorged ball heals a FLAT 10/20/30 hp now (was a multiple of its damage).'],
-  frost: ['Stacks fade now: unfed piles lose 1 stack every 9 s.'],
-  gale: ['Stacks fade now: unfed piles lose 1 stack every 9 s.'],
-  malady: ['Stacks fade now: unfed piles lose 1 stack every 9 s.'],
-  vomit: ['Default key is U now (Blood Debt took Y). Rebind it in the Keys panel.'],
+  rush: ['REWORKED: damage grows with the distance dashed (base up close, double at max range).',
+    'A dash that touches nobody grants a 10 hp shield until the round ends.',
+    'Hover the card or the spell bar slot to see the dash range in the arena.'],
+  ricochet: ['Mutations interact now: ricochet hits claim Anger marks, roll Midas coins, and Echo pairs bounce too.'],
+  anger: ['Redesigned like the base game: a release BAR fills over 4.2 s; every cast drains it, the ball adds bank × charge.',
+    'The round\'s first mark lands instantly on your last killer.'],
+  midas: ['Redesigned like the base game: hits roll 20/32/45% to drop a 1 g coin where the victim stood. Only you can pick it up.'],
+  vampire: ['Redesigned like the base game: hits bank marks on the victim; walk close and the pile vacuums back as healing.'],
+  decoy: ['Extra Mirage fixed: the clones fan out so you can COUNT them, and the card says +1 while you own the boost.'],
 };
 const patchHtml = (key) => PATCH_NOTES[key]
   ? `<div class="tpatch"><b>Changed in this version</b><ul>${
@@ -1639,6 +1644,8 @@ function spellTip(key, spec, level, maxLevel, previewLv) {
   }
   const foot = [
     spec.minRound ? `Locked until round <b>${spec.minRound + 1}</b>.` : '',
+    key === 'decoy' && myOptims.decoyclone
+      ? `Extra Mirage: <b>+1 clone</b> on top of the numbers above.` : '',
     myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
@@ -1932,6 +1939,10 @@ function buildShop(container, mode = 'classic') {
     wrap.appendChild(b);
     wrap.appendChild(chip);
     curRow.appendChild(wrap);
+    if (key === 'rush') {
+      b.addEventListener('mouseenter', () => setRangePreview({ range: SPELLS.rush.distance }));
+      b.addEventListener('mouseleave', () => setRangePreview(null));
+    }
     const w = { key, spec, el: b, wrap, kind: 'spell' };
     if (PATCH_NOTES[key]) b.classList.add('updated');
     attachTip(b, (pv) => spellTip(key, spec, w.level || 0, w.maxLevel || spec.maxLevel, pv));
@@ -2029,6 +2040,7 @@ function buildShop(container, mode = 'classic') {
     const spells = m.spells || {};
     // per-card refunds this shop (issue #14 iter 4); the tooltip reads it
     myRefunds = (m.refunds && typeof m.refunds === 'object') ? m.refunds : {};
+    myOptims = (m.optims && typeof m.optims === 'object') ? m.optims : {};
     // draft mode: this game's pool is not for sale. A pool thing you have
     // DRAFTED goes back on the shelf (that is how levels 2-3 are bought), which
     // is exactly "do I own any level of it", the same rule the server uses.
@@ -2243,6 +2255,12 @@ const spellEls = {};
     el.innerHTML = `<span class="key"></span>${artHtml(key, 'sart')}
       <span class="lv"></span><span class="elem"></span><span class="cd hidden"></span>`;
     bar.appendChild(el);
+    // v12 (Ju): hovering Rush previews its reach in the arena. Read off the
+    // spec so a balance pass moves the ring with the number.
+    if (key === 'rush') {
+      el.addEventListener('mouseenter', () => setRangePreview({ range: SPELLS.rush.distance }));
+      el.addEventListener('mouseleave', () => setRangePreview(null));
+    }
     spellEls[key] = el;
   }
 }

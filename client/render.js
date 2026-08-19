@@ -272,6 +272,11 @@ const ACCENTS = {
   },
 };
 
+// v12 (Ju): hovering a spell's card/bar slot previews its reach as a ring
+// around your own warlock. null = nothing previewed. {range} in world units.
+let rangePreview = null;
+export function setRangePreview(p) { rangePreview = p; }
+
 export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   if (vs) view.fitArena(vs.startRadius);   // arena size is per-game (round 21.2)
   const { ctx, w, h, scale } = view;
@@ -329,7 +334,10 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   const projectiles = Array.isArray(vs.projectiles) ? vs.projectiles : [];
   // ---- v9 (Sam): what the animated character needs to REACT to, all of it read
   // off state the game already sends. Nothing here can change the game.
-  const knightReady = knightLoaded();
+  // v12 (Ju): the animated sprite is OFF; warlocks are the base game's moving
+  // discs again (his ask, aesthetic only). Flip back to knightLoaded() to
+  // restore Sam's animated bodies.
+  const knightReady = false && knightLoaded();
   const kdt = Math.min(0.1, Math.max(0, now - (lastDrawAt || now)));
   lastDrawAt = now;
   const casters = new Set();     // a projectile of theirs appeared this frame
@@ -729,6 +737,21 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.beginPath();
     ctx.arc(view.sx(moveMark.x), view.sy(moveMark.y), 6 + 10 * (1 - a), 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // --- spell range preview (v12, Ju): a dashed reach ring around ME ---
+  if (rangePreview && fin(rangePreview.range)) {
+    const me = players.find((p) => p && p.id === myId);
+    if (me && fin(me.x) && fin(me.y)) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 220, 130, 0.75)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(view.sx(me.x), view.sy(me.y), rangePreview.range * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // --- projectiles ---

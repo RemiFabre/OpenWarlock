@@ -363,7 +363,13 @@ export const SPELLS = {
     name: 'Rush', hotkey: 'E', maxLevel: 2, costs: [10, 5],
     cooldown: [10, 7], distance: 16, speed: 60, hitRadius: 1.6,   // 24.3
     damage: [5, 8], knockback: [79, 79],
-    desc: 'Dash through enemies: damage and knockback on the way. Casting cancels your momentum.',
+    // v12 (Ju): damage GROWS with the distance dashed before the impact —
+    // base at point blank, x rangeDmgMax at full range, linear. A dash that
+    // touches NO enemy grants a whiffShield hp absorb (reuses the Round Ward
+    // absorb pool; refreshes, never stacks past the biggest grant).
+    rangeDmgMax: 2, whiffShield: 10,
+    desc: 'Dash through enemies: the further you fly, the harder it hits. Hit nobody: a 10 hp shield.',
+    long: 'Dash through enemies, damaging and shoving them aside; casting cancels your momentum. Damage scales with the distance covered before the impact: base up close, double at max range. If the dash touches no enemy, you gain a shield that absorbs the next 10 damage (until the round ends).',
   },
   pillar: {
     // Round 21.1 (Remi): the pillar is the CHEAP tier now.
@@ -987,6 +993,11 @@ export const OPTIMS = {
     // (a test pins it to ROUNDS, so changing ROUNDS cannot rot it silently).
     savings:   { icon: '🏦', name: 'Forced Savings', add: 30, maxRound: 6,
                  desc: 'You can buy nothing until the next optimisation. When it comes, you get +30 gold on top of everything you were forced to save.' },
+    // v12 (Ju picked these two from the proposal list; Lava Sniper at HIS 15%)
+    lavasniper:{ icon: '🎯', name: 'Lava Sniper', mult: 1.15,
+                 desc: 'Your balls deal 15% more damage to enemies who are IN the lava.' },
+    bloodprice:{ icon: '🕯️', name: 'Blood Price', add: 2, hp: -10,
+                 desc: '-10 max hp, forever. Every ball you throw deals +2 damage.' },
   },
 };
 
