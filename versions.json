@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 53,
+  "serial": 54,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -26,7 +26,7 @@
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "e8cc306f2bfc0f5ca42aec0edb27ebbc491721fd"
+      "commit": "b88b3b11c307db2ccddd32e42cb661a5ff88f425"
     },
     {
       "slug": "trash-talk",
