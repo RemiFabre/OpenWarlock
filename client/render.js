@@ -425,6 +425,58 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   }
   ctx.restore();
 
+  // --- set dressing (v17, Ju: "plante le décor") ---
+  // Stateless props in the lava annulus, derived from (index) only, so every
+  // game shows the same scene and nothing desyncs. All DECORATIVE, all outside
+  // the play area: obsidian spikes (upright billboards), charred rib cages
+  // half-sunk in the lava, ember cracks licking the slab's rim.
+  {
+    const t3 = now / 1000;
+    for (let i = 0; i < 14; i++) {
+      const h1 = Math.sin(i * 91.7) * 0.5 + 0.5;
+      const h2 = Math.sin(i * 217.3) * 0.5 + 0.5;
+      const ang = (i / 14) * Math.PI * 2 + h1 * 0.4;
+      const rad = R * (1.14 + 0.30 * h2);
+      const px = view.cx + Math.cos(ang) * rad;
+      const py = view.cy + Math.sin(ang) * rad * T;
+      if (py < view.cy - R * T * 0.7 && h2 > 0.6) continue;   // keep the far top airy
+      if (i % 3 === 0) {
+        // a charred rib cage, half-sunk: three fading arcs on the lava plane
+        ctx.save();
+        ctx.translate(px, py); ctx.scale(1, T); ctx.rotate(h1 * 1.2);
+        ctx.strokeStyle = 'rgba(210, 190, 165, 0.4)';
+        ctx.lineWidth = 2;
+        for (let b2 = 0; b2 < 3; b2++) {
+          const br = (7 - b2 * 1.8) * scale * 0.35;
+          ctx.beginPath(); ctx.arc(b2 * 4, 0, br, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+        }
+        ctx.restore();
+      } else {
+        // an obsidian spike: an upright shard, warm-lit on its lava side
+        const hgt = (6 + 8 * h2) * scale * 0.5;
+        const wid = (2 + 2 * h1) * scale * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(px - wid, py);
+        ctx.quadraticCurveTo(px - wid * 0.3, py - hgt * 0.6, px + wid * (h1 - 0.5), py - hgt);
+        ctx.quadraticCurveTo(px + wid * 0.5, py - hgt * 0.4, px + wid, py);
+        ctx.closePath();
+        const sg = ctx.createLinearGradient(px - wid, py, px + wid, py);
+        sg.addColorStop(0, '#2a201a'); sg.addColorStop(1, '#0e0a08');
+        ctx.fillStyle = sg;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 130, 50, ${0.35 + 0.15 * Math.sin(t3 * 1.5 + i)})`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(px - wid * 0.8, py - 1);
+        ctx.quadraticCurveTo(px - wid * 0.25, py - hgt * 0.55, px + wid * (h1 - 0.5), py - hgt);
+        ctx.stroke();
+        // its base sits IN the lava: a small glow pool
+        ctx.fillStyle = 'rgba(255, 120, 40, 0.25)';
+        ctx.beginPath(); ctx.ellipse(px, py, wid * 1.6, wid * 1.6 * T, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
   // --- platform ---
   // v15 (Ju): the whole platform stack is GROUND. One squash transform turns
   // every circle in it into the right ellipse under the tilted camera.
@@ -484,6 +536,31 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.beginPath(); ctx.arc(view.cx, view.cy, R * i / 3.4, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();   // end of the ground squash (platform stack)
+
+  // ember cracks licking the slab's rim (v17 set dressing), breathing slowly.
+  // Drawn AFTER the floor so they sit on it, inside their own ground squash.
+  {
+    const t3 = now / 1000;
+    ctx.save();
+    ctx.translate(view.cx, view.cy); ctx.scale(1, T); ctx.translate(-view.cx, -view.cy);
+    for (let i = 0; i < 7; i++) {
+      const h1 = Math.sin(i * 53.9) * 0.5 + 0.5;
+      const a0 = (i / 7) * Math.PI * 2 + h1;
+      const glow = 0.25 + 0.15 * Math.sin(t3 * 1.2 + i * 2);
+      ctx.strokeStyle = `rgba(255, 140, 50, ${glow})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      let cr = R * 0.995;
+      ctx.moveTo(view.cx + Math.cos(a0) * cr, view.cy + Math.sin(a0) * cr);
+      for (let s2 = 1; s2 <= 3; s2++) {
+        cr -= R * (0.02 + 0.02 * Math.sin(i * 7 + s2 * 3));
+        const aa = a0 + s2 * 0.02 * (h1 > 0.5 ? 1 : -1);
+        ctx.lineTo(view.cx + Math.cos(aa) * cr, view.cy + Math.sin(aa) * cr);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   // Broken ground (24.1): meteor craters are open lava. Radius-TRUE (the burn
   // edge IS the drawn edge), molten core breathing on the lava's own slow
