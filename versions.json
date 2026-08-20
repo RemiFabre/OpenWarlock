@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 50,
+  "serial": 51,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v15: the WC3-Warlock camera (the arena tilts into perspective, the slab shows its edge, ground markers squash with it) and every warlock is an animated SORCERER now — pointed hat, robe in the player colour, staff that flares on a cast, walk animation. Plus v14's ricochet bounce budget (2/3/5) and the 29-pick optimisation pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v16: the sorcerers get the ELABORATE pass (cape, layered robe with trim, glowing eyes, a real arm on the staff, cast sparks), the lava LIVES (bubbles that pop, drifting embers, slow flow currents), and Ghost 3 now makes the Ricochet PIERCE (safe under the v14 bounce budget). WC3-style tilted camera, the 29-pick pool, on the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "1f24ee5fc5dd49d1ca74afaf235695a4ca8ad29e"
+      "commit": "dbae37147f17573eebb7f852aa9d11f187d5ef86"
     },
     {
       "slug": "trash-talk",
