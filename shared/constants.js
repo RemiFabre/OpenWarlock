@@ -57,6 +57,12 @@ export const ARENA = {
     RING: 40,             // between the spawn ring (33.6) and the start rim (56)
     BASE_ANGLE: Math.PI / 6, // keeps pillars off the axes (spawn/shot lanes)
     JITTER: 0.12,         // per-pillar angle jitter span (radians), from the seed
+    // v18 (Ju): dead TREES on an inner ring. Mechanically identical to
+    // pillars (same array, same collision/bounce/smash); only the paint and
+    // the `tree` wire flag differ.
+    TREES: 4,
+    TREE_RING: 22,        // inside the spawn ring, outside the portal cross
+    TREE_JITTER: 0.5,     // chaotic: much looser than the pillar ring
   },
 };
 

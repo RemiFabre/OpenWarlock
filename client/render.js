@@ -326,7 +326,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   // the round ends and the world dissolves, the art is what remains (Sam v8)
   const hasArt = drawCover(ctx, ARENA_ART, w, h);
   if (!hasArt) { ctx.fillStyle = '#1a0a06'; ctx.fillRect(0, 0, w, h); }
-  drawBackdrop(view, worldAlpha * (hasArt ? 0.55 : 1), t);
+  drawBackdrop(view, worldAlpha * (hasArt ? 0.8 : 1), t * 1.5);   // v18: the lava heaves harder
   ctx.drawImage(view.back, 0, 0, w, h);
 
   if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
@@ -378,7 +378,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   ctx.translate(view.cx, view.cy); ctx.scale(1, T); ctx.translate(-view.cx, -view.cy);
   {
     const t2 = now / 1000;
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 42; i++) {
       const h1 = Math.sin(i * 127.13) * 0.5 + 0.5;   // stable pseudo-randoms
       const h2 = Math.sin(i * 311.7) * 0.5 + 0.5;
       const h3 = Math.sin(i * 74.3) * 0.5 + 0.5;
@@ -398,7 +398,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       } else {
         // bubble: swells then bursts into a brief ring
         const sw = ph < 0.8 ? ph / 0.8 : 0;
-        const rr = (2 + 4.5 * h3) * (0.4 + 0.6 * sw);
+        const rr = (3 + 6.5 * h3) * (0.4 + 0.6 * sw);
         if (ph < 0.8) {
           ctx.fillStyle = `rgba(255, 130, 45, ${0.35 + 0.25 * sw})`;
           ctx.beginPath(); ctx.arc(bx, by, rr, 0, Math.PI * 2); ctx.fill();
@@ -416,8 +416,8 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     for (let k = 0; k < 2; k++) {
       const dir = k === 0 ? 1 : -1;
       const off = t2 * 0.12 * dir + k * 2.1;
-      ctx.strokeStyle = `rgba(255, 120, 40, ${0.16 + 0.06 * Math.sin(t2 + k)})`;
-      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = `rgba(255, 120, 40, ${0.28 + 0.10 * Math.sin(t2 + k)})`;
+      ctx.lineWidth = 5;
       ctx.setLineDash([R * 0.16, R * 0.24]);
       ctx.beginPath(); ctx.arc(view.cx, view.cy, R * (1.10 + k * 0.10), off, off + Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
@@ -488,13 +488,15 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   ctx.beginPath(); ctx.arc(view.cx, view.cy, R0 * scale, 0, Math.PI * 2); ctx.stroke();
 
   // molten rim (v8, Sam): stronger and wider OUTSIDE the edge...
-  const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.90, view.cx, view.cy, R * 1.22);
+  // v18 (Ju): ...and it BREATHES, a slow swell like the lava is pushing at it
+  const swell = 1 + 0.045 * Math.sin(now / 1100);
+  const rim = ctx.createRadialGradient(view.cx, view.cy, R * 0.90, view.cx, view.cy, R * 1.22 * swell);
   rim.addColorStop(0, 'rgba(255, 93, 31, 0)');
   rim.addColorStop(0.42, 'rgba(255, 130, 45, 0.72)');
   rim.addColorStop(0.72, 'rgba(255, 90, 25, 0.34)');
   rim.addColorStop(1, 'rgba(255, 70, 15, 0)');
   ctx.fillStyle = rim;
-  ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.24, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.24 * swell, 0, Math.PI * 2); ctx.fill();
 
   // v14 (Ju, the 3D pass): the platform is a raised SLAB over the lava. The
   // side is a second disc pushed DOWN; only its bottom crescent shows, and a
@@ -728,6 +730,64 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath(); ctx.arc(x, y, pr * 1.15, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(28, 18, 14, 0.6)';
       ctx.beginPath(); ctx.arc(x, y, pr * 0.5, 0, Math.PI * 2); ctx.fill();
+    } else if (pil.tree) {
+      // v18 (Ju): a DEAD TREE wearing the pillar's exact mechanics. The
+      // collision circle is the trunk's base; everything above is paint.
+      const th = pr * 3.1;
+      const lean = Math.sin(pil.x * 12.9 + pil.y * 7.1) * 0.22;   // stable per position
+      const sway = Math.sin(now / 1400 + pil.x) * 0.015;          // barely-alive creak
+      // ground shadow + scorched base
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + pr * 0.3, y + pr * 0.2, pr * 1.3, pr * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#171310';
+      ctx.beginPath(); ctx.ellipse(x, y, pr, pr * T * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(lean + sway);
+      // the trunk: a tapered gnarled shaft with a kink
+      ctx.beginPath();
+      ctx.moveTo(-pr * 0.55, 0);
+      ctx.quadraticCurveTo(-pr * 0.5, -th * 0.45, -pr * 0.2, -th * 0.62);
+      ctx.lineTo(-pr * 0.08, -th);
+      ctx.lineTo(pr * 0.14, -th * 0.98);
+      ctx.quadraticCurveTo(pr * 0.18, -th * 0.5, pr * 0.55, 0);
+      ctx.closePath();
+      const tg = ctx.createLinearGradient(-pr * 0.5, 0, pr * 0.5, 0);
+      tg.addColorStop(0, '#241a12'); tg.addColorStop(0.6, '#141009'); tg.addColorStop(1, '#0a0705');
+      ctx.fillStyle = tg;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // bare branches, two per side, with ember tips that breathe
+      ctx.strokeStyle = '#1d150d';
+      ctx.lineWidth = Math.max(1.4, pr * 0.16);
+      const tips = [];
+      for (const [bx, by, ex2, ey2] of [
+        [-pr * 0.2, -th * 0.7, -pr * 1.6, -th * 0.95],
+        [pr * 0.1, -th * 0.8, pr * 1.35, -th * 1.1],
+        [-pr * 0.1, -th * 0.92, -pr * 0.8, -th * 1.3],
+        [pr * 0.05, -th * 0.55, pr * 1.1, -th * 0.6],
+      ]) {
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.quadraticCurveTo((bx + ex2) / 2, Math.min(by, ey2) - pr * 0.3, ex2, ey2);
+        ctx.stroke();
+        tips.push([ex2, ey2]);
+      }
+      const emb = 0.5 + 0.4 * Math.sin(now / 700 + pil.x * 3);
+      for (const [ex2, ey2] of tips) {
+        ctx.fillStyle = `rgba(255, 140, 50, ${0.5 * emb})`;
+        ctx.beginPath(); ctx.arc(ex2, ey2, pr * 0.14, 0, Math.PI * 2); ctx.fill();
+      }
+      // the lava's warm rim on the trunk's fire side
+      ctx.strokeStyle = 'rgba(255, 130, 50, 0.3)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(-pr * 0.5, -pr * 0.1);
+      ctx.quadraticCurveTo(-pr * 0.42, -th * 0.45, -pr * 0.18, -th * 0.6);
+      ctx.stroke();
+      ctx.restore();
     } else {
       // v14 (Ju, the 3D pass): the pillar is an extruded COLUMN. Collision
       // stays the base circle at (x, y); the height is pure paint.

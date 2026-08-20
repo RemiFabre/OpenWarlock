@@ -466,6 +466,7 @@ describe('spells', () => {
   it('lightning: the zone shows instantly, the bolt lands after the delay', () => {
     const spec = SPELLS.lightning;
     const state = freshBattle(3);
+    state.pillars = [];   // v18 trees would sit in this lane
     const a = state.players.p0, b = state.players.p1;
     a.spells.lightning = 1;
     a.x = 0; a.y = 0; b.x = 20; b.y = 0; b.vx = 0; b.vy = 0; b.moveTarget = null;
@@ -692,6 +693,7 @@ describe('spells', () => {
 
   it('an uncaught boomerang flies past its launch point and is gone forever', () => {
     const state = freshBattle(3);
+    state.pillars = [];   // v18 trees would sit in this lane
     const a = state.players.p0;
     a.spells.boomerang = 1;
     a.x = 0; a.y = 0;
@@ -1092,6 +1094,7 @@ describe('round-3 mechanics', () => {
 
   it('fireballs fizzle at SPELLS.fireball.range (22.5: no sniping from afar)', () => {
     const state = freshBattle(3);
+    state.pillars = [];   // v18 trees would sit in this lane
     const a = state.players.p0;
     a.x = 0; a.y = 0;
     state.players.p1.y = 50; state.players.p2.y = -50;

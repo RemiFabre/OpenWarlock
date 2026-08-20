@@ -2078,7 +2078,8 @@ function coopSpawnWave(state, time) {
 // from the seeded rng so every round reads a little different but stays
 // deterministic (and identical on server and in replays).
 function makePillars(state) {
-  const { COUNT, RADIUS, RING, BASE_ANGLE, JITTER } = ARENA.PILLARS;
+  const { COUNT, RADIUS, RING, BASE_ANGLE, JITTER,
+    TREES, TREE_RING, TREE_JITTER } = ARENA.PILLARS;
   // RING is written for the 5-player arena, so it rides the arena scale
   // (round 21.2); the default ring stays between spawn ring and rim.
   const ring = RING * (state.startRadius / ARENA.START_RADIUS);
@@ -2086,6 +2087,15 @@ function makePillars(state) {
   for (let i = 0; i < COUNT; i++) {
     const a = BASE_ANGLE + (i / COUNT) * Math.PI * 2 + (rng(state) - 0.5) * JITTER;
     out.push({ x: Math.cos(a) * ring, y: Math.sin(a) * ring, r: RADIUS, sunk: false });
+  }
+  // v18 (Ju): dead trees on the inner ring — pillar entries wearing a `tree`
+  // flag, so every pillar rule (block, bounce, Terra smash) applies for free.
+  const tring = (TREE_RING || 0) * (state.startRadius / ARENA.START_RADIUS);
+  for (let i = 0; i < (TREES || 0); i++) {
+    const a = BASE_ANGLE + Math.PI / 4 + (i / TREES) * Math.PI * 2
+      + (rng(state) - 0.5) * TREE_JITTER;
+    out.push({ x: Math.cos(a) * tring, y: Math.sin(a) * tring,
+      r: RADIUS * (0.85 + rng(state) * 0.3), sunk: false, tree: true });
   }
   return out;
 }
@@ -4096,6 +4106,7 @@ export function snapshot(state, viewerId = null) {
     startRadius: round2(state.startRadius),
     pillars: (state.pillars || []).map(p => ({
       x: round2(p.x), y: round2(p.y), r: round2(p.r), sunk: !!p.sunk,
+      ...(p.tree ? { tree: true } : {}),   // v18: drawn as a dead tree
     })),
     // issue #11 (Ju v3): destroyed ground — absent while there is none
     ...(state.holes && state.holes.length ? {
