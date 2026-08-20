@@ -9561,6 +9561,30 @@ describe('Ju v12 (issue #13)', () => {
     expect(wet.amount).toBeCloseTo(SPELLS.fireball.damage[0] * OPTIMS.POOL.lavasniper.mult, 5);
   });
 
+  it('v16: ghost 3 makes the RICOCHET pierce — every body on the line, and it still bounces', () => {
+    const state = battle3();
+    addPlayer(state, 'p3', 'Extra');
+    state.players.p3.x = 0; state.players.p3.y = 40;
+    const a = state.players.p0, b = state.players.p1, c = state.players.p2;
+    c.x = 24; c.y = 0; c.moveTarget = null; c.vx = c.vy = 0;   // p2 leaves its parking spot
+    a.elements = { ricochet: 1, ghost: 3 };
+    a.x = 0; a.y = 0; b.x = 12; b.y = 0; b.moveTarget = null; b.vx = b.vy = 0;
+    castSpell(state, 'p0', 'fireball', 30, 0);
+    run(state, 1.2);
+    expect(b.hp).toBeLessThan(b.maxHp);
+    expect(c.hp).toBeLessThan(c.maxHp);   // passed THROUGH the first body
+    // ...and ghost 1 (below the pierce level) still pops on the first body
+    const s2 = battle3();
+    const a2 = s2.players.p0, b2 = s2.players.p1, c2 = s2.players.p2;
+    c2.x = 24; c2.y = 0; c2.moveTarget = null; c2.vx = c2.vy = 0;
+    a2.elements = { ricochet: 1, ghost: 1 };
+    a2.x = 0; a2.y = 0; b2.x = 12; b2.y = 0; b2.moveTarget = null; b2.vx = b2.vy = 0;
+    castSpell(s2, 'p0', 'fireball', 30, 0);
+    run(s2, 1.2);
+    expect(b2.hp).toBeLessThan(b2.maxHp);
+    expect(c2.hp).toBe(c2.maxHp);
+  });
+
   it('Rush v12: base damage point blank, double at full range', () => {
     const spec = SPELLS.rush;
     // point blank: the victim right at the start of the dash

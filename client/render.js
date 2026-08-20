@@ -369,6 +369,62 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   // my team number, for the ally ring on the bodies below (round 21.3)
   const myTeam = vs.me && vs.me.team != null ? vs.me.team : null;
 
+  // --- the living lava (v16, Ju: "mets du mouvement sur la lave") ---
+  // A stateless particle pass in the annulus around the slab: bubbles that
+  // swell and pop, embers drifting off the surface, and two slow flow arcs.
+  // Everything derives from (index, now), so there is no state to leak and a
+  // seek/rewind can never desync it. On the lava PLANE, so it squashes.
+  ctx.save();
+  ctx.translate(view.cx, view.cy); ctx.scale(1, T); ctx.translate(-view.cx, -view.cy);
+  {
+    const t2 = now / 1000;
+    for (let i = 0; i < 26; i++) {
+      const h1 = Math.sin(i * 127.13) * 0.5 + 0.5;   // stable pseudo-randoms
+      const h2 = Math.sin(i * 311.7) * 0.5 + 0.5;
+      const h3 = Math.sin(i * 74.3) * 0.5 + 0.5;
+      const ang = h1 * Math.PI * 2 + t2 * 0.03 * (h2 - 0.5);
+      const rad = R * (1.06 + 0.42 * h2);
+      const bx = view.cx + Math.cos(ang) * rad;
+      const by = view.cy + Math.sin(ang) * rad;
+      const period = 1.6 + h3 * 2.6;
+      const ph = ((t2 + h1 * 37) % period) / period;   // 0..1 bubble life
+      if (i % 3 === 2) {
+        // ember: rises off the surface and fades (counter-squash its rise so
+        // it still climbs on SCREEN, not along the plane)
+        const rise = ph * 18;
+        ctx.fillStyle = `rgba(255, ${170 + 60 * h2 | 0}, 60, ${0.5 * (1 - ph)})`;
+        ctx.beginPath(); ctx.arc(bx + Math.sin(ph * 9 + i) * 3, by - rise / T, 1.4 + h3, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // bubble: swells then bursts into a brief ring
+        const sw = ph < 0.8 ? ph / 0.8 : 0;
+        const rr = (2 + 4.5 * h3) * (0.4 + 0.6 * sw);
+        if (ph < 0.8) {
+          ctx.fillStyle = `rgba(255, 130, 45, ${0.35 + 0.25 * sw})`;
+          ctx.beginPath(); ctx.arc(bx, by, rr, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = `rgba(255, 230, 170, ${0.35 * sw})`;
+          ctx.beginPath(); ctx.arc(bx - rr * 0.3, by - rr * 0.3, rr * 0.35, 0, Math.PI * 2); ctx.fill();
+        } else {
+          const pop = (ph - 0.8) / 0.2;
+          ctx.strokeStyle = `rgba(255, 200, 120, ${0.5 * (1 - pop)})`;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.arc(bx, by, rr * (1 + pop * 1.6), 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+    }
+    // two slow counter-rotating flow arcs hugging the slab: the current
+    for (let k = 0; k < 2; k++) {
+      const dir = k === 0 ? 1 : -1;
+      const off = t2 * 0.12 * dir + k * 2.1;
+      ctx.strokeStyle = `rgba(255, 120, 40, ${0.16 + 0.06 * Math.sin(t2 + k)})`;
+      ctx.lineWidth = 3.5;
+      ctx.setLineDash([R * 0.16, R * 0.24]);
+      ctx.beginPath(); ctx.arc(view.cx, view.cy, R * (1.10 + k * 0.10), off, off + Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  ctx.restore();
+
   // --- platform ---
   // v15 (Ju): the whole platform stack is GROUND. One squash transform turns
   // every circle in it into the right ellipse under the tilted camera.

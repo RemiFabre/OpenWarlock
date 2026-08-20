@@ -1100,7 +1100,13 @@ function spawnRicochet(state, pl, dx, dy, opts = {}) {
       * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
     vy: dy * tspec.speed * body.speed
       * (pl.optims && pl.optims.fastball ? OPTIMS.POOL.fastball.mult : 1),
-    traveled: 0, hit: {}, pierce: false, pierced: 0,
+    traveled: 0, hit: {},
+    // v16 (Ju): ghost lv3 pierces the RICOCHET too. Safe since the v14 bounce
+    // budget: a piercing bouncer still dies at its budget, never lives forever
+    // (the reason the v6.1 exception existed).
+    pierce: !!(elements && Object.entries(elements).some(([k, v]) =>
+      ELEMENTS[k].fx.pierce && v >= (ELEMENTS[k].fx.pierceAtLevel || 1))),
+    pierced: 0,
     radius: tspec.radius * body.radius
       * (pl.optims && pl.optims.ballsize ? OPTIMS.POOL.ballsize.mult : 1),
     life: null, elements,
