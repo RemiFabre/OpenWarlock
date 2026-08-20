@@ -8396,22 +8396,21 @@ describe('Ricochet (issue #3)', () => {
     expect(s2.projectiles.length).toBe(0);
   });
 
-  it('its clock starts at the FIRST bounce, and then runs out', () => {
+  it('v14 (Ju): the ball has a bounce BUDGET (2/3/5); the contact after the last bounce pops it', () => {
     for (const level of [1, 2, 3]) {
       const state = table(level);
+      // a ping-pong corridor: two pillars either side of the firing line
       state.pillars.push({ x: 12, y: 0, r: 2.2, sunk: false });
+      state.pillars.push({ x: -12, y: 0, r: 2.2, sunk: false });
+      state.events = [];
       castSpell(state, 'p0', 'ricochet', 100, 0);
-      run(state, 0.2);
-      expect(ball(state).life).toBe(null);        // not armed before the bounce
-      run(state, 0.4);
-      const life = spec.life[level - 1];
-      // armed at the bounce, which happened somewhere inside that 0.4 s
-      expect(ball(state).life).toBeLessThanOrEqual(life);
-      expect(ball(state).life).toBeGreaterThan(life - 0.4);
-      run(state, life - 0.5);
-      expect(ball(state)).toBeTruthy();
-      run(state, 0.6);
-      expect(ball(state)).toBeUndefined();
+      let guard = 0;
+      while (ball(state) && guard++ < 20000) step(state, 1 / 30);
+      expect(guard).toBeLessThan(20000);          // the ball DOES die
+      const bounces = state.events.filter(e => e.t === 'bounce' && e.id === 'p0').length;
+      expect(bounces).toBe(spec.maxBounces[level - 1]);
+      // and the pop announced itself where the budget ran out
+      expect(state.events.some(e => e.t === 'boom' && e.spell === 'ricochet')).toBe(true);
     }
   });
 

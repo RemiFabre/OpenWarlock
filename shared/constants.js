@@ -279,12 +279,14 @@ export const SPELLS = {
     name: 'Ricochet', hotkey_retired: 'Y', tier: 'power', maxLevel: 3, costs: [10, 5, 5],
     cooldown: 3.2, speed: 41, radius: 0.8, range: Infinity,
     damage: [10, 13, 16], knockback: [60, 65, 70],
-    life: [4, 8, 12], bounceAllAtLevel: 3,
+    // v14 (Ju): the clock is GONE; the ball has a bounce BUDGET instead.
+    // The contact after the last allowed bounce pops it on the spot.
+    maxBounces: [2, 3, 5], bounceAllAtLevel: 3,
     // issue #9 (Ju, v2): a hit landed AFTER any bounce is worth 65% — the
     // trick shot is the discount, the straight shot the full price.
     bounceDmgMult: 0.65,
     desc: 'A ball that bounces off the world.',
-    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches, and a hit landed after a bounce deals 35% less. After its first bounce it lives 4 / 8 / 12 seconds. At level 3 it bounces off mirror walls and statues too. Its cast costs a flat 3.2 s.',
+    long: 'Bounces off the pillars and off an invisible wall at the lava\'s edge; it pops on the first enemy it touches, and a hit landed after a bounce deals 35% less. It can bounce 2 / 3 / 5 times; the contact after that pops it. At level 3 it bounces off mirror walls and statues too. Its cast costs a flat 3.2 s.',
   },
   umbra: {
     // Issue #9 (Ju, v2): the Dark Ball — the SECOND hit on the same victim
@@ -1005,6 +1007,9 @@ export const OPTIMS = {
                  desc: 'Your balls deal 20% more damage to enemies under 20% of their max hp.' },
     coinmagnet:{ icon: '🧲', name: 'Coin Magnet', range: 5,
                  desc: 'Your Midas coins fly to you when you come within 5 units.' },
+    // v14 (Ju): the perm-scar gamble, from the proposal list
+    cratermaker:{ icon: '🕳️', name: 'Crater Maker', chance: 0.25,
+                 desc: 'Your permanent-destruction chance rises from 9% to 25% per cast.' },
   },
 };
 

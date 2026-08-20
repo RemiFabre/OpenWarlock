@@ -1345,7 +1345,7 @@ const SPELL_FIELDS = {
   clones: ['copies of you', fmtNum],
   stores: ['fireballs it stores', fmtNum],
   ballDelay: ['stored balls fire', (v) => `${fmtSec(v)} apart`],
-  life: ['lives on, after its first bounce', fmtSec],
+  maxBounces: ['bounces before it pops', fmtNum],
   bounceDmgMult: ['hits after a bounce deal', (v) => `${fmtNum(Math.round(v * 100))}%`],
   // issue #9 (Ju v2)
   blind: ['blinds them for', fmtSec],
@@ -1601,14 +1601,9 @@ function tipBody(lines, cur, max, costAt, previewLv) {
 // says so in green, so a returning player reads the diff inside the shop.
 // Hand-curated from the real constants diff v7 -> v8; rewrite at each version.
 const PATCH_NOTES = {
-  rush: ['The whiff shield is VISIBLE now: a gray slice on your hp bar plus a ring, for everyone.',
-    'And it lasts 3 seconds instead of the whole round.'],
-  sword: ['Lifesteal cut 25%: 7.5/15/22.5% (was 10/20/30).'],
-  spoon: ['Heal per hit cut 25%: +0.75/1.5/2.25 (was +1/2/3).'],
-  vampire: ['Feast heal per mark cut 25%: 1.5/2.25/3 (was 2/3/4).'],
-  meteor: ['Permanent-scar chance per cast: 9% (was 5%).'],
-  nova: ['Permanent-scar chance per cast: 9% (was 5%).'],
-  midas: ['New pick in the pool: Coin Magnet pulls your coins to you under 5 units.'],
+  ricochet: ['REWORKED: no more timer. The ball can bounce 2/3/5 times; the contact after that pops it.'],
+  pillar: ['The 3D pass: pillars are extruded columns now (paint only, same collision).'],
+  meteor: ['The 3D pass: destroyed ground has visible depth.'],
 };
 const patchHtml = (key) => PATCH_NOTES[key]
   ? `<div class="tpatch"><b>Changed in this version</b><ul>${

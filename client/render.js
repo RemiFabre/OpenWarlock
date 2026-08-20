@@ -375,6 +375,19 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   ctx.fillStyle = rim;
   ctx.beginPath(); ctx.arc(view.cx, view.cy, R * 1.24, 0, Math.PI * 2); ctx.fill();
 
+  // v14 (Ju, the 3D pass): the platform is a raised SLAB over the lava. The
+  // side is a second disc pushed DOWN; only its bottom crescent shows, and a
+  // warm underglow licks its lower edge. Paint only, never geometry.
+  const slabDepth = Math.max(6, R * 0.05);
+  ctx.fillStyle = '#0a0705';
+  ctx.beginPath(); ctx.arc(view.cx, view.cy + slabDepth, R, 0, Math.PI * 2); ctx.fill();
+  const under = ctx.createRadialGradient(view.cx, view.cy + slabDepth, R * 0.93,
+    view.cx, view.cy + slabDepth, R);
+  under.addColorStop(0, 'rgba(255, 110, 40, 0)');
+  under.addColorStop(1, 'rgba(255, 120, 45, 0.5)');
+  ctx.fillStyle = under;
+  ctx.beginPath(); ctx.arc(view.cx, view.cy + slabDepth, R, 0, Math.PI * 2); ctx.fill();
+
   // the floor: the artwork reads through a calm dark wash, so the play area
   // stays the quietest part of the screen (bodies and balls must win)
   const rock = ctx.createRadialGradient(view.cx, view.cy, 0, view.cx, view.cy, R);
@@ -517,6 +530,18 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     glow.addColorStop(1, 'rgba(255, 93, 31, 0)');
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(x, y, hr * 0.8, 0, TAU); ctx.fill();
+    // v14 (Ju, the 3D pass): the pit has WALLS. The near (upper) inner edge
+    // hangs a shadow, the far (lower) inner lip catches the lava light: the
+    // eye reads depth instead of a flat decal.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.clip();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.lineWidth = hr * 0.34;
+    ctx.beginPath(); ctx.arc(x, y + hr * 0.10, hr * 0.92, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 150, 60, 0.35)';
+    ctx.lineWidth = hr * 0.2;
+    ctx.beginPath(); ctx.arc(x, y - hr * 0.08, hr * 0.9, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    ctx.restore();
     ctx.strokeStyle = 'rgba(255, 120, 50, 0.7)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.stroke();
@@ -549,23 +574,43 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.fillStyle = 'rgba(28, 18, 14, 0.6)';
       ctx.beginPath(); ctx.arc(x, y, pr * 0.5, 0, Math.PI * 2); ctx.fill();
     } else {
+      // v14 (Ju, the 3D pass): the pillar is an extruded COLUMN. Collision
+      // stays the base circle at (x, y); the height is pure paint.
+      const h = pr * 1.1;
       // drop shadow toward the lava glow
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath(); ctx.ellipse(x + pr * 0.2, y + pr * 0.45, pr * 1.05, pr * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      // obsidian body (rock palette, darker than the platform)
-      const g = ctx.createRadialGradient(x - pr * 0.35, y - pr * 0.4, pr * 0.15, x, y, pr);
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + pr * 0.35, y + pr * 0.35, pr * 1.15, pr * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+      // the shaft: two verticals joined by the base and top arcs; side lit
+      // warm at the bottom by the lava, near-black at the top
+      const side = ctx.createLinearGradient(0, y - h, 0, y + pr * 0.5);
+      side.addColorStop(0, '#171310');
+      side.addColorStop(0.72, '#241c16');
+      side.addColorStop(1, '#3d2317');
+      ctx.fillStyle = side;
+      ctx.beginPath();
+      ctx.moveTo(x - pr, y - h);
+      ctx.lineTo(x - pr, y);
+      ctx.arc(x, y, pr, Math.PI, 0, true);   // base bulge (lower half)
+      ctx.lineTo(x + pr, y - h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.stroke();
+      // the TOP face, at (x, y - h): the old obsidian disc, slightly squashed
+      const g = ctx.createRadialGradient(x - pr * 0.35, y - h - pr * 0.3, pr * 0.15, x, y - h, pr);
       g.addColorStop(0, '#4a4038');
       g.addColorStop(0.55, '#2a221d');
       g.addColorStop(1, '#14100c');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(x, y, pr, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, y - h, pr, pr * 0.78, 0, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = 'rgba(0,0,0,0.5)';
       ctx.stroke();
-      // rim highlight catching the lava light
-      ctx.strokeStyle = 'rgba(255, 150, 70, 0.28)';
+      // rim highlight catching the lava light, on the top face
+      ctx.strokeStyle = 'rgba(255, 150, 70, 0.3)';
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, y, pr * 0.9, Math.PI * 0.55, Math.PI * 1.35); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y - h, pr * 0.88, pr * 0.66, 0, Math.PI * 0.6, Math.PI * 1.4); ctx.stroke();
     }
   }
 

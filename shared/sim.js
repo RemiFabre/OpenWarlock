@@ -816,7 +816,8 @@ export function castSpell(state, id, key, tx, ty) {
         t: spec.delay, owner: id, level,
         // v11 (Ju): the permanence of this rock's crater is decided HERE, at the
         // cast, as he asked ("a chaque lancement de la competence")
-        perm: rng(state) < HOLES.PERM_CHANCE,
+        perm: rng(state) < (pl.optims && pl.optims.cratermaker
+          ? OPTIMS.POOL.cratermaker.chance : HOLES.PERM_CHANCE),
       });
       break;
     }
@@ -827,7 +828,8 @@ export function castSpell(state, id, key, tx, ty) {
       state.mines.push({
         id: state.nextId++, x: pl.x, y: pl.y, r: spec.radius,
         owner: id, level, charges: [],
-        perm: rng(state) < HOLES.PERM_CHANCE,   // v11: rolled at the plant
+        perm: rng(state) < (pl.optims && pl.optims.cratermaker
+          ? OPTIMS.POOL.cratermaker.chance : HOLES.PERM_CHANCE),   // v11: rolled at the plant
       });
       state.events.push({ t: 'mineUp', id, x: pl.x, y: pl.y, r: spec.radius });
       break;
@@ -3628,11 +3630,16 @@ function vomitOnce(state, victim, level, owner) {
 // `life` runs from the FIRST bounce, never from the cast, so a shot that has met
 // nothing yet is not on a timer.
 function bounceProjectile(state, pr, nx, ny) {
+  // v14 (Ju): the ball carries a bounce BUDGET (maxBounces per level), no
+  // clock. The contact AFTER the last allowed bounce pops it on the spot:
+  // life = 0 rides the existing expiry check, which booms it next tick.
+  const max = lvl(SPELLS[pr.type], 'maxBounces', pr.level);
+  if ((pr.bounces || 0) >= max) { pr.life = 0; return; }
   const vn = pr.vx * nx + pr.vy * ny;
   pr.vx -= 2 * vn * nx;
   pr.vy -= 2 * vn * ny;
+  pr.bounces = (pr.bounces || 0) + 1;
   pr.bounced = true;   // issue #9: hits after any bounce are worth 65%
-  if (pr.life == null) pr.life = lvl(SPELLS[pr.type], 'life', pr.level);
   state.events.push({ t: 'bounce', id: pr.owner, x: pr.x, y: pr.y });
 }
 
