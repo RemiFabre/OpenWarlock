@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 52,
+  "serial": 53,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v17: the set is dressed — obsidian spikes and charred rib cages half-sunk in the living lava, ember cracks breathing on the slab's rim. With v16's elaborate animated sorcerers, the WC3-style tilted camera, the ricochet bounce budget, and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v18: four dead TREES stand on an inner ring with the pillars' exact mechanics (they block, bounce your ricochet, and Terra 3 smashes them), and the lava heaves harder (more bubbles, stronger currents, a breathing molten rim). With the dressed set, the elaborate sorcerers, the tilted camera, and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "0ed4282d40747be57ebac0ebf7954e8d09bca880"
+      "commit": "e8cc306f2bfc0f5ca42aec0edb27ebbc491721fd"
     },
     {
       "slug": "trash-talk",
