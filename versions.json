@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 54,
+  "serial": 55,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v18: four dead TREES stand on an inner ring with the pillars' exact mechanics (they block, bounce your ricochet, and Terra 3 smashes them), and the lava heaves harder (more bubbles, stronger currents, a breathing molten rim). With the dressed set, the elaborate sorcerers, the tilted camera, and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v19: the warlocks are restyled after his gilded-WC3 reference — trimmed hood, gold galons and buckles, layered ornate shoulder pads, a rune tabard, a chain belt with a skull clasp, a horned skull staff, and the casting orb glowing in the off hand. With the visible dead trees, the dressed set, the living lava, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "b88b3b11c307db2ccddd32e42cb661a5ff88f425"
+      "commit": "4ff84daa08f0a8e34db8c4cf2ecfd3d529d7bc0b"
     },
     {
       "slug": "trash-talk",
