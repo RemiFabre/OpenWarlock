@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 49,
+  "serial": 50,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v14: the arena gets a 3D pass (raised slab platform, extruded pillar columns, pits with real depth), the Ricochet trades its timer for a bounce budget (2/3/5 bounces, the contact after pops it), and Crater Maker joins the pick pool (permanent scars at 25%, pool of 29). On the current base game and Sam's interface (credit @SamKhosravi), with the whole arsenal and the pick-one windows at rounds 3/6/9.",
+      "summary": "Ju's arsenal, v15: the WC3-Warlock camera (the arena tilts into perspective, the slab shows its edge, ground markers squash with it) and every warlock is an animated SORCERER now — pointed hat, robe in the player colour, staff that flares on a cast, walk animation. Plus v14's ricochet bounce budget (2/3/5) and the 29-pick optimisation pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "7722bc1723b8172127f003101621257a47f1ebaa"
+      "commit": "1f24ee5fc5dd49d1ca74afaf235695a4ca8ad29e"
     },
     {
       "slug": "trash-talk",
