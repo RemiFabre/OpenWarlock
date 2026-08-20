@@ -5,6 +5,7 @@ import { rankTeams } from '../shared/sim.js';
 import { itemFxAt } from '../shared/items.js';
 import { currentLevel } from './music.js';
 import { drawKnight, forgetKnights, knightLoaded } from './knight.js';
+import { drawWizard, forgetWizards } from './wizard.js';
 
 // Issue #14 (Sam v8): the arena artwork is the world's backdrop. It is DECOR:
 // nothing here feeds geometry. The arena radius, the shrink, the pillars and
@@ -76,13 +77,17 @@ export function makeView(canvas) {
     canvas, ctx: canvas.getContext('2d'),
     back, bctx: back.getContext('2d'),
     w: 0, h: 0, scale: 1, cx: 0, cy: 0,
+    // v15 (Ju): the WC3-style tilted camera. World y is squashed by `tilt`
+    // when projected; upright billboards (bodies, pillar heights, bars) are
+    // drawn vertically at the projected position. 1 = the old flat top-down.
+    tilt: 0.75,
     arenaR: ARENA.START_RADIUS,   // this game's un-shrunk arena (round 21.2)
     // the camera frames the WHOLE arena, whatever size this game rolled
     fitArena(R) {
       const r = Number.isFinite(+R) && +R > 0 ? +R : ARENA.START_RADIUS;
       if (r === this.arenaR) return;
       this.arenaR = r;
-      this.scale = Math.min(this.w, this.h) / (2 * (r + 9));
+      this.scale = Math.min(this.w, this.h / this.tilt) / (2 * (r + 9));
     },
     resize() {
       const dpr = Math.min(1.5, window.devicePixelRatio || 1);
@@ -91,7 +96,7 @@ export function makeView(canvas) {
       canvas.style.width = this.w + 'px'; canvas.style.height = this.h + 'px';
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.cx = this.w / 2; this.cy = this.h / 2;
-      this.scale = Math.min(this.w, this.h) / (2 * (this.arenaR + 9));
+      this.scale = Math.min(this.w, this.h / this.tilt) / (2 * (this.arenaR + 9));
       // backdrop renders at ~1/3 resolution and is stretched up; the image,
       // wash and lava-blob gradients are by far the most expensive paints
       // the back layer only carries the lava-blob gradients now (the level
@@ -100,7 +105,7 @@ export function makeView(canvas) {
       back.height = Math.max(100, Math.round(this.h / 3));
     },
     sx(x) { return this.cx + x * this.scale; },
-    sy(y) { return this.cy + y * this.scale; },
+    sy(y) { return this.cy + y * this.scale * this.tilt; },
   };
 }
 
@@ -332,17 +337,19 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   const R0 = fin(vs.startRadius) ? vs.startRadius : ARENA.START_RADIUS; // un-shrunk
   const players = Array.isArray(vs.players) ? vs.players : [];
   const projectiles = Array.isArray(vs.projectiles) ? vs.projectiles : [];
+  const T = view.tilt;   // v15: ground shapes squash by this under the camera
   // ---- v9 (Sam): what the animated character needs to REACT to, all of it read
   // off state the game already sends. Nothing here can change the game.
-  // v12 (Ju): the animated sprite is OFF; warlocks are the base game's moving
-  // discs again (his ask, aesthetic only). Flip back to knightLoaded() to
-  // restore Sam's animated bodies.
+  // v12 (Ju): Sam's animated knight is OFF (flip to knightLoaded() to bring
+  // it back). v15 (Ju): the body is the procedural SORCERER instead; set
+  // wizardBodies = false to fall back to the flat colour disc + face.
   const knightReady = false && knightLoaded();
-  const kdt = Math.min(0.1, Math.max(0, now - (lastDrawAt || now)));
+  const wizardBodies = true;
+  const kdt = Math.min(0.1, Math.max(0, (now - (lastDrawAt || now)) / 1000));   // real SECONDS per frame
   lastDrawAt = now;
   const casters = new Set();     // a projectile of theirs appeared this frame
   const hurtNow = new Set();     // their hp went down since the last frame
-  if (knightReady) {
+  if (knightReady || wizardBodies) {
     const live = new Set();
     for (const pr of projectiles) {
       live.add(pr.id);
@@ -355,12 +362,18 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       if (was != null && fin(p.hp) && p.hp < was - 0.01) hurtNow.add(p.id);
       lastHp.set(p.id, fin(p.hp) ? p.hp : was);
     }
-    forgetKnights(new Set(players.map((p) => p && p.id).filter(Boolean)));
+    const liveIds = new Set(players.map((p) => p && p.id).filter(Boolean));
+    forgetKnights(liveIds);
+    forgetWizards(liveIds);
   }
   // my team number, for the ally ring on the bodies below (round 21.3)
   const myTeam = vs.me && vs.me.team != null ? vs.me.team : null;
 
   // --- platform ---
+  // v15 (Ju): the whole platform stack is GROUND. One squash transform turns
+  // every circle in it into the right ellipse under the tilted camera.
+  ctx.save();
+  ctx.translate(view.cx, view.cy); ctx.scale(1, T); ctx.translate(-view.cx, -view.cy);
   // ghost of the original arena size
   ctx.strokeStyle = 'rgba(255, 140, 60, 0.10)';
   ctx.lineWidth = 1;
@@ -378,7 +391,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   // v14 (Ju, the 3D pass): the platform is a raised SLAB over the lava. The
   // side is a second disc pushed DOWN; only its bottom crescent shows, and a
   // warm underglow licks its lower edge. Paint only, never geometry.
-  const slabDepth = Math.max(6, R * 0.05);
+  const slabDepth = Math.max(8, R * 0.07);
   ctx.fillStyle = '#0a0705';
   ctx.beginPath(); ctx.arc(view.cx, view.cy + slabDepth, R, 0, Math.PI * 2); ctx.fill();
   const under = ctx.createRadialGradient(view.cx, view.cy + slabDepth, R * 0.93,
@@ -414,6 +427,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
   for (let i = 1; i <= 3; i++) {
     ctx.beginPath(); ctx.arc(view.cx, view.cy, R * i / 3.4, 0, Math.PI * 2); ctx.stroke();
   }
+  ctx.restore();   // end of the ground squash (platform stack)
 
   // Broken ground (24.1): meteor craters are open lava. Radius-TRUE (the burn
   // edge IS the drawn edge), molten core breathing on the lava's own slow
@@ -448,6 +462,8 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       const ex = view.sx(-Math.cos(pa) * P.EXIT_DIST);
       const ey = view.sy(-Math.sin(pa) * P.EXIT_DIST);
       const er = 0.9 * scale;
+      ctx.save();
+      ctx.translate(ex, ey); ctx.scale(1, T); ctx.translate(-ex, -ey);   // ground squash
       ctx.strokeStyle = 'rgba(140, 220, 255, 0.28)';
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.stroke();
@@ -456,11 +472,14 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.moveTo(ex - dg, ey - dg); ctx.lineTo(ex + dg, ey + dg);
       ctx.moveTo(ex - dg, ey + dg); ctx.lineTo(ex + dg, ey - dg);
       ctx.stroke();
+      ctx.restore();
     }
     for (let i = 0; i < P.COUNT; i++) {
       const pa = P.ANGLE + (i / P.COUNT) * Math.PI * 2;
       const x = view.sx(Math.cos(pa) * pd), y = view.sy(Math.sin(pa) * pd);
       const pr = P.RADIUS * scale;
+      ctx.save();
+      ctx.translate(x, y); ctx.scale(1, T); ctx.translate(-x, -y);   // ground squash
       const g = ctx.createRadialGradient(x, y, 0, x, y, pr * 1.7);
       g.addColorStop(0, 'rgba(8, 12, 28, 0.95)');   // dark well
       g.addColorStop(0.6, 'rgba(45, 95, 170, 0.45)');
@@ -474,6 +493,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         const o = spin + k * (Math.PI * 2 / 3);
         ctx.beginPath(); ctx.arc(x, y, pr, o, o + Math.PI / 2); ctx.stroke();
       }
+      ctx.restore();
     }
   }
 
@@ -488,6 +508,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const rr = pu.r * scale;
     const alpha = 0.5 + 0.35 * (fin(+pu.a) ? +pu.a : 1);
     ctx.save();
+    ctx.translate(x, y); ctx.scale(1, T); ctx.translate(-x, -y);   // ground squash
     ctx.globalAlpha *= alpha;
     ctx.fillStyle = '#5a6b1f';
     ctx.strokeStyle = 'rgba(150, 170, 60, 0.8)';
@@ -517,6 +538,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const x = view.sx(h.x), y = view.sy(h.y);
     const hr = h.r * scale;
     ctx.save();
+    ctx.translate(x, y); ctx.scale(1, T); ctx.translate(-x, -y);   // ground squash
     const pit = ctx.createRadialGradient(x, y, 0, x, y, hr);
     pit.addColorStop(0, '#160503');
     pit.addColorStop(0.75, '#2a0a04');
@@ -590,7 +612,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath();
       ctx.moveTo(x - pr, y - h);
       ctx.lineTo(x - pr, y);
-      ctx.arc(x, y, pr, Math.PI, 0, true);   // base bulge (lower half)
+      ctx.ellipse(x, y, pr, pr * T, 0, Math.PI, 0, true);   // base bulge (lower half)
       ctx.lineTo(x + pr, y - h);
       ctx.closePath();
       ctx.fill();
@@ -603,14 +625,14 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       g.addColorStop(0.55, '#2a221d');
       g.addColorStop(1, '#14100c');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.ellipse(x, y - h, pr, pr * 0.78, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, y - h, pr, pr * T, 0, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = 'rgba(0,0,0,0.5)';
       ctx.stroke();
       // rim highlight catching the lava light, on the top face
       ctx.strokeStyle = 'rgba(255, 150, 70, 0.3)';
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(x, y - h, pr * 0.88, pr * 0.66, 0, Math.PI * 0.6, Math.PI * 1.4); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y - h, pr * 0.88, pr * 0.88 * T, 0, Math.PI * 0.6, Math.PI * 1.4); ctx.stroke();
     }
   }
 
@@ -621,7 +643,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const alpha = fin(+h.a) ? Math.max(0, Math.min(1, +h.a)) : 1;
     const x = view.sx(h.x), y = view.sy(h.y);
     ctx.fillStyle = `rgba(110, 200, 90, ${0.10 + 0.16 * alpha})`;
-    ctx.beginPath(); ctx.arc(x, y, h.r * scale, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, y, h.r * scale, h.r * scale * T, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = `rgba(130, 220, 110, ${0.25 * alpha})`;
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -638,10 +660,10 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.strokeStyle = `rgba(255, 80, 40, ${blink})`;
     ctx.lineWidth = 2.5;
     ctx.setLineDash([6, 6]);
-    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, y, R2, R2 * T, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = `rgba(255, 80, 40, ${0.10 + 0.12 * blink})`;
-    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, y, R2, R2 * T, 0, 0, Math.PI * 2); ctx.fill();
     // the rock itself, streaking down at the zone (round 20, Remi: "it would
     // be cool if we could see something falling"): position/size lerped from
     // a high offset to the impact point over the telegraph's delay, with a
@@ -682,6 +704,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const tint = (owner && owner.color) || '#c9782f';
     const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / (n ? 320 : 700)));
     ctx.save();
+    ctx.translate(x, y); ctx.scale(1, T); ctx.translate(-x, -y);   // ground squash
     ctx.globalAlpha = 0.55 + 0.3 * pulse;
     ctx.strokeStyle = tint;
     ctx.lineWidth = 1.5;
@@ -716,6 +739,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     const mine = myId != null && c.owner === myId;
     const r = Math.max(3, 0.42 * scale);
     ctx.save();
+    ctx.translate(x, y); ctx.scale(1, T); ctx.translate(-x, -y);   // ground squash
     if (mine) {
       const glint = 0.5 + 0.5 * Math.sin(now / 220);
       ctx.globalAlpha = 0.35 + 0.25 * glint;
@@ -751,7 +775,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.strokeStyle = `rgba(${tint}, ${blink})`;
     ctx.lineWidth = 2.5;
     ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, y, R2, R2 * T, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = `rgba(${tint}, ${0.10 + 0.14 * blink})`;
     ctx.beginPath(); ctx.arc(x, y, R2, 0, Math.PI * 2); ctx.fill();
@@ -780,7 +804,8 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     ctx.strokeStyle = `rgba(127, 176, 105, ${a})`;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(view.sx(moveMark.x), view.sy(moveMark.y), 6 + 10 * (1 - a), 0, Math.PI * 2);
+    ctx.ellipse(view.sx(moveMark.x), view.sy(moveMark.y),
+      6 + 10 * (1 - a), (6 + 10 * (1 - a)) * T, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -793,7 +818,8 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 6]);
       ctx.beginPath();
-      ctx.arc(view.sx(me.x), view.sy(me.y), rangePreview.range * scale, 0, Math.PI * 2);
+      ctx.ellipse(view.sx(me.x), view.sy(me.y),
+        rangePreview.range * scale, rangePreview.range * scale * T, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -1040,10 +1066,10 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       const br = itemFxAt('brazier', 'auraR', brazLv) * scale;
       const breath = 0.85 + 0.15 * Math.sin(now / 600);
       ctx.fillStyle = 'rgba(255, 130, 40, 0.055)';
-      ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, y, br, br * T, 0, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = `rgba(255, 160, 60, ${0.30 * breath})`;
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(x, y, br, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y, br, br * T, 0, 0, Math.PI * 2); ctx.stroke();
     }
     // Vampire feast ring (round 24): radius-TRUE like the Hat's, PUBLIC by
     // design (Remi: "people see your range too"), and deliberately NOT the
@@ -1058,7 +1084,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.setLineDash([5, 6]);
       ctx.strokeStyle = `rgba(200, 40, 70, ${0.38 * vb})`;
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(x, y, vr, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y, vr, vr * T, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
 
@@ -1105,6 +1131,17 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.lineWidth = 1.5;
       ctx.strokeStyle = pl.id === myId ? 'rgba(255,255,255,.8)' : 'rgba(0,0,0,0.45)';
       ctx.beginPath(); ctx.ellipse(x, y + r * 0.12, r * 0.92, r * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (wizardBodies) {
+      // v15 (Ju): a WC3-style ground disc keeps the colour identity readable
+      // (squashed under the camera), the sorcerer stands on it.
+      ctx.save();
+      ctx.globalAlpha *= 0.6;
+      ctx.fillStyle = pl.color;
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.15, r * 1.05, r * 1.05 * T * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.15, r * 1.05, r * 1.05 * T * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
     } else {
       ctx.fillStyle = pl.color;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
@@ -1113,10 +1150,11 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.stroke();
     }
     // liseré rouge: a constant red ring so you can ALWAYS spot yourself
+    // (v15: at the FEET, squashed with the ground)
     if (pl.id === myId) {
       ctx.strokeStyle = 'rgba(255, 59, 48, 0.9)';
       ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.15, r * 1.3, r * 1.3 * T * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
     } else if (myTeam != null && pl.team === myTeam) {
       // …and an ALLY wears the same ring in the team's colour (round 21.3).
       // Your spells pass straight through them, so "don't shoot that one" has
@@ -1124,7 +1162,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       // a solo lobby: your own number is unique, so nothing else matches it.
       ctx.strokeStyle = teamTint(myTeam);
       ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x, y, r * 1.18, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y + r * 0.15, r * 1.3, r * 1.3 * T * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
     }
     // hood highlight + avatar emoji; a statue has neither: it is stone now,
     // and the status rings below are all things it is immune to anyway
@@ -1132,6 +1170,8 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       drawKnight(ctx, pl, x, y, r, kdt, {
         cast: casters.has(pl.id), hurt: hurtNow.has(pl.id), dead: !pl.alive,
       });
+    } else if (!statue && wizardBodies) {
+      drawWizard(ctx, pl, x, y, r, T, kdt, { cast: casters.has(pl.id), now });
     } else if (!statue) {
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.3, r * 0.45, 0, Math.PI * 2); ctx.fill();
@@ -1354,18 +1394,20 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.beginPath(); ctx.arc(x, y, r * 1.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
 
-    // name + hp
+    // name + hp (v15: the sorcerer is ~3 bodies tall, so the plate rides
+    // above the hat instead of clipping through it)
     const bw = 46;
+    const topY = (!statue && wizardBodies) ? y - r * 2.6 : y - r;
     ctx.font = '11px ui-sans-serif, system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = pl.id === myId ? '#ffffff' : '#d8cbb2';
-    ctx.fillText(String(pl.name ?? ''), x, y - r - 16);
+    ctx.fillText(String(pl.name ?? ''), x, topY - 16);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(x - bw / 2, y - r - 12, bw, 5);
+    ctx.fillRect(x - bw / 2, topY - 12, bw, 5);
     const rawFrac = (+pl.hp || 0) / (+pl.maxHp || PLAYER.MAX_HP);
     const frac = fin(rawFrac) ? Math.max(0, Math.min(1, rawFrac)) : 0;
     ctx.fillStyle = frac > 0.5 ? '#7fb069' : frac > 0.25 ? '#f0b64a' : '#c0392b';
-    ctx.fillRect(x - bw / 2, y - r - 12, bw * frac, 5);
+    ctx.fillRect(x - bw / 2, topY - 12, bw * frac, 5);
     // Blood Debt (issue #1): the stored gray health eats the TOP of the bar,
     // the slice you will lose if the debt comes due. Capped at current hp.
     const debtFrac = Math.min(Math.max(0, +pl.debtDamage || 0), Math.max(0, +pl.hp || 0)) /
@@ -1373,7 +1415,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     if (debtFrac > 0) {
       ctx.fillStyle = '#9a9aa5';
       ctx.fillRect(x - bw / 2 + bw * Math.max(0, frac - debtFrac),
-        y - r - 12, bw * Math.min(frac, debtFrac), 5);
+        topY - 12, bw * Math.min(frac, debtFrac), 5);
     }
     // Rush whiff shield (v13, Ju): PUBLIC. The protected slice grays the TOP
     // of the green bar (same grammar as Blood Debt's stored gray), and a pale
@@ -1383,7 +1425,7 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     if (shieldFrac > 0) {
       ctx.fillStyle = '#c8cdd4';
       ctx.fillRect(x - bw / 2 + bw * Math.max(0, frac - shieldFrac),
-        y - r - 12, bw * Math.min(frac, shieldFrac), 5);
+        topY - 12, bw * Math.min(frac, shieldFrac), 5);
       ctx.strokeStyle = 'rgba(200, 210, 225, 0.85)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke();

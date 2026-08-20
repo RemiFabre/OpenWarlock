@@ -721,7 +721,9 @@ function interpolated(now) {
 // ---- input ---------------------------------------------------------------------
 
 function toWorld(px, py) {
-  return { x: (px - view.cx) / view.scale, y: (py - view.cy) / view.scale };
+  // v15: the tilted camera squashes world y on screen; invert it here so a
+  // click lands exactly where the cursor points.
+  return { x: (px - view.cx) / view.scale, y: (py - view.cy) / (view.scale * view.tilt) };
 }
 
 // Round 21.7 (Remi): right-click is a GAME button, so the browser menu is off
