@@ -733,13 +733,21 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     } else if (pil.tree) {
       // v18 (Ju): a DEAD TREE wearing the pillar's exact mechanics. The
       // collision circle is the trunk's base; everything above is paint.
-      const th = pr * 3.1;
+      const th = pr * 3.8;
       const lean = Math.sin(pil.x * 12.9 + pil.y * 7.1) * 0.22;   // stable per position
       const sway = Math.sin(now / 1400 + pil.x) * 0.015;          // barely-alive creak
+      // v18.1 (Ju: "on ne voit pas assez bien les arbres"): a fire halo at the
+      // roots makes the silhouette pop off the dark floor
+      const rootGlow = 0.5 + 0.2 * Math.sin(now / 900 + pil.y);
+      const rg = ctx.createRadialGradient(x, y, 0, x, y, pr * 2.4);
+      rg.addColorStop(0, `rgba(255, 130, 45, ${0.34 * rootGlow})`);
+      rg.addColorStop(1, 'rgba(255, 120, 40, 0)');
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.ellipse(x, y, pr * 2.4, pr * 2.4 * T, 0, 0, Math.PI * 2); ctx.fill();
       // ground shadow + scorched base
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath(); ctx.ellipse(x + pr * 0.3, y + pr * 0.2, pr * 1.3, pr * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#171310';
+      ctx.fillStyle = '#2b211a';
       ctx.beginPath(); ctx.ellipse(x, y, pr, pr * T * 0.8, 0, 0, Math.PI * 2); ctx.fill();
       ctx.save();
       ctx.translate(x, y);
@@ -753,15 +761,15 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
       ctx.quadraticCurveTo(pr * 0.18, -th * 0.5, pr * 0.55, 0);
       ctx.closePath();
       const tg = ctx.createLinearGradient(-pr * 0.5, 0, pr * 0.5, 0);
-      tg.addColorStop(0, '#241a12'); tg.addColorStop(0.6, '#141009'); tg.addColorStop(1, '#0a0705');
+      tg.addColorStop(0, '#6b5138'); tg.addColorStop(0.6, '#453224'); tg.addColorStop(1, '#241a12');
       ctx.fillStyle = tg;
       ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
       ctx.lineWidth = 1.2;
       ctx.stroke();
       // bare branches, two per side, with ember tips that breathe
-      ctx.strokeStyle = '#1d150d';
-      ctx.lineWidth = Math.max(1.4, pr * 0.16);
+      ctx.strokeStyle = '#4a3826';
+      ctx.lineWidth = Math.max(1.8, pr * 0.2);
       const tips = [];
       for (const [bx, by, ex2, ey2] of [
         [-pr * 0.2, -th * 0.7, -pr * 1.6, -th * 0.95],
@@ -775,14 +783,18 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
         ctx.stroke();
         tips.push([ex2, ey2]);
       }
-      const emb = 0.5 + 0.4 * Math.sin(now / 700 + pil.x * 3);
+      const emb = 0.6 + 0.4 * Math.sin(now / 700 + pil.x * 3);
       for (const [ex2, ey2] of tips) {
-        ctx.fillStyle = `rgba(255, 140, 50, ${0.5 * emb})`;
-        ctx.beginPath(); ctx.arc(ex2, ey2, pr * 0.14, 0, Math.PI * 2); ctx.fill();
+        const eg = ctx.createRadialGradient(ex2, ey2, 0, ex2, ey2, pr * 0.4);
+        eg.addColorStop(0, `rgba(255, 220, 130, ${0.9 * emb})`);
+        eg.addColorStop(0.5, `rgba(255, 140, 50, ${0.6 * emb})`);
+        eg.addColorStop(1, 'rgba(255, 120, 40, 0)');
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.arc(ex2, ey2, pr * 0.4, 0, Math.PI * 2); ctx.fill();
       }
       // the lava's warm rim on the trunk's fire side
-      ctx.strokeStyle = 'rgba(255, 130, 50, 0.3)';
-      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = 'rgba(255, 150, 60, 0.55)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(-pr * 0.5, -pr * 0.1);
       ctx.quadraticCurveTo(-pr * 0.42, -th * 0.45, -pr * 0.18, -th * 0.6);
