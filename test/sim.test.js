@@ -9588,6 +9588,29 @@ describe('Ju v12 (issue #13)', () => {
     expect(c2.hp).toBe(c2.maxHp);
   });
 
+  it('v20: the Guardian Angel price ladder is SHARED — anyone\'s buy raises the next price; refunds step it back', () => {
+    const state = battle3();
+    state.phase = 'shop';
+    const a = state.players.p0, b = state.players.p1;
+    a.gold = 200; b.gold = 200;
+    const base = ITEMS.angel.costs[0];
+    expect(buy(state, 'p0', 'angel').ok).toBe(true);
+    expect(a.gold).toBe(200 - base);
+    // the SECOND buyer (a different player) pays the raised price
+    expect(buy(state, 'p1', 'angel').ok).toBe(true);
+    expect(b.gold).toBe(200 - Math.round(base * 1.25));
+    // the third purchase (back to p0) pays the third rung
+    expect(buy(state, 'p0', 'angel').ok).toBe(true);
+    expect(a.gold).toBe(200 - base - Math.round(base * 1.25 ** 2));
+    expect(state.angelBuys).toBe(3);
+    // a right-click refund of p0's LAST angel steps the ladder back down
+    expect(refundBuy(state, 'p0', 'angel').ok).toBe(true);
+    expect(state.angelBuys).toBe(2);
+    // ...and the counter is on the public wire for the shop to price from
+    expect(snapshot(state, 'p1').angelBuys).toBe(2);
+    state.phase = 'battle';
+  });
+
   it('Rush v12: base damage point blank, double at full range', () => {
     const spec = SPELLS.rush;
     // point blank: the victim right at the start of the dash

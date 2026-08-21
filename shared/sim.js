@@ -74,6 +74,7 @@ export function createGame({ seed = 1, mode = 'elemental' } = {}) {
     holes: [],             // [{x, y, r, perm?}]
     puddles: [],           // issue #13: vomit — {x,y,r,level,owner,victim,until}
     coins: [],             // midas coins (24.9): {id,x,y,owner}; round-long, owner-only pickup
+    angelBuys: 0,          // v20 (Ju): game-wide Guardian Angel purchases (shared price ladder)
     meteors: [],           // falling meteors: {x,y,t,owner,level}
     // Mine (round 21.8, SPELLS.nova; key unchanged, the artillery bomb is gone)
     mines: [],             // planted traps: {id,x,y,r,owner,level,charges:[ball payloads]}
@@ -1215,11 +1216,16 @@ export function buy(state, id, thing) {
     // per-level `costs` array instead; itemCost handles both).
     const level = pl.items[thing] || 0;
     if (level >= ITEMS[thing].maxLevel) return { ok: false, err: 'max level' };
-    const cost = itemCost(thing, level);
+    // v20 (Ju): a sharedLadder item (the Guardian Angel) is priced off the
+    // GAME-WIDE purchase count: every buy by anyone raises the next price 25%.
+    const cost = ITEMS[thing].sharedLadder
+      ? Math.round(ITEMS[thing].costs[0] * 1.25 ** (state.angelBuys || 0))
+      : itemCost(thing, level);
     if (pl.gold < cost) return { ok: false, err: 'not enough gold' };
     memo();
     pl.gold -= cost;
     pl.items[thing] = level + 1;
+    if (ITEMS[thing].sharedLadder) state.angelBuys = (state.angelBuys || 0) + 1;
     // max HP is a live field, not derived, so the upgrade grants the DIFFERENCE
     // between the two cumulative totals.
     if (thing === 'amulet') {
@@ -1236,10 +1242,15 @@ export function undoBuy(state, id) {
   const pl = state.players[id];
   if (!pl) return { ok: false, err: 'no player' };
   if (state.phase !== 'shop') return { ok: false, err: 'shop is closed' };
-  const m = pl.shopUndo && pl.shopUndo.pop();
-  if (!m) return { ok: false, err: 'nothing to undo' };
+  const stack = pl.shopUndo || [];
+  if (!stack.length) return { ok: false, err: 'nothing to undo' };
+  // v20: an undone sharedLadder purchase steps the game-wide ladder back down
+  const undone = boughtAtStep(pl, stack, stack.length - 1);
+  const m = stack.pop();
   pl.gold = m.gold; pl.maxHp = m.maxHp; pl.hp = m.hp;
   pl.spells = m.spells; pl.items = m.items; pl.elements = m.elements;
+  if (undone && ITEMS[undone] && ITEMS[undone].sharedLadder)
+    state.angelBuys = Math.max(0, (state.angelBuys || 0) - 1);
   return { ok: true };
 }
 
@@ -1273,6 +1284,15 @@ export function refundBuy(state, id, thing) {
   const later = [];
   for (let i = hit + 1; i < stack.length; i++) later.push(boughtAtStep(pl, stack, i));
   const m = stack[hit];
+  // v20: sharedLadder purchases being unwound step the game-wide ladder back
+  // down; the replay below re-increments any that survive. ⚠ If ANOTHER
+  // player bought angels meanwhile, a replayed angel is re-charged at the
+  // CURRENT ladder price (the price genuinely moved under them).
+  for (const key of Object.keys(ITEMS)) {
+    if (!ITEMS[key].sharedLadder) continue;
+    const removed = (pl.items[key] || 0) - ((m.items || {})[key] || 0);
+    if (removed > 0) state.angelBuys = Math.max(0, (state.angelBuys || 0) - removed);
+  }
   pl.gold = m.gold; pl.maxHp = m.maxHp; pl.hp = m.hp;
   pl.spells = m.spells; pl.items = m.items; pl.elements = m.elements;
   pl.shopUndo = stack.slice(0, hit);
@@ -4125,6 +4145,9 @@ export function snapshot(state, viewerId = null) {
     // broken ground (24.1): meteor craters are PUBLIC lava pools (empty in this
     // version: Ju's holes supersede them, see the meteor impact site)
     craters: (state.craters || []).map(c => ({ x: round2(c.x), y: round2(c.y), r: round2(c.r) })),
+    // v20 (Ju): the Guardian Angel's shared price ladder — public, so every
+    // shop can print the CURRENT price
+    ...(state.angelBuys ? { angelBuys: state.angelBuys } : {}),
     // midas coins (24.9): PUBLIC by design (the telegraphed mini-objective:
     // everyone sees where the owner wants to walk). Absent when none exist,
     // so classic snapshots stay byte-identical.
