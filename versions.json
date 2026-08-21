@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 57,
+  "serial": 58,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v20.1: the Guardian Angel's 25% ladder is PERSONAL and PERMANENT — each of YOUR repurchases costs 25% more for the whole game, never resetting, and other players' purchases do not touch your price (the v20 shared ladder is reverted). With the gilded warlocks, the dead trees, the living-lava set, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v21: the background is a MOVING lava sea now — drifting crust plates, hot currents and heat shimmer, fully animated. With the gilded warlocks, the dead trees, the personal-permanent Guardian Angel ladder, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "401eee38191564a54d4ff923dc1fa10946778839"
+      "commit": "2cd46b0ef546bbb1d6c180ebc4fbf50ffe2d6126"
     },
     {
       "slug": "trash-talk",
