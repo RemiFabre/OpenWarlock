@@ -635,15 +635,14 @@ export const ITEMS = {
   // Issue #9 (Ju, v2): "sans limite d'achat" — the +25%-compounding ladder now
   // runs as deep as a game's economy can reach (9 rungs ≈ 268 g total; nobody
   // has ever earned that, so it is unlimited in practice, stated honestly).
-  // v20 (Ju): the 25% ladder is SHARED — every purchase in the game, by
-  // anyone, raises the next price. buy() prices it off costs[0] and the
-  // game-wide state.angelBuys counter; the per-level costs array is the
-  // fallback for anything else that reads it.
-  angel: { name: 'Guardian Angel', sharedLadder: true,
+  // v20.1 (Ju's correction): the 25% ladder is PERSONAL and PERMANENT — your
+  // own costs[level] rung, game-long (items never reset, so the price never
+  // falls back to 12; test-locked). The v20 shared ladder is reverted.
+  angel: { name: 'Guardian Angel',
             costs: Array.from({ length: 9 }, (_, i) => Math.round(12 * 1.25 ** i)),
             maxLevel: 9,
             desc: 'Cheat death, secretly.',
-            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. At most ONE save per round, and a save consumes one purchase — and every purchase by ANYONE raises the price 25% for the next buyer, without limit. No other player can see that you own it.' },
+            long: 'The blow that would kill you is refused: you stand back up where you fell with half your maximum health, and your killer is credited with nothing. At most ONE save per round, and a save consumes one purchase — each of YOUR repurchases costs 25% more, for the whole game, the price never falls back. No other player can see that you own it.' },
 };
 
 // Price of the next level of `key` when you already own `owned` levels. Flat by

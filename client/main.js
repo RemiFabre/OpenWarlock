@@ -1480,8 +1480,7 @@ let myRefunds = {};
 // v12 (Ju): my picked optimisations, so a card whose numbers they change can
 // say so (the Decoy card owed Extra Mirage a mention)
 let myOptims = {};
-// v20 (Ju): the Guardian Angel's game-wide purchase count (shared ladder)
-let angelBuysNow = 0;
+
 
 // issue #14 iteration 3 (Sam): the tooltip stopped being a 3-column table.
 // It reads top-down — name+level, identity, description, an interactive
@@ -1605,7 +1604,7 @@ function tipBody(lines, cur, max, costAt, previewLv) {
 // says so in green, so a returning player reads the diff inside the shop.
 // Hand-curated from the real constants diff v7 -> v8; rewrite at each version.
 const PATCH_NOTES = {
-  angel: ['The 25% price ladder is SHARED now: every purchase by ANYONE raises the next price, whoever buys.'],
+  angel: ['Your PERSONAL price ladder, confirmed permanent: each of your repurchases costs 25% more, all game, never resetting. Other players\' purchases do not touch your price.'],
 };
 const patchHtml = (key) => PATCH_NOTES[key]
   ? `<div class="tpatch"><b>Changed in this version</b><ul>${
@@ -1678,8 +1677,8 @@ function itemTip(key, spec, level, previewLv) {
   const foot = [
     live ? `With that, ${live}.` : '',
     key === 'hourglass' ? 'Ability Haste: +10 means 10% more casts in the same time. It sums across everything you own.' : '',
-    spec.sharedLadder
-      ? `The price rises 25% every time ANYONE buys one. Bought <b>${angelBuysNow}</b> time${angelBuysNow === 1 ? '' : 's'} this game; next costs <b>${Math.round(spec.costs[0] * 1.25 ** angelBuysNow)} g</b>.` : '',
+    key === 'angel'
+      ? `YOUR ladder, for the whole game: the next one costs <b>${itemCost('angel', Math.min(level, spec.maxLevel - 1))} g</b>, and the price never falls back to 12.` : '',
     myRefunds[key] ? `Right-click: refund <b>${myRefunds[key]} g</b>.` : '',
   ].filter(Boolean).join(' ');
   const sub = spec.long && spec.long !== spec.desc ? spec.desc : null;
@@ -2041,7 +2040,6 @@ function buildShop(container, mode = 'classic') {
     // per-card refunds this shop (issue #14 iter 4); the tooltip reads it
     myRefunds = (m.refunds && typeof m.refunds === 'object') ? m.refunds : {};
     myOptims = (m.optims && typeof m.optims === 'object') ? m.optims : {};
-    angelBuysNow = (s && fin(+s.angelBuys)) ? +s.angelBuys : 0;
     // draft mode: this game's pool is not for sale. A pool thing you have
     // DRAFTED goes back on the shelf (that is how levels 2-3 are bought), which
     // is exactly "do I own any level of it", the same rule the server uses.
@@ -2109,10 +2107,7 @@ function buildShop(container, mode = 'classic') {
         if (level >= w.spec.maxLevel) {
           maxed = true;
         } else {
-          // v20 (Ju): the Guardian Angel is priced off the GAME-WIDE ladder
-          const c = w.spec.sharedLadder
-            ? Math.round(w.spec.costs[0] * 1.25 ** angelBuysNow)
-            : itemCost(w.key, level);
+          const c = itemCost(w.key, level);
           cost.innerHTML = `${c} g${level > 0 ? `<span class="nth">→ lv ${level + 1}</span>` : ''}`;
           cost.className = 'cost';
           afford = gold >= c;

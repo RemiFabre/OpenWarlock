@@ -9588,26 +9588,32 @@ describe('Ju v12 (issue #13)', () => {
     expect(c2.hp).toBe(c2.maxHp);
   });
 
-  it('v20: the Guardian Angel price ladder is SHARED — anyone\'s buy raises the next price; refunds step it back', () => {
+  it('v20.1: the Guardian Angel ladder is PERSONAL and PERMANENT — your rungs only, never resetting across rounds', () => {
     const state = battle3();
     state.phase = 'shop';
     const a = state.players.p0, b = state.players.p1;
     a.gold = 200; b.gold = 200;
-    const base = ITEMS.angel.costs[0];
+    const rung = (i) => ITEMS.angel.costs[i];
     expect(buy(state, 'p0', 'angel').ok).toBe(true);
-    expect(a.gold).toBe(200 - base);
-    // the SECOND buyer (a different player) pays the raised price
+    expect(a.gold).toBe(200 - rung(0));
+    // another player's first angel is untouched by p0's purchase: base price
     expect(buy(state, 'p1', 'angel').ok).toBe(true);
-    expect(b.gold).toBe(200 - Math.round(base * 1.25));
-    // the third purchase (back to p0) pays the third rung
+    expect(b.gold).toBe(200 - rung(0));
+    // p0's SECOND is their own second rung
     expect(buy(state, 'p0', 'angel').ok).toBe(true);
-    expect(a.gold).toBe(200 - base - Math.round(base * 1.25 ** 2));
-    expect(state.angelBuys).toBe(3);
-    // a right-click refund of p0's LAST angel steps the ladder back down
-    expect(refundBuy(state, 'p0', 'angel').ok).toBe(true);
-    expect(state.angelBuys).toBe(2);
-    // ...and the counter is on the public wire for the shop to price from
-    expect(snapshot(state, 'p1').angelBuys).toBe(2);
+    expect(a.gold).toBe(200 - rung(0) - rung(1));
+    state.phase = 'battle';
+    // the ladder survives the round boundary: drop the other fighter in the
+    // lava, let the round end, and check the next shop still charges p0
+    // their THIRD rung, not 12 again
+    b.hp = 3; b.x = state.arenaRadius + 4; b.y = 0; b.moveTarget = null;
+    state.players.p2.hp = 3; state.players.p2.x = state.arenaRadius + 4;
+    state.players.p2.y = 5; state.players.p2.moveTarget = null;
+    run(state, ROUND.SUMMARY_TIME + 6);
+    expect(state.phase).toBe('shop');
+    const g0 = a.gold;
+    expect(buy(state, 'p0', 'angel').ok).toBe(true);
+    expect(g0 - a.gold).toBe(rung(2));
     state.phase = 'battle';
   });
 
