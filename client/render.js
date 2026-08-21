@@ -10,8 +10,9 @@ import { drawWizard, forgetWizards } from './wizard.js';
 // Issue #14 (Sam v8): the arena artwork is the world's backdrop. It is DECOR:
 // nothing here feeds geometry. The arena radius, the shrink, the pillars and
 // every hitbox stay exactly what the simulation says they are.
-const ARENA_ART = new Image();
-ARENA_ART.src = new URL('../assets/ui/arena/floor.png', import.meta.url).href;
+// v21 (Ju): Sam's still floor art (assets/ui/arena/floor.png) is replaced by
+// the procedural moving lava in drawBackdrop; restore these two lines and the
+// old drawCover call to bring the painting back.
 let lastDrawAt = 0;
 let seenProjectiles = new Set();
 const lastHp = new Map();
@@ -24,13 +25,6 @@ for (const k of ['victory', 'defeat', 'gold']) {
   ROUND_ART[k] = img;
 }
 // cover-fit: fill the viewport, keep the aspect, centre the overflow
-function drawCover(ctx, img, w, h) {
-  if (!img.complete || !img.naturalWidth) return false;
-  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
-  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
-  return true;
-}
 
 // Issue #14 (Sam v5): warlocks wear their illustrated avatar in the arena. The
 // tiles are decoded once, lazily, and drawn CLIPPED to the warlock's disc: the
@@ -321,12 +315,12 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
     }
   } catch { /* a broken image must never break the frame */ }
 
-  // --- drifting lava blobs: painted small offscreen, stretched up ---
-  // the artwork sits UNDER everything and does NOT fade with the world: when
-  // the round ends and the world dissolves, the art is what remains (Sam v8)
-  const hasArt = drawCover(ctx, ARENA_ART, w, h);
-  if (!hasArt) { ctx.fillStyle = '#1a0a06'; ctx.fillRect(0, 0, w, h); }
-  drawBackdrop(view, worldAlpha * (hasArt ? 0.8 : 1), t * 1.5);   // v18: the lava heaves harder
+  // --- the MOVING lava background (v21, Ju: "l'image du fond soit une image
+  // de lave en mouvement"). Sam's still floor art is replaced by a procedural
+  // molten sea, painted small on the offscreen back canvas and stretched up
+  // (the blur of the upscale IS the molten softness). It does not fade with
+  // the world: when a round ends and the world dissolves, the sea remains.
+  drawBackdrop(view, 1, t);
   ctx.drawImage(view.back, 0, 0, w, h);
 
   if (worldAlpha <= 0.01) { drawWorldDone(view, vs, fx, myId, now); return; }
@@ -1699,23 +1693,59 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
 function drawBackdrop(view, worldAlpha, t) {
   const ctx = view.bctx;
   const w = view.back.width, h = view.back.height;
-  ctx.clearRect(0, 0, w, h);
-  if (worldAlpha <= 0.01) return;
-  ctx.globalAlpha = worldAlpha;
+  if (worldAlpha <= 0.01) { ctx.clearRect(0, 0, w, h); return; }
+  // the molten base: a deep red sea, hotter toward the middle of the screen
+  const base = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 2);
+  base.addColorStop(0, '#8a2405');
+  base.addColorStop(0.55, '#6b1a04');
+  base.addColorStop(1, '#3a0d02');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, w, h);
   const cx = w / 2, cy = h / 2;
   const maxR = Math.hypot(w, h) / 2;
+  // bright currents: the drifting hot blobs (they ARE the flow)
   for (const b of BLOBS) {
-    const ang = b.a + t * b.speed + Math.sin(t * 0.3 + b.phase) * 0.4;
+    const ang = b.a + t * b.speed * 1.6 + Math.sin(t * 0.3 + b.phase) * 0.4;
     const rr = b.r * maxR;
     const bx = cx + Math.cos(ang) * rr;
     const by = cy + Math.sin(ang) * rr;
-    const size = b.size * maxR * (1 + 0.15 * Math.sin(t * 0.8 + b.phase));
+    const size = b.size * maxR * (1 + 0.18 * Math.sin(t * 0.8 + b.phase));
     const g = ctx.createRadialGradient(bx, by, 0, bx, by, size);
-    g.addColorStop(0, 'rgba(255, 106, 30, 0.34)');
-    g.addColorStop(0.5, 'rgba(200, 50, 8, 0.16)');
+    g.addColorStop(0, 'rgba(255, 140, 40, 0.55)');
+    g.addColorStop(0.5, 'rgba(230, 70, 12, 0.28)');
     g.addColorStop(1, 'rgba(120, 20, 0, 0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(bx, by, size, 0, Math.PI * 2); ctx.fill();
+  }
+  // crust plates: dark cooled slabs drifting slowly on their own orbits; the
+  // glowing gaps between them read as the lava's veins. Stateless (i, t).
+  for (let i = 0; i < 12; i++) {
+    const h1 = Math.sin(i * 87.3) * 0.5 + 0.5;
+    const h2 = Math.sin(i * 191.1) * 0.5 + 0.5;
+    const ang = h1 * Math.PI * 2 + t * 0.015 * (h2 > 0.5 ? 1 : -1);
+    const rad = maxR * (0.25 + 0.75 * h2);
+    const px = cx + Math.cos(ang) * rad;
+    const py = cy + Math.sin(ang) * rad;
+    const pr = maxR * (0.10 + 0.14 * h1);
+    const rot = h1 * 3 + t * 0.02 * (h2 > 0.5 ? -1 : 1);
+    ctx.save();
+    ctx.translate(px, py); ctx.rotate(rot);
+    ctx.fillStyle = 'rgba(22, 9, 4, 0.85)';
+    ctx.beginPath(); ctx.ellipse(0, 0, pr, pr * (0.55 + 0.3 * h2), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(255, 120, 40, ${0.25 + 0.12 * Math.sin(t * 1.3 + i)})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+  // heat shimmer: two soft bright bands sweeping very slowly across
+  for (let k = 0; k < 2; k++) {
+    const sx3 = ((t * (6 + k * 4)) % (w * 1.6)) - w * 0.3;
+    const sg = ctx.createLinearGradient(sx3 - 40, 0, sx3 + 40, 0);
+    sg.addColorStop(0, 'rgba(255, 160, 60, 0)');
+    sg.addColorStop(0.5, 'rgba(255, 160, 60, 0.07)');
+    sg.addColorStop(1, 'rgba(255, 160, 60, 0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(sx3 - 40, 0, 80, h);
   }
   ctx.globalAlpha = 1;
 }
