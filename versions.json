@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 60,
+  "serial": 61,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v21.2: the magma background is a one-time generated Voronoi texture now — painted-grade cellular crack detail — kept alive by heat waves drifting through the veins, a breathing halo at the slab and a creeping crust. With the gilded warlocks, the dead trees, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v21.3: the background is Ju's own generated lava image now (UI cleaned out), brought to life with heat waves, rising embers, a breathing halo and a slow drift. With the gilded warlocks, the dead trees, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "76c3e10d1175548df500017a2d6f4a5ae5dd7c6d"
+      "commit": "ad5cc216f55540c1cf67a4ba7ca5ccb2c7e3ac27"
     },
     {
       "slug": "trash-talk",
