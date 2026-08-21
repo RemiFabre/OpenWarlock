@@ -1690,68 +1690,112 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
 // The low-res layer: only the drifting lava-blob gradients (by far the most
 // expensive paints), at ~1/3 resolution. Base color and level art are drawn
 // full-res on the main canvas by draw().
+// ---- the magma texture (v21.2, Ju: "s'il sait faire, tu sais faire") ------
+// Generated ONCE at load: a jittered-grid Voronoi crack network computed per
+// pixel (detail no per-frame draw could afford), split into two layers: the
+// dark ROCK plates, and the incandescent VEINS alone (drawn additively each
+// frame with traveling heat waves, so the still image LIVES).
+let MAGMA = null;
+function makeMagma() {
+  const S = 768, CELL = 56;
+  const rock = document.createElement('canvas'); rock.width = rock.height = S;
+  const veins = document.createElement('canvas'); veins.width = veins.height = S;
+  const rctx = rock.getContext('2d'), vctx = veins.getContext('2d');
+  const G = Math.ceil(S / CELL) + 2;
+  const seeds = [];
+  const hash = (i, j, k) => {
+    const x = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  for (let j = -1; j < G; j++) for (let i = -1; i < G; i++)
+    seeds.push({ i, j, x: (i + 0.15 + 0.7 * hash(i, j, 1)) * CELL,
+                 y: (j + 0.15 + 0.7 * hash(i, j, 2)) * CELL,
+                 tint: hash(i, j, 3) });
+  const grid = new Map();
+  for (const s2 of seeds) grid.set(s2.i + ',' + s2.j, s2);
+  const rimg = rctx.createImageData(S, S), vimg = vctx.createImageData(S, S);
+  const rd = rimg.data, vd = vimg.data;
+  for (let y = 0; y < S; y++) {
+    const gj = Math.floor(y / CELL);
+    for (let x = 0; x < S; x++) {
+      const gi = Math.floor(x / CELL);
+      let f1 = 1e9, f2 = 1e9, tint = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const s2 = grid.get((gi + di) + ',' + (gj + dj));
+        if (!s2) continue;
+        const d = Math.hypot(s2.x - x, s2.y - y);
+        if (d < f1) { f2 = f1; f1 = d; tint = s2.tint; }
+        else if (d < f2) f2 = d;
+      }
+      const edge = f2 - f1;                     // 0 at a crack, grows inward
+      const p = (y * S + x) * 4;
+      // rock: near-black plates, per-cell tint + fine hash grain
+      const grain = hash(x, y, 7) * 10;
+      const heat = Math.max(0, 1 - edge / 7);   // plates glow faintly near cracks
+      rd[p] = 22 + tint * 14 + grain + heat * 30;
+      rd[p + 1] = 9 + tint * 6 + grain * 0.5 + heat * 10;
+      rd[p + 2] = 5 + grain * 0.3;
+      rd[p + 3] = 255;
+      // veins: alpha only where the crack is, white-hot core to orange edge
+      const v2 = Math.max(0, 1 - edge / 4.5);   // 1 in the crack center
+      const vs = v2 * v2;
+      vd[p] = 255;
+      vd[p + 1] = 150 + 90 * vs;
+      vd[p + 2] = 30 + 120 * vs * vs;
+      vd[p + 3] = Math.round(255 * Math.min(1, vs * 1.4));
+    }
+  }
+  rctx.putImageData(rimg, 0, 0);
+  vctx.putImageData(vimg, 0, 0);
+  MAGMA = { rock, veins, S };
+}
+
 function drawBackdrop(view, worldAlpha, t) {
-  // v21.1 (Ju's reference): CRACKLED magma. Bright molten ground, tiled over
-  // by dark cooled plates that drift very slowly; the glowing gaps between
-  // them ARE the vein network, and slow waves of heat pulse through it.
   const ctx = view.bctx;
   const w = view.back.width, h = view.back.height;
   if (worldAlpha <= 0.01) { ctx.clearRect(0, 0, w, h); return; }
+  if (!MAGMA) makeMagma();
   const cx = w / 2, cy = h / 2;
   const maxR = Math.hypot(w, h) / 2;
-  // 1. the molten ground the cracks reveal: hot orange, brightest in a ring
-  // around the slab (the reference's halo)
-  const base = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-  base.addColorStop(0, '#ffb43a');
-  base.addColorStop(0.40, '#ff8a1e');
-  base.addColorStop(0.65, '#d84a0c');
-  base.addColorStop(1, '#8a2406');
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, w, h);
-  // 2. heat waves: two drifting hot spots brighten the veins they pass over
-  for (const b of BLOBS) {
-    const ang = b.a + t * b.speed * 1.2;
-    const bx = cx + Math.cos(ang) * b.r * maxR;
-    const by = cy + Math.sin(ang) * b.r * maxR;
-    const size = b.size * maxR;
-    const g = ctx.createRadialGradient(bx, by, 0, bx, by, size);
-    g.addColorStop(0, 'rgba(255, 220, 120, 0.30)');
-    g.addColorStop(1, 'rgba(255, 180, 60, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(bx, by, size, 0, Math.PI * 2); ctx.fill();
-  }
-  // 3. the cooled plates: a jittered grid of dark irregular slabs. The 2-5 px
-  // gaps left between them read as the cellular crack network. Each plate
-  // drifts on its own tiny orbit, so the whole crust creeps.
-  const cell = Math.max(30, Math.round(w / 13));
-  for (let gy = -1; gy * cell < h + cell; gy++) {
-    for (let gx = -1; gx * cell < w + cell; gx++) {
-      const h1 = Math.sin(gx * 91.7 + gy * 47.3) * 0.5 + 0.5;
-      const h2 = Math.sin(gx * 13.1 + gy * 173.9) * 0.5 + 0.5;
-      const px = gx * cell + cell * (0.4 + 0.2 * h1) + Math.cos(t * 0.05 + h2 * 7) * 2;
-      const py = gy * cell + cell * (0.4 + 0.2 * h2) + Math.sin(t * 0.04 + h1 * 7) * 2;
-      const pr = cell * (0.74 + 0.15 * h1);   // plates overlap: only THIN veins survive
-      ctx.beginPath();
-      for (let k = 0; k < 6; k++) {
-        const a2 = h2 * 6 + (k / 6) * Math.PI * 2;
-        const rr = pr * (0.75 + 0.25 * (Math.sin(gx * 3 + gy * 5 + k * 2.7) * 0.5 + 0.5));
-        const vx2 = px + Math.cos(a2) * rr, vy2 = py + Math.sin(a2) * rr * 0.85;
-        if (k === 0) ctx.moveTo(vx2, vy2); else ctx.lineTo(vx2, vy2);
-      }
-      ctx.closePath();
-      // near-black crusted rock, barely varied, almost opaque: the veins are
-      // the only light (the reference's look)
-      const d2 = Math.hypot(px - cx, py - cy) / maxR;
-      ctx.fillStyle = `rgba(${24 + Math.round(8 * h1)}, ${10 + Math.round(4 * h2)}, 5, 0.96)`;
-      ctx.fill();
-      // the plate's rim catches the vein light, pulsing with a slow wave
-      const pulse = 0.5 + 0.5 * Math.sin(t * 1.1 + d2 * 6 + h1 * 4);
-      ctx.strokeStyle = `rgba(255, 150, 50, ${0.10 + 0.16 * pulse})`;
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-    }
+  // the rock crust, slowly creeping (a gentle pan inside the oversized tile)
+  const scale2 = Math.max(w, h) / MAGMA.S * 1.25;
+  const panX = Math.sin(t * 0.02) * 18 - (MAGMA.S * scale2 - w) / 2;
+  const panY = Math.cos(t * 0.016) * 14 - (MAGMA.S * scale2 - h) / 2;
+  ctx.setTransform(scale2, 0, 0, scale2, panX, panY);
+  ctx.drawImage(MAGMA.rock, 0, 0);
+  // the veins: a dim ever-present base glow...
+  ctx.globalAlpha = 0.55 + 0.1 * Math.sin(t * 0.9);
+  ctx.drawImage(MAGMA.veins, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // ...plus HEAT WAVES: three hot spots drifting over the sea, each lighting
+  // the veins it passes (clip to a circle, redraw the vein layer brighter)
+  for (let k = 0; k < 3; k++) {
+    const ang = t * (0.10 + k * 0.05) + k * 2.1;
+    const hx = cx + Math.cos(ang) * maxR * 0.55;
+    const hy = cy + Math.sin(ang) * maxR * 0.45;
+    const hr = maxR * 0.34;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.clip();
+    ctx.globalAlpha = 0.5 + 0.25 * Math.sin(t * 1.5 + k * 2);
+    ctx.setTransform(scale2, 0, 0, scale2, panX, panY);
+    ctx.drawImage(MAGMA.veins, 0, 0);
+    ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
   ctx.globalAlpha = 1;
+  // the hot halo hugging the slab (the reference's light), breathing slowly
+  const halo = ctx.createRadialGradient(cx, cy, maxR * 0.18, cx, cy, maxR * (0.62 + 0.02 * Math.sin(t * 0.7)));
+  halo.addColorStop(0, 'rgba(255, 150, 40, 0.36)');
+  halo.addColorStop(0.5, 'rgba(255, 110, 25, 0.16)');
+  halo.addColorStop(1, 'rgba(255, 90, 20, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, w, h);
+  // darkened far corners, like the reference
+  const dark = ctx.createRadialGradient(cx, cy, maxR * 0.55, cx, cy, maxR * 1.05);
+  dark.addColorStop(0, 'rgba(10, 3, 1, 0)');
+  dark.addColorStop(1, 'rgba(10, 3, 1, 0.55)');
+  ctx.fillStyle = dark;
+  ctx.fillRect(0, 0, w, h);
 }
 
 // Banner-only path used when the round-end reveal has fully hidden the world.
