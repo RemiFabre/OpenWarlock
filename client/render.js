@@ -11,8 +11,11 @@ import { drawWizard, forgetWizards } from './wizard.js';
 // nothing here feeds geometry. The arena radius, the shrink, the pillars and
 // every hitbox stay exactly what the simulation says they are.
 // v21 (Ju): Sam's still floor art (assets/ui/arena/floor.png) is replaced by
-// the procedural moving lava in drawBackdrop; restore these two lines and the
-// old drawCover call to bring the painting back.
+// the moving lava in drawBackdrop; v21.3 (Ju: "copie-colle mon image"): the
+// base layer IS his image now (UI regions cloned out), with motion painted on
+// top. The v21.2 Voronoi magma stays as the load-time fallback.
+const LAVA_SEA = new Image();
+LAVA_SEA.src = new URL('../assets/ui/arena/lava-sea.jpg', import.meta.url).href;
 let lastDrawAt = 0;
 let seenProjectiles = new Set();
 const lastHp = new Map();
@@ -1754,46 +1757,60 @@ function drawBackdrop(view, worldAlpha, t) {
   const ctx = view.bctx;
   const w = view.back.width, h = view.back.height;
   if (worldAlpha <= 0.01) { ctx.clearRect(0, 0, w, h); return; }
-  if (!MAGMA) makeMagma();
   const cx = w / 2, cy = h / 2;
   const maxR = Math.hypot(w, h) / 2;
-  // the rock crust, slowly creeping (a gentle pan inside the oversized tile)
-  const scale2 = Math.max(w, h) / MAGMA.S * 1.25;
-  const panX = Math.sin(t * 0.02) * 18 - (MAGMA.S * scale2 - w) / 2;
-  const panY = Math.cos(t * 0.016) * 14 - (MAGMA.S * scale2 - h) / 2;
-  ctx.setTransform(scale2, 0, 0, scale2, panX, panY);
-  ctx.drawImage(MAGMA.rock, 0, 0);
-  // the veins: a dim ever-present base glow...
-  ctx.globalAlpha = 0.55 + 0.1 * Math.sin(t * 0.9);
-  ctx.drawImage(MAGMA.veins, 0, 0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  // ...plus HEAT WAVES: three hot spots drifting over the sea, each lighting
-  // the veins it passes (clip to a circle, redraw the vein layer brighter)
+  if (LAVA_SEA.complete && LAVA_SEA.naturalWidth) {
+    // v21.3: JU'S image is the ground truth. A slow breathing pan keeps the
+    // still alive even before the effects land on top.
+    const iw = LAVA_SEA.naturalWidth, ih = LAVA_SEA.naturalHeight;
+    const s2 = Math.max(w / iw, h / ih) * (1.03 + 0.012 * Math.sin(t * 0.11));
+    const dx = (w - iw * s2) / 2 + Math.sin(t * 0.07) * 6;
+    const dy = (h - ih * s2) / 2 + Math.cos(t * 0.09) * 5;
+    ctx.drawImage(LAVA_SEA, dx, dy, iw * s2, ih * s2);
+  } else {
+    if (!MAGMA) makeMagma();
+    const scale2 = Math.max(w, h) / MAGMA.S * 1.25;
+    ctx.setTransform(scale2, 0, 0, scale2, -(MAGMA.S * scale2 - w) / 2, -(MAGMA.S * scale2 - h) / 2);
+    ctx.drawImage(MAGMA.rock, 0, 0);
+    ctx.drawImage(MAGMA.veins, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  // heat waves: drifting hot spots brightening the lava they pass over
+  ctx.globalCompositeOperation = 'lighter';
   for (let k = 0; k < 3; k++) {
     const ang = t * (0.10 + k * 0.05) + k * 2.1;
     const hx = cx + Math.cos(ang) * maxR * 0.55;
     const hy = cy + Math.sin(ang) * maxR * 0.45;
-    const hr = maxR * 0.34;
-    ctx.save();
-    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.clip();
-    ctx.globalAlpha = 0.5 + 0.25 * Math.sin(t * 1.5 + k * 2);
-    ctx.setTransform(scale2, 0, 0, scale2, panX, panY);
-    ctx.drawImage(MAGMA.veins, 0, 0);
-    ctx.restore();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const hr = maxR * 0.30;
+    const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr);
+    const a2 = 0.10 + 0.06 * Math.sin(t * 1.5 + k * 2);
+    g.addColorStop(0, `rgba(255, 170, 60, ${a2})`);
+    g.addColorStop(1, 'rgba(255, 140, 40, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.globalAlpha = 1;
-  // the hot halo hugging the slab (the reference's light), breathing slowly
-  const halo = ctx.createRadialGradient(cx, cy, maxR * 0.18, cx, cy, maxR * (0.62 + 0.02 * Math.sin(t * 0.7)));
-  halo.addColorStop(0, 'rgba(255, 150, 40, 0.36)');
-  halo.addColorStop(0.5, 'rgba(255, 110, 25, 0.16)');
+  ctx.globalCompositeOperation = 'source-over';
+  // rising embers, stateless from (index, t)
+  for (let i = 0; i < 14; i++) {
+    const h1 = Math.sin(i * 127.3) * 0.5 + 0.5;
+    const h2 = Math.sin(i * 61.7) * 0.5 + 0.5;
+    const period = 3 + h2 * 3;
+    const ph = ((t + h1 * 41) % period) / period;
+    const ex2 = (h1 * 1.3 % 1) * w + Math.sin(ph * 8 + i) * 8;
+    const ey2 = h * (0.15 + 0.8 * h2) - ph * 34;
+    ctx.fillStyle = `rgba(255, ${180 + 50 * h2 | 0}, 70, ${0.5 * (1 - ph)})`;
+    ctx.beginPath(); ctx.arc(ex2, ey2, 1 + h1, 0, Math.PI * 2); ctx.fill();
+  }
+  // the breathing halo at the slab, and darkened far corners
+  const halo = ctx.createRadialGradient(cx, cy, maxR * 0.18, cx, cy, maxR * (0.60 + 0.03 * Math.sin(t * 0.7)));
+  halo.addColorStop(0, 'rgba(255, 150, 40, 0.22)');
   halo.addColorStop(1, 'rgba(255, 90, 20, 0)');
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, w, h);
-  // darkened far corners, like the reference
-  const dark = ctx.createRadialGradient(cx, cy, maxR * 0.55, cx, cy, maxR * 1.05);
+  const dark = ctx.createRadialGradient(cx, cy, maxR * 0.6, cx, cy, maxR * 1.05);
   dark.addColorStop(0, 'rgba(10, 3, 1, 0)');
-  dark.addColorStop(1, 'rgba(10, 3, 1, 0.55)');
+  dark.addColorStop(1, 'rgba(10, 3, 1, 0.4)');
   ctx.fillStyle = dark;
   ctx.fillRect(0, 0, w, h);
 }
