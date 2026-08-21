@@ -1691,61 +1691,65 @@ export function draw(view, vs, fx, myId, moveMark, now, bubbles = []) {
 // expensive paints), at ~1/3 resolution. Base color and level art are drawn
 // full-res on the main canvas by draw().
 function drawBackdrop(view, worldAlpha, t) {
+  // v21.1 (Ju's reference): CRACKLED magma. Bright molten ground, tiled over
+  // by dark cooled plates that drift very slowly; the glowing gaps between
+  // them ARE the vein network, and slow waves of heat pulse through it.
   const ctx = view.bctx;
   const w = view.back.width, h = view.back.height;
   if (worldAlpha <= 0.01) { ctx.clearRect(0, 0, w, h); return; }
-  // the molten base: a deep red sea, hotter toward the middle of the screen
-  const base = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w, h) / 2);
-  base.addColorStop(0, '#8a2405');
-  base.addColorStop(0.55, '#6b1a04');
-  base.addColorStop(1, '#3a0d02');
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, w, h);
   const cx = w / 2, cy = h / 2;
   const maxR = Math.hypot(w, h) / 2;
-  // bright currents: the drifting hot blobs (they ARE the flow)
+  // 1. the molten ground the cracks reveal: hot orange, brightest in a ring
+  // around the slab (the reference's halo)
+  const base = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+  base.addColorStop(0, '#ffb43a');
+  base.addColorStop(0.40, '#ff8a1e');
+  base.addColorStop(0.65, '#d84a0c');
+  base.addColorStop(1, '#8a2406');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, w, h);
+  // 2. heat waves: two drifting hot spots brighten the veins they pass over
   for (const b of BLOBS) {
-    const ang = b.a + t * b.speed * 1.6 + Math.sin(t * 0.3 + b.phase) * 0.4;
-    const rr = b.r * maxR;
-    const bx = cx + Math.cos(ang) * rr;
-    const by = cy + Math.sin(ang) * rr;
-    const size = b.size * maxR * (1 + 0.18 * Math.sin(t * 0.8 + b.phase));
+    const ang = b.a + t * b.speed * 1.2;
+    const bx = cx + Math.cos(ang) * b.r * maxR;
+    const by = cy + Math.sin(ang) * b.r * maxR;
+    const size = b.size * maxR;
     const g = ctx.createRadialGradient(bx, by, 0, bx, by, size);
-    g.addColorStop(0, 'rgba(255, 140, 40, 0.55)');
-    g.addColorStop(0.5, 'rgba(230, 70, 12, 0.28)');
-    g.addColorStop(1, 'rgba(120, 20, 0, 0)');
+    g.addColorStop(0, 'rgba(255, 220, 120, 0.30)');
+    g.addColorStop(1, 'rgba(255, 180, 60, 0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(bx, by, size, 0, Math.PI * 2); ctx.fill();
   }
-  // crust plates: dark cooled slabs drifting slowly on their own orbits; the
-  // glowing gaps between them read as the lava's veins. Stateless (i, t).
-  for (let i = 0; i < 12; i++) {
-    const h1 = Math.sin(i * 87.3) * 0.5 + 0.5;
-    const h2 = Math.sin(i * 191.1) * 0.5 + 0.5;
-    const ang = h1 * Math.PI * 2 + t * 0.015 * (h2 > 0.5 ? 1 : -1);
-    const rad = maxR * (0.25 + 0.75 * h2);
-    const px = cx + Math.cos(ang) * rad;
-    const py = cy + Math.sin(ang) * rad;
-    const pr = maxR * (0.10 + 0.14 * h1);
-    const rot = h1 * 3 + t * 0.02 * (h2 > 0.5 ? -1 : 1);
-    ctx.save();
-    ctx.translate(px, py); ctx.rotate(rot);
-    ctx.fillStyle = 'rgba(22, 9, 4, 0.85)';
-    ctx.beginPath(); ctx.ellipse(0, 0, pr, pr * (0.55 + 0.3 * h2), 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `rgba(255, 120, 40, ${0.25 + 0.12 * Math.sin(t * 1.3 + i)})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-  }
-  // heat shimmer: two soft bright bands sweeping very slowly across
-  for (let k = 0; k < 2; k++) {
-    const sx3 = ((t * (6 + k * 4)) % (w * 1.6)) - w * 0.3;
-    const sg = ctx.createLinearGradient(sx3 - 40, 0, sx3 + 40, 0);
-    sg.addColorStop(0, 'rgba(255, 160, 60, 0)');
-    sg.addColorStop(0.5, 'rgba(255, 160, 60, 0.07)');
-    sg.addColorStop(1, 'rgba(255, 160, 60, 0)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(sx3 - 40, 0, 80, h);
+  // 3. the cooled plates: a jittered grid of dark irregular slabs. The 2-5 px
+  // gaps left between them read as the cellular crack network. Each plate
+  // drifts on its own tiny orbit, so the whole crust creeps.
+  const cell = Math.max(30, Math.round(w / 13));
+  for (let gy = -1; gy * cell < h + cell; gy++) {
+    for (let gx = -1; gx * cell < w + cell; gx++) {
+      const h1 = Math.sin(gx * 91.7 + gy * 47.3) * 0.5 + 0.5;
+      const h2 = Math.sin(gx * 13.1 + gy * 173.9) * 0.5 + 0.5;
+      const px = gx * cell + cell * (0.4 + 0.2 * h1) + Math.cos(t * 0.05 + h2 * 7) * 2;
+      const py = gy * cell + cell * (0.4 + 0.2 * h2) + Math.sin(t * 0.04 + h1 * 7) * 2;
+      const pr = cell * (0.74 + 0.15 * h1);   // plates overlap: only THIN veins survive
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a2 = h2 * 6 + (k / 6) * Math.PI * 2;
+        const rr = pr * (0.75 + 0.25 * (Math.sin(gx * 3 + gy * 5 + k * 2.7) * 0.5 + 0.5));
+        const vx2 = px + Math.cos(a2) * rr, vy2 = py + Math.sin(a2) * rr * 0.85;
+        if (k === 0) ctx.moveTo(vx2, vy2); else ctx.lineTo(vx2, vy2);
+      }
+      ctx.closePath();
+      // near-black crusted rock, barely varied, almost opaque: the veins are
+      // the only light (the reference's look)
+      const d2 = Math.hypot(px - cx, py - cy) / maxR;
+      ctx.fillStyle = `rgba(${24 + Math.round(8 * h1)}, ${10 + Math.round(4 * h2)}, 5, 0.96)`;
+      ctx.fill();
+      // the plate's rim catches the vein light, pulsing with a slow wave
+      const pulse = 0.5 + 0.5 * Math.sin(t * 1.1 + d2 * 6 + h1 * 4);
+      ctx.strokeStyle = `rgba(255, 150, 50, ${0.10 + 0.16 * pulse})`;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
 }
