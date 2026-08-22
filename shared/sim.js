@@ -993,7 +993,22 @@ function stepClones(state, dt) {
       pr.x += pr.vx * dt; pr.y += pr.vy * dt;
       pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
       if (pr.type === 'fireball' && pr.traveled >= (pr.range ?? spec.range)) continue;
-      if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
+      // a phantom Switcheroo apes the v21.6 boomerang turn (motion only)
+      if (pr.type === 'swap') {
+        const range = lvl(spec, 'range', pr.level);
+        const owner = state.players[pr.owner];
+        if (!pr.returning && pr.traveled >= range) {
+          if (!owner || !owner.alive) continue;
+          pr.returning = true;
+        }
+        if (pr.returning) {
+          if (!owner || !owner.alive || pr.traveled >= range * 3) continue;
+          const hd = Math.hypot(owner.x - pr.x, owner.y - pr.y);
+          if (hd < owner.radius + (pr.radius != null ? pr.radius : spec.radius)) continue;
+          pr.vx = ((owner.x - pr.x) / hd) * spec.speed;
+          pr.vy = ((owner.y - pr.y) / hd) * spec.speed;
+        }
+      }
       if (Math.hypot(pr.x, pr.y) > state.startRadius * 2) continue;
       keep.push(pr);
     }
@@ -3166,7 +3181,26 @@ function stepProjectiles(state, dt) {
 
     // range expiry / world cull (fireballs have infinite range)
     if (pr.type === 'fireball' && pr.traveled >= (pr.range ?? spec.range)) continue;
-    if (pr.type === 'swap' && pr.traveled >= lvl(spec, 'range', pr.level)) continue;
+    // Switcheroo boomerangs (Ju, v21.6): a bolt that caught nothing at max
+    // range turns HOME toward the caster's live position, still armed (the
+    // exchange and the stone grapple both run on the return leg untouched).
+    // It expires in the caster's hand, or at 3x range if they outrun it.
+    if (pr.type === 'swap') {
+      const range = lvl(spec, 'range', pr.level);
+      const owner = state.players[pr.owner];
+      if (!pr.returning && pr.traveled >= range) {
+        if (!owner || !owner.alive) continue;
+        pr.returning = true;
+        state.events.push({ t: 'recall', id: pr.owner, x: pr.x, y: pr.y });
+      }
+      if (pr.returning) {
+        if (!owner || !owner.alive || pr.traveled >= range * 3) continue;
+        const hd = Math.hypot(owner.x - pr.x, owner.y - pr.y);
+        if (hd < owner.radius + prRadius) continue;   // back in hand, spent
+        pr.vx = ((owner.x - pr.x) / hd) * spec.speed;
+        pr.vy = ((owner.y - pr.y) / hd) * spec.speed;
+      }
+    }
     if (Math.hypot(pr.x, pr.y) > state.startRadius * 2) continue;
     if (pr.type === 'boomerang' && !pr.returning && pr.traveled >= spec.outDistance)
       turnBoomerangHome(state, pr); // hit the ceiling without being recalled

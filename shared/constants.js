@@ -517,7 +517,8 @@ export const SPELLS = {
     // at 10 / 40 / 70 / 120 units swapped.
     // Revert path (round 19.2): drop `stun`, restore `stunT: 1`.
     damage: 1, stun: { pad: 0.55, min: 1, max: 3 },
-    desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned. The longer the swap, the longer the stun.',
+    // v21.6 (Ju): a bolt that catches nothing boomerangs home, still armed.
+    desc: 'Hit an enemy to trade places, position and momentum. They wake up stunned. The longer the swap, the longer the stun. A miss flies back to your hand and can still catch on the way home.',
   },
   repulse: {
     name: 'Repulse', hotkey: 'X', tier: 'power', maxLevel: 2, costs: [12, 6],

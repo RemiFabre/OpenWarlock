@@ -3645,6 +3645,72 @@ describe('power spells & pillar', () => {
     expect(castSpell(state, 'p1', 'fireball', 0, 0)).toBe(false); // stunned = silent
   });
 
+  // ---- v21.6 (Ju): the missed bolt boomerangs home, still armed ----
+
+  it('switcheroo: a clean miss turns home and is spent in the hand', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    state.players.p1.x = 0; state.players.p1.y = -60;   // far off the lane
+    castSpell(state, 'p0', 'swap', 40, 0);
+    let turned = false;
+    for (let i = 0; i < 300 && state.projectiles.length; i++) {
+      step(state, DT);
+      if (state.projectiles.some(p => p.type === 'swap' && p.returning)) turned = true;
+    }
+    expect(turned).toBe(true);                      // it came back...
+    expect(state.projectiles.length).toBe(0);       // ...and died in the hand
+    expect(Math.hypot(a.x, a.y)).toBeLessThan(1);   // no trade happened
+    expect(a.cooldowns.swap).toBeGreaterThan(0);    // the cast was still spent
+  });
+
+  it('switcheroo: the return leg still trades (and stuns) a player it crosses', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0, b = state.players.p1;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    b.x = 0; b.y = -60; b.vx = 0; b.vy = 0; b.moveTarget = null;
+    castSpell(state, 'p0', 'swap', 40, 0);
+    // let the out leg pass the midpoint, then park the victim on the lane
+    for (let i = 0; i < 300; i++) {
+      step(state, DT);
+      const pr = state.projectiles.find(p => p.type === 'swap');
+      if (!pr) break;
+      if (pr.returning) { b.x = 20; b.y = 0; break; }
+    }
+    const e = stepToSwap(state, 120);
+    expect(e).toBeTruthy();                         // the trade landed coming home
+    expect(a.x).toBeGreaterThan(10);                // caster stands where b stood
+    expect(b.stunT).toBeGreaterThan(0);             // same stun as an out-leg hit
+  });
+
+  it('switcheroo: the return leg still grapples stone', () => {
+    const state = freshBattle(2);
+    const a = state.players.p0;
+    a.spells.swap = 1;
+    state.pillars = [];
+    a.x = 0; a.y = 0; a.vx = 0; a.vy = 0; a.moveTarget = null;
+    state.players.p1.x = 0; state.players.p1.y = -60;
+    castSpell(state, 'p0', 'swap', 40, 0);
+    for (let i = 0; i < 300; i++) {
+      step(state, DT);
+      const pr = state.projectiles.find(p => p.type === 'swap');
+      if (!pr) break;
+      if (pr.returning) { state.pillars.push({ x: 20, y: 0, r: 1.2 }); break; }
+    }
+    let grappled = null;
+    for (let i = 0; i < 120 && !grappled; i++) {
+      state.events = [];
+      step(state, DT);
+      grappled = state.events.find(ev => ev.t === 'grapple');
+    }
+    expect(grappled).toBeTruthy();
+    expect(Math.hypot(a.x - 20, a.y)).toBeLessThan(4);  // pulled to the stone
+  });
+
   // Round 20.5 (Remi's ruling): the stun must ALWAYS cover the caster's
   // follow-up fireball. Every number below is recomputed from the spec;
   // `pad` + flight time of a BASE fireball over the distance actually swapped,
@@ -3816,16 +3882,17 @@ describe('power spells & pillar', () => {
       a.spells.swap = level; a.cooldowns = {};
       expect(castSpell(state, 'p0', 'swap', 20, 0)).toBe(true);
       expect(a.cooldowns.swap).toBeCloseTo(spec.cooldown[level - 1], 5);
-      let traveled = 0, flying = true;
-      for (let i = 0; i < 200 && flying; i++) {
+      // v21.6 (Ju): the bolt no longer dies at range, it TURNS there. The
+      // spec range is still what ends the out leg, one tick either side.
+      let turnedAt = 0;
+      for (let i = 0; i < 200 && !turnedAt; i++) {
         step(state, DT);
         const pr = state.projectiles.find(p => p.type === 'swap');
-        if (pr) traveled = pr.traveled; else flying = false;
+        if (pr && pr.returning) turnedAt = pr.traveled;
       }
       const range = spec.range[level - 1];
-      expect(flying).toBe(false);                  // expired on range, not the loop cap
-      expect(traveled).toBeLessThan(range);        // culled the tick it crossed
-      expect(traveled).toBeGreaterThan(range - spec.speed * DT * 2);
+      expect(turnedAt).toBeGreaterThanOrEqual(range);
+      expect(turnedAt).toBeLessThan(range + spec.speed * DT * 2);
     }
   });
 
