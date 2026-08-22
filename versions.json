@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 62,
+  "serial": 63,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v21.3: the background is Ju's own generated lava image now (UI cleaned out), brought to life with heat waves, rising embers, a breathing halo and a slow drift. With the gilded warlocks, the dead trees, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v21.5: his lava image stays one homogeneous sea even as the ring shrinks (the old patchwork is rebuilt from his own texture), the spell bar is a big left-edge column with readable hotkeys, and Vomit Puddle roots for 1/1.5/2 s. With the gilded warlocks, the dead trees, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "1d13507a22f0a97f3a3266c7760acdbadd41cd58"
+      "commit": "6e1d328845d75dc3039916a761cc08971cc5a8bf"
     },
     {
       "slug": "trash-talk",
