@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 64,
+  "serial": 65,
   "default": {
     "slug": "default",
     "name": "Default",
@@ -22,11 +22,11 @@
       "slug": "ju-ricochet",
       "name": "Ju’s Ricochet & Guardian Angel",
       "author": "@Biousere",
-      "summary": "Ju's arsenal, v21.6: a missed Switcheroo now boomerangs back to your hand and can still trade a player or grapple decor on the return leg. Plus v21.5's homogeneous lava sea under the shrinking ring, the big left-edge spell column, and Vomit Puddle rooting 1/1.5/2 s. With the gilded warlocks, the dead trees, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
+      "summary": "Ju's arsenal, v21.6.1 (online games stop lagging late: the wire fix from the base game is ported in): a missed Switcheroo now boomerangs back to your hand and can still trade a player or grapple decor on the return leg. Plus v21.5's homogeneous lava sea under the shrinking ring, the big left-edge spell column, and Vomit Puddle rooting 1/1.5/2 s. With the gilded warlocks, the dead trees, the tilted camera and the 29-pick pool. On the current base game and Sam's interface (credit @SamKhosravi).",
       "issue": 13,
       "issueUrl": "https://github.com/RemiFabre/OpenWarlock/issues/13",
       "branch": "issue-3-ricochet-angel",
-      "commit": "20f8b383661282a64a398c621baff007af7d9aee"
+      "commit": "844c74b64aedf57eefcc9e2a0180a376a22930c6"
     },
     {
       "slug": "trash-talk",
