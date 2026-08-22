@@ -47,13 +47,18 @@ export function patch(a, d) {
 // fullEvery is the belt-and-braces cadence on top (~2 s at 15 Hz).
 export function createSnapEncoder({ fullEvery = 30, echo = false } = {}) {
   let q = 0, last = null, sinceFull = 0;
+  const api = {
+    // the caller may retune the cadence live (snapwire stretches it as the
+    // keyframe payload grows; see ECHO_BUDGET_PER_FRAME there)
+    setFullEvery(n) { if (Number.isFinite(n) && n >= 1) fullEvery = Math.round(n); },
+  };
   // ⚠ The base is a DEEP COPY (round 22.2 scar): snapshot() embeds the sim's
   // live objects (items, spells, elements...), and holding them by reference
   // let a buy rewrite the encoder's memory of what it had already sent, so
   // diff() saw "no change" and the purchase never rode the wire. Cadence
   // keyframes masked it for a year of rounds; echo mode (21.11) exposed it.
   const keep = (p) => { last = structuredClone(p); };
-  return {
+  return Object.assign(api, {
     encode(payload, { full = false } = {}) {
       q++;
       const forced = full || last === null;
@@ -80,7 +85,7 @@ export function createSnapEncoder({ fullEvery = 30, echo = false } = {}) {
       keep(payload); sinceFull++;
       return msg;
     },
-  };
+  });
 }
 
 // decode(msg) -> { payload, needFull }. payload is null when the message was
