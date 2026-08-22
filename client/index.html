@@ -254,9 +254,9 @@
   #scorepanel table.stats { width: auto; font-size: 11.5px; }
   #scorepanel table.stats th, #scorepanel table.stats td { padding-top: 4px; padding-bottom: 4px; }
   /* v9.1 (Sam): the spell bar wears the shop artwork */
-  .spell .sart { display: inline-grid; place-items: center; width: 30px; height: 30px; }
+  .spell .sart { display: inline-grid; place-items: center; width: 45px; height: 45px; }
   .spell .sart > img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .spell .sart.noart { font-size: 22px; }
+  .spell .sart.noart { font-size: 33px; }
   /* the KIT stays on ONE line: a wrapped kit used to stretch a player row to
      hundreds of pixels on the end-of-game screen */
   table.stats .kitem { display: inline-flex; align-items: center; margin-right: 3px; position: relative; vertical-align: middle; }
@@ -711,33 +711,40 @@
 
   /* ---- HUD ---- */
   #hud { position: fixed; inset: 0; pointer-events: none; }
+  /* v21.5 (Ju): the bar is a COLUMN on the left edge (his marked box), slots
+     +50%, hotkey letters readable at a glance. Wraps into a second column
+     rather than growing past the viewport. */
   #spellbar {
-    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
-    display: flex; gap: 6px; pointer-events: auto;
+    position: fixed; left: 14px; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; flex-wrap: wrap;
+    align-content: flex-start; gap: 8px; pointer-events: auto;
+    max-height: calc(100vh - 170px);
   }
   /* issue #14 (Sam): in combat only OWNED spells earn attention. Unowned
      slots are gone from the bar (they are shop business); owned slots are
      bigger, READY is bright with a clear border, COOLDOWN is a dark overlay
      with readable seconds. */
   .spell {
-    width: 58px; height: 58px; position: relative;
+    width: 87px; height: 87px; position: relative;
     background: var(--slab); border: 1px solid #3a2c22;
     display: flex; align-items: center; justify-content: center;
-    font-size: 26px; user-select: none;
+    font-size: 39px; user-select: none;
   }
   .spell.owned { border-color: #8a6440; background: #1d1712; }
   .spell.owned:not(.cooling) { box-shadow: inset 0 0 0 1px rgba(232, 198, 90, .18); }
   .spell.cooling { border-color: #3a2c22; }
   .spell .key {
-    position: absolute; top: 1px; left: 4px; z-index: 1;
-    font-size: 12px; color: var(--parchment);
+    position: absolute; top: 2px; left: 4px; z-index: 1;
+    font-size: 21px; font-weight: 700; color: #ffe9b0;
+    text-shadow: 0 0 4px #000, 0 1px 2px #000;
     font-family: ui-monospace, Menlo, monospace;
+    text-transform: uppercase;
   }
-  .spell .lv { position: absolute; bottom: 1px; right: 4px; font-size: 11px; color: var(--gold); }
+  .spell .lv { position: absolute; bottom: 2px; right: 5px; font-size: 14px; color: var(--gold); }
   .spell .cd {
     position: absolute; inset: 0; background: rgba(8,5,3,.82);
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 18px; font-weight: 700;
+    color: #fff; font-size: 27px; font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
   .spell:not(.owned) { display: none; }
@@ -910,7 +917,7 @@
   .ware.sel { border-color: var(--gold); }
 
   /* chosen element badge on the fireball spell slot */
-  .spell .elem { position: absolute; top: 1px; right: 3px; font-size: 11px; }
+  .spell .elem { position: absolute; top: 2px; right: 4px; font-size: 15px; }
 
   /* ---- The Gathering skin (issue #14, Sam's v4 pack) --------------------
      Decoration only, all of it scoped to .slab.gathering: the art sits behind

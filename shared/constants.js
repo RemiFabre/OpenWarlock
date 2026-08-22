@@ -335,10 +335,11 @@ export const SPELLS = {
     // `rootTime` and makes you vomit again. tier 'power' = bot guard.
     name: 'Vomit Puddle', hotkey: 'Y', tier: 'power', maxLevel: 3, costs: [8, 5, 5],
     cooldown: [20, 20, 20], speed: 34, radius: 0.7, range: Infinity,
-    puddleLife: [7, 10, 12], slowPct: [25, 30, 40], rootTime: [2, 3, 4],
+    // rootTime [2,3,4] -> [1,1.5,2]: Ju's 2026-08-22 nerf call (issue #13)
+    puddleLife: [7, 10, 12], slowPct: [25, 30, 40], rootTime: [1, 1.5, 2],
     puddleMult: 4, spreadMult: 5,
     desc: 'Humiliate them, durably.',
-    long: 'Lob a glob of vomit at any spot. The puddle (4x the size of whoever it lands on) stays 7/10/12 s and slows enemies inside by 25/30/40%. The enemy it hits vomits in turn nearby — and anyone who steps back into THEIR OWN vomit is rooted 2/3/4 s and vomits again.',
+    long: 'Lob a glob of vomit at any spot. The puddle (4x the size of whoever it lands on) stays 7/10/12 s and slows enemies inside by 25/30/40%. The enemy it hits vomits in turn nearby — and anyone who steps back into THEIR OWN vomit is rooted 1/1.5/2 s and vomits again.',
   },
   teleport: {
     // round 18.1 (Remi): cheaper, FLAT range; lv2 buys cooldown only.
